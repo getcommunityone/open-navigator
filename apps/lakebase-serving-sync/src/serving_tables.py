@@ -26,6 +26,7 @@ TABLES = {
     "event_topic": ["event_topic_id", "extracted_at"],
     "event_meeting": ["event_meeting_id"],
     "event_meeting_document": ["event_meeting_document_id"],
+    "event_analysis_provenance": ["analysis_id"],  # #798
     "meeting_document": ["jurisdiction_jid", "meeting_date", "doc_kind"],
     # people & officials
     "contact_official": ["id"],

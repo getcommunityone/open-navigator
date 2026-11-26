@@ -38,6 +38,8 @@
 #   CATALOG_YTDLP=1    — unset YOUTUBE_API_KEY for catalog (avoid googleapis.com hangs; use yt-dlp)
 #   CHANNEL_SOURCE=    — override per-jurisdiction catalog source (auto|counties-scraped|municipalities-scraped)
 #   ROUND_ROBIN=0      — process state-by-state (default: interleave states for diversity)
+#   COHORT=            — priority|data_centers|all (default unset = all jurisdictions in STATES)
+#   VPN_WAIT_POLL_SECONDS=30  — on child exit 5, poll vpn_guard this often until up, then retry (#644)
 #   DATABASE_URL=...   — override .env
 
 set -euo pipefail
@@ -79,23 +81,45 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 1
 fi
 
-# YouTube is only reached through the VPN (#488). Every YouTube step exits 5 when the
-# tunnel is down; this crawl stops with exit 5 too instead of moving on.
-stop_on_vpn_exit() {
-  local ec="$1" what="$2"
-  if [[ "$ec" -eq 5 ]]; then
-    echo "STOP: the VPN is off ($what exited 5). Connect Surfshark, then re-run." >&2
-    exit 5
-  fi
-  echo "WARN: $what failed (exit $ec)" >&2
+# YouTube is only reached through the VPN (#488). Children exit 5 when the tunnel
+# (or the vpn_guard check) fails. This crawl waits and retries the same step (#644)
+# instead of ending the whole overnight job.
+VPN_WAIT_POLL_SECONDS="${VPN_WAIT_POLL_SECONDS:-30}"
+
+wait_until_vpn_up() {
+  local what="${1:-YouTube step}"
+  echo "VPN down during $what; waiting until vpn_guard passes (poll ${VPN_WAIT_POLL_SECONDS}s)..." >&2
+  while true; do
+    if "$PYTHON" -m scrapers.youtube.vpn_guard; then
+      echo "VPN up again; retrying $what" >&2
+      return 0
+    fi
+    sleep "$VPN_WAIT_POLL_SECONDS"
+  done
+}
+
+# Run "$@"; on exit 5 wait for VPN and retry forever; other non-zero returns that code.
+run_with_vpn_retry() {
+  local what="$1"
+  shift
+  while true; do
+    local ec=0
+    "$@" || ec=$?
+    if [[ "$ec" -eq 0 ]]; then
+      return 0
+    fi
+    if [[ "$ec" -eq 5 ]]; then
+      wait_until_vpn_up "$what"
+      continue
+    fi
+    echo "WARN: $what failed (exit $ec)" >&2
+    return "$ec"
+  done
 }
 
 if [[ -z "${DRY_RUN:-}" ]]; then
-  vpn_ec=0
-  "$PYTHON" -m scrapers.youtube.vpn_guard || vpn_ec=$?
-  if [[ "$vpn_ec" -ne 0 ]]; then
-    echo "STOP: the VPN check failed (exit $vpn_ec); no YouTube request was made." >&2
-    exit 5
+  if ! "$PYTHON" -m scrapers.youtube.vpn_guard; then
+    wait_until_vpn_up "startup vpn_guard"
   fi
 fi
 
@@ -200,11 +224,13 @@ from api.batch_jobs.batch_job_status import fetch_batch_plan_jurisdictions
 include_homepage = os.environ.get("HOMEPAGE_CHANNELS", "1").strip().lower() not in (
     "0", "false", "no", "off",
 )
+cohort = (os.environ.get("COHORT") or "").strip() or None
 runs = fetch_batch_plan_jurisdictions(
     states,
     round_robin=round_robin,
     database_url=url,
     include_homepage_channels=include_homepage,
+    cohort=cohort,
 )
 if not runs:
     sys.exit(f"No jurisdictions with YouTube bronze for states: {', '.join(states)}")
@@ -266,11 +292,13 @@ run_catalog() {
     )
     [[ -n "${CATALOG_FORCE:-}" ]] && cat_argv+=(--force)
     if [[ -n "${CATALOG_YTDLP:-}" ]]; then
-      env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-        "${cat_argv[@]}" "${extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
+      run_with_vpn_retry "catalog for $jid" \
+        env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
+        "${cat_argv[@]}" "${extra[@]}" || true
     else
-      "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-        "${cat_argv[@]}" "${extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
+      run_with_vpn_retry "catalog for $jid" \
+        "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
+        "${cat_argv[@]}" "${extra[@]}" || true
     fi
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN=1; list_jurisdictions)
 }
@@ -341,11 +369,11 @@ run_captions() {
       cap_args+=(--dry-run)
     fi
     local cap_ec=0
-    "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
+    run_with_vpn_retry "captions for $jid" \
+      "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
       || cap_ec=$?
     if [[ "$cap_ec" -ne 0 ]]; then
       ((failed+=1))
-      stop_on_vpn_exit "$cap_ec" "captions for $jid"
     else
       ((success+=1))
     fi
@@ -379,14 +407,53 @@ run_captions() {
   echo "=== Captions complete: processed=$processed success=$success failed=$failed target=$target_total ==="
 }
 
+# Jev meeting-kind gate for analyze (#704). data_centers cohort defaults to 0.6;
+# override with SKIP_JEV_MEETING_BELOW= (empty to disable) or an explicit float.
+append_jev_analyze_flags() {
+  local -n _arr=$1
+  local t="${SKIP_JEV_MEETING_BELOW-}"
+  if [[ -z "${t}" && "${COHORT:-}" == "data_centers" ]]; then
+    t="0.6"
+  fi
+  if [[ -n "${t}" ]]; then
+    _arr+=(--skip-jev-meeting-below "$t")
+  fi
+  if [[ -n "${SKIP_JEV_BELOW:-}" ]]; then
+    _arr+=(--skip-jev-below "$SKIP_JEV_BELOW")
+  fi
+}
+
+# ANALYZE_TIER=light|full (default light). FULL_FILTERS=comma keys for full.
+# PART2_ONLY=1 → --part-2-only (reports-light / reports-full).
 analyze_one() {
   local st="$1" jid="$2" name="$3"
-  echo "=== Analyze ($N newest): $st — $name ($jid) ==="
+  local tier="${ANALYZE_TIER:-light}"
+  local label="Analyze"
+  [[ -n "${PART2_ONLY:-}" ]] && label="Reports"
+  echo "=== ${label} ${tier} ($N newest): $st — $name ($jid) ==="
   local -a ana_args=(
-    --newest "$N"
     --jurisdiction-id "$jid"
     --state "$st"
+    --analysis-tier "$tier"
   )
+  if [[ -n "${PART2_ONLY:-}" ]]; then
+    ana_args+=(--part-2-only --limit "$N")
+  else
+    ana_args+=(--newest "$N")
+  fi
+  if [[ -n "${FULL_FILTERS:-}" ]]; then
+    ana_args+=(--full-filters "$FULL_FILTERS")
+  fi
+  # Light tier skips Gemini: Claude Haiku writes Part 1 / Part 2 (#871; DeepSeek before that, #774).
+  # Full keeps the Gemini default. LIGHT_MODEL=deepseek-flash restores DeepSeek; LIGHT_MODEL= (empty)
+  # or a gemini-* id restores Gemini for light.
+  if [[ "$tier" == "light" ]]; then
+    local light_model="${LIGHT_MODEL-claude-haiku-5-5}"
+    if [[ -n "$light_model" ]]; then
+      ana_args+=(--model "$light_model" --part-2-model "$light_model")
+    fi
+  fi
+  append_jev_analyze_flags ana_args
   if [[ -n "${DRY_RUN:-}" ]]; then
     ana_args+=(--dry-run)
   fi
@@ -394,9 +461,9 @@ analyze_one() {
   "$PYTHON" -m llm.gemini.meeting_transcript_policy "${ana_args[@]}" || ec=$?
   if (( ec != 0 )); then
     if (( ec == 1 )); then
-      echo "WARN: analyze skipped for $jid (usually no captions yet — run: $0 captions)" >&2
+      echo "WARN: ${label} skipped for $jid (usually no captions/analysis yet)" >&2
     else
-      echo "WARN: analyze failed for $jid (exit $ec)" >&2
+      echo "WARN: ${label} failed for $jid (exit $ec)" >&2
     fi
   fi
 }
@@ -418,6 +485,22 @@ run_analyze() {
   if (( PARALLEL > 1 )); then
     wait
   fi
+}
+
+run_analyze_light() {
+  ANALYZE_TIER=light PART2_ONLY= run_analyze
+}
+
+run_reports_light() {
+  ANALYZE_TIER=light PART2_ONLY=1 run_analyze
+}
+
+run_analyze_full() {
+  ANALYZE_TIER=full PART2_ONLY= run_analyze
+}
+
+run_reports_full() {
+  ANALYZE_TIER=full PART2_ONLY=1 run_analyze
 }
 
 # One jurisdiction at a time (round-robin list order): catalog (optional) → captions → analyze.
@@ -449,11 +532,13 @@ run_each_jurisdiction() {
         )
         [[ -n "${CATALOG_FORCE:-}" ]] && cat_argv+=(--force)
         if [[ -n "${CATALOG_YTDLP:-}" ]]; then
-          env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-            "${cat_argv[@]}" "${cat_extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
+          run_with_vpn_retry "catalog for $jid" \
+            env -u YOUTUBE_API_KEY "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
+            "${cat_argv[@]}" "${cat_extra[@]}" || true
         else
-          "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-            "${cat_argv[@]}" "${cat_extra[@]}" || stop_on_vpn_exit $? "catalog for $jid"
+          run_with_vpn_retry "catalog for $jid" \
+            "$PYTHON" packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
+            "${cat_argv[@]}" "${cat_extra[@]}" || true
         fi
       fi
     fi
@@ -492,29 +577,14 @@ run_each_jurisdiction() {
     if [[ -n "${DRY_RUN:-}" ]]; then
       cap_args+=(--dry-run)
     else
-      cap_ec=0
-      "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
-        || cap_ec=$?
-      if [[ "$cap_ec" -ne 0 ]]; then
-        stop_on_vpn_exit "$cap_ec" "captions for $jid"
-      fi
+      run_with_vpn_retry "captions for $jid" \
+        "$PYTHON" packages/scrapers/src/scrapers/youtube/backfill_jurisdiction_transcripts.py "${cap_args[@]}" \
+        || true
     fi
-    echo "--- Analyze: $st — $name ($jid) ---"
-    local -a ana_args=(
-      --newest "$N"
-      --jurisdiction-id "$jid"
-      --state "$st"
-    )
-    if [[ -n "${DRY_RUN:-}" ]]; then
-      ana_args+=(--dry-run)
-    elif ! "$PYTHON" -m llm.gemini.meeting_transcript_policy "${ana_args[@]}"; then
-      ec=$?
-      if [[ $ec -eq 1 ]]; then
-        echo "WARN: analyze skipped for $jid (usually no captions yet)" >&2
-      else
-        echo "WARN: analyze failed for $jid (exit $ec)" >&2
-      fi
-    fi
+    echo "--- Analyze light: $st — $name ($jid) ---"
+    ANALYZE_TIER=light PART2_ONLY= analyze_one "$st" "$jid" "$name"
+    echo "--- Reports light: $st — $name ($jid) ---"
+    ANALYZE_TIER=light PART2_ONLY=1 analyze_one "$st" "$jid" "$name"
     ((processed+=1))
   done < <(export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"; list_jurisdictions)
 }
@@ -522,20 +592,27 @@ run_each_jurisdiction() {
 case "$STEP" in
   catalog) run_catalog ;;
   captions) run_captions ;;
-  analyze) run_analyze ;;
+  analyze|analyze-light) run_analyze_light ;;
+  reports-light) run_reports_light ;;
+  analyze-full) run_analyze_full ;;
+  reports-full) run_reports_full ;;
   each) run_each_jurisdiction ;;
   all)
+    # Stages 2–5 of Run all (#755): catalog → captions → analyze-light → reports-light.
+    # Discover is chained by the API before this shell step.
     [[ -z "${SKIP_CATALOG:-}" ]] && run_catalog
     run_captions
-    run_analyze
+    run_analyze_light
+    run_reports_light
     ;;
   list)
     export STATES DATABASE_URL="${DATABASE_URL:-}" ROUND_ROBIN="${ROUND_ROBIN:-1}"
     list_jurisdictions
     ;;
   *)
-    echo "Usage: $0 [catalog|captions|analyze|each|all|list]" >&2
-    echo "  each — round-robin: per jurisdiction, captions then analyze, then next" >&2
+    echo "Usage: $0 [catalog|captions|analyze|analyze-light|reports-light|analyze-full|reports-full|each|all|list]" >&2
+    echo "  each — round-robin: per jurisdiction, captions then light analyze/report" >&2
+    echo "  all  — catalog → captions → analyze-light → reports-light (#755)" >&2
     exit 1
     ;;
 esac

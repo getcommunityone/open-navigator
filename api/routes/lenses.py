@@ -28,6 +28,7 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from api.meeting_type import meeting_type_label
 from api.routes.search_postgres import get_db_pool, normalize_state_input
 
 router = APIRouter(prefix="/api/lenses", tags=["lenses"])
@@ -62,6 +63,8 @@ class LensCard(BaseModel):
     # matched terms wrapped in <mark>…</mark> (ts_headline). None in plain browse
     # (nothing matched to highlight). The frontend renders it React-escaped.
     description: Optional[str] = None
+    # Meeting type label ("City Council"), normalized from the stored value; None when blank/UNKNOWN (#797).
+    meeting_type: Optional[str] = None
 
 
 class Lens(BaseModel):
@@ -317,6 +320,8 @@ def _build_card(row: Any, label: str, stats: List[LensStat]) -> LensCard:
         # query selected a `snippet` column under an active content filter; .get()
         # so the homepage lenses / flag cards (which never select it) stay None.
         description=row.get("snippet"),
+        # Selected only by the decision list (meeting_type_subquery); None elsewhere.
+        meeting_type=meeting_type_label(row.get("meeting_type")),
     )
 
 

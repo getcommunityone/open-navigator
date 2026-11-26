@@ -77,7 +77,25 @@ export type BatchJob = {
   jurisdictions: BatchJurisdictionRun[]
 }
 
-export type PipelineStage = 'discover' | 'videos' | 'transcripts' | 'analyses' | 'reports'
+export type PipelineStage =
+  | 'discover'
+  | 'videos'
+  | 'transcripts'
+  | 'analyses_light'
+  | 'reports_light'
+  | 'analyses_full'
+  | 'reports_full'
+  // Legacy aliases (pre-#755) — still accepted if an older API payload arrives.
+  | 'analyses'
+  | 'reports'
+
+export const FULL_FILTER_OPTIONS = [
+  { key: 'has_decisions', label: 'Has decisions', defaultChecked: true },
+  { key: 'interestingness', label: 'High interestingness', defaultChecked: true },
+  { key: 'data_center', label: 'Data-center mention', defaultChecked: false },
+] as const
+
+export type FullFilterKey = (typeof FULL_FILTER_OPTIONS)[number]['key']
 
 /** Per-entity split of a stage (discover: counties vs municipalities). Sums to the row. */
 export type StageBreakdownEntry = {
@@ -119,6 +137,8 @@ export type LaunchLog = {
   /** Best-effort "current item" line parsed from the log tail. */
   current: string
   current_since: string
+  /** Operator blocker from the log tail (billing / VPN) (#699). */
+  blocker?: string | null
 }
 
 export async function fetchLaunchLog(step: string): Promise<LaunchLog> {
@@ -152,6 +172,18 @@ export type LaunchStatus = {
   /** Live but stalled (>1h no activity) — re-launchable. */
   stalled_steps: string[]
   steps: string[]
+  /** Operator warning when a live launch is inactive, VPN down, or billing exhausted. */
+  warning?: string
+  /** True when the newest launch log mentions Surfshark / VPN required. */
+  vpn_down?: boolean
+  /** True when launch log shows Gemini 402 prepaid credits depleted (#699). */
+  billing_exhausted?: boolean
+  /** Seconds since the most inactive live launch last progressed (log/DB). */
+  inactive_seconds?: number | null
+  /** Steps the watchdog re-spawned on this poll (#752). */
+  resumed_steps?: string[]
+  /** Human note for auto-resume / waiting-for-VPN (#752). */
+  auto_resume_note?: string
 }
 
 export type LaunchResult = {
@@ -176,6 +208,8 @@ export async function launchPipeline(body: {
   states?: string[]
   n?: number
   parallel?: number
+  cohort?: BatchCohort
+  full_filters?: string[]
 }): Promise<LaunchResult> {
   const r = await tracedFetch('/api/batch-jobs/launch', {
     method: 'POST',
@@ -227,6 +261,23 @@ export async function stopPipeline(body: {
   return (await r.json()) as StopResult
 }
 
+export type BatchCohort = 'priority' | 'data_centers' | 'all'
+
+export type CohortsResponse = {
+  priority: string[]
+  data_centers: string[]
+  all: string[]
+}
+
+export async function fetchCohorts(): Promise<CohortsResponse> {
+  const r = await tracedFetch('/api/batch-jobs/cohorts', {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()) as CohortsResponse
+}
+
 export type BatchJobsDetailLevel = 'summary' | 'standard' | 'full'
 
 type ApiErrorBody = { detail?: string | { msg?: string }[] }
@@ -254,19 +305,30 @@ export function batchJobsFetchErrorMessage(error: unknown): string {
 export async function fetchBatchJobsDashboard(
   refreshFiles = false,
   detail: BatchJobsDetailLevel = 'summary',
+  cohort?: BatchCohort,
 ): Promise<BatchJobsDashboardPayload> {
-  const { data, error } = await apiTyped.GET('/api/batch-jobs/', {
-    params: {
-      query: {
-        refresh_files: refreshFiles,
-        enrich_bronze: false,
-        detail,
-        batch_limit: 25,
-      },
-    },
+  const query = new URLSearchParams({
+    refresh_files: String(refreshFiles),
+    enrich_bronze: 'false',
+    detail,
+    batch_limit: '25',
+  })
+  if (cohort) query.set('cohort', cohort)
+  const r = await tracedFetch(`/api/batch-jobs/?${query}`, {
+    headers: authHeaders(),
     signal: AbortSignal.timeout(30_000),
   })
-  if (error) throw error
+  if (!r.ok) {
+    let detailMsg = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { detail?: string }
+      if (j?.detail) detailMsg = j.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detailMsg)
+  }
+  const data = (await r.json()) as BatchJobsDashboardPayload
   if (data == null) {
     // openapi-fetch resolved with neither data nor error — e.g. an empty body
     // or a 30s-aborted request. Returning undefined here makes React Query emit
@@ -275,7 +337,141 @@ export async function fetchBatchJobsDashboard(
       'Batch jobs API returned an empty response (the API may be down, restarting, or slow — try restarting it and reloading).',
     )
   }
-  return data as BatchJobsDashboardPayload
+  return data
+}
+
+// ---- Why did videos fail? (#792) -------------------------------------------------
+
+export type FailureStage = 'videos' | 'transcripts'
+
+export type FailureReasonGroup = {
+  key: string
+  label: string
+  advice: string
+  /** True when trying again can work; false for no captions, private or removed videos. */
+  retryable: boolean
+  count: number
+  reasons: Array<{
+    reason: string
+    /** Short id for this reason (md5 of the normalized text); the videos request uses it. */
+    reason_id: string
+    count: number
+    example: string
+    /** A video that failed with this reason, for a link to watch it. */
+    example_video_id: string | null
+  }>
+}
+
+export type FailureReasonsPayload = {
+  stage: string
+  cohort: string
+  state: string
+  total: number
+  truncated: boolean
+  groups: FailureReasonGroup[]
+}
+
+export type FailureRowsPayload = {
+  stage: string
+  reason_id: string
+  total: number
+  rows: Array<{
+    video_id: string
+    title: string
+    jurisdiction_id: string
+    jurisdiction_name: string
+    state_code: string
+    error: string
+  }>
+}
+
+async function getJson<T>(path: string, query: URLSearchParams): Promise<T> {
+  const r = await tracedFetch(`${path}?${query}`, {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!r.ok) {
+    let detailMsg = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { detail?: string }
+      if (j?.detail) detailMsg = j.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detailMsg)
+  }
+  return (await r.json()) as T
+}
+
+export function fetchFailureReasons(
+  stage: FailureStage,
+  cohort: string,
+  state: string,
+): Promise<FailureReasonsPayload> {
+  const q = new URLSearchParams({ stage, cohort })
+  if (state) q.set('state', state)
+  return getJson<FailureReasonsPayload>('/api/batch-jobs/failure-reasons', q)
+}
+
+export function fetchFailureRows(
+  stage: FailureStage,
+  cohort: string,
+  state: string,
+  reasonId: string,
+  offset: number,
+  limit = 50,
+): Promise<FailureRowsPayload> {
+  const q = new URLSearchParams({
+    stage,
+    cohort,
+    reason_id: reasonId,
+    offset: String(offset),
+    limit: String(limit),
+  })
+  if (state) q.set('state', state)
+  return getJson<FailureRowsPayload>('/api/batch-jobs/failures', q)
+}
+
+export type RetryFailuresResult = {
+  stage: string
+  group: string
+  reason_id: string
+  dry_run: boolean
+  /** Failed videos in the chosen group or reason. */
+  matched: number
+  /** Videos that were waiting out the 30-day cooldown and are now due. */
+  made_due: number
+  /** Videos with no cooldown: the next Backfill already picks them up. */
+  already_due: number
+}
+
+/** Make the failed videos of a retryable group (or one reason) due for the next caption Backfill.
+ *  Deletes nothing. ``dry_run`` only counts. */
+export async function retryFailures(body: {
+  stage: FailureStage
+  cohort: string
+  state: string
+  group?: string
+  reason_id?: string
+  dry_run: boolean
+}): Promise<RetryFailuresResult> {
+  const r = await tracedFetch('/api/batch-jobs/failures/retry', {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ ...body, state: body.state || null }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!r.ok) {
+    let detailMsg = `HTTP ${r.status}`
+    try {
+      const j = (await r.json()) as { detail?: string }
+      if (j?.detail) detailMsg = j.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detailMsg)
+  }
+  return (await r.json()) as RetryFailuresResult
 }
 
 export type FailedVideosListPayload = {
@@ -355,10 +551,75 @@ export function mergeBatchIntoDashboard(
 }
 
 /** SSE URL for live dashboard updates (Postgres-backed). */
-export function batchJobsStreamUrl(): string {
+export function batchJobsStreamUrl(cohort?: BatchCohort): string {
   const base = import.meta.env.PROD
     ? '/api'
     : import.meta.env.VITE_API_URL || '/api'
   const prefix = base.endsWith('/') ? base.slice(0, -1) : base
-  return `${prefix}/batch-jobs/stream`
+  const q = cohort ? `?cohort=${encodeURIComponent(cohort)}` : ''
+  return `${prefix}/batch-jobs/stream${q}`
+}
+
+// #800: the grid of failed items for every stage.
+export type FailureGridStage =
+  | 'videos'
+  | 'transcripts'
+  | 'analyses_light'
+  | 'reports_light'
+  | 'analyses_full'
+  | 'reports_full'
+
+export type FailureGridRow = {
+  video_id: string
+  title: string
+  jurisdiction_id: string
+  jurisdiction_name: string
+  state_code: string
+  channel_id: string
+  channel_url: string
+  event_date: string
+  meeting_type: string
+  error: string
+  group: string
+  group_label: string
+  advice: string
+  retryable: boolean
+  last_updated: string
+  event_id: string
+}
+
+export type FailureGridPayload = {
+  stage: string
+  cohort: string
+  state: string
+  error_column: string
+  where_to_look: string
+  total: number
+  columns: { key: string; label: string; sortable: boolean }[]
+  rows: FailureGridRow[]
+}
+
+export function fetchFailureGrid(opts: {
+  stage: FailureGridStage
+  cohort: string
+  state: string
+  q: string
+  group: string
+  sort: string
+  dir: 'asc' | 'desc'
+  limit: number
+  offset: number
+}): Promise<FailureGridPayload> {
+  const q = new URLSearchParams({
+    stage: opts.stage,
+    cohort: opts.cohort,
+    sort: opts.sort,
+    dir: opts.dir,
+    limit: String(opts.limit),
+    offset: String(opts.offset),
+  })
+  if (opts.state) q.set('state', opts.state)
+  if (opts.q) q.set('q', opts.q)
+  if (opts.group) q.set('group', opts.group)
+  return getJson<FailureGridPayload>('/api/batch-jobs/failure-grid', q)
 }

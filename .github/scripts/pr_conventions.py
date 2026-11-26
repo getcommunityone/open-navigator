@@ -13,16 +13,23 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 PARTS = ("Problem", "Done when", "Contract", "Read first")
 PARTS_SINCE = "2026-11-14"
+# Written PR reviews required from this date (#648); older open PRs keep the prior bar.
+REVIEW_SINCE = "2026-11-22"
 TYPES = "feat|fix|docs|chore|refactor|test|perf|ci|build|revert"
 BRANCH = re.compile(rf"^(?:{TYPES})/(\d+)-[a-z0-9][a-z0-9-]{{0,39}}$")
-TOOL_BRANCHES = ("dependabot/", "renovate/")
+TOOL_BRANCHES = ("dependabot/", "renovate/", "kaggle-results/")
 LINK = re.compile(r"\b(?:closes|closed|close|fixes|fixed|fix|resolves|resolved|resolve|refs)\b\s*:?\s*#(\d+)\b",
                   re.IGNORECASE)
 COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 FENCE = re.compile(r"^```.*?^```", re.DOTALL | re.MULTILINE)
+VERDICT_RE = re.compile(
+    r"^verdict:\s*(approve|approve-with-nits|request-changes)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def linked_issue_numbers(body: str) -> list[int]:
@@ -54,6 +61,30 @@ def missing_parts(issue_body: str) -> list[str]:
 def applies_to_pr(created_at: str) -> bool:
     """Only pull requests opened from PARTS_SINCE are checked; older ones keep the rules they were opened under."""
     return (created_at or "")[:10] >= PARTS_SINCE
+
+
+def review_required(created_at: str) -> bool:
+    """PRs opened from REVIEW_SINCE must ship ``pull_requests/pr-<n>-review.md`` (#648)."""
+    return (created_at or "")[:10] >= REVIEW_SINCE
+
+
+def review_file_problems(repo_root: Path | str, pr_number: int) -> list[str]:
+    """Missing review file or missing ``verdict:`` frontmatter line."""
+    root = Path(repo_root)
+    path = root / "pull_requests" / f"pr-{pr_number}-review.md"
+    rel = f"pull_requests/pr-{pr_number}-review.md"
+    if not path.is_file():
+        return [
+            f"missing {rel}: every PR needs a written review (AGENTS.md; #648). "
+            "Run /pr-review, or wait for the PR conventions auto-review job to write one."
+        ]
+    text = path.read_text(encoding="utf-8")
+    if not VERDICT_RE.search(text):
+        return [
+            f"{rel} has no 'verdict: approve|approve-with-nits|request-changes' line "
+            "(YAML frontmatter; #648)"
+        ]
+    return []
 
 
 def check(branch: str, body: str, issue: dict | None = None) -> list[str]:
@@ -115,6 +146,15 @@ def main() -> int:
         print(f"::error::the linked issue #{number} could not be checked, so the PR conventions check fails")
         return 1
     problems = check(branch, body, issue)
+    # Written review file (#648): keyed by GitHub PR number, not the issue number.
+    pr_number = pr.get("number")
+    repo_root = Path(os.environ.get("GITHUB_WORKSPACE") or Path.cwd())
+    if (
+        pr_number
+        and review_required(pr.get("created_at", ""))
+        and not branch.startswith(TOOL_BRANCHES)
+    ):
+        problems.extend(review_file_problems(repo_root, int(pr_number)))
     for p in problems:
         print(f"::error::{p}")
     print("PR conventions: OK" if not problems else f"PR conventions: {len(problems)} problem(s)")

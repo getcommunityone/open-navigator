@@ -28,31 +28,34 @@ meeting, split by phase, with the speaker and the words they used. It is part of
 
 - **Speaker and role.** The extraction adds `speaker_role` (the role said in the meeting: "applicant", "District 3 council member", "resident") and `speaker_person_id` (the speaker's entry in the same analysis's `people[]`). Staging fills a missing name or role from that `people[]` entry. Otherwise the role stays null; it's never inferred from a name.
 - **Which meeting.** `job_claim.body_name` comes from `event_meeting.body_name` (for example "Tuscaloosa City Council"). The page says "At the Tuscaloosa City Council meeting", or "Meeting record" when the body isn't recorded.
-- **The moment.** Each claim uses the shared `CitationLink` from [CORE-2.1](https://github.com/getcommunityone/open-navigator/issues/240): "Said by Dana Ruiz, applicant · Mar 2, 2026 · ▶ 12:34". The link opens `/meetings/<event_meeting_id>?t=754`, the meeting page with the recording started at that second. Without a timestamp it opens the meeting and says "time not recorded"; without a speaker it says "Speaker not identified".
+- **The moment.** Each claim uses the shared `CitationLink` from [CORE-2.1](https://github.com/getcommunityone/open-navigator/issues/240): "Said by Dana Ruiz, applicant · Mar 2, 2026 · 12:34". The link opens `/meetings/<event_meeting_id>?t=754`, the meeting page with the recording started at that second. Without a timestamp it opens the meeting and says "time not recorded"; without a speaker it says "Speaker not identified".
 - **Re-analysis needed.** Meetings analyzed before this change have no `speaker_role` or `speaker_person_id`, so their claims show the name only until they are re-analyzed with the updated prompt.
+
+Actual payroll jobs (BLS QCEW, NAICS 518210) shown with the claims, and the job boards cited (not scraped):
+[Data center payroll jobs and job-site citations](./data-center-payroll-jobs.md) (#1019).
 
 Job-application links for these projects, and how they're kept current: [Data center application links](./data-center-application-links.md) (DC-1.3).
 
 ## Rules
 
 - **Never one combined jobs number.** A claim of "1,200 during construction and 50 permanent" is two rows, one per
-  phase, and the page shows them in separate columns.
+ phase, and the page shows them in separate columns.
 - **Unknown is null, never 0.** No number said ("lots of jobs") means no headcount, and the page shows "Not stated".
-  One bound only reads as such: "up to 300" shows "Up to 300 jobs" and "at least 200" shows "At least 200 jobs",
-  never an exact figure. Counts on the page are the scope's real totals; a cut list says so ("showing the latest N"). A year or month alone is not a
-  date.
+ One bound only reads as such: "up to 300" shows "Up to 300 jobs" and "at least 200" shows "At least 200 jobs",
+ never an exact figure. Counts on the page are the scope's real totals; a cut list says so ("showing the latest N"). A year or month alone is not a
+ date.
 - **No quote, no row.** The mart drops claims without their verbatim words or with a phase other than construction
-  or operations.
+ or operations.
 
 ## Decisions
 
 - **`person_id` is empty for now.** No person index has been chosen to match speakers against, so `job_claim` carries
-  `speaker_name` as said and leaves `person_id` null, without a foreign key, until that index exists.
+ `speaker_name` as said and leaves `person_id` null, without a foreign key, until that index exists.
 - **The link to `event_meeting` is a test, not a constraint.** `event_meeting` gets its primary key from a bootstrap
-  macro run by hand, so a foreign-key constraint would fail on a build where it hasn't run. The mart inner-joins
-  `event_meeting`, so every claim has its meeting; a warn-level relationships test reports any gap.
+ macro run by hand, so a foreign-key constraint would fail on a build where it hasn't run. The mart inner-joins
+ `event_meeting`, so every claim has its meeting; a warn-level relationships test reports any gap.
 - **`jurisdiction_id` comes from the video.** `event_meeting` has no jurisdiction id, so `job_claim` resolves it
-  through `event_youtube_with_jurisdiction` on `video_id`, and keeps it only when `jurisdictions` has it.
+ through `event_youtube_with_jurisdiction` on `video_id`, and keeps it only when `jurisdictions` has it.
 
 ## Checked
 

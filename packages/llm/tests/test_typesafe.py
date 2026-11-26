@@ -25,6 +25,10 @@ OK_BODY = {
         },
         "has_decisions": {"type": "noul", "noul": 0.97},
         "mentions_data_center": {"type": "noul", "noul": 0.04},
+        "mentions_zoning": {"type": "noul", "noul": 0.2},
+        "mentions_budget": {"type": "noul", "noul": 0.1},
+        "mentions_housing": {"type": "noul", "noul": 0.05},
+        "mentions_environment": {"type": "noul", "noul": 0.15},
     },
     "usage": {"input_tokens": 1200, "output_tokens": 30},
 }
@@ -140,8 +144,26 @@ def test_gives_up_after_max_attempts():
 
 def test_missing_key(monkeypatch):
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
-    with pytest.raises(jev.JevError, match="TYPESAFE_API_KEY"):
+    monkeypatch.delenv("JEV_API_KEY", raising=False)
+    with pytest.raises(jev.JevError, match="TYPESAFE_API_KEY or JEV_API_KEY"):
         jev.JevClient()
+
+
+def test_jev_api_key_alias(monkeypatch):
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setenv("JEV_API_KEY", "from-jev-alias")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer from-jev-alias"
+        return httpx.Response(200, json=OK_BODY)
+
+    with _client(handler) as c:
+        # _client passes api_key= explicitly; construct without it to hit env
+        pass
+    with jev.JevClient(
+        transport=httpx.MockTransport(handler), sleep=lambda s: None
+    ) as c:
+        c.system_one(state="x", questions={"q": jev.noul("x")})
 
 
 def test_question_builders_validate():
@@ -176,7 +198,7 @@ def test_pick_chunks_keeps_first_and_last():
     assert screen.pick_chunks([], 4) == []
 
 
-def _resp(kind_probs, decisions, dc):
+def _resp(kind_probs, decisions, dc, *, zoning=0.0, budget=0.0, housing=0.0, env=0.0):
     return jev.JevResponse.from_json(
         {
             "model": "jev-1.14.0",
@@ -184,6 +206,10 @@ def _resp(kind_probs, decisions, dc):
                 "meeting_kind": {"type": "choice", "probabilities": kind_probs},
                 "has_decisions": {"type": "noul", "noul": decisions},
                 "mentions_data_center": {"type": "noul", "noul": dc},
+                "mentions_zoning": {"type": "noul", "noul": zoning},
+                "mentions_budget": {"type": "noul", "noul": budget},
+                "mentions_housing": {"type": "noul", "noul": housing},
+                "mentions_environment": {"type": "noul", "noul": env},
             },
             "usage": {"input_tokens": 10, "output_tokens": 1},
         }
@@ -193,14 +219,38 @@ def _resp(kind_probs, decisions, dc):
 def test_aggregate_averages_choice_and_takes_noul_max():
     out = screen.aggregate(
         [
-            _resp({"government_meeting": 0.6, "government_other": 0.4}, 0.1, 0.0),
-            _resp({"government_meeting": 1.0, "government_other": 0.0}, 0.9, 0.3),
+            _resp(
+                {"government_meeting": 0.6, "government_other": 0.4},
+                0.1,
+                0.0,
+                zoning=0.2,
+                budget=0.4,
+            ),
+            _resp(
+                {"government_meeting": 1.0, "government_other": 0.0},
+                0.9,
+                0.3,
+                zoning=0.8,
+                budget=0.1,
+                housing=0.5,
+                env=0.7,
+            ),
         ]
     )
     assert out["meeting_kind"] == "government_meeting"
     assert out["meeting_kind_probabilities"]["government_meeting"] == pytest.approx(0.8)
     assert out["has_decisions_p"] == pytest.approx(0.9)
     assert out["mentions_data_center_p"] == pytest.approx(0.3)
+    assert out["mentions_zoning_p"] == pytest.approx(0.8)
+    assert out["mentions_budget_p"] == pytest.approx(0.4)
+    assert out["mentions_housing_p"] == pytest.approx(0.5)
+    assert out["mentions_environment_p"] == pytest.approx(0.7)
+
+
+def test_questions_include_topic_flags():
+    for key in screen.TOPIC_NOUL_KEYS:
+        assert key in screen.QUESTIONS
+        assert screen.QUESTIONS[key]["type"] == "noul"
 
 
 def test_screen_transcript_sends_each_picked_chunk():
@@ -236,6 +286,11 @@ def test_select_sql_filters():
     assert sql.rstrip().endswith("LIMIT %s")
     sql, params = screen.select_sql(states=[], jurisdiction_id="", rescreen=True)
     assert "NOT EXISTS" not in sql and params == []
+    sql, params = screen.select_sql(
+        states=["AL"], jurisdiction_id="", rescreen=False, analyzed_only=True
+    )
+    assert "policy_analysis_at IS NOT NULL" in sql
+    assert params[0] == ["AL"] and params[1] == screen.QUESTION_VERSION
 
 
 def test_jev_price_on_file():
@@ -257,6 +312,84 @@ def test_batch_backlog_flag_parses():
     args = build_parser().parse_args(["submit", "--skip-jev-below", "0.2"])
     assert args.skip_jev_below == pytest.approx(0.2)
     assert build_parser().parse_args(["submit"]).skip_jev_below is None
+
+
+def test_batch_backlog_meeting_flag_parses():
+    from llm.gemini.batch_backlog import build_parser
+
+    args = build_parser().parse_args(["submit", "--skip-jev-meeting-below", "0.6"])
+    assert args.skip_jev_meeting_below == pytest.approx(0.6)
+    assert build_parser().parse_args(["submit"]).skip_jev_meeting_below is None
+    both = build_parser().parse_args(
+        ["submit", "--skip-jev-below", "0.2", "--skip-jev-meeting-below", "0.7"]
+    )
+    assert both.skip_jev_below == pytest.approx(0.2)
+    assert both.skip_jev_meeting_below == pytest.approx(0.7)
+
+
+def test_calibrate_threshold_counts():
+    # Already-analyzed sample: null gov_p must not count as a skip.
+    rows = [
+        ("a", 0.9),
+        ("b", 0.55),
+        ("c", 0.4),
+        ("d", None),
+    ]
+    table = screen.calibrate_threshold_table(rows, thresholds=(0.5, 0.6, 0.7))
+    assert [r["threshold"] for r in table] == [0.5, 0.6, 0.7]
+    # T=0.5 skips only c (0.4); d null kept
+    assert table[0] == {
+        "threshold": 0.5,
+        "n": 4,
+        "keep": 3,
+        "skip": 1,
+        "false_skip_rate": pytest.approx(0.25),
+    }
+    # T=0.6 skips b+c
+    assert table[1]["skip"] == 2 and table[1]["keep"] == 2
+    # T=0.7 skips b+c (a=0.9 kept)
+    assert table[2]["skip"] == 2 and table[2]["keep"] == 2
+
+
+def test_meeting_keep_p_and_below():
+    assert screen.meeting_keep_p(
+        {"government_meeting": 0.4, "town_hall": 0.3, "government_other": 0.3}
+    ) == pytest.approx(0.7)
+    assert screen.meeting_keep_p({"government_other": 1.0}) is None
+    assert screen.meeting_keep_p_below(0.59, 0.6) is True
+    assert screen.meeting_keep_p_below(0.6, 0.6) is False
+    assert screen.meeting_keep_p_below(None, 0.6) is False
+    assert "town_hall" in screen.MEETING_KINDS
+    # Town halls are their own Choice; government_other only mentions them to exclude.
+    assert screen.MEETING_KEEP_KIND_KEYS == ("government_meeting", "town_hall")
+    assert "press conference" in screen.MEETING_KINDS["government_other"].lower()
+
+
+def test_screen_calibrate_flag_parses():
+    args = screen.build_parser().parse_args(["--calibrate", "--state", "AL", "--limit", "50"])
+    assert args.calibrate is True
+    assert args.state == ["AL"] and args.limit == 50
+    assert screen.build_parser().parse_args([]).calibrate is False
+
+
+def test_meta_state_and_flags():
+    from llm.typesafe import screen_video_meta as meta
+
+    assert meta.build_meta_state(title=None, description=None) == ""
+    text = meta.build_meta_state(
+        title=" City Council ",
+        description="Agenda",
+        channel_title="Tuscaloosa",
+    )
+    assert "Channel: Tuscaloosa" in text
+    assert "Title: City Council" in text
+    assert "Description: Agenda" in text
+    assert "town_hall" in meta.META_QUESTIONS["meeting_kind"]["criteria"]
+    args = meta.build_parser().parse_args(
+        ["--compare", "--state", "AL", "--threshold", "0.6", "--analyzed-only"]
+    )
+    assert args.compare is True and args.threshold == pytest.approx(0.6)
+    assert args.analyzed_only is True
 
 
 def test_screen_usage_rows_name_the_stage_and_video(usage_dir):

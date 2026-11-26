@@ -36,6 +36,8 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from loguru import logger
+
+from core_lib.redact import install_log_redaction, redact_secrets
 import polars as pl
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -269,7 +271,8 @@ class MunicipalYouTubeScraper:
                 # Try yt-dlp fallback
                 return self.get_channel_videos_ytdlp(channel_id, max_results, published_after)
             else:
-                logger.error(f"YouTube API error for channel {channel_id}: {e}")
+                # The error text quotes the request URL, which carries the API key (#878).
+                logger.error(f"YouTube API error for channel {channel_id}: {redact_secrets(str(e))}")
         
         return dedupe_videos_by_id(videos, max_results)
 
@@ -463,22 +466,11 @@ class MunicipalYouTubeScraper:
         return hours * 60 + minutes + (1 if seconds > 30 else 0)
     
     def detect_meeting_type(self, title: str) -> str:
-        """Detect meeting type from video title"""
-        title_lower = title.lower()
-        
-        if any(word in title_lower for word in ['city council', 'council meeting']):
-            return 'City Council'
-        elif any(word in title_lower for word in ['planning', 'zoning']):
-            return 'Planning Commission'
-        elif any(word in title_lower for word in ['school board', 'board of education']):
-            return 'School Board'
-        elif 'special' in title_lower:
-            return 'Special Meeting'
-        elif 'workshop' in title_lower:
-            return 'Workshop'
-        else:
-            return 'Other'
-    
+        """The meeting type the video title names, or ``Other`` (see ``scrapers.youtube.meeting_type``)."""
+        from scrapers.youtube.meeting_type import meeting_type_from_title
+
+        return meeting_type_from_title(title)
+
     def _ytdlp_base_opts(self, max_results: int) -> Dict[str, Any]:
         opts: Dict[str, Any] = {
             'quiet': True,
@@ -728,6 +720,7 @@ class MunicipalYouTubeScraper:
 
 @exit_if_vpn_off
 def main():
+    install_log_redaction()  # no API key in any log line of this run (#878)
     parser = argparse.ArgumentParser(
         description="Scrape municipal YouTube channels for meeting videos"
     )

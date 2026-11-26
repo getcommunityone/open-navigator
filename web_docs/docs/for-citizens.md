@@ -7,7 +7,7 @@ displayed_sidebar: citizensSidebar
 
 Welcome to Open Navigator! This guide helps you navigate community resources, engage with local government, and access services that matter to you and your family.
 
-## 🎯 Quick Start for Citizens & Residents
+## Quick Start for Citizens & Residents
 
 Whether you're new to town or a longtime resident, Open Navigator helps you:
 - **Find community events** and public meetings
@@ -17,7 +17,7 @@ Whether you're new to town or a longtime resident, Open Navigator helps you:
 - **Submit feedback** on local issues
 - **Discover resources** for your family's needs
 
-## 📅 Community Events & Meetings
+## Community Events & Meetings
 
 ### Find Local Events
 
@@ -50,7 +50,7 @@ Most local government meetings allow public comment. Check the agenda for "publi
 - **Senior Services**: Social events, wellness programs, meal services
 - **Youth Programs**: After-school activities, summer camps, mentorship
 
-## 🎓 Training & Educational Services
+## Training & Educational Services
 
 ### Educational Workshops
 
@@ -88,7 +88,7 @@ Find free and low-cost training opportunities in your community:
 Many community colleges, libraries, and nonprofits offer free workshops. Look for programs funded by government grants or community foundations.
 :::
 
-## 🗳️ Voter Registration & Elections
+## Voter Registration & Elections
 
 ### Register to Vote
 
@@ -133,7 +133,7 @@ Use Open Navigator to research candidates and issues:
 Bring a valid ID to your polling place. Most states require government-issued photo ID or proof of residency. Check your state's specific requirements.
 :::
 
-## 📞 Contact Your Representatives
+## Contact Your Representatives
 
 ### Find Your Elected Officials
 
@@ -189,7 +189,7 @@ Instead of "I support education," say "I urge you to vote YES on SB 123, which i
 - Follow up if you don't hear back within 2-3 weeks
 - Share your experience with community groups
 
-## 💬 Submit Feedback & Public Comments
+## Submit Feedback & Public Comments
 
 ### Ways to Provide Input
 
@@ -228,7 +228,7 @@ Instead of "I support education," say "I urge you to vote YES on SB 123, which i
 Public comments at government meetings become part of the official record. Avoid sharing sensitive personal information unless necessary.
 :::
 
-## ❤️ Community Resources & Family Services
+## Community Resources & Family Services
 
 ### Essential Services
 
@@ -279,11 +279,11 @@ Open Navigator connects you with 43,726 nonprofits and community organizations f
 2. Filter by service category (food, housing, healthcare, etc.)
 3. Enter your location to find nearby providers
 4. Review organization details:
-   - Services provided
-   - Eligibility requirements
-   - Hours of operation
-   - Contact information
-   - Financial information (from IRS Form 990)
+ - Services provided
+ - Eligibility requirements
+ - Hours of operation
+ - Contact information
+ - Financial information (from IRS Form 990)
 
 :::tip[211 Helpline]
 Call 2-1-1 from any phone for 24/7 access to community resources. It's a free service connecting you with local assistance programs.
@@ -314,7 +314,7 @@ Open Navigator includes 300,000+ churches and religious organizations:
 - Disability services
 - Family support programs
 
-## 🚀 Getting Started: Your Action Plan
+## Getting Started: Your Action Plan
 
 ### Week 1: Set Up Your Profile
 1. Visit the [Dashboard](pathname:///docs/dashboard)
@@ -341,7 +341,7 @@ Open Navigator includes 300,000+ churches and religious organizations:
 - Participate in public comment opportunities
 - Vote in every election (federal, state, local, special)
 
-## 📚 Additional Resources
+## Additional Resources
 
 ### Learn More
 - [Understanding the Data](pathname:///docs/data-sources/overview): Learn about data sources and how information is collected
@@ -382,7 +382,7 @@ Open Navigator includes 300,000+ churches and religious organizations:
 Change doesn't happen by accident. It happens when people show up, speak up, and follow through. Your voice matters—use it!
 :::
 
-## 🌟 Success Stories
+## Success Stories
 
 ### Real Impact from Real People
 
@@ -404,10 +404,10 @@ Every community change starts with one person deciding to get involved. What wil
 
 Ready to get started?
 
-- [🏠 Go to Dashboard](pathname:///docs/dashboard)
-- [🔍 Explore Data](pathname:///)
-- [📊 View Your Community](pathname:///)
-- [🗳️ Find Your Representatives](pathname:///)
+- [ Go to Dashboard](pathname:///docs/dashboard)
+- [ Explore Data](pathname:///)
+- [ View Your Community](pathname:///)
+- [ Find Your Representatives](pathname:///)
 
 ---
 

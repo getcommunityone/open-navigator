@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { expandStateName } from '../utils/formatters'
 import MeetingPlayer from '../components/MeetingPlayer'
+import AnalysisProvenance, { type Provenance } from '../components/AnalysisProvenance'
 import { parseTimestamp } from '../lib/timestamp'
 import { MeetingVideoProvider, EvidenceLink } from '../components/MeetingVideoContext'
 import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
@@ -48,12 +49,15 @@ interface MeetingDetailData {
   state?: string | null
   state_code?: string | null
   meeting_date?: string | null
+  meeting_type?: string | null
   video_id?: string | null
   has_agenda?: boolean
   has_minutes?: boolean
   documents?: MeetingDocument[]
   decisions: MeetingDecision[]
   financial_items: MeetingFinancialItem[]
+  /** How the meeting's AI summary was made (#1099); facts the run didn't record are absent. */
+  provenance?: Provenance | null
 }
 
 function money(value?: number | null): string {
@@ -136,7 +140,7 @@ function MeetingDetailBody() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="h-40 animate-pulse rounded-lg bg-white shadow-sm" />
         </div>
@@ -147,7 +151,7 @@ function MeetingDetailBody() {
   if (isError || !data) {
     const msg = (error as { message?: string } | undefined)?.message || 'This meeting could not be loaded.'
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
             <div className="text-red-600 text-5xl mb-4">⚠️</div>
@@ -177,7 +181,7 @@ function MeetingDetailBody() {
   const playerTargetText = highlightFinancial?.event_description || undefined
 
   const content = (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen page-bg py-8">
       <div className="max-w-4xl mx-auto px-4">
         <button
           type="button"
@@ -207,6 +211,11 @@ function MeetingDetailBody() {
               <span className="inline-flex items-center gap-1.5">
                 <CalendarIcon className="h-4 w-4 text-gray-400" />
                 {data.meeting_date}
+              </span>
+            )}
+            {data.meeting_type && (
+              <span className="inline-flex items-center gap-1.5" data-testid="meeting-type">
+                {data.meeting_type}
               </span>
             )}
           </div>
@@ -327,6 +336,9 @@ function MeetingDetailBody() {
             No decisions or financial items were recorded for this meeting.
           </div>
         )}
+
+        {/* The same "how this summary was made" drill-down as the decision page (#798, #1099). */}
+        <AnalysisProvenance provenance={data.provenance} />
       </div>
     </div>
   )

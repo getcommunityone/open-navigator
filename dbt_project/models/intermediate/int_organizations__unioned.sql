@@ -45,6 +45,11 @@ with unioned as (
     select * from {{ ref('stg_data_gov__org') }}
     union all
     select * from {{ ref('stg_data_center_companies__org') }}
+
+    union all
+
+    -- seed short_term_rental_companies (#1015): Airbnb, Expedia Group / Vrbo, Booking Holdings.
+    select * from {{ ref('stg_short_term_rental_companies__org') }}
 )
 
 select

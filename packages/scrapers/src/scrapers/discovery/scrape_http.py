@@ -11,7 +11,14 @@ proxy: turning proxies off still leaves through the tunnel. When the route table
 has a VPN split-default route (``0.0.0.0/1``), the direct retry binds its socket to
 the interface of the ordinary default route instead (the home connection, e.g.
 ``eth3``), so it really leaves outside the VPN. A host that answered only that way
-is remembered for the rest of the process and tried direct first after that.
+is remembered and tried direct first after that, in this run and later ones
+(``SCRAPE_DIRECT_HOSTS_FILE``). Where binding to an interface isn't possible
+(native Windows, a VPN kill switch), ``SCRAPE_DIRECT_PROXY`` names a proxy for the
+direct retry instead: for example a local proxy run by a program the VPN client
+bypasses (#767).
+
+A 200 response is not always a success: a firewall's block page or a near-empty
+page shell gets the same one-shot direct retry (``looks_blocked_or_partial``).
 
 YouTube hosts (youtube.com, youtu.be, ytimg, googlevideo) are the exception: the
 home connection must never reach them (#488). For those URLs
@@ -24,11 +31,16 @@ Environment:
   DISCOVERY_HTTPS_PROXY — alias for SCRAPE_HTTPS_PROXY
   SCRAPE_DIRECT_INTERFACE — interface for direct egress (default: detected when a
     VPN tunnel is up; ``off`` disables binding)
+  SCRAPE_DIRECT_PROXY — proxy URL for the direct retry, used instead of binding
+  SCRAPE_DIRECT_HOSTS_FILE — where hosts that answered only outside the VPN are kept
+    (default ``data/cache/scrape_direct_hosts.json``; ``off`` keeps them in memory only)
 """
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import socket
 from functools import lru_cache
 from pathlib import Path
@@ -181,14 +193,126 @@ def _host(url: str) -> str:
     return (urlsplit(url).hostname or "").lower()
 
 
+_SAVED_HOSTS_LOADED = False
+
+
+def _hosts_file() -> Path | None:
+    raw = (os.getenv("SCRAPE_DIRECT_HOSTS_FILE") or "data/cache/scrape_direct_hosts.json").strip()
+    if raw.lower() in ("", "0", "off", "false", "no"):
+        return None
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return path
+    try:  # a relative path is under the repo root, wherever the run started
+        from core_lib.paths import repo_root
+
+        return repo_root(__file__) / path
+    except Exception:  # noqa: BLE001 - core_lib missing or no repo marker: use the working directory
+        return path
+
+
+def _read_saved_hosts(path: Path) -> set[str]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return set()
+    except (OSError, ValueError) as exc:
+        logger.warning("scrape_direct_hosts_file unreadable path={} err={!r}", path, exc)
+        return set()
+    return {str(h).lower() for h in data if isinstance(h, str) and h.strip()} if isinstance(data, list) else set()
+
+
+def _load_saved_hosts() -> None:
+    global _SAVED_HOSTS_LOADED
+    if _SAVED_HOSTS_LOADED:
+        return
+    _SAVED_HOSTS_LOADED = True
+    path = _hosts_file()
+    if path is not None:
+        _DIRECT_FIRST_HOSTS.update(_read_saved_hosts(path))
+
+
+def _reset_saved_hosts_state() -> None:
+    """Tests: forget that the saved hosts were loaded, so the next check reads the file again."""
+    global _SAVED_HOSTS_LOADED
+    _SAVED_HOSTS_LOADED = False
+
+
 def remember_direct_host(url: str) -> None:
     host = _host(url)
-    if host:
-        _DIRECT_FIRST_HOSTS.add(host)
+    if not host:
+        return
+    _load_saved_hosts()
+    is_new = host not in _DIRECT_FIRST_HOSTS
+    _DIRECT_FIRST_HOSTS.add(host)
+    path = _hosts_file()
+    if not is_new or path is None:
+        return
+    try:
+        merged = sorted(_read_saved_hosts(path) | {host})  # merge, so parallel runs don't drop each other's hosts
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(merged, indent=0) + "\n", encoding="utf-8")
+    except OSError as exc:
+        logger.warning("scrape_direct_hosts_file not saved path={} err={!r}", path, exc)
 
 
 def prefers_direct(url: str) -> bool:
+    _load_saved_hosts()
     return _host(url) in _DIRECT_FIRST_HOSTS
+
+
+# Lowercase text that marks a firewall or bot-check page served with status 200 (#767).
+BLOCK_PAGE_MARKERS = (
+    "access denied",
+    "attention required",
+    "cf-chl",
+    "cf_chl",
+    "captcha",
+    "request blocked",
+    "reference #",
+    "checking your browser",
+    "just a moment",
+    "pardon our interruption",
+    "web application firewall",
+)
+_BLOCK_PAGE_MAX_BYTES = 20_000  # block pages are small; a marker in a large page is ordinary content
+_PARTIAL_MAX_BYTES = 2_048
+_MIN_VISIBLE_WORDS = 30
+_MIN_LINKS = 3
+_TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+_STRIP = re.compile(r"<script.*?</script>|<style.*?</style>|<[^>]+>", re.IGNORECASE | re.DOTALL)
+
+
+def looks_blocked_or_partial(response: httpx.Response) -> bool:
+    """True when a successful HTML response is a block page or a near-empty shell (#767).
+
+    Non-HTML content (PDF, JSON, images), error statuses and responses without a
+    content type are never judged here, and a response it can't read is never judged:
+    the detector must never break a fetch.
+    """
+    try:
+        if not 200 <= int(response.status_code) < 300:
+            return False
+        headers = getattr(response, "headers", None) or {}
+        ctype = str(headers.get("content-type") or "").lower()
+        if "html" not in ctype:
+            return False
+        body = response.content or b""
+        text = (response.text or "") if body else ""
+    except Exception:  # noqa: BLE001 - an httpx-like stand-in without the usual fields
+        return False
+    lower = text.lower()
+    title = _TITLE.search(text)
+    title_text = (title.group(1) if title else "").lower()
+    if any(m in title_text for m in BLOCK_PAGE_MARKERS):
+        return True
+    if len(body) <= _BLOCK_PAGE_MAX_BYTES and any(m in lower for m in BLOCK_PAGE_MARKERS):
+        return True
+    if len(body) < _PARTIAL_MAX_BYTES or not title:
+        return True
+    words = len(_STRIP.sub(" ", text).split())
+    links = len(re.findall(r"<a\s", text, re.IGNORECASE))
+    return words < _MIN_VISIBLE_WORDS and links < _MIN_LINKS
 
 
 def env_proxy_is_configured() -> bool:
@@ -204,7 +328,8 @@ def is_scrape_transport_or_vpn_failure(
 ) -> bool:
     """True when a one-shot direct-egress retry is worth trying."""
     if status_code is not None:
-        if status_code in (407, 502, 503, 504, 403, 429):
+        # 429 is not here (#1081): "too many requests" means slow down, never try from another address.
+        if status_code in (407, 502, 503, 504, 403):
             return True
     if exc is None:
         return False
@@ -273,9 +398,13 @@ def make_scrape_async_client(
     if direct_egress:
         kw["trust_env"] = False
         kw["proxy"] = None
-        iface = direct_egress_interface()
-        if iface:
-            kw["transport"] = interface_bound_transport(iface)
+        direct_proxy = (os.getenv("SCRAPE_DIRECT_PROXY") or "").strip()
+        if direct_proxy:
+            kw["proxy"] = direct_proxy  # a proxy the VPN client bypasses (#767)
+        else:
+            iface = direct_egress_interface()
+            if iface:
+                kw["transport"] = interface_bound_transport(iface)
     else:
         explicit = scrape_explicit_proxy_url()
         if explicit:
@@ -284,6 +413,56 @@ def make_scrape_async_client(
         else:
             kw["trust_env"] = True
     return httpx.AsyncClient(**kw)
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float((os.getenv(name) or "").strip() or default)
+    except ValueError:
+        return default
+
+
+def retry_after_seconds(response: httpx.Response, attempt: int) -> float:
+    """How long to wait after a 429 (#1081): the site's Retry-After (seconds or an HTTP date) when it sends one,
+    else an exponential back-off (``SCRAPE_429_BASE_SECONDS`` x 2^attempt). Capped at ``SCRAPE_429_MAX_WAIT_SECONDS``."""
+    cap = _env_float("SCRAPE_429_MAX_WAIT_SECONDS", 120.0)
+    raw = (response.headers.get("retry-after") or "").strip()
+    wait: Optional[float] = None
+    if raw:
+        try:
+            wait = float(raw)
+        except ValueError:
+            try:
+                from email.utils import parsedate_to_datetime
+                from datetime import datetime, timezone
+
+                when = parsedate_to_datetime(raw)
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                wait = (when - datetime.now(timezone.utc)).total_seconds()
+            except (TypeError, ValueError, IndexError, OverflowError):
+                wait = None
+    if wait is None:
+        wait = _env_float("SCRAPE_429_BASE_SECONDS", 5.0) * (2 ** attempt)
+    return max(0.0, min(wait, cap))
+
+
+async def _respect_429(response: httpx.Response, again, url: str) -> httpx.Response:
+    """On 429, give the 429 back and move on (default), or, when ``SCRAPE_429_MAX_RETRIES`` > 0, wait as the site asks
+    and retry the same way (same route) up to that many times. Never switches route (#1081)."""
+    import asyncio
+
+    retries = int(_env_float("SCRAPE_429_MAX_RETRIES", 0))  # default: move on, never hammer (#1081)
+    attempt = 0
+    while response.status_code == 429 and attempt < retries:
+        wait = retry_after_seconds(response, attempt)
+        logger.info("scrape_rate_limited url={!r} attempt={} wait_s={:.1f}", url, attempt + 1, wait)
+        await asyncio.sleep(wait)
+        response = await again()
+        attempt += 1
+    if response.status_code == 429:
+        logger.warning("scrape_rate_limited_gave_up url={!r} after {} retries", url, retries)
+    return response
 
 
 async def _direct_get(
@@ -324,7 +503,19 @@ async def async_get_with_vpn_bypass(
 
     if prefers_direct(url):
         try:
-            return await _direct_get(client, url, kwargs)
+            direct = await _direct_get(client, url, kwargs)
+            if direct.status_code == 429:
+                # Rate-limited on the route this host uses: back off there, never fall through to another route.
+                return await _respect_429(direct, lambda: _direct_get(client, url, kwargs), url)
+            # A host saved in an earlier run must not be stuck outside the VPN once the
+            # direct route starts failing (#767): an error or a block page falls through.
+            if direct.status_code < 400 and not looks_blocked_or_partial(direct):
+                return direct
+            logger.info(
+                "scrape_direct_first_unusable url={!r} status={}; trying the normal route",
+                url,
+                direct.status_code,
+            )
         except Exception as exc:  # noqa: BLE001 - fall back to the normal route
             logger.debug("scrape_direct_first failed url={!r}: {!r}", url, exc)
 
@@ -342,6 +533,9 @@ async def async_get_with_vpn_bypass(
         if bypass_resp.status_code < 400:
             remember_direct_host(url)
         return bypass_resp
+
+    if response.status_code == 429:
+        return await _respect_429(response, lambda: client.get(url, **kwargs), url)
 
     if is_scrape_transport_or_vpn_failure(status_code=response.status_code):
         logger.info(
@@ -364,6 +558,18 @@ async def async_get_with_vpn_bypass(
             )
             if bypass_resp.status_code < 400:
                 remember_direct_host(url)
+            return bypass_resp
+        return response
+
+    if looks_blocked_or_partial(response):
+        logger.info("scrape_vpn_bypass_retry url={url!r} reason=block_or_partial_page", url=url)
+        try:
+            bypass_resp = await _direct_get(client, url, kwargs)
+        except Exception:  # noqa: BLE001 - keep what the normal route gave
+            return response
+        if bypass_resp.status_code < 400 and not looks_blocked_or_partial(bypass_resp):
+            logger.info("scrape_vpn_bypass_ok url={url!r} reason=block_or_partial_page", url=url)
+            remember_direct_host(url)
             return bypass_resp
         return response
 

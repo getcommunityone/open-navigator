@@ -2,13 +2,13 @@
 sidebar_position: 12
 ---
 
-# 🚨 CRITICAL: Which Port to Use?
+# CRITICAL: Which Port to Use?
 
 ## TL;DR: Go to Port 5173 for the App
 
 ```
-http://localhost:5173  ← YOUR ORIGINAL DASHBOARD (search, filters, everything)
-http://localhost:3000  ← New documentation site (just guides/docs)
+http://localhost:5173 ← YOUR ORIGINAL DASHBOARD (search, filters, everything)
+http://localhost:3000 ← New documentation site (just guides/docs)
 ```
 
 ## The Confusion Explained
@@ -23,23 +23,23 @@ You asked to "change the react site to use docusaurus". I interpreted this as "a
 ### What You're Seeing
 
 If you go to `http://localhost:3000`, you see:
-- ❌ Marketing homepage with big buttons
-- ❌ Documentation pages
-- ❌ No search functionality
-- ❌ No filters
-- ❌ No heatmap
-- ❌ Looks completely different
+- No Marketing homepage with big buttons
+- No Documentation pages
+- No No search functionality
+- No No filters
+- No No heatmap
+- No Looks completely different
 
 **This is CORRECT - it's the documentation site!**
 
 If you go to `http://localhost:5173`, you see:
-- ✅ Your original dashboard
-- ✅ Search and filter functionality
-- ✅ Interactive heatmap
-- ✅ Document explorer
-- ✅ Nonprofit search
-- ✅ Opportunity tracker
-- ✅ All your original work UNCHANGED
+- Yes Your original dashboard
+- Yes Search and filter functionality
+- Yes Interactive heatmap
+- Yes Document explorer
+- Yes Nonprofit search
+- Yes Opportunity tracker
+- Yes All your original work UNCHANGED
 
 ## Quick Test
 
@@ -70,16 +70,16 @@ You'll see:
 ### React Dashboard (Port 5173)
 ```
 frontend/
-  src/
-    pages/
-      Dashboard.tsx      ← Your original homepage
-      Heatmap.tsx        ← Interactive map
-      Documents.tsx      ← Search functionality
-      Opportunities.tsx  ← Filters and tracking
-      Nonprofits.tsx     ← Nonprofit search
-    App.tsx              ← Routes
-    components/
-      Layout.tsx         ← Navigation
+ src/
+ pages/
+ Dashboard.tsx ← Your original homepage
+ Heatmap.tsx ← Interactive map
+ Documents.tsx ← Search functionality
+ Opportunities.tsx ← Filters and tracking
+ Nonprofits.tsx ← Nonprofit search
+ App.tsx ← Routes
+ components/
+ Layout.tsx ← Navigation
 ```
 
 **Start with:** `cd frontend && npm run dev`
@@ -87,21 +87,21 @@ frontend/
 ### Documentation Site (Port 3000)
 ```
 website/
-  docs/                  ← Markdown documentation
-  src/pages/
-    index.tsx            ← Marketing homepage
-    dashboard.tsx        ← Redirect page
-  docusaurus.config.ts   ← Configuration
+ docs/ ← Markdown documentation
+ src/pages/
+ index.tsx ← Marketing homepage
+ dashboard.tsx ← Redirect page
+ docusaurus.config.ts ← Configuration
 ```
 
 **Start with:** `cd website && npm start`
 
 ## Nothing Was Lost
 
-✅ All your React components: **Still in `frontend/src/pages/`**  
-✅ All your search/filter code: **Unchanged**  
-✅ All your API integrations: **Unchanged**  
-✅ All your styling: **Unchanged**  
+Yes All your React components: **Still in `frontend/src/pages/`**
+Yes All your search/filter code: **Unchanged**
+Yes All your API integrations: **Unchanged**
+Yes All your styling: **Unchanged**
 
 The Docusaurus site was **ADDED**, not used to **REPLACE** anything.
 
@@ -127,30 +127,30 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) which explains the three-service model.
 
 ## Common Mistakes
 
-❌ Opening `http://localhost:3000` and expecting to see the dashboard  
-✅ Opening `http://localhost:5173` to see the dashboard
+No Opening `http://localhost:3000` and expecting to see the dashboard
+Yes Opening `http://localhost:5173` to see the dashboard
 
-❌ Looking at `website/src/pages/index.tsx` for dashboard code  
-✅ Looking at `frontend/src/pages/Dashboard.tsx` for dashboard code
+No Looking at `website/src/pages/index.tsx` for dashboard code
+Yes Looking at `frontend/src/pages/Dashboard.tsx` for dashboard code
 
-❌ Thinking Docusaurus replaced the React app  
-✅ Understanding Docusaurus is a separate documentation layer
+No Thinking Docusaurus replaced the React app
+Yes Understanding Docusaurus is a separate documentation layer
 
 ## Questions?
 
-**Q: Where's my search functionality?**  
+**Q: Where's my search functionality?**
 A: `http://localhost:5173` → Documents page
 
-**Q: Where's my heatmap?**  
+**Q: Where's my heatmap?**
 A: `http://localhost:5173` → Heatmap page
 
-**Q: Where are my filters?**  
+**Q: Where are my filters?**
 A: `http://localhost:5173` → Opportunities page
 
-**Q: Why does port 3000 look different?**  
+**Q: Why does port 3000 look different?**
 A: Because it's a different site (documentation). Use port 5173.
 
-**Q: Did I lose any work?**  
+**Q: Did I lose any work?**
 A: NO! Everything is in `frontend/` directory, unchanged.
 
 ---

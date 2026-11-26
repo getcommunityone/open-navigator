@@ -20,6 +20,11 @@ outputPorts:
   contractId: open-navigator-public-event
   type: table
   description: MDM consolidated event — the single golden-record event surface in the public schema.
+- name: event_meeting
+  version: 1.0.0
+  contractId: open-navigator-public-event_meeting
+  type: table
+  description: Meeting-level PARENT of the AI-extraction family — one row per analysis (analyzed meeting).
 - name: event_documents
   version: 1.0.0
   contractId: open-navigator-public-event_documents
@@ -30,6 +35,16 @@ outputPorts:
   contractId: open-navigator-public-event_meeting_document
   type: table
   description: Scraped meeting AGENDA / MINUTES PDFs linked to the meeting they belong to (public.event_meeting), so the API can show document links on a decision / meeting.
+- name: event_analysis_provenance
+  version: 1.0.0
+  contractId: open-navigator-public-event_analysis_provenance
+  type: table
+  description: 'How each AI analysis was made: model, when, light or full tier, prompt name and hash, transcript source, and whether it is the analysis shown for its meeting.'
+- name: event_decision
+  version: 1.0.0
+  contractId: open-navigator-public-event_decision
+  type: table
+  description: AI-extracted decisions/actions (scalar cols typed, narrative blocks JSONB).
 - name: event_decision_place
   version: 1.0.0
   contractId: open-navigator-public-event_decision_place
@@ -40,6 +55,31 @@ outputPorts:
   contractId: open-navigator-public-decision_speakers
   type: table
   description: One row per event_decision_id listing the DISTINCT person_id slugs that gave named testimony on that decision, extracted from event_decision.human_element->'personal_stories'.
+- name: event_uncontested_item
+  version: 1.0.0
+  contractId: open-navigator-public-event_uncontested_item
+  type: table
+  description: 'One row per uncontested (consent / routine) item of a preferred analysis in event_meeting (#932): the actions a meeting took without debate.'
+- name: event_place_geocoded
+  version: 1.0.0
+  contractId: open-navigator-public-event_place_geocoded
+  type: table
+  description: Public.event_place with cached lat/lon coalesced from bronze.place_geocode_cache (status='ok') and a geocode_source provenance column ('extract' | cache source | NULL).
+- name: event_financial_item
+  version: 1.0.0
+  contractId: open-navigator-public-event_financial_item
+  type: table
+  description: AI-extracted dollar amounts/items.
+- name: event_bill
+  version: 1.0.0
+  contractId: open-navigator-public-event_bill
+  type: table
+  description: AI-referenced legislation/bills (year is a calendar-year string).
+- name: event_topic
+  version: 1.0.0
+  contractId: open-navigator-public-event_topic
+  type: table
+  description: AI-extracted themes/topics (COFOG + NTEE classified).
 - name: contact_official
   version: 1.0.0
   contractId: open-navigator-public-contact_official
@@ -95,6 +135,16 @@ outputPorts:
   contractId: open-navigator-public-opportunity_atlas_mobility_national
   type: table
   description: 'National rollup of the CZ Opportunity Atlas mobility measures: one row per (race, gender, parent_income_level).'
+- name: jurisdiction_mapping_analysis
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_mapping_analysis
+  type: table
+  description: Per-jurisdiction website/YouTube mapping analysis for DQ dashboards.
+- name: jurisdiction_state_aggregate
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_state_aggregate
+  type: table
+  description: Multi-level rollup of nonprofit, event, person, leader, bill and decision counts (plus trending causes JSON) used by the API/UI stats panels.
 - name: jurisdiction_minutes_publish_lag
   version: 1.0.0
   contractId: open-navigator-public-jurisdiction_minutes_publish_lag
@@ -259,7 +309,7 @@ outputPorts:
   version: 1.0.0
   contractId: open-navigator-public-data_center_site
   type: table
-  description: One row per data center site (PK data_center_site_id), from Epoch AI's "AI data centers" dataset, credited on every row (source_name, source_url, license, attribution).
+  description: One row per data center site (PK data_center_site_id), each credited to its source on the row (source, source_name, source_url, license, attribution).
 - name: data_center_agenda_item
   version: 1.0.0
   contractId: open-navigator-public-data_center_agenda_item
@@ -275,6 +325,26 @@ outputPorts:
   contractId: open-navigator-public-data_center_meeting_mention
   type: table
   description: One row per (transcript video, passage) where the meeting's own words say "data center" (or data centre / datacenter / hyperscale).
+- name: data_center_meeting_position
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_meeting_position
+  type: table
+  description: 'One row per meeting where a data center came up: an analysed meeting whose recording has a passage in data_center_meeting_mention, or that has a decision or a public comment saying a data center word.'
+- name: data_center_public_comment
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_public_comment
+  type: table
+  description: 'One row per public comment counted as about a data center item (the comments behind data_center_meeting_position): linked to a decision whose headline or statement says a data center word (match_basis data_center_decision), on an uncontested item whose headline says one (data_center_item), saying one in the speaker''s own quoted words or the comment''s summary (own_words), or on the same item of the same meeting as a speaker who says one (same_item).'
+- name: data_center_decision
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_decision
+  type: table
+  description: 'One row per decision a local meeting took on a data center item (#933): contested decisions from event_decision (headline or statement says a data center word) and uncontested items from event_uncontested_item (headline says one).'
+- name: data_center_hearing_verified
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_hearing_verified
+  type: table
+  description: 'The served slice of data_center_hearing (#955): verified leads only, the columns a reader needs (no research-lead bookkeeping).'
 - name: decision_place_label
   version: 1.0.0
   contractId: open-navigator-public-decision_place_label
@@ -340,3 +410,63 @@ outputPorts:
   contractId: open-navigator-public-data_center_community_event_recording
   type: table
   description: Possible recordings of company-hosted data center meetings (#532), from a YouTube search through the VPN guard.
+- name: mdm_organization_short_term_rental
+  version: 1.0.0
+  contractId: open-navigator-public-mdm_organization_short_term_rental
+  type: table
+  description: 'MDM satellite (#1015): short-term rental platform detail for organizations that are platform companies (Airbnb, Expedia Group / Vrbo, Booking Holdings).'
+- name: short_term_rental_company_mention
+  version: 1.0.0
+  contractId: open-navigator-public-short_term_rental_company_mention
+  type: table
+  description: Where a short-term rental platform is named (#1015).
+- name: data_center_employment
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_employment
+  type: table
+  description: Data center payroll employment from the BLS Quarterly Census of Employment and Wages (#1019).
+- name: data_center_job_source
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_job_source
+  type: table
+  description: 'Where data center jobs are tracked (#1019), cited on the jobs screen: official statistics, job boards and associations, with each site''s own description (verbatim) and what its terms allow.'
+- name: meeting_policy_question_jev
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_policy_question_jev
+  type: table
+  description: Meetings Jev read as debating a policy question, and what happened (#1032).
+- name: topic_company
+  version: 1.0.0
+  contractId: open-navigator-public-topic_company
+  type: table
+  description: The companies each curated topic names (#1052).
+- name: topic_company_mention
+  version: 1.0.0
+  contractId: open-navigator-public-topic_company_mention
+  type: table
+  description: Where a topic's companies are named (#1052).
+- name: company_grant
+  version: 1.0.0
+  contractId: open-navigator-public-company_grant
+  type: table
+  description: Grants from the foundations tied to the companies we track (#1073).
+- name: business
+  version: 1.0.0
+  contractId: open-navigator-public-business
+  type: table
+  description: 'The businesses that meetings and decisions name (#1089, #1088).'
+- name: business_mention
+  version: 1.0.0
+  contractId: open-navigator-public-business_mention
+  type: table
+  description: Where a meeting or decision names a business (#1089).
+- name: person_government_term
+  version: 1.0.0
+  contractId: open-navigator-public-person_government_term
+  type: table
+  description: 'Office terms (#1068): one row per (official, role, district, source, term).'
+- name: data_center_meeting_lean
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_meeting_lean
+  type: table
+  description: One row per data center meeting video (in data_center_meeting_mention) with a Jev screen under the current question version.

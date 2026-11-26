@@ -90,6 +90,8 @@ RUNTIME_OWNED = frozenset(
         "job_application_link",
         # contact-form senders' names/emails, kept privately for follow-up (#448)
         "contact_submission",
+        # "Where Do You Stand?" answers, written by the running prod app; a deploy must never overwrite them (#851)
+        "stance_response",
     }
 )
 
@@ -136,6 +138,9 @@ NON_SERVING = frozenset(
         "mdm_bridge_event_analysis",
         "instance_argument",
         "jurisdiction_document",
+        # Uncontested (consent) items (#932): ~41k rows, ~12 MB in gold. No endpoint reads
+        # them yet; move to CIVIC_SERVING (after a size check) when #933 serves them.
+        "event_uncontested_item",
     }
 )
 
@@ -158,6 +163,7 @@ CIVIC_SERVING = frozenset(
         "event_topic",
         "event_meeting",
         "event_meeting_document",
+        "event_analysis_provenance",  # #798: how each analysis was made (one small row per analysis)
         # event_documents is intentionally absent — see DEDICATED_LOADER above
         # (slim cues-only, loaded by sync_event_documents_to_neon.py).
         "meeting_document",
@@ -193,6 +199,8 @@ CIVIC_SERVING = frozenset(
         "browse_directory_summary",
         "browse_transcript_count",
         "browse_entity_state_transcript_count",
+        # /api/topics reads it for a place's counts and 503s on prod without it (#1007). ~6.7 MB.
+        "browse_entity_place_transcript_count",
         # meeting-grain browse + topic/question linkage (Browse Topics/Questions)
         "meeting_browse",
         "meeting_question_link",
@@ -227,6 +235,12 @@ CIVIC_SERVING = frozenset(
         # transcript passages that discuss data centers (#445); meeting docs trimmed in
         # publish_public_serving (#556) so Legistar agenda/minutes stay under the Neon budget
         "data_center_meeting_mention",
+        # who spoke for and against a data center item, and the recorded votes (#930):
+        # one row per meeting, and one per counted public comment (a short quote each)
+        "data_center_meeting_position",
+        "data_center_public_comment",
+        "data_center_decision",
+        "data_center_hearing_verified",
         # question dashboard: place label, company named, nearby tracked site (#508), ~0.5 MB (#528)
         "decision_place_label",
         "decision_company_mention",
@@ -234,6 +248,26 @@ CIVIC_SERVING = frozenset(
         # data center companies (MDM satellite) and projects with their companies,
         # governments, figures and matched decisions / passages (#531)
         "mdm_organization_data_center",
+        # data center payroll jobs (BLS QCEW 518210) and the job sites cited with them (#1019); small
+        "data_center_employment",
+        "data_center_job_source",
+        # Jev's reading of meetings for the data center / short-term rental questions, with passages (#1032)
+        "meeting_policy_question_jev",
+        # short-term rental platform companies (MDM satellite) and where they are named (#1015); small
+        "mdm_organization_short_term_rental",
+        "short_term_rental_company_mention",
+        # the companies each topic names and where they are named (#1052); small
+        "topic_company",
+        "topic_company_mention",
+        # grants from the foundations tied to tracked companies, 990 amounts as filed (#1073); ~0.2 MB
+        "company_grant",
+        # businesses the meetings and decisions name, and where (#1089); small: only named businesses
+        "business",
+        "business_mention",
+        # office terms: who held which seat, when, and why they left (#1068); small
+        "person_government_term",
+        # Jev's reading of each data center meeting: public lean, official lean, the two map flags (#1117); small
+        "data_center_meeting_lean",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

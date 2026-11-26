@@ -1,0 +1,3127 @@
+/*
+ * The Data Center Challenge (#852) and the data stories (#884). Uses the Folio tokens from folio.css (under .folio); imported
+ * only by the challenge, story and hub pages. Pinned mode (wide screens, motion allowed): every round is an act pinned by ScrollTrigger and scrubbed through its beats.
+ * Stacked mode (narrow screens, or prefers-reduced-motion): plain panels, native scrolling, everything in its final state.
+ * The scrubbed values (--draw, --reveal) default to 1 so anything not driven by the timeline is already in its end state.
+ */
+.folio.stance-game {
+  --hdr: 0px;
+  --top-h: 96px;
+  position: relative;
+  background: var(--paper);
+  min-height: calc(100svh - var(--hdr));
+}
+.stance-message {
+  padding: 48px 24px;
+  font-size: 15px;
+}
+
+/* HUD: round counter, scope label, place control. Always visible; the acts are pinned below it. */
+.stance-top {
+  position: sticky;
+  top: var(--hdr);
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 16px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--ink);
+}
+.stance-top-text {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.stance-scope {
+  margin: 2px 0 0;
+  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  align-items: baseline;
+}
+.stance-counter {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.stance-keys {
+  margin: 0;
+  padding: 10px 16px 16px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+}
+
+/* Place control */
+.stance-place {
+  position: relative;
+}
+.stance-place .folio-btn {
+  margin-top: 0;
+}
+/* Place dialog: centred card on a wide screen, bottom sheet on a phone. */
+.stance-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(20, 20, 24, 0.45);
+}
+.stance-dialog {
+  display: grid;
+  gap: 8px;
+  width: min(28rem, 100%);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.4;
+  text-align: left;
+}
+.stance-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.stance-dialog-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+}
+.stance-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -8px -8px 0;
+  padding: 0;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.stance-dialog-close:hover {
+  border-color: var(--ink);
+}
+.stance-dialog .folio-field {
+  display: block;
+  margin-top: 4px;
+}
+.stance-dialog-input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  font-size: 16px;
+}
+.stance-dialog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+.stance-dialog-list[hidden] {
+  display: none;
+}
+.stance-dialog-option {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--ink-3);
+}
+.stance-dialog-option:last-child {
+  border-bottom: 0;
+}
+.stance-dialog-option.is-active {
+  background: var(--paper-raised);
+  box-shadow: inset 3px 0 0 #0f766e;
+}
+.stance-dialog-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stance-dialog-quick .folio-btn {
+  margin-top: 0;
+  min-height: 44px;
+}
+.stance-dialog .stance-note:empty {
+  display: none;
+}
+@media (max-width: 767px) {
+  .stance-dialog-scrim {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .stance-dialog {
+    width: 100%;
+    box-sizing: border-box;
+    max-height: 90dvh;
+    border-width: 1px 0 0;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stance-dialog {
+    animation: stance-dialog-in 140ms ease-out;
+  }
+  @keyframes stance-dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}
+.stance-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* Acts */
+.stance-acts {
+  position: relative;
+}
+.stance-act {
+  position: relative;
+  overflow: visible;
+  padding: 24px 44px 32px 16px;
+  scroll-margin-top: calc(var(--hdr) + var(--top-h));
+  border-bottom: 1px solid var(--rule);
+}
+.stance-stop {
+  min-height: calc(100svh - var(--hdr, 0px) - var(--top-h, 96px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 0 24px;
+  scroll-margin-top: calc(var(--hdr) + var(--top-h));
+}
+.stance-answers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(100%, 28rem);
+  margin-top: 1.5rem;
+}
+.stance-answers-stack .folio-btn {
+  min-height: 52px;
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.stance-game[data-mode='pinned'] .stance-act {
+  height: calc(100svh - var(--hdr) - var(--top-h));
+  padding: 16px 48px 16px 28px;
+  border-bottom: 0;
+  background: var(--paper);
+}
+.stance-word {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 4% 1% 0;
+  font-size: min(9vw, 20svh);
+  font-weight: 600;
+  line-height: 0.8;
+  letter-spacing: -0.05em;
+  color: var(--violet-200);
+  opacity: 0.28;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.stance-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.stance-game[data-mode='pinned'] .stance-grid {
+  height: 100%;
+  grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+  gap: 36px;
+  align-items: center;
+}
+.stance-left,
+.stance-right {
+  min-width: 0;
+}
+.stance-left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stance-game[data-mode='pinned'] .stance-left,
+.stance-game[data-mode='pinned'] .stance-right {
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 2px 6px 2px 2px;
+}
+.stance-card {
+  align-self: flex-start;
+  border: 1px solid var(--ink);
+  background: var(--paper-raised);
+  padding: 8px 16px 10px;
+}
+.stance-card-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stance-card-title {
+  margin: 2px 0 0;
+  font-size: clamp(22px, 2.4vw, 32px);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.stance-finding {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.stance-statement {
+  margin: 0;
+  font-size: clamp(22px, 2.5vw, 36px);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.stance-qblock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stance-answers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.stance-answer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 8px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--ink);
+  cursor: pointer;
+  transition: background-color var(--d-1) var(--ease-std), color var(--d-1) var(--ease-std), transform var(--d-1) var(--ease-std);
+}
+.stance-answer:hover:not(:disabled) {
+  background: var(--violet-100);
+  transform: translateY(-2px);
+}
+.stance-answer[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.stance-answer:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.stance-answer kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+.stance-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--bad-ink);
+  color: var(--bad-ink);
+  background: var(--paper-raised);
+  font-size: 13px;
+}
+.stance-error .folio-btn {
+  margin-top: 0;
+}
+.stance-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stance-nav .folio-btn {
+  margin-top: 0;
+}
+.stance-next,
+.stance-ask-btn {
+  background: var(--violet-ink);
+  color: var(--on-violet);
+  border-color: var(--violet-ink);
+}
+.stance-next:hover:not(:disabled),
+.stance-ask-btn:hover:not(:disabled) {
+  background: var(--band);
+  border-color: var(--band);
+}
+
+/* Reveal */
+.stance-yours {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.stance-reveal-head {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+.stance-result {
+  margin: 0 0 6px;
+}
+.stance-result-title {
+  margin: 0 0 3px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.stance-result-n {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.stance-result-none {
+  margin: 0;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.stance-stack {
+  display: flex;
+  height: 22px;
+  border: 1px solid var(--ink);
+  overflow: hidden;
+  transform-origin: left center;
+  transform: scaleX(var(--reveal, 1));
+}
+.stance-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+}
+.stance-seg-agree {
+  background: var(--violet-ink);
+  color: var(--on-violet);
+}
+.stance-seg-disagree {
+  background: var(--vermilion);
+  color: var(--on-vermilion);
+}
+.stance-seg-unsure {
+  background: var(--ink-3);
+  color: var(--white);
+}
+.stance-seg.is-yours {
+  box-shadow: inset 0 0 0 3px var(--paper-raised);
+}
+.stance-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.stance-legend .is-yours {
+  font-weight: 700;
+}
+.stance-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+}
+
+/* Rolling digits */
+.stance-odo {
+  display: inline-block;
+  position: relative;
+  font-variant-numeric: tabular-nums;
+}
+.stance-odo-vis {
+  display: inline-flex;
+}
+.stance-odo-slot {
+  display: inline-block;
+  overflow: hidden;
+  line-height: 1.25;
+  vertical-align: bottom;
+}
+.stance-odo-slot > span {
+  display: inline-block;
+}
+
+/* Chart */
+.stance-figure {
+  margin: 0;
+}
+.stance-nodata {
+  margin: 0;
+  padding: 24px 12px;
+  border: 1px dashed var(--ink-3);
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.stance-hbars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.stance-hbars li {
+  display: grid;
+  grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr) 3.5rem;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.stance-hbar-track {
+  display: block;
+  height: 20px;
+  background: var(--neutral-data);
+}
+.stance-hbar-fill {
+  display: block;
+  height: 100%;
+  background: var(--violet-ink);
+  transform-origin: left center;
+  transform: scaleX(var(--draw, 1));
+}
+.stance-hbar-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.stance-cols {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  height: 240px;
+}
+.stance-cols li {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  font-size: 12px;
+  text-align: center;
+}
+.stance-col-track {
+  display: flex;
+  align-items: flex-end;
+  flex: 1 1 auto;
+}
+.stance-col-fill {
+  display: block;
+  width: 100%;
+  background: var(--violet-ink);
+  transform-origin: center bottom;
+  transform: scaleY(var(--draw, 1));
+}
+.stance-col-value,
+.stance-col-label {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+
+/* End screen */
+.stance-end-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 42rem;
+}
+.stance-end-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 16px;
+  line-height: 1.5;
+  display: grid;
+  gap: 6px;
+}
+.stance-others ul {
+  margin: 4px 0 0;
+  padding-left: 1.1rem;
+}
+
+
+@media (min-width: 768px) {
+  .stance-game[data-mode='stacked'] .stance-grid {
+    grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+    gap: 36px;
+  }
+}
+@media (max-width: 767px) {
+  .stance-top {
+    padding: 6px 12px;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .stance-top .folio-eyebrow,
+  .stance-scope .folio-link-btn {
+    display: none;
+  }
+  .stance-top-text {
+    flex: 1 1 0;
+  }
+  .stance-scope {
+    font-size: 13px;
+    line-height: 1.25;
+  }
+  .stance-counter {
+    font-size: 14px;
+  }
+  .stance-answers {
+    gap: 6px;
+  }
+  .stance-answer kbd {
+    display: none;
+  }
+  .stance-hbars li {
+    grid-template-columns: minmax(5rem, 7rem) minmax(0, 1fr) 3rem;
+    gap: 6px;
+  }
+  .stance-word {
+    display: none;
+  }
+  /* Stacked on a phone the headline is followed at once by the chart; the question, answers and Continue come after it. */
+  .stance-game .stance-left {
+    display: contents;
+  }
+  .stance-game .stance-card {
+    order: 1;
+  }
+  .stance-game .stance-head {
+    order: 2;
+  }
+  .stance-game .stance-broaden {
+    order: 3;
+  }
+  .stance-game .stance-right {
+    order: 4;
+  }
+  .stance-game .stance-qblock {
+    order: 5;
+  }
+  .stance-game .stance-reveal {
+    order: 6;
+  }
+  .stance-game .stance-nav {
+    order: 7;
+  }
+  .stance-game .stance-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .stance-crumbs a,
+  .stance-crumbs > span[aria-hidden='true'] {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stance-answer {
+    transition: none !important;
+  }
+  .stance-answer:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Cover: first screen with the real national counts */
+.stance-cover {
+  position: relative;
+  padding: 24px 44px 24px 28px;
+  border-bottom: 1px solid var(--ink);
+  display: flex;
+  align-items: center;
+}
+.stance-game[data-mode='pinned'] .stance-cover {
+  height: calc(100svh - var(--hdr) - var(--top-h));
+}
+.stance-cover-body {
+  max-width: 78rem;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.stance-cover-title {
+  margin: 0;
+  font-size: clamp(40px, 7vw, 96px);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+}
+.stance-cover-lead {
+  margin: 0;
+  max-width: 40rem;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.stance-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0 20px;
+  margin: 6px 0 0;
+  border-top: 1px solid var(--ink);
+}
+.stance-stats > div {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+.stance-stats dt {
+  order: 2;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stance-stats dd {
+  margin: 0;
+  font-size: clamp(32px, 4.4vw, 60px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Headline = the chart's main conclusion */
+.stance-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stance-headline {
+  margin: 0;
+  font-size: clamp(22px, 2.1vw, 32px);
+  font-weight: 300;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.stance-context {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.03em;
+  color: var(--ink-2);
+}
+.stance-ask {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--violet-ink);
+}
+.stance-statement {
+  font-size: clamp(17px, 1.45vw, 21px);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.stance-game[data-mode='pinned'] .stance-card {
+  padding: 6px 14px 8px;
+}
+
+/* Unit chart: one dot per real record */
+.stance-dots {
+  display: grid;
+  gap: 12px;
+}
+.stance-dotgroup-head {
+  margin: 0 0 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stance-dotrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.stance-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  opacity: clamp(0, calc((var(--draw, 1) * 1.25 - var(--f, 0)) * 10), 1);
+  cursor: default;
+}
+a.stance-dot {
+  cursor: pointer;
+}
+.stance-dot:hover {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.stance-hbars li {
+  grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr) 5.5rem;
+}
+.stance-hbar-value {
+  white-space: nowrap;
+}
+@media (max-width: 767px) {
+  .stance-cover {
+    padding: 20px 40px 20px 14px;
+  }
+  .stance-hbars li {
+    grid-template-columns: minmax(4.5rem, 6.5rem) minmax(0, 1fr) 5rem;
+  }
+}
+
+/* Navigation without numbers: crumbs, the current word, Continue and Back */
+.stance-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stance-title {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--ink);
+}
+.stance-counter {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.stance-nodata p {
+  margin: 0 0 8px;
+}
+.stance-nodata p:last-child {
+  margin-bottom: 0;
+}
+.stance-lede {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.stance-nav {
+  align-items: center;
+}
+/* #964: Back at the left, the primary Next at the right (like the hub's Start the story), on every screen width. */
+.stance-nav-split {
+  width: 100%;
+  justify-content: space-between;
+}
+.stance-nav-split .stance-next-end {
+  margin-left: auto;
+  min-width: 132px;
+  justify-content: center;
+}
+.stance-back {
+  border-color: transparent;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.stance-broaden {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stance-broaden .folio-btn {
+  margin-top: 0;
+}
+.stance-broaden:empty {
+  display: none;
+}
+.stance-right .stance-stats {
+  margin-top: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.stance-right .stance-stats dd {
+  font-size: clamp(30px, 3.6vw, 52px);
+}
+.stance-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.folio a.stance-link-card {
+  display: grid;
+  gap: 2px;
+  padding: 12px 16px;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink);
+}
+.stance-link-card b {
+  font-size: 17px;
+  font-weight: 600;
+}
+.stance-link-card span {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.folio a.stance-link-card.is-primary {
+  background: var(--violet-ink);
+  color: var(--on-violet);
+}
+.stance-link-card.is-primary span {
+  color: var(--on-violet);
+}
+.folio a.stance-link-card:hover {
+  background: var(--violet-100);
+  color: var(--ink);
+}
+.folio a.stance-link-card.is-primary:hover {
+  background: var(--band);
+  color: var(--on-violet);
+}
+.stance-link-card:focus-visible,
+.stance-next:focus-visible,
+.stance-back:focus-visible,
+.stance-dot:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+
+/* The hub */
+.folio.stories-hub {
+  background: var(--paper);
+  min-height: 60svh;
+  padding: 28px 24px 56px;
+}
+.stories-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 62rem;
+}
+.stories-title {
+  margin: 0;
+  /* Keep the place/topic sentence to two lines (#954); shorter type so Start fits the first viewport (#962). */
+  font-size: clamp(22px, 3vw, 36px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-wrap: balance;
+}
+.stories-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.stories-scope .stance-scope {
+  margin: 0;
+}
+.stories-list {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 20px;
+  max-width: 62rem;
+}
+.stories-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px 22px;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink);
+}
+.stories-card-title {
+  margin: 0;
+  font-size: clamp(18px, 2.2vw, 26px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-wrap: balance;
+}
+.stories-hub .stance-lede {
+  margin: 0;
+  font-size: clamp(14px, 1.2vw, 16px);
+  line-height: 1.45;
+  max-width: 40rem;
+}
+/* Compact key counts so the first viewport reaches Start (#962). */
+.stories-card .stance-stats {
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0 12px;
+  margin-top: 4px;
+}
+.stories-card .stance-stats > div {
+  padding: 6px 0 8px;
+}
+.stories-card .stance-stats dd {
+  font-size: clamp(20px, 2.4vw, 28px);
+}
+.stories-card .stance-note {
+  margin: 0;
+  font-size: 12px;
+}
+.stories-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.folio .stories-actions a.folio-btn {
+  color: var(--ink);
+}
+.folio .stories-actions a.stance-next {
+  color: var(--on-violet);
+}
+.stories-actions .folio-btn {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: none;
+}
+
+@media (max-width: 767px) {
+  .stance-nav .folio-btn,
+  .stance-top .folio-btn,
+  .stance-figure > .folio-btn,
+  .stance-broaden .folio-btn,
+  .stance-link-card,
+  .stance-cover .folio-btn {
+    min-height: 44px;
+  }
+  .stance-act {
+    padding-right: 16px;
+  }
+  .stance-cover {
+    padding-right: 16px;
+  }
+  .stance-right .stance-stats dd {
+    font-size: 30px;
+  }
+  .folio.stories-hub {
+    padding: 20px 16px 40px;
+  }
+}
+
+/* Story: the headline is the bold conclusion of the screen; charts are a little larger */
+.stance-story .stance-headline {
+  font-size: clamp(24px, 2.8vw, 42px);
+  font-weight: 400;
+  line-height: 1.12;
+}
+.stance-story .stance-lede {
+  font-size: clamp(14px, 1.15vw, 17px);
+}
+.stance-game[data-mode='pinned'] .stance-hbars li {
+  font-size: 14px;
+}
+.stance-game[data-mode='pinned'] .stance-hbar-track {
+  height: 26px;
+}
+.stance-game[data-mode='pinned'] .stance-dots {
+  gap: 7px;
+}
+.stance-game[data-mode='pinned'] .stance-dotgroup-head {
+  margin-bottom: 3px;
+}
+
+/* Without the scroll animation (stacked mode) the large word is left out: it would sit over the figure. */
+.stance-game[data-mode="stacked"] .stance-word {
+  display: none;
+}
+
+/* Key hints belong to a hardware keyboard; a touch screen gets the tap hint instead. */
+.stance-hint-keys {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .stance-hint-keys {
+    display: block;
+  }
+  .stance-hint-touch {
+    display: none;
+  }
+}
+.stance-act:focus {
+  outline: none;
+}
+
+/* Sentence heading: "What did [place] say about [topic]?" with underlined inline blanks */
+.stance-heading-row {
+  min-width: 0;
+}
+.stance-sentence {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.stance-sentence.stories-title {
+  font-size: clamp(30px, 5vw, 64px);
+  font-weight: 300;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+.stance-blank,
+.stance-blank-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+.stance-blank-wrap {
+  position: relative;
+}
+.stance-blank {
+  min-height: 0;
+  padding: 0 0.1em;
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--violet-ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 0.08em dotted var(--violet-ink);
+  border-radius: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: left;
+}
+select.stance-blank {
+  padding-right: 0.8em;
+}
+.stance-blank:hover {
+  background: var(--violet-100);
+}
+.stance-blank:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 3px;
+}
+.stance-blank option,
+.stance-blank optgroup {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--paper-raised);
+}
+.stance-blank-caret {
+  font-size: 0.55em;
+  margin-left: 0.15em;
+  color: var(--violet-ink);
+  pointer-events: none;
+}
+.stance-blank-wrap .stance-blank-caret {
+  position: absolute;
+  right: 0.1em;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+}
+.stance-place.is-blank {
+  display: inline-block;
+}
+.stance-place.is-blank .stance-blank {
+  display: inline-flex;
+}
+.stance-try {
+  margin: 0;
+  font-size: 14px;
+}
+.stance-top:has(.stance-heading-row) {
+  align-items: flex-start;
+}
+@media (max-width: 767px) {
+  .stance-blank {
+    min-height: 44px;
+  }
+  .stance-sentence {
+    font-size: 20px;
+    line-height: 1.1;
+  }
+  .stance-top:has(.stance-heading-row) .stance-scope .folio-link-btn,
+  .stance-top:has(.stance-heading-row) .stance-counter {
+    display: none;
+  }
+}
+
+.stance-kicker {
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  border: 1px dashed var(--ink-3);
+}
+
+.stories-head {
+  position: relative;
+}
+@media (max-width: 767px) {
+  .stance-place.is-blank {
+    position: static;
+  }
+}
+
+/* ===================================================================================================================
+ * #899: the beats of a round (finding, question, results) and the sound switch. Kept in one block at the end of the file.
+ * =================================================================================================================== */
+@property --draw {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+/* Beat 1: the chart draws on a clock (not the scroll) the first time the round plays. */
+.stance-game[data-beats] .stance-act:not(.is-played):not(.is-still) {
+  --draw: 0;
+}
+.stance-game[data-beats] .stance-act.is-played {
+  animation: stance-draw 1100ms cubic-bezier(0.22, 1, 0.36, 1) 350ms both;
+}
+@keyframes stance-draw {
+  from {
+    --draw: 0;
+  }
+  to {
+    --draw: 1;
+  }
+}
+@keyframes stance-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stance-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stance-land {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stance-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes stance-lockpulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.stance-game[data-beats] .stance-act.is-played .stance-headline {
+  animation: stance-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both;
+}
+.stance-game[data-beats] .stance-act.is-played .stance-context {
+  animation: stance-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) 350ms both;
+}
+
+/* Beat 1: the finding is the title. */
+.stance-act[data-beat='finding'] .stance-headline {
+  font-size: clamp(26px, 3vw, 46px);
+  font-weight: 400;
+  line-height: 1.08;
+}
+.stance-askrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  position: relative;
+  padding-bottom: 8px;
+}
+.stance-askrow .folio-btn {
+  margin-top: 0;
+}
+.stance-ask-btn kbd {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+.stance-skip {
+  color: var(--ink-2);
+}
+.stance-countdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--rule);
+}
+.stance-countdown > span {
+  display: block;
+  height: 100%;
+  background: var(--violet-ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* Beat 2: the statement arrives large, the answers stagger in, the chart goes quiet. */
+.stance-act[data-beat='question'] .stance-headline,
+.stance-act[data-beat='results'] .stance-headline {
+  font-size: clamp(18px, 1.5vw, 22px);
+  color: var(--ink-2);
+}
+.stance-act[data-beat='question'] .stance-statement {
+  font-size: clamp(24px, 2.6vw, 38px);
+  font-weight: 400;
+  line-height: 1.12;
+}
+.stance-act[data-beat='question'] .stance-figure {
+  opacity: 0.5;
+  transition: opacity 400ms var(--ease-std);
+}
+.stance-act[data-beat='question'] .stance-figure:hover,
+.stance-act[data-beat='question'] .stance-figure:focus-within {
+  opacity: 1;
+}
+.stance-game[data-beats] .stance-act[data-beat='question'] .stance-qblock .stance-ask,
+.stance-game[data-beats] .stance-act[data-beat='question'] .stance-qblock .stance-statement {
+  animation: stance-arrive 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stance-game[data-beats] .stance-act[data-beat='question'] .stance-qblock .stance-statement {
+  animation-delay: 80ms;
+}
+.stance-game[data-beats] .stance-act[data-beat='question'] .stance-answer {
+  animation: stance-arrive 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(260ms + var(--i, 0) * 110ms);
+}
+
+/* Beat 3: the chosen answer locks; the other two step back. */
+.stance-answer.is-locked {
+  background: var(--ink);
+  color: var(--paper);
+  opacity: 1;
+}
+.stance-game[data-beats] .stance-act .stance-answer.is-locked {
+  animation: stance-lockpulse 320ms var(--ease-std) both;
+}
+.stance-answer.is-dim {
+  opacity: 0.35;
+}
+.stance-answer.is-locked:disabled {
+  opacity: 1;
+}
+.stance-reveal.is-fresh .stance-result {
+  opacity: 0;
+  animation: stance-land 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--k, 0) * 650ms);
+}
+.stance-reveal.is-fresh .stance-stack {
+  animation: stance-grow 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--k, 0) * 650ms);
+}
+
+/* The two sides, when a source supplies verbatim quotes. */
+.stance-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  max-height: 34svh;
+  overflow-y: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+.stance-side-title {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stance-side-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.stance-side blockquote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--ink-3);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.stance-side-who {
+  margin: 2px 0 0 10px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+@media (max-width: 767px) {
+  .stance-sides {
+    grid-template-columns: minmax(0, 1fr);
+    max-height: 30svh;
+  }
+}
+
+/* The sound switch in the top bar. */
+.stance-top-actions {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+/* Close (#1017): leaves the story for the home page. */
+.stance-close {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 26px;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--ink);
+}
+.stance-sound {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.stance-sound[aria-pressed='false'] {
+  color: var(--ink-2);
+}
+/* Phones: sound is set in the site menu (#1017), so the header keeps only Close. */
+@media (max-width: 767px) {
+  .stance-top-actions .stance-sound {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  .stance-sound {
+    min-height: 44px;
+    min-width: 44px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+/* A phone shows the round on one screen: the chart folds away once the question is asked, and the finding is the title. */
+@media (max-width: 767px) {
+  .stance-game[data-beats] .stance-act {
+    min-height: calc(100svh - var(--hdr) - var(--top-h));
+  }
+  .stance-act[data-beat='finding'] .stance-headline {
+    font-size: clamp(22px, 6.4vw, 28px);
+  }
+  .stance-act[data-beat='question'] .stance-right,
+  .stance-act[data-beat='results'] .stance-right {
+    display: none;
+  }
+  /* In the phone's one-column order: title, chart, then the two sides and the "Ask me" row. */
+  .stance-game .stance-sides {
+    order: 5;
+  }
+  .stance-game .stance-askrow {
+    order: 6;
+  }
+  .stance-game[data-beats] .stance-counter,
+  .stance-ask-btn kbd {
+    display: none;
+  }
+}
+
+/* Reduced motion: the beats still happen, as steps, with no movement. */
+@media (prefers-reduced-motion: reduce) {
+  .stance-game[data-beats] .stance-act,
+  .stance-game[data-beats] .stance-act *,
+  .stance-reveal.is-fresh .stance-result,
+  .stance-reveal.is-fresh .stance-stack {
+    animation: none !important;
+    transition: none !important;
+  }
+  .stance-game[data-beats] .stance-act {
+    --draw: 1 !important;
+  }
+  .stance-reveal.is-fresh .stance-result {
+    opacity: 1;
+  }
+}
+
+/* ===================================================================================================================
+ * #915: the story opens and closes on one question; phones get one screen per swipe with entrances and exits; a floating
+ * "next" when the screen's own is out of view; progress pips. Kept in one block at the end of the file.
+ * =================================================================================================================== */
+
+/* --- The question, "Where?" and the verdict ---------------------------------------------------------------------------- */
+.stance-game .stance-grid.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.stance-grid.is-single .stance-left {
+  width: 100%;
+  max-width: 64rem;
+  gap: 16px;
+}
+.stance-story .stance-bigq {
+  font-size: clamp(34px, 6.2vw, 88px);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.stance-vote .stance-card {
+  padding: 5px 10px;
+}
+.stance-choices {
+  max-width: 46rem;
+}
+.stance-choices .stance-answer {
+  min-height: 64px;
+  font-size: 18px;
+}
+.stance-answer {
+  position: relative;
+}
+.stance-choices .stance-answer-agree[aria-pressed='true'] {
+  background: var(--violet-ink);
+  border-color: var(--violet-ink);
+  color: var(--on-violet);
+}
+.stance-choices .stance-answer-disagree[aria-pressed='true'] {
+  background: var(--vermilion);
+  border-color: var(--ink);
+  color: var(--on-vermilion);
+}
+.stance-choices .stance-answer[aria-pressed='true'] > span::before {
+  content: '✓ ';
+}
+.stance-choices .stance-answer[aria-pressed='true']:disabled {
+  opacity: 1;
+}
+.stance-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.35em;
+  font-size: clamp(22px, 2.6vw, 34px);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+.stance-where .stance-blank {
+  font: inherit;
+  font-weight: 500;
+}
+.stance-vote .stance-statement {
+  font-size: clamp(20px, 2.2vw, 30px);
+}
+.stance-change {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.stance-vote .stance-nav {
+  align-items: center;
+  gap: 8px 16px;
+}
+.folio a.stance-next {
+  color: var(--on-violet);
+  text-decoration: none;
+}
+.stance-after-links {
+  max-width: 40rem;
+}
+.stance-scopeblock {
+  margin: 0 0 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+}
+.stance-scopeblock-title {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.stance-choice .stance-result-title {
+  font-weight: 500;
+}
+.stance-choice .stance-stack {
+  height: 20px;
+}
+
+/* --- Titles: every word rises out of its own mask ---------------------------------------------------------------------- */
+.stance-kw {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding: 0.1em 0.04em 0.16em;
+  margin: -0.1em -0.04em -0.16em;
+}
+.stance-kw-i {
+  display: inline-block;
+}
+@keyframes stance-word {
+  from {
+    transform: translateY(118%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* --- The primary "next": large, and alive ---------------------------------------------------------------------------- */
+.stance-next,
+.stance-ask-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: transform 110ms var(--ease-std), background-color var(--d-1) var(--ease-std);
+}
+.stance-next:active,
+.stance-ask-btn:active,
+.stance-float-btn:active,
+.stance-answer:active:not(:disabled) {
+  transform: scale(0.94);
+}
+@keyframes stance-spring {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stance-burst {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.12, 1.55);
+  }
+}
+@keyframes stance-pop {
+  0% {
+    transform: scaleY(1);
+  }
+  45% {
+    transform: scaleY(2.4);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+@keyframes stance-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- The floating "next": shown only while the screen's own primary action is out of view ------------------------------ */
+.stance-float {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1px solid var(--ink);
+  box-shadow: 0 -6px 18px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.stance-float-btn {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 52px;
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--on-violet);
+  background: var(--violet-ink);
+  border: 1px solid var(--violet-ink);
+  cursor: pointer;
+  transition: transform 110ms var(--ease-std);
+}
+.stance-float.is-many .stance-float-btn {
+  color: var(--ink);
+  background: var(--paper-raised);
+  border-color: var(--ink);
+}
+.stance-float.is-many .stance-float-btn.is-pressed {
+  color: var(--paper);
+  background: var(--ink);
+}
+.stance-float-btn:disabled {
+  opacity: 0.55;
+}
+.stance-float-back {
+  flex: 0 0 auto;
+  min-height: 52px;
+  min-width: 44px;
+  padding: 0 10px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+@media (min-width: 768px) {
+  .stance-float {
+    left: auto;
+    right: 40px;
+    bottom: 20px;
+    padding: 8px;
+    border: 1px solid var(--ink);
+  }
+  .stance-float-btn {
+    flex: 0 0 auto;
+    padding: 8px 24px;
+  }
+}
+
+/* --- Progress pips along the lower edge of the top bar ------------------------------------------------------------------ */
+.stance-top:has(.stance-pips) {
+  flex-wrap: wrap;
+}
+.stance-pips {
+  flex: 0 0 100%;
+  order: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.stance-pips-row {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 12px;
+}
+.stance-pip {
+  position: relative;
+  flex: 1 1 0;
+  height: 5px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.stance-pip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--violet-ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stance-pip.is-past::after,
+.stance-pip.is-now::after,
+.stance-pip.is-done::after {
+  transform: scaleX(1);
+}
+.stance-pip.is-done::after {
+  background: var(--ink);
+}
+.stance-pip.is-now {
+  height: 9px;
+}
+.stance-pips-left {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+/* --- The hub card: care-first hook + subtle Start pulse (#950 / #954 / #962) ----------------------------------------- */
+.stories-actions {
+  align-items: center;
+  gap: 10px 18px;
+  margin-top: 10px;
+}
+.folio .stories-actions a.stories-start {
+  min-height: 52px;
+  font-size: 16px;
+  text-align: left;
+}
+@keyframes stories-start-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--folio-accent, #0d9488) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--folio-accent, #0d9488) 0%, transparent);
+  }
+}
+.folio .stories-actions a.stories-start-pulse {
+  animation: stories-start-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .folio .stories-actions a.stories-start-pulse {
+    animation: none;
+  }
+}
+.stories-second {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+@media (max-width: 767px) {
+  .stories-list {
+    margin-top: 16px;
+  }
+  .stories-card {
+    padding: 14px 14px 18px;
+  }
+  .stance-sentence.stories-title {
+    font-size: 24px;
+  }
+  .folio .stories-actions a.stories-start {
+    width: 100%;
+  }
+  .stance-vote .stance-skip,
+  .stories-second {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .stance-story .stance-bigq {
+    font-size: clamp(32px, 10.5vw, 44px);
+  }
+  .stance-choices .stance-answer {
+    min-height: 60px;
+    font-size: 16px;
+    padding: 6px 4px;
+    line-height: 1.1;
+  }
+  /* The verdict's results come after its answers on a phone. */
+  .stance-game .stance-vote-verdict .stance-right {
+    order: 6;
+  }
+  .stance-game .stance-after-links {
+    order: 8;
+  }
+}
+
+/* --- Phones: one screen per swipe (snap mode) -------------------------------------------------------------------------- */
+html.stance-snap {
+  scroll-snap-type: y mandatory;
+}
+.stance-game[data-mode='snap'] .stance-act,
+.stance-game[data-mode='snap'] .stance-cover {
+  height: calc(100svh - var(--hdr) - var(--top-h));
+  min-height: 0;
+  padding: 14px 16px 0;
+  overflow: hidden;
+  border-bottom: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  scroll-margin-top: calc(var(--hdr) + var(--top-h));
+}
+/* What cannot fit scrolls inside its own block, never the page inside a screen. */
+.stance-game[data-mode='snap'] .stance-grid,
+.stance-game[data-mode='snap'] .stance-end-body,
+.stance-game[data-mode='snap'] .stance-cover-body {
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-bottom: 14px;
+  scrollbar-width: none;
+}
+.stance-game[data-mode='snap'] .stance-cover {
+  align-items: stretch;
+}
+.stance-game[data-mode='snap'] .stance-keys {
+  display: none;
+}
+/* Challenge (#969): tall acts with finding / question / reveal stops snap per stop, not per act. */
+.stance-game[data-mode='snap'][data-beats] .stance-act {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  scroll-snap-align: none;
+  scroll-snap-stop: normal;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-stop {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.stance-game[data-mode='snap'][data-beats] .stance-grid,
+.stance-game[data-mode='snap'][data-beats] .stance-end-body {
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Wide screens: the headline's words are scrubbed by the scroll (--title runs 0 to 1 on the screen's timeline). */
+  .stance-game[data-mode='pinned'] .stance-act:not([data-state]) .stance-head .stance-kw-i {
+    transform: translateY(calc((1 - clamp(0, var(--title, 1) * 2 - var(--wf, 0), 1)) * 118%));
+  }
+
+  /* A screen marked by the scroll (every screen on a phone; the cover and the end screen on a wide one): its blocks rise in,
+     staggered, when it arrives, step back as it starts to leave, and are gone once it has left. */
+  .stance-game [data-state] :is(.stance-card, .stance-head > :not(.stance-headline), .stance-right, .stance-qblock, .stance-reveal, .stance-nav, .stance-broaden, .stance-askrow, .stance-sides, .stance-after-links, .stance-cover-body > :not(.stance-cover-title), .stance-end-body > :not(.stance-card)) {
+    transition:
+      opacity 360ms var(--ease-std),
+      transform 460ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(60ms + var(--en, 1) * 55ms);
+  }
+  .stance-game [data-state] .stance-card {
+    --en: 0;
+  }
+  .stance-game [data-state] .stance-right {
+    --en: 2;
+  }
+  .stance-game [data-state] :is(.stance-qblock, .stance-askrow, .stance-sides) {
+    --en: 3;
+  }
+  .stance-game [data-state] :is(.stance-reveal, .stance-broaden) {
+    --en: 4;
+  }
+  .stance-game [data-state] :is(.stance-nav, .stance-after-links) {
+    --en: 5;
+  }
+  .stance-game [data-state]:not([data-state='in']) :is(.stance-card, .stance-head > :not(.stance-headline), .stance-right, .stance-qblock, .stance-reveal, .stance-nav, .stance-broaden, .stance-askrow, .stance-sides, .stance-after-links, .stance-cover-body > :not(.stance-cover-title), .stance-end-body > :not(.stance-card)) {
+    opacity: 0;
+    transform: translateY(40px);
+    transition-duration: 200ms;
+    transition-delay: 0ms;
+  }
+  .stance-game [data-state='above'] :is(.stance-card, .stance-head > :not(.stance-headline), .stance-right, .stance-qblock, .stance-reveal, .stance-nav, .stance-broaden, .stance-askrow, .stance-sides, .stance-after-links, .stance-cover-body > :not(.stance-cover-title), .stance-end-body > :not(.stance-card)) {
+    transform: translateY(-40px);
+  }
+  .stance-game [data-state='in'][data-leaving] :is(.stance-card, .stance-head > :not(.stance-headline), .stance-right, .stance-qblock, .stance-reveal, .stance-nav, .stance-broaden, .stance-askrow, .stance-sides, .stance-after-links, .stance-cover-body > :not(.stance-cover-title), .stance-end-body > :not(.stance-card)) {
+    opacity: 0.25;
+    transform: translateY(-16px) scale(0.985);
+    transition-duration: 200ms;
+    transition-delay: 0ms;
+  }
+  /* The title's words: up out of the mask on arrival, on through its top as the screen leaves. */
+  .stance-game [data-state] .stance-kw-i {
+    transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(80ms + min(var(--wi, 0) * 32ms, 320ms));
+  }
+  .stance-game [data-state]:not([data-state='in']) .stance-kw-i {
+    transform: translateY(118%);
+    transition-duration: 160ms;
+    transition-delay: 0ms;
+  }
+  .stance-game [data-state='in'][data-leaving] .stance-kw-i {
+    transform: translateY(-118%);
+    transition-duration: 220ms;
+    transition-delay: 0ms;
+  }
+  /* The challenge's own clock animations on the headline give way to the screen's entrance on a phone. */
+  .stance-game[data-mode='snap'][data-beats] .stance-act.is-played .stance-headline,
+  .stance-game[data-mode='snap'][data-beats] .stance-act.is-played .stance-context {
+    animation: none;
+  }
+  /* The challenge's statement arrives word by word when the question is asked. */
+  .stance-game[data-beats] .stance-act[data-beat='question'] .stance-statement .stance-kw-i {
+    animation: stance-word 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(80ms + min(var(--wi, 0) * 30ms, 300ms));
+  }
+  /* A story chart draws each time its screen arrives on a phone. */
+  .stance-story[data-mode='snap'] .stance-act:not([data-state='in']) {
+    --draw: 0;
+  }
+  .stance-story[data-mode='snap'] .stance-act[data-state='in'] {
+    animation: stance-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) 220ms both;
+  }
+
+  /* Everywhere: the floating bar slides up, and the primary button rises in with its screen. Calm, no overshoot. */
+  .stance-float {
+    animation: stance-float-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  [data-live] .stance-next,
+  .stories-start,
+  .stance-float-btn {
+    animation: stance-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
+  }
+  .stance-float-btn {
+    animation-delay: 100ms;
+  }
+  .stance-pips-left {
+    animation: stance-rise 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* The challenge only (data-beats): quiz-show energy. The primary button springs in when its screen is the one in view;
+     the chosen answer throws a ring; the pips pop. Its arrow hops and catches the light only as the idle cue (#930, at the
+     end of this file). The hub and the story keep the calm versions above. */
+  .stance-game[data-beats] [data-live] .stance-next,
+  .stance-game[data-beats] [data-live] .stance-ask-btn,
+  .stance-game[data-beats] [data-cover] .stance-next,
+  .stance-game[data-beats] .stance-end .stance-next,
+  .stance-game[data-beats] .stance-float-btn {
+    animation: stance-spring 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 320ms both;
+  }
+  .stance-game[data-beats] .stance-float-btn {
+    animation-delay: 120ms;
+  }
+  .stance-game[data-beats] .stance-answer.is-locked::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 2px solid var(--ink);
+    pointer-events: none;
+    animation: stance-burst 520ms ease-out both;
+  }
+  .stance-game[data-beats] .stance-pip.is-now,
+  .stance-game[data-beats] .stance-pip.is-done {
+    animation: stance-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stance-pip::after,
+  .stance-next,
+  .stance-ask-btn,
+  .stance-float-btn {
+    transition: none !important;
+  }
+  .stance-next:active,
+  .stance-ask-btn:active,
+  .stance-float-btn:active,
+  .stance-answer:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* On a phone the story keeps its top bar short: the sound switch is its icon (the words stay for a screen reader). */
+@media (max-width: 767px) {
+  .stance-story .stance-sound-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .stance-story .stance-sound {
+    justify-content: center;
+  }
+}
+/* A screen is only a starting point for Tab (tabindex -1), never a control: it takes focus without a ring. */
+.folio .stance-act[tabindex='-1']:focus-visible {
+  outline: none;
+}
+
+/* The crumb link in the top bar keeps a 44 px touch target without making the bar taller. */
+@media (max-width: 767px) {
+  .stance-scope > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin: -14px 0;
+  }
+}
+@media (max-width: 767px) {
+  .stance-act .folio-link-btn,
+  .stance-end .folio-link-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+/* ===================================================================================================================
+ * #930: who spoke up (five figures and a dot per speaker), dots on every story screen, a cross-fade under reduced motion, and
+ * the cue that draws attention to the next step when the reader has stopped. Kept in one block at the end of the file.
+ * =================================================================================================================== */
+
+/* --- Who spoke up ---------------------------------------------------------------------------------------------------- */
+.stance-voices {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.stance-voices-figures {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0 14px;
+  margin: 0;
+  border-top: 1px solid var(--ink);
+}
+.stance-voices-figures > div {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.stance-voices-figures > div:nth-child(n + 4) {
+  grid-column: span 3;
+}
+.stance-voices-figures dt {
+  order: 2;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stance-voices-figures dd {
+  margin: 0;
+  font-size: clamp(28px, 3.4vw, 46px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.stance-voices-figures .is-missing dd {
+  padding: 6px 0 4px;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.2;
+  color: var(--ink-2);
+}
+.stance-voices-fig {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.stance-voices-caption {
+  color: var(--ink-2);
+}
+.stance-voices-off {
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-2);
+}
+.stance-voices-quotes {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+.stance-side-about {
+  color: var(--ink);
+}
+.stories-voices {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+.stories-voices-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+/* The screen with quotes to read leaves out the large background word: it would sit under the text. */
+.stance-act[data-screen='voices'] .stance-word {
+  display: none;
+}
+.stance-right > .stance-figure + .stance-stats {
+  margin-top: 14px;
+}
+
+/* A stance has its own colour AND its own shape, and every group is headed by its name and count. (Folio draws no round
+   corners, so the shapes are a square, a diamond, an open square and a bar.) */
+.stance-dot--for {
+  background: var(--violet);
+}
+.stance-dot--against {
+  background: var(--vermilion);
+  box-shadow: inset 0 0 0 1.5px var(--vermilion-ink);
+  rotate: 45deg;
+}
+.stance-dot.stance-dot--against {
+  width: 8px;
+  height: 8px;
+  margin: 1px 2px;
+}
+.stance-dot--question {
+  background: transparent;
+  box-shadow: inset 0 0 0 2.5px var(--ink-2);
+}
+.stance-dot--neutral {
+  background: var(--ink-3);
+}
+.stance-dot.stance-dot--neutral {
+  height: 4px;
+  margin: 3px 0;
+}
+.stance-swatch.stance-dot--against {
+  width: 8px;
+  height: 8px;
+  margin: 1px 7px 1px 1px;
+}
+.stance-swatch.stance-dot--neutral {
+  height: 4px;
+  margin-bottom: 3px;
+}
+/* The last dot of a group drawn at a ratio stands for fewer records than the others: it is drawn smaller. */
+.stance-dot.is-part {
+  width: 6px;
+  height: 6px;
+  margin: 2px;
+}
+
+/* --- Dots arrive one after another -------------------------------------------------------------------------------------- */
+@keyframes stance-dot-in {
+  from {
+    opacity: 0;
+    scale: 0.3;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+@keyframes stance-dot-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* On a screen whose chart is drawn by --draw (the story and the challenge), a dot grows as it appears. */
+  .stance-game .stance-dot {
+    scale: clamp(0.3, calc((var(--draw, 1) * 1.25 - var(--f, 0)) * 10), 1);
+  }
+  /* The hub has no screens: its dots play once when the figures arrive. */
+  .stories-hub .stance-dot {
+    animation: stance-dot-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(150ms + var(--f, 0) * 700ms);
+  }
+}
+
+/* --- Reduced motion: one screen at a time, cross-faded. Opacity only: nothing slides, scales or loops. -------------------- */
+@media (min-width: 768px) {
+  .stance-story[data-fade] .stance-grid {
+    grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+    gap: 36px;
+  }
+  .stance-story[data-fade] .stance-act {
+    padding: 16px 48px 0 28px;
+  }
+}
+.stance-story[data-fade] .stance-word {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* A keyframe fade, not a transition: folio.css cuts every transition to 1 ms under reduced motion. */
+  .stance-story[data-fade] .stance-act[data-state='in'] > * {
+    animation: stance-dot-fade 380ms linear both;
+  }
+  .stance-story[data-fade] .stance-act[data-state]:not([data-state='in']) > * {
+    opacity: 0;
+  }
+  .stance-story[data-fade] .stance-act:not([data-state='in']) {
+    --draw: 0;
+  }
+  .stance-story[data-fade] .stance-act[data-state='in'] {
+    animation: stance-draw 700ms linear 200ms both;
+  }
+  .stories-hub .stance-dot {
+    animation: stance-dot-fade 300ms linear both;
+    animation-delay: calc(100ms + var(--f, 0) * 500ms);
+  }
+}
+
+/* --- The cue on the next step when the reader has stopped (hooks/useIdleNudge.ts adds .is-nudging for one cycle) -------------
+ * Visual only. It moves the arrow and passes a light across the button; it never moves the button, so nothing shifts. */
+.stance-float-arrow {
+  display: inline-block;
+  margin-left: 8px;
+}
+@keyframes stance-cue-arrow {
+  0%,
+  100% {
+    transform: none;
+  }
+  45% {
+    transform: translateX(5px);
+  }
+}
+@keyframes stance-cue-sweep {
+  from {
+    transform: translateX(-130%);
+  }
+  to {
+    transform: translateX(130%);
+  }
+}
+@keyframes stance-cue-hop {
+  0%,
+  50%,
+  100% {
+    transform: none;
+  }
+  22%,
+  72% {
+    transform: translateX(8px);
+  }
+  36%,
+  86% {
+    transform: translateX(-2px);
+  }
+}
+@keyframes stance-cue-fade {
+  0%,
+  100% {
+    outline-color: transparent;
+  }
+  35%,
+  65% {
+    outline-color: currentColor;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* The hub and the story: one soft cycle. */
+  :is(.stance-next, .stance-ask-btn).is-nudging > span[aria-hidden='true'],
+  .stance-float.is-nudging .stance-float-arrow {
+    display: inline-block;
+    animation: stance-cue-arrow 900ms ease-in-out 1;
+  }
+  :is(.stance-next, .stance-ask-btn).is-nudging::after,
+  .stance-float.is-nudging .stance-float-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 36%, color-mix(in srgb, var(--paper) 30%, transparent) 50%, transparent 64%);
+    animation: stance-cue-sweep 1100ms ease-in-out 1 both;
+  }
+  /* The challenge: the arrow hops twice and the light is brighter and quicker. */
+  .stance-game[data-beats] :is(.stance-next, .stance-ask-btn).is-nudging > span[aria-hidden='true'],
+  .stance-game[data-beats] .stance-float.is-nudging .stance-float-arrow {
+    animation: stance-cue-hop 1200ms ease-in-out 1;
+  }
+  .stance-game[data-beats] :is(.stance-next, .stance-ask-btn).is-nudging::after,
+  .stance-game[data-beats] .stance-float.is-nudging .stance-float-btn::after {
+    background: linear-gradient(105deg, transparent 30%, color-mix(in srgb, var(--paper) 48%, transparent) 50%, transparent 70%);
+    animation: stance-cue-sweep 800ms ease-in-out 1 both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No movement: the button's inner outline shows and goes, once. */
+  :is(.stance-next, .stance-ask-btn).is-nudging,
+  .stance-float.is-nudging .stance-float-btn {
+    outline: 3px solid transparent;
+    outline-offset: -6px;
+    animation: stance-cue-fade 1300ms linear 1;
+  }
+}
+@media (max-width: 767px) {
+  .stance-voices-figures {
+    gap: 0 10px;
+  }
+  .stance-voices-figures dd {
+    font-size: 30px;
+  }
+}
+
+/* The heading's closing "?" stays with the last blank (#930): on a wide screen it used to wrap onto a line alone. */
+.stance-nowrap {
+  white-space: nowrap;
+}
+
+/*
+ * One look site-wide (#975): story and hub titles take the site's display face (Playfair Display, as on the home page),
+ * and the primary action is the same teal pill as the home page's buttons. Decision:
+ * web_docs/docs/development/site-look-and-navigation.md
+ */
+.stance-card-title,
+.stance-statement,
+.stance-cover-title,
+.stance-headline,
+.stance-sentence,
+.stories-title,
+.stories-card-title,
+.stance-video-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* `.folio *` squares every corner with !important; the primary action is the one exception. */
+.folio .stance-next,
+.folio .stance-ask-btn,
+.folio .stories-start,
+.folio .folio-btn[data-primary] {
+  border-radius: 999px !important;
+  font-weight: 700;
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+/* The hub lines up with the header and the home page: a centred 1180px column (#975). */
+@media (min-width: 761px) {
+  .folio.stories-hub {
+    padding-left: max(24px, calc((100% - 1180px) / 2 + 24px));
+    padding-right: max(24px, calc((100% - 1180px) / 2 + 24px));
+  }
+}
+
+/* Meeting recording in place (#972): a modal over a dimmed page; the player exists only while it is open. */
+.stance-video-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(18, 17, 22, 0.62);
+}
+.stance-video-dialog {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  padding: 16px;
+}
+.stance-video-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.stance-video-title {
+  margin: 0;
+  font-size: var(--t-h2);
+  line-height: 1.15;
+  font-weight: 500;
+}
+.stance-video-sub {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+  color: var(--ink-2);
+}
+.stance-video-close {
+  flex: none;
+}
+.stance-video-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--ink);
+}
+.stance-video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.stance-video-foot {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stance-video-backdrop {
+    transition: none;
+  }
+}
+
+/* Overview dot map (#970): the country in dots, each state shaded by its real meeting count. */
+.stance-map {
+  margin: 0 0 16px;
+}
+.stance-map-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.stance-map-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+}
+.stance-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.stance-map-stage {
+  position: relative;
+}
+/* The hovered county's newest meeting passage (#999, #1002), as a QuoteCard (#1108); at rest nothing shows. */
+.stance-map-card {
+  position: absolute;
+  left: 0;
+  bottom: 2%;
+  z-index: 2;
+  width: min(300px, 42%);
+}
+.stance-map-card.is-right {
+  left: auto;
+  right: 0;
+  bottom: auto;
+  top: 2%;
+}
+@media (max-width: 640px) {
+  .stance-map-card,
+  .stance-map-card.is-right {
+    position: relative;
+    inset: auto;
+    width: auto;
+    margin-top: 8px;
+  }
+}
+.stance-map-readout {
+  min-height: 1.4em;
+  margin: 4px 0 6px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.stance-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+}
+.stance-map-ramp {
+  display: inline-flex;
+}
+.stance-map-ramp span,
+.stance-map-none span {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+}
+.stance-map-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.stance-map-table {
+  margin-top: 8px;
+  font-size: 14px;
+}
+.stance-map-table summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.stance-map-table table {
+  margin-top: 6px;
+  border-collapse: collapse;
+}
+.stance-map-table th,
+.stance-map-table td {
+  padding: 2px 16px 2px 0;
+  text-align: left;
+}
+.stance-map-table td:last-child,
+.stance-map-table th:last-child {
+  text-align: right;
+}
+
+/*
+ * Story statements (#981): the statement a screen's record is about, Agree / Disagree / Not sure, then "Where you sit"
+ * on the line of readers' answers and, when the statement leans to one side, of the people who spoke at the meetings.
+ */
+.story-statement {
+  margin: 18px 0 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.story-statement .stance-ask {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--violet-ink);
+}
+.story-statement-text {
+  margin: 0 0 12px;
+  font-size: clamp(18px, 1.6vw, 22px);
+  line-height: 1.3;
+}
+.story-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.story-answers .stance-answer {
+  margin-top: 0;
+  min-width: 112px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.story-yours {
+  margin: 0;
+  font-size: 15px;
+}
+.story-yours .folio-link-btn {
+  margin-left: 6px;
+}
+.story-sit {
+  margin-top: 14px;
+}
+.story-sit-title {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.story-continuum {
+  margin: 0 0 14px;
+}
+.story-continuum-title {
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.story-continuum-bar {
+  position: relative;
+  display: flex;
+  height: 14px;
+  margin-top: 22px;
+  background: var(--neutral-data);
+}
+.story-continuum-seg {
+  display: block;
+  height: 100%;
+}
+.story-continuum-seg--agree,
+.story-continuum-seg--for {
+  background: var(--violet-ink);
+}
+.story-continuum-seg--disagree,
+.story-continuum-seg--against {
+  background: var(--vermilion);
+}
+.story-continuum-seg--unsure,
+.story-continuum-seg--middle {
+  background: var(--ink-3);
+}
+/* The reader: a marker above the bar, labelled "You" (the sentence under the bar says the same in words). */
+.story-continuum-you {
+  position: absolute;
+  top: -22px;
+  bottom: -4px;
+  width: 0;
+  border-left: 2px solid var(--ink);
+  transform: translateX(-1px);
+}
+.story-continuum-you > span {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  background: var(--ink);
+  color: var(--paper);
+  white-space: nowrap;
+}
+/* Near either end of the bar the label hangs inward, so it never runs off the bar. */
+.story-continuum-you.is-start > span {
+  left: 0;
+  transform: none;
+}
+.story-continuum-you.is-end > span {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.story-continuum-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-2);
+}
+.story-continuum-sentence {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-continuum-you {
+    transition: left var(--d-2, 240ms) var(--ease-out, ease-out);
+  }
+}
+
+/* The numbers behind the story's title (#993): the speaker counts or the meeting count it states. */
+.stance-title-basis {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* Payroll jobs on the jobs screen (#1019): BLS figures, then where jobs are tracked. */
+.stance-payroll {
+  margin: 0 0 16px;
+}
+.stance-payroll-head {
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.stance-payroll-rows {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.stance-payroll-rows li {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  background: #fff;
+}
+.stance-payroll-place {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.stance-payroll-n {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.stance-payroll-meta {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.stance-payroll-sources {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+}
+.stance-payroll-sources li {
+  display: grid;
+  gap: 2px;
+}
+.stance-payroll-desc {
+  font-style: italic;
+  color: var(--ink-2);
+}
+.stance-payroll-access {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* The quoted moment in the meeting video popup (#1036), as a QuoteCard without the image (#1108). */
+.stance-video-qcard {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Story progress and the next story (#1102) ----------------------------------------------------------------------- */
+/* A thin bar along the top of the story: its width is the share of screens reached. */
+.story-topbar {
+  position: fixed;
+  top: var(--hdr, 0px);
+  left: 0;
+  right: 0;
+  z-index: 45;
+  height: 3px;
+  pointer-events: none;
+  background: color-mix(in srgb, #0f766e 14%, transparent);
+}
+.story-topbar-fill {
+  display: block;
+  height: 100%;
+  background: #0f766e;
+  transform-origin: left center;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Numbered dots down the left edge, one per screen (wide screens). */
+.story-dots {
+  position: fixed;
+  left: 12px;
+  top: calc(50% + (var(--hdr, 0px) + var(--top-h, 96px)) / 2);
+  z-index: 30;
+  transform: translateY(-50%);
+}
+.story-dots ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.story-dot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, transform 200ms ease;
+}
+.story-dot.is-past {
+  border-color: color-mix(in srgb, #0f766e 55%, var(--paper));
+  color: #0f766e;
+}
+.story-dot.is-now {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #fff;
+  transform: scale(1.12);
+}
+.story-dot:hover {
+  border-color: #0f766e;
+}
+.story-dot:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+@media (min-width: 768px) {
+  /* Room for the dots at the left of every screen. */
+  .stance-game.stance-story[data-mode] .stance-act,
+  .stance-game.stance-story[data-mode] .stance-cover {
+    padding-left: 56px;
+  }
+}
+@media (max-width: 767px) {
+  .story-dots,
+  .story-topbar {
+    display: none;
+  }
+}
+
+/* The end of the story: a full-width card that fades in after the last screen and leads to the next story. */
+.story-next-card {
+  display: flex;
+  align-items: center;
+  min-height: 34svh;
+  padding: 40px 16px;
+  border-top: 1px solid var(--ink);
+  background: color-mix(in srgb, #0f766e 8%, var(--paper));
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 600ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.story-next-card.is-shown {
+  opacity: 1;
+  transform: none;
+}
+.folio .story-next-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 24px;
+  color: #fff;
+  background: #0f766e;
+  text-decoration: none;
+  border: 1px solid #0f766e;
+}
+.folio .story-next-link:hover {
+  color: #fff;
+  background: #115e59;
+}
+.story-next-link:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 3px;
+}
+.story-next-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.story-next-title {
+  font-size: clamp(24px, 3.4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.stance-story[data-mode='snap'] .story-next-card {
+  scroll-snap-align: end;
+}
+@media (min-width: 768px) {
+  .story-next-card {
+    padding: 56px 56px;
+  }
+}
+
+/* Phones: a bar fixed to the bottom with compact dots and one prominent Next. */
+.story-bottombar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .stance-story[data-sbar] {
+    --sbar-h: 64px;
+    padding-bottom: calc(var(--sbar-h) + env(safe-area-inset-bottom));
+  }
+  /* Each screen is one frame less the bar, so the bar never covers a screen's own controls. */
+  .stance-game.stance-story[data-sbar][data-mode='snap'] .stance-act,
+  .stance-game.stance-story[data-sbar][data-mode='snap'] .stance-cover {
+    height: calc(100svh - var(--hdr) - var(--top-h) - var(--sbar-h) - env(safe-area-inset-bottom));
+  }
+  /* The bar's Next stands in for each screen's own Next (Back and the answers stay in the screen). */
+  .stance-story[data-sbar] .stance-nav .stance-next-end {
+    display: none;
+  }
+  .story-bottombar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: var(--sbar-h, 64px);
+    box-sizing: border-box;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: var(--paper);
+    border-top: 1px solid var(--ink);
+    box-shadow: 0 -6px 18px color-mix(in srgb, var(--ink) 12%, transparent);
+  }
+  .story-bottombar-progress {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .story-bottombar-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .story-bottombar-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--rule);
+    transition: width 300ms ease, background-color 300ms ease;
+  }
+  .story-bottombar-dot.is-past {
+    background: color-mix(in srgb, #0f766e 55%, var(--paper));
+  }
+  .story-bottombar-dot.is-now {
+    width: 18px;
+    background: #0f766e;
+  }
+  .story-bottombar-left {
+    font-family: var(--font-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .folio .story-bottombar-next {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    margin: 0;
+    padding: 0 22px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    background: #0f766e;
+    border: 1px solid #0f766e;
+    text-decoration: none;
+  }
+}
+
+/* `.folio *` squares every corner; dots are round and the bar's Next is the primary action's pill. */
+.folio .story-dot,
+.folio .story-bottombar-dot {
+  border-radius: 999px !important;
+}
+.folio .story-bottombar-next {
+  border-radius: 999px !important;
+}
+.folio .story-bottombar-next:hover:not(:disabled) {
+  color: #fff;
+  background: #115e59;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-topbar-fill,
+  .story-dot,
+  .story-bottombar-dot {
+    transition: none;
+  }
+  /* The card still fades in, but nothing rises. */
+  .story-next-card {
+    transform: none;
+    transition: opacity 400ms ease;
+  }
+}
+.story-dots {
+  transition: opacity 250ms ease;
+}
+.story-dots.is-away {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}

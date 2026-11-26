@@ -24,7 +24,7 @@ with sites as (
         data_center_site_id,
         state_code,
         btrim((regexp_match(address, '([^,]+),\s*(' || state_code || '|' || state || ')\M'))[1]) as address_city
-    from {{ ref('data_center_site') }}
+    from (select * from {{ ref('data_center_site') }} where source = 'epoch')
     where state_code is not null and address is not null
 ),
 
@@ -70,5 +70,5 @@ select distinct on (l.data_center_site_id, l.jurisdiction_id)
     l.link_basis::text                         as link_basis
 from links as l
 inner join jurisdictions as j on j.jurisdiction_id = l.jurisdiction_id
-inner join {{ ref('data_center_site') }} as s on s.data_center_site_id = l.data_center_site_id
+inner join (select * from {{ ref('data_center_site') }} where source = 'epoch') as s on s.data_center_site_id = l.data_center_site_id
 order by l.data_center_site_id, l.jurisdiction_id, l.basis_rank

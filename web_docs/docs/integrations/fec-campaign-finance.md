@@ -6,7 +6,7 @@ sidebar_position: 7
 
 Track political contributions and campaign finance data using the **Federal Election Commission (FEC)** via **OpenFEC API** and **Bulk Downloads**.
 
-## 🎯 Overview
+## Overview
 
 The FEC integration enables tracking of:
 - Individual political contributions ($200+)
@@ -22,7 +22,7 @@ The FEC integration enables tracking of:
 
 This data integrates with nonprofit and contacts data to reveal political influence patterns.
 
-## 🔑 Get API Access
+## Get API Access
 
 ### OpenFEC API (Real-time Queries)
 
@@ -59,10 +59,10 @@ Without an API key, you'll use `DEMO_KEY` (limited to 30 requests/hour).
 - **Committee Master** - All PACs and committees
 - **Campaign Finance Totals** - Summary by cycle
 
-**Format:** CSV, FEC format  
-**Update Frequency:** Nightly  
-**Historical Coverage:** 1980s to present  
-**Rate Limits:** None (direct download)  
+**Format:** CSV, FEC format
+**Update Frequency:** Nightly
+**Historical Coverage:** 1980s to present
+**Rate Limits:** None (direct download)
 
 **When to use bulk downloads:**
 - Analyzing complete datasets (millions of records)
@@ -76,7 +76,7 @@ Without an API key, you'll use `DEMO_KEY` (limited to 30 requests/hour).
 - Incremental updates
 - Web application queries
 
-## 📊 Gold Tables Created
+## Gold Tables Created
 
 The FEC integration creates 4 gold tables per state:
 
@@ -87,7 +87,7 @@ The FEC integration creates 4 gold tables per state:
 | **campaigns_contributions** | Individual contributions $200+ | contributor_name, employer, amount, date, recipient |
 | **campaigns_nonprofit_donors** | Nonprofit leadership donations | ein, organization_name, contributor_name, amount |
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Run Demo Script
 
@@ -111,17 +111,17 @@ python examples/demo_fec_integration.py --state MA --employer "Community Health"
 ```bash
 # Create campaign finance tables for Massachusetts
 python pipeline/create_campaigns_gold_tables.py \
-  --state MA \
-  --cycle 2024 \
-  --max-contributions 10000
+ --state MA \
+ --cycle 2024 \
+ --max-contributions 10000
 
 # With custom API key
 python pipeline/create_campaigns_gold_tables.py \
-  --state MA \
-  --api-key "your_key_here"
+ --state MA \
+ --api-key "your_key_here"
 ```
 
-## 📖 Use Cases
+## Use Cases
 
 ### 1. Track Nonprofit Leadership Donations
 
@@ -152,14 +152,14 @@ api = OpenFECAPI(api_key="your_key")
 
 # Search for contributions from health sector
 result = api.search_individual_contributions(
-    contributor_state="MA",
-    contributor_employer="Health",
-    min_amount=1000
+ contributor_state="MA",
+ contributor_employer="Health",
+ min_amount=1000
 )
 
 for contrib in result['results']:
-    print(f"{contrib['contributor_name']} ({contrib['contributor_employer']})")
-    print(f"  → ${contrib['contribution_receipt_amount']} to {contrib['committee_name']}")
+ print(f"{contrib['contributor_name']} ({contrib['contributor_employer']})")
+ print(f" → ${contrib['contribution_receipt_amount']} to {contrib['committee_name']}")
 ```
 
 ### 3. Analyze Political Influence on Policy
@@ -183,7 +183,7 @@ overlap = set(donor_orgs) & set(grant_recipients)
 print(f"Organizations that both donate politically and receive grants: {len(overlap)}")
 ```
 
-## 💾 Using Bulk Downloads
+## Using Bulk Downloads
 
 For large-scale analysis, use FEC bulk downloads instead of the API:
 
@@ -213,18 +213,18 @@ from pathlib import Path
 # Load contributions for specific cycle
 contributions_file = Path("data/fec/bulk/indiv24.txt")
 df = pd.read_csv(
-    contributions_file,
-    sep="|",
-    header=None,
-    names=[
-        "CMTE_ID", "AMNDT_IND", "RPT_TP", "TRANSACTION_PGI",
-        "IMAGE_NUM", "TRANSACTION_TP", "ENTITY_TP", "NAME",
-        "CITY", "STATE", "ZIP_CODE", "EMPLOYER", "OCCUPATION",
-        "TRANSACTION_DT", "TRANSACTION_AMT", "OTHER_ID",
-        "TRAN_ID", "FILE_NUM", "MEMO_CD", "MEMO_TEXT", "SUB_ID"
-    ],
-    encoding="latin1",
-    low_memory=False
+ contributions_file,
+ sep="|",
+ header=None,
+ names=[
+ "CMTE_ID", "AMNDT_IND", "RPT_TP", "TRANSACTION_PGI",
+ "IMAGE_NUM", "TRANSACTION_TP", "ENTITY_TP", "NAME",
+ "CITY", "STATE", "ZIP_CODE", "EMPLOYER", "OCCUPATION",
+ "TRANSACTION_DT", "TRANSACTION_AMT", "OTHER_ID",
+ "TRAN_ID", "FILE_NUM", "MEMO_CD", "MEMO_TEXT", "SUB_ID"
+ ],
+ encoding="latin1",
+ low_memory=False
 )
 
 # Filter to Massachusetts contributors
@@ -232,7 +232,7 @@ ma_contributions = df[df['STATE'] == 'MA']
 
 # Filter to health sector
 health_donors = ma_contributions[
-    ma_contributions['EMPLOYER'].str.contains('Health|Hospital|Dental', case=False, na=False)
+ ma_contributions['EMPLOYER'].str.contains('Health|Hospital|Dental', case=False, na=False)
 ]
 
 print(f"Found {len(health_donors):,} health sector contributions from MA")
@@ -259,11 +259,11 @@ health_donors.to_parquet('data/gold/states/MA/campaigns_contributions.parquet')
 
 ### Advantages of Bulk Downloads
 
-✅ **Complete data** - No pagination, no missing records  
-✅ **No rate limits** - Download once, analyze forever  
-✅ **Historical data** - Access to all election cycles  
-✅ **Offline analysis** - No API dependency  
-✅ **Faster processing** - Local files vs HTTP requests  
+Yes **Complete data** - No pagination, no missing records
+Yes **No rate limits** - Download once, analyze forever
+Yes **Historical data** - Access to all election cycles
+Yes **Offline analysis** - No API dependency
+Yes **Faster processing** - Local files vs HTTP requests
 
 ### When to Use Each Method
 
@@ -277,7 +277,7 @@ health_donors.to_parquet('data/gold/states/MA/campaigns_contributions.parquet')
 | Research/analysis | Bulk Download | Full data access |
 
 
-## 🛠️ API Reference
+## API Reference
 
 ### Search Individual Contributions
 
@@ -288,18 +288,18 @@ api = OpenFECAPI(api_key="your_key")
 
 # Search by contributor
 result = api.search_individual_contributions(
-    contributor_name="Smith",
-    contributor_state="MA",
-    min_amount=200,
-    min_date="2023-01-01",
-    max_date="2024-12-31"
+ contributor_name="Smith",
+ contributor_state="MA",
+ min_amount=200,
+ min_date="2023-01-01",
+ max_date="2024-12-31"
 )
 
 # Search by employer
 result = api.search_individual_contributions(
-    contributor_employer="Community Foundation",
-    contributor_state="MA",
-    min_amount=1000
+ contributor_employer="Community Foundation",
+ contributor_state="MA",
+ min_amount=1000
 )
 ```
 
@@ -308,17 +308,17 @@ result = api.search_individual_contributions(
 ```python
 # House candidates in Massachusetts
 result = api.search_candidates(
-    state="MA",
-    office="H",  # H=House, S=Senate, P=President
-    cycle=2024
+ state="MA",
+ office="H", # H=House, S=Senate, P=President
+ cycle=2024
 )
 
 # Senate candidates
 result = api.search_candidates(
-    state="MA",
-    office="S",
-    party="DEM",  # or "REP"
-    cycle=2024
+ state="MA",
+ office="S",
+ party="DEM", # or "REP"
+ cycle=2024
 )
 ```
 
@@ -327,12 +327,12 @@ result = api.search_candidates(
 ```python
 # Find PACs in Massachusetts
 result = api.search_committees(
-    state="MA",
-    committee_type="N"  # N=PAC, Q=Super PAC
+ state="MA",
+ committee_type="N" # N=PAC, Q=Super PAC
 )
 ```
 
-## 📋 Data Model Integration
+## Data Model Integration
 
 ### Links to Nonprofit Data
 
@@ -340,12 +340,12 @@ The `campaigns_nonprofit_donors` table links FEC data to nonprofits:
 
 ```sql
 -- Conceptual SQL (use pandas for actual queries)
-SELECT 
-    nd.organization_name,
-    nd.contributor_name,
-    nd.contributor_title,
-    SUM(nd.contribution_amount) as total_contributions,
-    COUNT(*) as num_contributions
+SELECT
+ nd.organization_name,
+ nd.contributor_name,
+ nd.contributor_title,
+ SUM(nd.contribution_amount) as total_contributions,
+ COUNT(*) as num_contributions
 FROM campaigns_nonprofit_donors nd
 GROUP BY nd.organization_name, nd.contributor_name
 ORDER BY total_contributions DESC;
@@ -364,16 +364,16 @@ contributions = pd.read_parquet('data/gold/states/MA/campaigns_contributions.par
 
 # Match by name
 merged = officers.merge(
-    contributions,
-    left_on='officer_name',
-    right_on='contributor_name',
-    how='inner'
+ contributions,
+ left_on='officer_name',
+ right_on='contributor_name',
+ how='inner'
 )
 
 print(f"Found {len(merged)} contribution records from known nonprofit officers")
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -382,7 +382,7 @@ print(f"Found {len(merged)} contribution records from known nonprofit officers")
 FEC_API_KEY="your_api_key_here"
 
 # Optional
-FEC_CACHE_DIR="data/cache/fec"  # Where to cache bulk downloads
+FEC_CACHE_DIR="data/cache/fec" # Where to cache bulk downloads
 ```
 
 ### Rate Limits
@@ -393,7 +393,7 @@ FEC_CACHE_DIR="data/cache/fec"  # Where to cache bulk downloads
 | Free API Key | 1,000 requests/hour | Recommended |
 | Bulk Download | No limit | 1-5 GB files, use for comprehensive data |
 
-## 🎓 Advanced Usage
+## Advanced Usage
 
 ### Bulk Data Download
 
@@ -409,10 +409,10 @@ zip_path = loader.download_individual_contributions(cycle="2024")
 
 # Parse and filter
 df = loader.parse_individual_contributions(
-    zip_path=zip_path,
-    state_filter="MA",
-    employer_filter="Foundation",
-    min_amount=200
+ zip_path=zip_path,
+ state_filter="MA",
+ employer_filter="Foundation",
+ min_amount=200
 )
 
 print(f"Found {len(df):,} contributions from MA foundations")
@@ -434,17 +434,17 @@ candidates = candidates_result['results']
 
 # 2. For each candidate, get top donors
 for candidate in candidates:
-    candidate_id = candidate['candidate_id']
-    
-    # Get candidate committees
-    committees_result = api.search_committees(candidate_id=candidate_id)
-    
-    # Analyze fundraising
-    print(f"\n{candidate['name']} ({candidate['party']})")
-    print(f"  Committees: {len(committees_result['results'])}")
+ candidate_id = candidate['candidate_id']
+
+ # Get candidate committees
+ committees_result = api.search_committees(candidate_id=candidate_id)
+
+ # Analyze fundraising
+ print(f"\n{candidate['name']} ({candidate['party']})")
+ print(f" Committees: {len(committees_result['results'])}")
 ```
 
-## 🔍 Data Quality Notes
+## Data Quality Notes
 
 ### Contribution Reporting Threshold
 
@@ -465,14 +465,14 @@ for candidate in candidates:
 - Electronic filings appear within 24 hours
 - Paper filings may take 30+ days
 
-## 📚 Additional Resources
+## Additional Resources
 
 - **OpenFEC API Docs:** https://api.open.fec.gov/developers/
 - **FEC Bulk Data:** https://www.fec.gov/data/browse-data/?tab=bulk-data
 - **Campaign Finance Guide:** https://www.fec.gov/help-candidates-and-committees/
 - **Data Dictionary:** https://www.fec.gov/campaign-finance-data/contributions-individuals-file-description/
 
-## 🤝 Related Integrations
+## Related Integrations
 
 - [Nonprofit Discovery](nonprofit-discovery.md) - Match employers to EINs
 - [IRS BMF Data](irs-bmf-data.md) - Nonprofit organization data
@@ -480,7 +480,7 @@ for candidate in candidates:
 
 ---
 
-## 💡 Pro Tips
+## Pro Tips
 
 1. **Start with API, use bulk for scale:** API is easier for exploration, bulk files for comprehensive analysis
 2. **Cache aggressively:** Set up `data/cache/fec/` to avoid re-downloading

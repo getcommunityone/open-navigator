@@ -1,0 +1,145 @@
+{
+  "seed": 20261121,
+  "states": [
+    "IL",
+    "NC",
+    "TX",
+    "MI",
+    "NV",
+    "ID",
+    "AZ",
+    "AR"
+  ],
+  "n_pool": 2500,
+  "n_scored_pool": 2500,
+  "n_sample": 1000,
+  "n_disagreements": 48,
+  "half_a": [
+    {
+      "threshold": 0.3,
+      "n": 500,
+      "wrong_skip_n": 5,
+      "wrong_keep_n": 9,
+      "wrong_skip_rate": 0.014746553902897173,
+      "wrong_keep_rate": 0.014709339218820153,
+      "wrong_skip_lo": 0.0062921836092443605,
+      "wrong_skip_ub": 0.034169862552628695,
+      "wrong_keep_lo": 0.006269874860274426,
+      "wrong_keep_ub": 0.03411858315482872,
+      "n_eff": 336.0544916748275
+    },
+    {
+      "threshold": 0.4,
+      "n": 500,
+      "wrong_skip_n": 9,
+      "wrong_keep_n": 8,
+      "wrong_skip_rate": 0.01473682662459711,
+      "wrong_keep_rate": 0.014008975181215539,
+      "wrong_skip_lo": 0.006286350925286654,
+      "wrong_skip_ub": 0.034156460560786514,
+      "wrong_keep_lo": 0.005853112184584247,
+      "wrong_keep_ub": 0.033150449172926776,
+      "n_eff": 336.0544916748275
+    },
+    {
+      "threshold": 0.5,
+      "n": 500,
+      "wrong_skip_n": 8,
+      "wrong_keep_n": 9,
+      "wrong_skip_rate": 0.01122527915827397,
+      "wrong_keep_rate": 0.014709339218820153,
+      "wrong_skip_lo": 0.00426096840314729,
+      "wrong_skip_ub": 0.02923812511916533,
+      "wrong_keep_lo": 0.006269874860274426,
+      "wrong_keep_ub": 0.03411858315482872,
+      "n_eff": 336.0544916748275
+    },
+    {
+      "threshold": 0.6,
+      "n": 500,
+      "wrong_skip_n": 11,
+      "wrong_keep_n": 10,
+      "wrong_skip_rate": 0.013326371271087814,
+      "wrong_keep_rate": 0.018226384712008548,
+      "wrong_skip_lo": 0.005452779528532042,
+      "wrong_skip_ub": 0.03220100396655697,
+      "wrong_keep_lo": 0.008443438900962868,
+      "wrong_keep_ub": 0.03889960885117903,
+      "n_eff": 336.0544916748275
+    }
+  ],
+  "half_b": [
+    {
+      "threshold": 0.3,
+      "n": 500,
+      "wrong_skip_n": 9,
+      "wrong_keep_n": 11,
+      "wrong_skip_rate": 0.020843126396035222,
+      "wrong_keep_rate": 0.017201050725119956,
+      "wrong_skip_lo": 0.010341062680546265,
+      "wrong_skip_ub": 0.041562838082131986,
+      "wrong_keep_lo": 0.007970138858334771,
+      "wrong_keep_ub": 0.03672727499589116,
+      "n_eff": 356.46226854823175
+    },
+    {
+      "threshold": 0.4,
+      "n": 500,
+      "wrong_skip_n": 11,
+      "wrong_keep_n": 14,
+      "wrong_skip_rate": 0.019557172783347836,
+      "wrong_keep_rate": 0.024197437297946486,
+      "wrong_skip_lo": 0.00949145426960265,
+      "wrong_skip_ub": 0.03986796122916022,
+      "wrong_keep_lo": 0.012612499953459045,
+      "wrong_keep_ub": 0.045928494539736804,
+      "n_eff": 356.46226854823175
+    },
+    {
+      "threshold": 0.5,
+      "n": 500,
+      "wrong_skip_n": 12,
+      "wrong_keep_n": 15,
+      "wrong_skip_rate": 0.015189539652944381,
+      "wrong_keep_rate": 0.024833500375189707,
+      "wrong_skip_lo": 0.006712683441009362,
+      "wrong_skip_ub": 0.03400460217930831,
+      "wrong_keep_lo": 0.013051355188620838,
+      "wrong_keep_ub": 0.046748201908232076,
+      "n_eff": 356.46226854823175
+    },
+    {
+      "threshold": 0.6,
+      "n": 500,
+      "wrong_skip_n": 9,
+      "wrong_keep_n": 18,
+      "wrong_skip_rate": 0.008277654213568039,
+      "wrong_keep_rate": 0.029299769374093197,
+      "wrong_skip_lo": 0.002796011227027625,
+      "wrong_skip_ub": 0.024244894100216602,
+      "wrong_keep_lo": 0.016195757751988393,
+      "wrong_keep_ub": 0.052441097627065225,
+      "n_eff": 356.46226854823175
+    }
+  ],
+  "pick": {
+    "chosen": 0.6,
+    "meets_bound": false,
+    "extra_transcripts": 18,
+    "row": {
+      "threshold": 0.6,
+      "n": 500,
+      "wrong_skip_n": 9,
+      "wrong_keep_n": 18,
+      "wrong_skip_rate": 0.008277654213568039,
+      "wrong_keep_rate": 0.029299769374093197,
+      "wrong_skip_lo": 0.002796011227027625,
+      "wrong_skip_ub": 0.024244894100216602,
+      "wrong_keep_lo": 0.016195757751988393,
+      "wrong_keep_ub": 0.052441097627065225,
+      "n_eff": 356.46226854823175
+    }
+  },
+  "meta_question_version": "23d6743667d5",
+  "transcript_question_version": "2aae0cd94045"
+}

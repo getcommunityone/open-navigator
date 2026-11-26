@@ -30,6 +30,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -51,23 +52,102 @@ from typing import Any, Dict, List, Optional
 # ``web`` (HuggingFace) is a SEPARATE concern, kept as an optional step in the
 # panel (deselect it for a DB-only deploy). It is not part of the default
 # pipeline below because it stands up the orphan-branch HF mirror, not the data.
+#
+# Steps belong to a ``group``: ``load`` (tab "2 Load": saved analysis files → bronze →
+# dbt gold tables, all in the LOCAL warehouse) and ``deploy`` (tab "3 Deploy": publish the
+# local serving objects to prod). The two groups never run in the same job (#796).
+# ``{dbt}`` is replaced with the dbt executable (see :func:`dbt_bin`).
 STEP_DEFS: Dict[str, Dict[str, Any]] = {
+    "dbt-staging": {
+        "group": "load",
+        "label": "Prepare video names — dbt",
+        "description": (
+            "Build the staging view the next step reads for each video's jurisdiction name "
+            "(staging.stg_youtube__event). One view; quick. Without it the promotion step fails."
+        ),
+        "target": "local-warehouse",
+        # One view, no "+": promotion reads only this (#843). It is built here because nothing else in a
+        # Load run builds it, and a recreated bronze table drops it.
+        "argv": ["{dbt}", "run", "--project-dir", "dbt_project", "--select", "stg_youtube__event"],
+    },
+    "promote-events": {
+        "group": "load",
+        "label": "Promote events — videos → civic_event",
+        "description": (
+            "Give every analysed video an event row (bronze_event_youtube -> civic_event), so the next step can attach its analysis. Safe to repeat: it upserts."
+        ),
+        "target": "local-warehouse",
+        # --local-warehouse: the same database the loader writes to, never production (#827).
+        "argv": ["{python}", "-m", "ingestion.youtube.promote_to_c1_event", "--local-warehouse",
+                 "--result-json", "{result}"],
+    },
+    "load-analysis": {
+        "group": "load",
+        "label": "Load analyses — files → bronze",
+        "description": (
+            "Read the saved analysis files (data/cache/gemini_transcript_policy) and load them into "
+            "bronze.bronze_events_analysis_ai. Reads files only; never moves or deletes one."
+        ),
+        "target": "local-warehouse",
+        "argv": ["{python}", "-m", "llm.enrichment.load_analysis_cache_to_bronze", "--result-json", "{result}"],
+    },
+    "dbt-gold": {
+        "group": "load",
+        "label": "Rebuild gold — dbt",
+        "description": (
+            "dbt run for the analysis models and everything downstream (decisions, meetings, topics, "
+            "places), then refresh the public serving views."
+        ),
+        "target": "local-warehouse",
+        "argv": [
+            "{dbt}", "run", "--project-dir", "dbt_project",
+            # The first two selectors are the marts to rebuild. The rest are every other bronze_*_from_ai
+            # model that reads the analysis table (#836): they read the analyses the step before just
+            # loaded, and the marts above read them. event_meeting needs bronze_meetings_from_ai (and
+            # event_decision drops a decision whose meeting row is missing), event_topic needs
+            # bronze_topics_from_ai, public_comment needs bronze_public_participation_from_ai, and so on.
+            # Left out, the marts were built from stale bronze tables, or failed when one lacked a new
+            # column. They are selected WITHOUT "+" on purpose: the descendants of the persons, places and
+            # organizations models include the whole MDM clustering (about 50 more models), which a load
+            # must not rebuild. A test keeps this list equal to the files on disk.
+            "--select", "int_preferred_event_analysis+", "bronze_decisions_from_ai+",
+            "bronze_meetings_from_ai", "bronze_topics_from_ai", "bronze_places_from_ai",
+            "bronze_persons_from_ai", "bronze_bills_from_ai", "bronze_financial_items_from_ai",
+            "bronze_public_participation_from_ai", "bronze_organizations_from_ai", "bronze_causes_from_ai",
+            "bronze_uncontested_items_from_ai",
+        ],
+    },
     "database": {
+        "group": "deploy",
         "label": "Database — serving copy (Neon prod)",
         "description": "Copy local public serving objects → Neon prod public (excludes runtime/auth tables).",
         "target": "neon-prod",
         "argv": ["{python}", "-m", "hosting.neon.sync_public_to_neon", "--target", "prod"],
     },
     "web": {
+        "group": "deploy",
         "label": "Web (HuggingFace)",
         "description": "Build & deploy the web app + docs to HuggingFace Spaces.",
         "target": "huggingface",
         "argv": ["bash", "packages/hosting/scripts/huggingface/deploy-huggingface.sh", "--skip-test"],
     },
 }
-# Default pipeline: the database serving copy only. ``web`` is selectable in the
-# panel but not run by default (it's a separate, flakier concern).
-DEFAULT_STEPS: List[str] = ["database"]
+# Default pipeline per group. For ``deploy`` it is the database serving copy only; ``web`` is
+# selectable in the panel but not run by default (it's a separate, flakier concern).
+DEFAULT_STEPS_BY_GROUP: Dict[str, List[str]] = {
+    "load": ["dbt-staging", "promote-events", "load-analysis", "dbt-gold"],
+    "deploy": ["database"],
+}
+DEFAULT_STEPS: List[str] = DEFAULT_STEPS_BY_GROUP["deploy"]  # back-compat
+
+
+def step_group(key: str) -> str:
+    return str(STEP_DEFS[key].get("group", "deploy"))
+
+
+def job_group(steps: List[str]) -> str:
+    """``load`` when every step is a load step, else ``deploy``."""
+    return "load" if steps and all(step_group(k) == "load" for k in steps) else "deploy"
 
 
 def available_steps() -> List[Dict[str, str]]:
@@ -78,6 +158,7 @@ def available_steps() -> List[Dict[str, str]]:
             "label": str(defn["label"]),
             "description": str(defn["description"]),
             "target": str(defn["target"]),
+            "group": str(defn.get("group", "deploy")),
         }
         for key, defn in STEP_DEFS.items()
     ]
@@ -131,6 +212,9 @@ class DeploymentJob:
                     "note": None,
                     "log": str((log_dir / f"{job_id}_{key}.log").relative_to(_repo_root())),
                     "cmd": "",
+                    # Counts for the Load tab (#823): filled when the step leaves a result file.
+                    "counts": None,
+                    "result": None,
                 }
             )
 
@@ -138,7 +222,11 @@ class DeploymentJob:
         return {
             "job_id": self.job_id,
             "job_type": "deployment",
-            "label": "Prod deployment" + (" (dry run)" if self.dry_run else ""),
+            "group": job_group([st["key"] for st in self.steps]),
+            "label": (
+                "Load analysis → gold" if job_group([st["key"] for st in self.steps]) == "load"
+                else "Prod deployment"
+            ) + (" (dry run)" if self.dry_run else ""),
             "dry_run": self.dry_run,
             "pid": os.getpid(),
             "status": self.status,
@@ -179,19 +267,156 @@ _EXIT_NOTES: Dict[int, str] = {
 }
 
 
-def _step_argv(key: str) -> List[str]:
-    raw = STEP_DEFS[key]["argv"]
-    return [sys.executable if tok == "{python}" else tok for tok in raw]
+def dbt_bin() -> str:
+    """The dbt executable. dbt lives in its own environment (its pins conflict with the main
+    one), so look there first: ``DBT_BIN``, ``dbt_project/.venv_dbt``, ``.venv-dbt``, then PATH."""
+    explicit = os.environ.get("DBT_BIN", "").strip()
+    if explicit:
+        return explicit
+    root = _repo_root()
+    for cand in (
+        root / "dbt_project" / ".venv_dbt" / "bin" / "dbt",
+        root / ".venv-dbt" / "bin" / "dbt",
+        root / "dbt_project" / ".dbtenv" / "bin" / "dbt",
+    ):
+        if cand.is_file():
+            return str(cand)
+    return "dbt"
+
+
+def result_path_for(status_dir: Path, job_id: str, key: str) -> Path:
+    """Where a step's counts and per-item results are written (next to its log)."""
+    return status_dir / f"{job_id}_{key}.result.json"
+
+
+def _step_argv(key: str, result_path: Optional[Path] = None) -> List[str]:
+    """The step's command. ``{result}`` becomes ``result_path``; without one the flag is left out."""
+    raw = list(STEP_DEFS[key]["argv"])
+    if result_path is None and "{result}" in raw:
+        at = raw.index("{result}")
+        del raw[at - 1 : at + 1]
+    out: List[str] = []
+    for tok in raw:
+        if tok == "{result}":
+            out.append(str(result_path))
+        elif tok == "{python}":
+            out.append(sys.executable)
+        elif tok == "{dbt}":
+            out.append(dbt_bin())
+        else:
+            out.append(tok)
+    return out
+
+
+def summarize_load_counts(counts: Dict[str, Any]) -> Dict[str, int]:
+    """The loader's many counters as the four numbers a step row shows."""
+    def n(key: str) -> int:
+        try:
+            return int(counts.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    skipped = sum(n(k) for k in counts if k.startswith("skipped_") and k != "skipped_other_tier")
+    # Files of the tier this run was not asked for were never candidates, so they are not "read".
+    read = max(0, n("discovered") - n("skipped_other_tier"))
+    return {"read": read, "loaded": n("loaded"), "skipped": skipped, "errors": n("errors")}
+
+
+def dbt_result_from_run_results(run_results: Path, started_epoch: float) -> Optional[Dict[str, Any]]:
+    """Per-model outcome of the dbt step, from dbt's own ``run_results.json``.
+
+    ``None`` when the file is missing, unreadable, or older than this step (left by another dbt run):
+    stale numbers are worse than no numbers."""
+    try:
+        if run_results.stat().st_mtime < started_epoch - 1:
+            return None
+        data = json.loads(run_results.read_text())
+    except (OSError, ValueError):
+        return None
+    results = data.get("results") if isinstance(data, dict) else None
+    if not isinstance(results, list):
+        return None
+    counts = {"models": 0, "success": 0, "error": 0, "skipped": 0}
+    items: List[Dict[str, Any]] = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        status = str(r.get("status") or "").lower()
+        counts["models"] += 1
+        if status in ("success", "pass"):
+            counts["success"] += 1
+            continue
+        outcome = "skipped" if status == "skipped" else "error"
+        counts[outcome] += 1
+        message = r.get("message")
+        items.append({
+            "file": str(r.get("unique_id") or ""),
+            "video_id": None,
+            "tier": None,
+            "outcome": outcome,
+            "reason": status or "unknown",
+            "detail": str(message)[:1000] if message else None,
+        })
+    return {"schema": 1, "kind": "dbt", "dry_run": False, "generated_at": _now_iso(), "counts": counts, "items": items}
+
+
+def collect_step_result(key: str, result_path: Path, root: Path, started_epoch: float) -> Optional[Dict[str, int]]:
+    """Counts for a finished step, or ``None`` when it left nothing to count. Never raises."""
+    try:
+        if key.startswith("dbt-"):
+            result = dbt_result_from_run_results(root / "dbt_project" / "target" / "run_results.json", started_epoch)
+            if result is None:
+                return None
+            result_path.write_text(json.dumps(result))
+            return dict(result["counts"])
+        if not result_path.is_file():
+            return None
+        data = json.loads(result_path.read_text())
+        counts = data.get("counts") if isinstance(data, dict) else None
+        if not isinstance(counts, dict):
+            return None
+        if key == "load-analysis":
+            return summarize_load_counts(counts)
+        # Other steps (promotion) already write the few numbers their row shows.
+        return {str(k): int(v) for k, v in counts.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    except (OSError, ValueError, TypeError):
+        return None
 
 
 def _child_env() -> Dict[str, str]:
     """Child env with ``packages/hosting/src`` on PYTHONPATH so ``-m hosting.*``
     step commands resolve even when hosting isn't installed in this venv."""
     env = dict(os.environ)
-    hosting_src = str(_repo_root() / "packages" / "hosting" / "src")
+    srcs = [
+        str(_repo_root() / "packages" / "hosting" / "src"),
+        str(_repo_root() / "packages" / "llm" / "src"),
+        str(_repo_root() / "packages" / "ingestion" / "src"),
+        str(_repo_root() / "packages" / "core-lib" / "src"),
+    ]
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{hosting_src}{os.pathsep}{existing}" if existing else hosting_src
+    env["PYTHONPATH"] = os.pathsep.join(srcs + ([existing] if existing else []))
+    profiles_dir = dbt_profiles_dir(env)
+    if profiles_dir:
+        env["DBT_PROFILES_DIR"] = profiles_dir
     return env
+
+
+def dbt_profiles_dir(env: Optional[Dict[str, str]] = None) -> Optional[str]:
+    """The dbt profiles directory the dbt steps should use (#875).
+
+    An explicit ``DBT_PROFILES_DIR`` is kept. Otherwise the project's own ``dbt_project/profiles.yml``
+    is used when it exists, as ``scripts/dbt.sh`` does, so a Load run and a run by hand hit the same
+    database. dbt is started from the repository root, where it would not look in ``dbt_project``
+    by itself and would fall back to ``~/.dbt``. ``None`` leaves dbt to its own search.
+    """
+    env = os.environ if env is None else env
+    explicit = (env.get("DBT_PROFILES_DIR") or "").strip()
+    if explicit:
+        return explicit
+    project = _repo_root() / "dbt_project"
+    if (project / "profiles.yml").is_file():
+        return str(project)
+    return None
 
 
 class _Orchestrator:
@@ -224,7 +449,9 @@ class _Orchestrator:
                 self.job.flush()
                 continue
 
-            argv = _step_argv(step["key"])
+            result_path = result_path_for((root / step["log"]).parent, self.job.job_id, step["key"])
+            argv = _step_argv(step["key"], result_path)
+            started_epoch = time.time()
             step["cmd"] = " ".join(argv)
             step["status"] = "running"
             step["started_at"] = _now_iso()
@@ -246,6 +473,9 @@ class _Orchestrator:
             try:
                 with open(log_path, "w") as logf:
                     logf.write(f"[{_now_iso()}] $ {step['cmd']}\n")
+                    if step["key"].startswith("dbt-"):
+                        # Which database a dbt step writes to depends on this, so say it in the log (#875).
+                        logf.write(f"[{_now_iso()}] dbt profiles directory: {dbt_profiles_dir() or 'dbt default (~/.dbt)'}\n")
                     logf.flush()
                     self._current = subprocess.Popen(
                         argv,
@@ -263,6 +493,13 @@ class _Orchestrator:
                 rc = 127
 
             step["exit_code"] = rc
+            # Counts are recorded whatever the exit code: a failed step is when they matter most.
+            step["counts"] = collect_step_result(step["key"], result_path, root, started_epoch)
+            if step["counts"] is not None:
+                try:
+                    step["result"] = str(result_path.relative_to(root))
+                except ValueError:  # a status dir outside the repo (tests, custom --status-dir)
+                    step["result"] = str(result_path)
             if self._cancelled:
                 step["status"] = "cancelled"
                 self.job.flush()
@@ -309,6 +546,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         parser.error(f"unknown step(s): {unknown}; known: {list(STEP_DEFS)}")
     if not steps:
         parser.error("no steps given")
+    if len({step_group(s) for s in steps}) > 1:
+        parser.error("load steps and deploy steps cannot run in the same job")
 
     status_dir = Path(args.status_dir)
     job = DeploymentJob(

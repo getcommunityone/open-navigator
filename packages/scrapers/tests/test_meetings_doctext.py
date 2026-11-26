@@ -8,17 +8,17 @@ import pytest
 from scrapers.meetings import doctext
 
 
-def test_select_covers_every_crawl_table_and_mirrors_the_staging_filter() -> None:
+def test_select_covers_every_crawl_table_and_follows_the_staging_view() -> None:
     sql = doctext.build_select_sql(with_jurisdiction=False)
     for table in doctext.SCRAPED_TABLES:
         assert f"FROM {table} s" in sql
     assert sql.count("UNION ALL") == len(doctext.SCRAPED_TABLES) - 1
     assert "school_districts" not in sql  # not published yet (geoid collisions with places)
-    assert "meeting_date_source <> 'manifest_year_only'" in sql
-    assert "suiteonemedia" in sql  # SuiteOne portals are owned by the SuiteOne scraper
+    # #1035: one rule: extract exactly what staging publishes (dates read from link text / file names included),
+    # rather than a copy of its filter that drifts.
+    assert "FROM staging.stg_scraped_meeting_documents g" in sql
+    assert "g.url_sha256 = s.url_sha256" in sql
     assert "t.extraction_method <> 'error'" in sql  # failed downloads are retried
-    assert "NOT LIKE 'suiteone:%%'" in sql  # psycopg2 turns %% into a literal %
-    assert "suiteone_listing" in sql
     assert "%(jurisdiction_id)s" not in sql
     assert "s.jurisdiction_id = %(jurisdiction_id)s" in doctext.build_select_sql(with_jurisdiction=True)
 
@@ -109,3 +109,38 @@ def test_extract_writes_text_for_published_docs_only(tmp_path: Path) -> None:
     sha, method, content = stored[0]
     assert sha == "a" * 64 and method == "pymupdf_text"
     assert "data center rezoning" in content
+
+
+def test_ocr_select_reads_only_scanned_rows_staging_publishes() -> None:
+    """#1041: OCR only the crawled documents a text pass left scanned."""
+    sql = doctext.build_ocr_select_sql(with_jurisdiction=False)
+    assert "t.extraction_method = 'empty_needs_ocr'" in sql
+    assert "FROM staging.stg_scraped_meeting_documents g" in sql
+    for table in doctext.SCRAPED_TABLES:
+        assert f"FROM {table}" in sql
+    assert "%(jurisdiction_id)s" not in sql
+    assert "t.jurisdiction_id = %(jurisdiction_id)s" in doctext.build_ocr_select_sql(with_jurisdiction=True)
+    # The update only touches rows still marked scanned, so a re-run can't overwrite real text.
+    assert "extraction_method = 'empty_needs_ocr'" in doctext._OCR_UPDATE
+
+
+def test_ocr_method_never_claims_text_it_did_not_read() -> None:
+    assert doctext.ocr_method("Call to order") == "tesseract_ocr"
+    assert doctext.ocr_method("") == "empty_after_ocr"
+
+
+@pytest.mark.skipif(doctext.tessdata_dir() is None, reason="tesseract not installed")
+def test_tesseract_reads_a_rendered_page() -> None:
+    import pymupdf
+
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 100), "CALL TO ORDER", fontsize=28)
+    # Rasterise so the PDF has no embedded text, like a scan.
+    pix = page.get_pixmap(dpi=150)
+    scan = pymupdf.open()
+    scan.new_page(width=page.rect.width, height=page.rect.height).insert_image(page.rect, pixmap=pix)
+    data = scan.tobytes()
+    assert doctext.extract_pdf_text(data)[0] == ""
+    text, pages = doctext.tesseract_pdf_text(data)
+    assert pages == 1 and "CALL TO ORDER" in text.upper()

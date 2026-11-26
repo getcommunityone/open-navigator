@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopics, type TopicSummary } from '../api/topics'
@@ -860,6 +860,23 @@ function UnifiedSearchInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchResults])
 
+  /** The results-header sort (#1009): reorders the current results in place. It keeps the tab and the rest of the
+   *  URL, and writes `?sort=` so the order survives refresh and back. */
+  const changeSort = (next: string) => {
+    setSortBy(next)
+    setCurrentPage(1)
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev)
+        if (next && next !== 'relevance') p.set('sort', next)
+        else p.delete('sort')
+        p.delete('page')
+        return p
+      },
+      { replace: true },
+    )
+  }
+
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault()
     // Allow search with query OR just filters (browse mode)
@@ -1606,7 +1623,7 @@ function UnifiedSearchInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen page-bg">
       <div className="max-w-6xl mx-auto px-6 pb-6">
         {/* Search Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
@@ -1620,7 +1637,19 @@ function UnifiedSearchInner() {
               Back to home
             </button>
           )}
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Search</h1>
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+            <h1 className="text-3xl font-bold text-gray-900">Search</h1>
+            <Link
+              to={`/chat?${new URLSearchParams({
+                ...(selectedState ? { state: selectedState } : {}),
+                ...(selectedCity && !countyScopeOn ? { city: selectedCity } : {}),
+                ...(activeCountyFips ? { county_fips: activeCountyFips } : {}),
+              }).toString()}`}
+              className="text-sm font-medium text-primary-600 hover:text-primary-700 hover:underline"
+            >
+              Ask meetings
+            </Link>
+          </div>
           
           {/* Search Bar + Filters on the same row */}
           <div className="flex items-stretch gap-3">
@@ -2114,7 +2143,9 @@ function UnifiedSearchInner() {
                     sortBy === 'revenue-desc' ? 'Revenue ↓' :
                     sortBy === 'revenue-asc' ? 'Revenue ↑' :
                     sortBy === 'assets-desc' ? 'Assets ↓' :
-                    sortBy === 'assets-asc' ? 'Assets ↑' : sortBy
+                    sortBy === 'assets-asc' ? 'Assets ↑' :
+                    sortBy === 'date_desc' ? 'Newest first' :
+                    sortBy === 'date_asc' ? 'Oldest first' : sortBy
                   }
                   <button
                     onClick={() => {
@@ -2321,7 +2352,7 @@ function UnifiedSearchInner() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
                   >
                     <option value="relevance" className="text-gray-900">Relevance</option>
-                    <optgroup label="Date (decisions)">
+                    <optgroup label="Date">
                       <option value="date_desc" className="text-gray-900">Date (Newest first)</option>
                       <option value="date_asc" className="text-gray-900">Date (Oldest first)</option>
                       <option value="theme" className="text-gray-900">Theme (A-Z)</option>
@@ -2578,10 +2609,26 @@ function UnifiedSearchInner() {
                     tabs (from the counts call); the sub-line describes the
                     active tab's current page (pagination is per-tab). */}
                 <div className="mb-6">
+                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                   <h2 className="text-xl font-semibold text-gray-900">
                     {(tabCountsData?.total_results ?? searchResults.total_results).toLocaleString()} results
                     {searchResults.query ? ` for "${searchResults.query}"` : ''}
                   </h2>
+                  {/* Visible sort (#1009): the Filters panel's select is the same state. */}
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <span>Sort</span>
+                    <select
+                      value={['relevance', 'date_desc', 'date_asc'].includes(sortBy) ? sortBy : 'relevance'}
+                      onChange={(e) => changeSort(e.target.value)}
+                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      aria-label="Sort results"
+                    >
+                      <option value="relevance">Relevance</option>
+                      <option value="date_desc">Newest first</option>
+                      <option value="date_asc">Oldest first</option>
+                    </select>
+                  </label>
+                  </div>
                   {searchResults.total_results > 0 && (
                     <p className="text-sm text-gray-600 mt-1">
                       Showing {searchResults.pagination.offset + 1}–
@@ -3327,10 +3374,10 @@ function UnifiedSearchInner() {
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Try searching for:</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                { query: 'dental health', icon: HeartIcon, description: 'Find organizations and meetings about dental health' },
-                { query: 'affordable housing', icon: BuildingOfficeIcon, description: 'Discover housing-related initiatives' },
-                { query: 'school board', icon: CalendarIcon, description: 'View school board meetings and decisions' },
-                { query: 'mental health', icon: HeartIcon, description: 'Explore mental health programs and services' },
+                { query: 'data centers', icon: BuildingOfficeIcon, description: 'Meetings and decisions about data centers' },
+                { query: 'short-term rentals', icon: BuildingOfficeIcon, description: 'Meetings and decisions about short-term rentals' },
+                { query: 'Flock cameras', icon: CalendarIcon, description: 'Meetings and decisions about Flock cameras' },
+                { query: 'license plate readers', icon: CalendarIcon, description: 'Meetings and decisions about license plate readers' },
               ].map((example, idx) => (
                 <button
                   key={idx}

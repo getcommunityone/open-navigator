@@ -8,36 +8,94 @@ version: 2
 # but is enforced on the underlying event_place table, not re-enforced on the view.
 
 models:
-  - name: event_place_geocoded
-    description: >
-      public.event_place_geocoded — public.event_place with cached lat/lon coalesced
-      from bronze.place_geocode_cache (status='ok') and a geocode_source provenance
-      column ('extract' | cache source | NULL). One row per event_place row. Read
-      this instead of event_place when you want best-available coordinates; coverage
-      tracks the cache and is low until the nationwide geocode backfill runs.
-    config:
-      tags: ['marts', 'event-extraction', 'ai', 'geocode']
-    columns:
-      - name: event_place_id
-        description: "PK — inherited from event_place (md5 surrogate of extraction_key)."
-        data_tests: [not_null]
-      - name: place_id
-        description: "Stable place slug (event_place.place_id)."
-        data_tests: [not_null]
-      - name: analysis_id
-        description: "FK -> event_meeting.event_meeting_id (via event_place)."
-        data_tests:
-          - relationships:
-              to: ref('event_meeting')
-              field: event_meeting_id
-              config:
-                severity: warn
-      - name: latitude
-        description: "Best-available latitude: event_place.latitude, else cached 'ok' lat."
-      - name: longitude
-        description: "Best-available longitude: event_place.longitude, else cached 'ok' lon."
-      - name: geocode_source
-        description: "Provenance of the surfaced coordinate: 'extract' | cache source | NULL."
-      - name: extracted_at
-        description: "Partition key inherited from event_place."
-        data_tests: [not_null]
+- name: event_place_geocoded
+  description: "public.event_place_geocoded \u2014 public.event_place with cached lat/lon coalesced from\
+    \ bronze.place_geocode_cache (status='ok') and a geocode_source provenance column ('extract' | cache\
+    \ source | NULL). One row per event_place row. Read this instead of event_place when you want best-available\
+    \ coordinates; coverage tracks the cache and is low until the nationwide geocode backfill runs.\n"
+  config:
+    tags:
+    - marts
+    - event-extraction
+    - ai
+    - geocode
+    contract:
+      enforced: true
+    on_schema_change: fail
+  columns:
+  - name: event_place_id
+    data_type: text
+    description: "PK \u2014 inherited from event_place (md5 surrogate of extraction_key)."
+    data_tests:
+    - not_null
+    constraints:
+    - type: not_null
+    - type: primary_key
+  - name: extraction_key
+    data_type: text
+  - name: analysis_id
+    data_type: integer
+    description: FK -> event_meeting.event_meeting_id (via event_place).
+    data_tests:
+    - relationships:
+        to: ref('event_meeting')
+        field: event_meeting_id
+        config:
+          severity: warn
+  - name: legacy_event_id
+    data_type: integer
+  - name: c1_event_id
+    data_type: varchar(50)
+  - name: state_code
+    data_type: varchar(2)
+  - name: state
+    data_type: text
+  - name: jurisdiction_name
+    data_type: varchar(200)
+  - name: jurisdiction_type
+    data_type: varchar(50)
+  - name: city
+    data_type: varchar(100)
+  - name: place_id
+    data_type: text
+    description: Stable place slug (event_place.place_id).
+    data_tests:
+    - not_null
+  - name: raw_text
+    data_type: text
+  - name: normalized_address
+    data_type: text
+  - name: place_type
+    data_type: text
+  - name: street_address
+    data_type: text
+  - name: place_city
+    data_type: text
+  - name: place_state_code
+    data_type: text
+  - name: geocode_query
+    data_type: text
+  - name: latitude
+    data_type: float8
+    description: 'Best-available latitude: event_place.latitude, else cached ''ok'' lat.'
+  - name: longitude
+    data_type: float8
+    description: 'Best-available longitude: event_place.longitude, else cached ''ok'' lon.'
+  - name: geocode_source
+    data_type: text
+    description: 'Provenance of the surfaced coordinate: ''extract'' | cache source | NULL.'
+  - name: geocode_status
+    data_type: text
+  - name: linked_decision_ids
+    data_type: jsonb
+  - name: linked_item_ids
+    data_type: jsonb
+  - name: mention_count
+    data_type: integer
+  - name: source_ai_model
+    data_type: varchar(100)
+  - name: extracted_at
+    data_type: timestamp
+    description: Partition key inherited from event_place.
+    data_tests:
+    - not_null

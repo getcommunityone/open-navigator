@@ -31,6 +31,12 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from api.meeting_type import (
+    meeting_type_available,
+    meeting_type_by_video_sql,
+    meeting_type_label,
+)
+from api.provenance import Provenance, build_provenance
 from api.routes.search_postgres import get_db_pool
 
 router = APIRouter(prefix="/meeting", tags=["meeting"])
@@ -186,11 +192,14 @@ class MeetingDetail(BaseModel):
     state_code: Optional[str] = None
     meeting_date: Optional[str] = None
     video_id: Optional[str] = None
+    meeting_type: Optional[str] = None  # normalized label; None when blank/UNKNOWN (#797)
     has_agenda: bool = False
     has_minutes: bool = False
     documents: List[MeetingDocument] = []
     decisions: List[MeetingDecision] = []
     financial_items: List[MeetingFinancialItem] = []
+    # How the meeting's AI summary was made (#1099), the same facts as the decision page's footer (#798).
+    provenance: Optional[Provenance] = None
 
 
 def _meeting_iso_date(value: Any) -> Optional[str]:
@@ -210,7 +219,8 @@ _MEETING_SQL = """
         state_code,
         CASE WHEN COALESCE(NULLIF(event_date, ''), NULLIF(meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
              THEN COALESCE(NULLIF(event_date, ''), NULLIF(meeting_date, '')) END AS meeting_date,
-        video_id
+        video_id,
+        __MEETING_TYPE__
     FROM event_meeting
     WHERE event_meeting_id = $1
 """
@@ -232,6 +242,15 @@ _MEETING_FINANCIAL_SQL = """
     ORDER BY amount DESC NULLS LAST
 """
 
+# How the meeting's analysis was made (#1099): event_analysis_provenance is keyed by analysis_id, which for a meeting's
+# decisions is the event_meeting_id. Best-effort: the table may not be published yet.
+_MEETING_PROVENANCE_SQL = """
+    SELECT video_id, ai_model, generated_at, analysis_tier, prompt_name, prompt_sha,
+           transcript_source, analyses_for_meeting
+    FROM event_analysis_provenance
+    WHERE analysis_id = $1
+"""
+
 _MEETING_DOCUMENTS_SQL = """
     SELECT document_type, document_url, doc_date, body_name
     FROM event_meeting_document
@@ -250,7 +269,13 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
-                row = await conn.fetchrow(_MEETING_SQL, event_meeting_id)
+                has_type = await meeting_type_available(conn)
+                row = await conn.fetchrow(
+                    _MEETING_SQL.replace(
+                        "__MEETING_TYPE__", meeting_type_by_video_sql("event_meeting.video_id", has_type)
+                    ),
+                    event_meeting_id,
+                )
                 if row is None:
                     raise HTTPException(
                         status_code=404,
@@ -262,6 +287,11 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
                 documents = await conn.fetch(
                     _MEETING_DOCUMENTS_SQL, event_meeting_id
                 )
+                prov_row = None
+                try:
+                    prov_row = await conn.fetchrow(_MEETING_PROVENANCE_SQL, event_meeting_id)
+                except Exception as pv_err:  # noqa: BLE001 - never fail the meeting for the footer
+                    logger.warning("provenance lookup failed for meeting {}: {}", event_meeting_id, pv_err)
         except HTTPException:
             raise
         except Exception as e:  # noqa: BLE001
@@ -292,6 +322,7 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
             state_code=row["state_code"],
             meeting_date=_meeting_iso_date(row["meeting_date"]),
             video_id=row["video_id"],
+            meeting_type=meeting_type_label(row["meeting_type"]),
             has_agenda=any(d.document_type == "agenda" for d in doc_models),
             has_minutes=any(d.document_type == "minutes" for d in doc_models),
             documents=doc_models,
@@ -314,4 +345,7 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
                 )
                 for f in financial
             ],
+            provenance=build_provenance(
+                dict(prov_row) if prov_row is not None else None, video_id=row["video_id"]
+            ),
         )

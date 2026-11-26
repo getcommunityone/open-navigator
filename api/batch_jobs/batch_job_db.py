@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -208,6 +209,71 @@ def reap_stale_running_batches(*, limit: int = 30) -> int:
     return reaped
 
 
+def cancel_running_batches(
+    *,
+    reason: str = "operator Stop all",
+    step: str | None = None,
+    limit: int = 50,
+) -> int:
+    """Force-cancel ``running`` batch rows (used by dashboard Stop all).
+
+    Stop kills launch PIDs tracked in ``launch.json``, but orphan / already-dead
+    workers leave ``youtube_batch_job_runs.status = 'running'``, which keeps
+    ``totals.running > 0`` and disables **Run all** (#742). Returns how many
+    rows were cancelled.
+    """
+    if not _use_db():
+        return 0
+    from api.batch_jobs.batch_job_status import persist_batch_job
+
+    cancelled = 0
+    step_l = (step or "").strip().lower() or None
+    try:
+        with get_db_connection() as conn:
+            ensure_batch_job_tables(conn)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT payload
+                    FROM bronze.youtube_batch_job_runs
+                    WHERE status = 'running'
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+        finished = datetime.now(timezone.utc).isoformat()
+        for row in rows:
+            payload = row["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            job = BatchJob.from_dict(payload)
+            if (job.status or "").lower() != "running":
+                continue
+            if step_l and (job.step or "").lower() != step_l:
+                continue
+            job.status = "cancelled"
+            job.finished_at = finished
+            cfg = dict(job.config or {})
+            cfg["stop_all_reason"] = reason
+            job.config = cfg
+            for j in job.jurisdictions:
+                if (j.status or "").lower() == "running":
+                    j.status = "failed"
+                    j.exit_code = -1
+                    j.finished_at = finished
+                    j.updated_at = finished
+                    j.current_video_id = ""
+                    j.current_video_title = ""
+                    j.current_video_started_at = ""
+            persist_batch_job(job)
+            cancelled += 1
+    except Exception as exc:
+        logger.warning("cancel running batches failed: %s", exc)
+    return cancelled
+
+
 def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
     """
     Pipeline counts from the per-event bronze stamps (migration 083):
@@ -289,7 +355,45 @@ def policy_event_counts_24h(conn: Any) -> Dict[str, Any]:
 # Pipeline stages, in funnel order. Each (scope, stage) pair is one report row,
 # so adding a metric is a field and adding a dimension (state, later jurisdiction)
 # is more rows — not more columns.
-PIPELINE_STAGES = ("discover", "videos", "transcripts", "analyses", "reports")
+# Seven funnel stages (#755). Light stamps use policy_analysis_* / policy_report_*;
+# full stamps use policy_*_full_*. Legacy ``analyses``/``reports`` aliases map to light.
+PIPELINE_STAGES = (
+    "discover",
+    "videos",
+    "transcripts",
+    "analyses_light",
+    "reports_light",
+    "analyses_full",
+    "reports_full",
+)
+
+
+def _stage_report_filters(
+    cohort: str | None, conn: Any
+) -> tuple[Optional[List[str]], Optional[List[str]]]:
+    """Return ``(jurisdiction_ids, state_codes)`` filters for a launch cohort.
+
+    - ``data_centers``: jurisdiction_id ∈ DC site-belt ∪ meeting-mention set
+    - ``priority``: state_code ∈ priority launch states
+    - ``all`` / unset: no filter (full warehouse)
+    """
+    cohort_norm = (cohort or "").strip().lower() or None
+    if cohort_norm == "data_centers":
+        from api.batch_jobs.cohorts import data_center_jurisdiction_ids
+
+        dc_ids = data_center_jurisdiction_ids(conn)
+        return (list(dc_ids) if dc_ids else [], None)
+    if cohort_norm == "priority":
+        from api.batch_jobs.cohorts import PRIORITY_STATE_CODES
+
+        return (None, list(PRIORITY_STATE_CODES))
+    return (None, None)
+
+
+def _stage_report_jid_filter(cohort: str | None, conn: Any) -> Optional[List[str]]:
+    """Deprecated wrapper — prefer ``_stage_report_filters``."""
+    jids, _states = _stage_report_filters(cohort, conn)
+    return jids
 
 
 def _stage_timing(conn: Any) -> Dict[str, Any]:
@@ -363,7 +467,17 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
             conn.rollback()
         return out
 
-    vids = _one("transcript_download_at", "transcript_file_path")
+    # Videos ▶ Run is catalog: upserts bump ``last_updated`` with --skip-transcripts.
+    # Timing must follow that clock (and caption stamps when present), not only
+    # ``transcript_download_at``, or Last activity freezes during catalog (#757).
+    vids = _one(
+        "CASE"
+        " WHEN last_updated IS NULL THEN transcript_download_at"
+        " WHEN transcript_download_at IS NULL THEN last_updated"
+        " ELSE GREATEST(last_updated, transcript_download_at)"
+        " END",
+        "COALESCE(NULLIF(transcript_file_path, ''), NULLIF(title, ''), video_id)",
+    )
     # Transcripts cadence/last-file come from bronze_event_youtube_transcript (where the
     # backfill actually writes), not the YouTube download stamp — otherwise the
     # dashboard reads "stalled · 0/hr · last file <days ago>" while a DB-only
@@ -373,15 +487,52 @@ def _stage_timing(conn: Any) -> Dict[str, Any]:
         "video_id",
         table="bronze.bronze_event_youtube_transcript",
     )
+    light_a = _one("policy_analysis_at", "policy_analysis_path")
+    light_r = _one("policy_report_at", "policy_report_path")
+    full_a = _one("policy_analysis_full_at", "policy_analysis_full_path")
+    full_r = _one("policy_report_full_at", "policy_report_full_path")
     return {
         "videos": vids,
         "transcripts": transcripts,
-        "analyses": _one("policy_analysis_at", "policy_analysis_path"),
-        "reports": _one("policy_report_at", "policy_report_path"),
+        "analyses_light": light_a,
+        "reports_light": light_r,
+        "analyses_full": full_a,
+        "reports_full": full_r,
+        # Back-compat keys for older UI clients.
+        "analyses": light_a,
+        "reports": light_r,
     }
 
 
-def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
+def discover_last_at_sql(conn: Any) -> str:
+    """Per-row SQL for Discover's Last activity on the scraped-jurisdiction tables (#770).
+
+    ``GREATEST(discovered_at, channel_checked_at)`` when both tables have
+    ``channel_checked_at`` (stamped for each jurisdiction a Discover run tries),
+    else ``discovered_at``. Read-only: the column is added by the writers, never here.
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = 'bronze'
+                  AND table_name IN ('bronze_jurisdictions_counties_scraped',
+                                     'bronze_jurisdictions_municipalities_scraped')
+                  AND column_name = 'channel_checked_at'
+                """
+            )
+            row = cur.fetchone()
+        if row and int(row[0]) == 2:
+            return "GREATEST(discovered_at, channel_checked_at)"
+    except Exception as exc:
+        conn.rollback()
+        logger.debug("discover_last_at_sql: column lookup failed: %s", exc)
+    return "discovered_at"
+
+
+def pipeline_stage_report(conn: Any, *, cohort: str | None = None) -> Dict[str, Any]:
     """
     Long-format per-state pipeline coverage from the bronze per-event stamps.
 
@@ -390,6 +541,9 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     national rollup). All four stages are derived from one ``GROUP BY state_code``
     over ``bronze_event_youtube`` so per-state and overall numbers are consistent
     and live (covering standalone/parallel analyze runs). Empty on pre-083 DBs.
+
+    When ``cohort="data_centers"``, counts are limited to DC jurisdictions.
+    When ``cohort="priority"``, counts are limited to the priority launch states.
     """
     out: Dict[str, Any] = {"states": [], "rows": []}
 
@@ -399,6 +553,17 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     def _max_iso(a: str, b: str) -> str:
         return a if a >= b else b
 
+    jid_filter, state_filter = _stage_report_filters(cohort, conn)
+    if jid_filter is not None and not jid_filter:
+        return out
+    if state_filter is not None and not state_filter:
+        return out
+
+    jf_a: Optional[List[str]] = jid_filter
+    jf_b: Optional[List[str]] = jid_filter
+    sf_a: Optional[List[str]] = state_filter
+    sf_b: Optional[List[str]] = state_filter
+
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -407,22 +572,78 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
                     COALESCE(NULLIF(state_code, ''), '??')                     AS st,
                     COUNT(*) FILTER (WHERE transcript_download_at IS NOT NULL)::int AS vids_ok,
                     COUNT(*) FILTER (WHERE transcript_file_error IS NOT NULL)::int  AS vids_fail,
-                    COUNT(*) FILTER (WHERE policy_analysis_at IS NOT NULL)::int     AS analyses,
-                    COUNT(*) FILTER (WHERE policy_analysis_error IS NOT NULL)::int  AS analysis_err,
-                    COUNT(*) FILTER (WHERE policy_report_at IS NOT NULL)::int       AS reports,
-                    COUNT(*) FILTER (WHERE policy_report_error IS NOT NULL)::int    AS report_err,
-                    MAX(transcript_download_at)                                 AS last_video,
-                    MAX(policy_analysis_at)                                     AS last_analysis,
-                    MAX(policy_report_at)                                       AS last_report
-                FROM bronze.bronze_event_youtube
+                    COUNT(*) FILTER (WHERE policy_analysis_at IS NOT NULL)::int     AS analyses_light,
+                    COUNT(*) FILTER (WHERE policy_analysis_error IS NOT NULL)::int  AS analysis_light_err,
+                    COUNT(*) FILTER (WHERE policy_report_at IS NOT NULL)::int       AS reports_light,
+                    COUNT(*) FILTER (WHERE policy_report_error IS NOT NULL)::int    AS report_light_err,
+                    COUNT(*) FILTER (WHERE policy_analysis_full_at IS NOT NULL)::int AS analyses_full,
+                    COUNT(*) FILTER (WHERE policy_analysis_full_error IS NOT NULL)::int AS analysis_full_err,
+                    COUNT(*) FILTER (WHERE policy_report_full_at IS NOT NULL)::int  AS reports_full,
+                    COUNT(*) FILTER (WHERE policy_report_full_error IS NOT NULL)::int AS report_full_err,
+                    -- Catalog bumps last_updated; captions stamp transcript_download_at.
+                    -- Videos Last activity must move for either (#757 / #761).
+                    MAX(
+                        CASE
+                            WHEN last_updated IS NULL THEN transcript_download_at
+                            WHEN transcript_download_at IS NULL THEN last_updated
+                            ELSE GREATEST(last_updated, transcript_download_at)
+                        END
+                    )                                                          AS last_video,
+                    MAX(policy_analysis_at)                                     AS last_analysis_light,
+                    MAX(policy_report_at)                                       AS last_report_light,
+                    MAX(policy_analysis_full_at)                                AS last_analysis_full,
+                    MAX(policy_report_full_at)                                  AS last_report_full
+                FROM bronze.bronze_event_youtube y
+                WHERE (%s::text[] IS NULL OR y.jurisdiction_id = ANY(%s))
+                  AND (%s::text[] IS NULL OR y.state_code = ANY(%s))
                 GROUP BY 1
-                """
+                """,
+                (jf_a, jf_b, sf_a, sf_b),
             )
             db_rows = cur.fetchall()
     except Exception as exc:
+        # Pre-114 DBs lack full_* columns — retry light-only query.
         conn.rollback()
-        logger.debug("pipeline_stage_report unavailable: %s", exc)
-        return out
+        logger.debug("pipeline_stage_report full columns unavailable, falling back: %s", exc)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        COALESCE(NULLIF(state_code, ''), '??')                     AS st,
+                        COUNT(*) FILTER (WHERE transcript_download_at IS NOT NULL)::int AS vids_ok,
+                        COUNT(*) FILTER (WHERE transcript_file_error IS NOT NULL)::int  AS vids_fail,
+                        COUNT(*) FILTER (WHERE policy_analysis_at IS NOT NULL)::int     AS analyses_light,
+                        COUNT(*) FILTER (WHERE policy_analysis_error IS NOT NULL)::int  AS analysis_light_err,
+                        COUNT(*) FILTER (WHERE policy_report_at IS NOT NULL)::int       AS reports_light,
+                        COUNT(*) FILTER (WHERE policy_report_error IS NOT NULL)::int    AS report_light_err,
+                        0::int AS analyses_full,
+                        0::int AS analysis_full_err,
+                        0::int AS reports_full,
+                        0::int AS report_full_err,
+                        MAX(
+                            CASE
+                                WHEN last_updated IS NULL THEN transcript_download_at
+                                WHEN transcript_download_at IS NULL THEN last_updated
+                                ELSE GREATEST(last_updated, transcript_download_at)
+                            END
+                        )                                                          AS last_video,
+                        MAX(policy_analysis_at)                                     AS last_analysis_light,
+                        MAX(policy_report_at)                                       AS last_report_light,
+                        NULL::timestamp AS last_analysis_full,
+                        NULL::timestamp AS last_report_full
+                    FROM bronze.bronze_event_youtube y
+                    WHERE (%s::text[] IS NULL OR y.jurisdiction_id = ANY(%s))
+                      AND (%s::text[] IS NULL OR y.state_code = ANY(%s))
+                    GROUP BY 1
+                    """,
+                    (jf_a, jf_b, sf_a, sf_b),
+                )
+                db_rows = cur.fetchall()
+        except Exception as exc2:
+            conn.rollback()
+            logger.debug("pipeline_stage_report unavailable: %s", exc2)
+            return out
 
     # Stage 0 (channel discovery) lives in the scraped-jurisdiction tables, not in
     # bronze_event_youtube: per state, how many jurisdictions have a YouTube channel
@@ -431,30 +652,64 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     # the combined coverage; the per-entity rows sum back to the combined total.
     DISCOVER_ENTITIES = ("counties", "municipalities")
     discover_by_state: Dict[str, Dict[str, Any]] = {}
+    # Last activity: when a channel was found, or when a Discover run last tried the
+    # jurisdiction, whichever is later (#770). ``activity`` is SQL from discover_last_at_sql.
+    activity = discover_last_at_sql(conn)
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT usps AS st, entity,
-                    COUNT(*)::int AS total,
-                    COUNT(*) FILTER (
-                        WHERE COALESCE(NULLIF(youtube_channel_id, ''),
-                                       NULLIF(youtube_channel_url, '')) IS NOT NULL
-                    )::int AS done,
-                    MAX(discovered_at) AS last_at
-                FROM (
-                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at,
-                           'counties' AS entity
-                      FROM bronze.bronze_jurisdictions_counties_scraped
-                    UNION ALL
-                    SELECT usps, youtube_channel_id, youtube_channel_url, discovered_at,
-                           'municipalities' AS entity
-                      FROM bronze.bronze_jurisdictions_municipalities_scraped
-                ) j
-                WHERE COALESCE(usps, '') <> ''
-                GROUP BY usps, entity
-                """
-            )
+            if jid_filter is not None:
+                cur.execute(
+                    f"""
+                    SELECT j.state_code AS st, s.entity,
+                        COUNT(*)::int AS total,
+                        COUNT(*) FILTER (
+                            WHERE COALESCE(NULLIF(s.youtube_channel_id, ''),
+                                           NULLIF(s.youtube_channel_url, '')) IS NOT NULL
+                        )::int AS done,
+                        MAX(s.activity_at) AS last_at
+                    FROM (
+                        SELECT usps, geoid, youtube_channel_id, youtube_channel_url,
+                               {activity} AS activity_at, 'counties' AS entity
+                          FROM bronze.bronze_jurisdictions_counties_scraped
+                        UNION ALL
+                        SELECT usps, geoid, youtube_channel_id, youtube_channel_url,
+                               {activity} AS activity_at, 'municipalities' AS entity
+                          FROM bronze.bronze_jurisdictions_municipalities_scraped
+                    ) s
+                    JOIN intermediate.int_jurisdictions j
+                      ON j.geoid = s.geoid AND j.state_code = s.usps
+                    WHERE COALESCE(s.usps, '') <> ''
+                      AND j.jurisdiction_id = ANY(%s)
+                      AND (%s::text[] IS NULL OR j.state_code = ANY(%s))
+                    GROUP BY j.state_code, s.entity
+                    """,
+                    (jid_filter, sf_a, sf_b),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT usps AS st, entity,
+                        COUNT(*)::int AS total,
+                        COUNT(*) FILTER (
+                            WHERE COALESCE(NULLIF(youtube_channel_id, ''),
+                                           NULLIF(youtube_channel_url, '')) IS NOT NULL
+                        )::int AS done,
+                        MAX(activity_at) AS last_at
+                    FROM (
+                        SELECT usps, youtube_channel_id, youtube_channel_url,
+                               {activity} AS activity_at, 'counties' AS entity
+                          FROM bronze.bronze_jurisdictions_counties_scraped
+                        UNION ALL
+                        SELECT usps, youtube_channel_id, youtube_channel_url,
+                               {activity} AS activity_at, 'municipalities' AS entity
+                          FROM bronze.bronze_jurisdictions_municipalities_scraped
+                    ) j
+                    WHERE COALESCE(usps, '') <> ''
+                      AND (%s::text[] IS NULL OR usps = ANY(%s))
+                    GROUP BY usps, entity
+                    """,
+                    (sf_a, sf_b),
+                )
             for st, entity, total, done, last_at in cur.fetchall():
                 rec = discover_by_state.setdefault(
                     str(st), {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
@@ -468,15 +723,11 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     except Exception:
         conn.rollback()  # scraped tables absent — discover stage degrades to zeros
 
-    # Transcript coverage per state over the int_events_union candidate set
-    # (CivicSearch + YouTube-API + LocalView): total = candidate videos, done =
-    # candidates with a transcript landed in bronze_event_youtube_transcript.
-    # Counting both from the same population keeps the bar honest — counting
-    # done from the transcript table alone gave it no denominator and reported
-    # done/done = 100% even with a large backlog (the "118k / 118k" artifact).
-    # Videos with no state_code (most CivicSearch school meetings) group under
-    # '??'; they get no per-state row but are folded into the ALL total below so
-    # the headline coverage isn't overstated.
+    # Transcript coverage for the *YouTube pipeline* only: same population as the
+    # Videos stage (bronze_event_youtube rows we attempted captions for). Using
+    # int_events_union here inflated Data centers (and other filters) to include
+    # LocalView/CivicSearch candidates (~142k) while Videos stayed ~13k (#683).
+    # total = attempted downloads; done = those with a landed transcript row.
     tx_by_state: Dict[str, Dict[str, Any]] = {}
     tx_unknown_total = 0
     tx_unknown_done = 0
@@ -485,15 +736,20 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
             cur.execute(
                 """
                 SELECT
-                    COALESCE(NULLIF(u.state_code, ''), '??')   AS st,
+                    COALESCE(NULLIF(y.state_code, ''), '??')   AS st,
                     COUNT(*)::int                              AS total,
                     COUNT(t.video_id)::int                     AS done,
                     MAX(COALESCE(t.last_updated, t.created_at)) AS last_at
-                FROM intermediate.int_events_union u
+                FROM bronze.bronze_event_youtube y
                 LEFT JOIN bronze.bronze_event_youtube_transcript t
-                    ON t.video_id = u.video_id
+                    ON t.video_id = y.video_id
+                WHERE (y.transcript_download_at IS NOT NULL
+                       OR y.transcript_file_error IS NOT NULL)
+                  AND (%s::text[] IS NULL OR y.jurisdiction_id = ANY(%s))
+                  AND (%s::text[] IS NULL OR y.state_code = ANY(%s))
                 GROUP BY 1
-                """
+                """,
+                (jf_a, jf_b, sf_a, sf_b),
             )
             for st, total, done, last_at in cur.fetchall():
                 if str(st) == "??":
@@ -504,7 +760,7 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
                         "done": int(done), "total": int(total), "last_at": _iso(last_at),
                     }
     except Exception:
-        conn.rollback()  # int_events_union absent — transcript coverage degrades to zeros
+        conn.rollback()  # transcript table absent — coverage degrades to zeros
 
     def _discover_row(scope: str, disc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         d = disc or {"total": 0, "done": 0, "last_at": "", "breakdown": {}}
@@ -534,52 +790,94 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
         ok = int(rec["vids_ok"])
         fail = int(rec["vids_fail"])
         attempted = ok + fail
-        lv, la, lr = rec["last_video"], rec["last_analysis"], rec["last_report"]
-        # videos: YouTube download stamps (ok / attempted). transcripts: actual
-        # landed coverage from bronze_event_youtube_transcript over the int_events_union
-        # candidate set (done = with transcript, total = candidates) — reaches
-        # LocalView/union videos the YouTube stamp never counted. analyses/reports
-        # sit below transcripts in the funnel, so they are denominated by the
-        # transcripts that exist (clamped so a stamp count can't exceed total).
+        lv = rec["last_video"]
+        la_l = rec["last_analysis_light"]
+        lr_l = rec["last_report_light"]
+        la_f = rec["last_analysis_full"]
+        lr_f = rec["last_report_full"]
+        # videos: YouTube download stamps (ok / attempted). transcripts: landed
+        # rows over that same attempted set. Light + full analysis are both
+        # warehouse coverage over transcripts (#755 / #766). Reports are
+        # denominated by their matching analysis tier. Full analysis must NOT
+        # use light as its denominator: pre-split deep Part 1 rows were moved
+        # onto full stamps without a light stamp (#766), which would otherwise
+        # show Analysis full at ~100% while light is a few percent.
         tx_done = int(tx.get("done", 0))
         tx_total = max(int(tx.get("total", 0)), tx_done)
         tx_last = tx.get("last_at") or ""
-        analyses = int(rec["analyses"])
-        reports = int(rec["reports"])
+        analyses_light = int(rec["analyses_light"])
+        reports_light = int(rec["reports_light"])
+        analyses_full = int(rec["analyses_full"])
+        reports_full = int(rec["reports_full"])
         return [
             _discover_row(scope, disc),
             {"scope": scope, "stage": "videos", "done": ok, "total": attempted,
              "failed": fail, "last_at": lv},
             {"scope": scope, "stage": "transcripts", "done": tx_done, "total": tx_total,
              "failed": fail, "last_at": tx_last or lv},
-            {"scope": scope, "stage": "analyses", "done": analyses,
-             "total": max(tx_done, analyses),
-             "failed": int(rec["analysis_err"]), "last_at": la},
-            {"scope": scope, "stage": "reports", "done": reports,
-             "total": max(tx_done, reports),
-             "failed": int(rec["report_err"]), "last_at": lr},
+            {"scope": scope, "stage": "analyses_light", "done": analyses_light,
+             "total": max(tx_done, analyses_light),
+             "failed": int(rec["analysis_light_err"]), "last_at": la_l},
+            {"scope": scope, "stage": "reports_light", "done": reports_light,
+             "total": max(analyses_light, reports_light),
+             "failed": int(rec["report_light_err"]), "last_at": lr_l},
+            {"scope": scope, "stage": "analyses_full", "done": analyses_full,
+             "total": max(tx_done, analyses_full),
+             "failed": int(rec["analysis_full_err"]), "last_at": la_f},
+            {"scope": scope, "stage": "reports_full", "done": reports_full,
+             "total": max(analyses_full, reports_full),
+             "failed": int(rec["report_full_err"]), "last_at": lr_f},
         ]
 
-    cols = ("st", "vids_ok", "vids_fail", "analyses", "analysis_err", "reports",
-            "report_err", "last_video", "last_analysis", "last_report")
+    cols = (
+        "st", "vids_ok", "vids_fail",
+        "analyses_light", "analysis_light_err", "reports_light", "report_light_err",
+        "analyses_full", "analysis_full_err", "reports_full", "report_full_err",
+        "last_video", "last_analysis_light", "last_report_light",
+        "last_analysis_full", "last_report_full",
+    )
     yt_by_state: Dict[str, Dict[str, Any]] = {}
     for r in db_rows:
         rec = dict(zip(cols, r))
-        for tk in ("last_video", "last_analysis", "last_report"):
+        for tk in (
+            "last_video",
+            "last_analysis_light",
+            "last_report_light",
+            "last_analysis_full",
+            "last_report_full",
+        ):
             rec[tk] = _iso(rec[tk])
         yt_by_state[str(rec["st"])] = rec
 
     _zero_rec = {
-        "vids_ok": 0, "vids_fail": 0, "analyses": 0, "analysis_err": 0,
-        "reports": 0, "report_err": 0,
-        "last_video": "", "last_analysis": "", "last_report": "",
+        "vids_ok": 0, "vids_fail": 0,
+        "analyses_light": 0, "analysis_light_err": 0,
+        "reports_light": 0, "report_light_err": 0,
+        "analyses_full": 0, "analysis_full_err": 0,
+        "reports_full": 0, "report_full_err": 0,
+        "last_video": "", "last_analysis_light": "", "last_report_light": "",
+        "last_analysis_full": "", "last_report_full": "",
     }
 
     rows: List[Dict[str, Any]] = []
     states: List[str] = []
-    totals = {k: 0 for k in ("vids_ok", "vids_fail", "analyses", "analysis_err",
-                             "reports", "report_err")}
-    last = {"last_video": "", "last_analysis": "", "last_report": ""}
+    totals = {
+        k: 0
+        for k in (
+            "vids_ok", "vids_fail",
+            "analyses_light", "analysis_light_err",
+            "reports_light", "report_light_err",
+            "analyses_full", "analysis_full_err",
+            "reports_full", "report_full_err",
+        )
+    }
+    last = {
+        "last_video": "",
+        "last_analysis_light": "",
+        "last_report_light": "",
+        "last_analysis_full": "",
+        "last_report_full": "",
+    }
     tx_totals = {"done": 0, "total": 0, "last_at": ""}
 
     # Surface every state that has entered the pipeline (any attempted YouTube
@@ -632,12 +930,12 @@ def pipeline_stage_report(conn: Any) -> Dict[str, Any]:
     return out
 
 
-def dashboard_stage_report() -> Dict[str, Any]:
+def dashboard_stage_report(*, cohort: str | None = None) -> Dict[str, Any]:
     """Open a connection and return the per-state pipeline report (empty on error)."""
     try:
         with get_db_connection() as conn:
             ensure_batch_job_tables(conn)
-            return pipeline_stage_report(conn)
+            return pipeline_stage_report(conn, cohort=cohort)
     except Exception as exc:
         logger.debug("dashboard_stage_report unavailable: %s", exc)
         return {"states": [], "rows": []}

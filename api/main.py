@@ -339,6 +339,8 @@ from api.routes import meeting_comparison as meeting_comparison_routes
 # Use Neon database for fast stats queries (500x faster than parquet)
 from api.routes import stats_neon as stats_routes  # Was: stats
 from api.routes import contact as contact_routes
+from api.routes import chat_meetings as chat_meetings_routes
+from api.routes import stance as stance_routes
 # Use hybrid approach for bills: Neon for map, parquet for drill-down (saves space)
 from api.routes import bills_neon as bills_routes  # Was: bills
 from api.routes import data_deletion as data_deletion_routes
@@ -356,6 +358,10 @@ from api.routes import efile990 as efile990_routes
 from api.routes import lenses as lenses_routes
 from api.routes import money_flow as money_flow_routes
 from api.routes import topics as topics_routes
+from api.routes import short_term_rentals as short_term_rentals_routes
+from api.routes import topic_companies as topic_companies_routes
+from api.routes import topic_caption_facts as topic_caption_facts_routes
+from api.routes import organizations as organizations_routes
 from api.routes import money_and_talk as money_and_talk_routes
 from api.routes import grandkid_outlook as grandkid_outlook_routes
 from api.routes import local_finance as local_finance_routes
@@ -381,6 +387,8 @@ app.include_router(meetings_routes.router, prefix="/api")
 app.include_router(meeting_comparison_routes.router, prefix="/api")
 app.include_router(stats_routes.router, prefix="/api", tags=["stats"])
 app.include_router(contact_routes.router, prefix="/api")
+app.include_router(chat_meetings_routes.router, prefix="/api")
+app.include_router(stance_routes.router, prefix="/api")
 app.include_router(bills_routes.router, prefix="/api")
 app.include_router(data_deletion_routes.router, prefix="/api", tags=["privacy"])
 app.include_router(trending_routes.router)
@@ -401,6 +409,13 @@ app.include_router(lenses_routes.router)
 app.include_router(money_flow_routes.router)
 # Prefix ("/api/topics") baked into the router — include with NO extra prefix.
 app.include_router(topics_routes.router)
+# Prefix ("/api/short-term-rentals") baked into the router (#1015).
+app.include_router(short_term_rentals_routes.router)
+app.include_router(topic_companies_routes.router)
+# Prefix ("/api/topics") baked into the router (#1125): the facts behind a topic caption.
+app.include_router(topic_caption_facts_routes.router)
+# Prefix ("/api/organizations") baked into the router (#1015): the organization page.
+app.include_router(organizations_routes.router)
 # Prefix ("/api/money-and-talk") baked into the router — include with NO extra prefix.
 app.include_router(money_and_talk_routes.router)
 # Prefix ("/api/grandkid-outlook") baked into the router — include with NO extra prefix.
@@ -424,6 +439,14 @@ from api.routes import application_links as application_links_routes
 
 app.include_router(application_links_routes.public_router, prefix="/api")
 app.include_router(application_links_routes.admin_router, prefix="/api")
+# Jev meeting-kind review / override (#668).
+from api.routes import meeting_kind_reviews as meeting_kind_reviews_routes
+
+app.include_router(meeting_kind_reviews_routes.admin_router, prefix="/api")
+# Official profile claims + pending edits (#1062). Router prefix is "/people".
+from api.routes import person_claims as person_claims_routes
+
+app.include_router(person_claims_routes.router, prefix="/api")
 
 # Custom Swagger UI with logo.
 # Served at /api/docs (not /docs) so the /docs/ path is free for the Docusaurus

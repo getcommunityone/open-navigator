@@ -17,6 +17,7 @@ import {
   DocumentIcon,
   BuildingOffice2Icon,
 } from '@heroicons/react/24/outline'
+import AnalysisProvenance, { type Provenance } from '../components/AnalysisProvenance'
 import { withSpan } from '../instrumentation'
 import { expandStateName } from '../utils/formatters'
 import { type Speaker, parseSpeaker } from '../lib/speakers'
@@ -69,8 +70,12 @@ interface DecisionDetail {
   meeting_name?: string | null
   meeting_date?: string | null
   meeting_video_id?: string | null
+  /** Meeting type label; null/absent when blank or UNKNOWN (#797). */
+  meeting_type?: string | null
   source_ai_model?: string | null
   extracted_at?: string | null
+  /** How this summary was made (#798); null when nothing was recorded. */
+  provenance?: Provenance | null
   // Phase 3: agenda/minutes document links (served by GET /api/decision/{id}).
   documents?: DecisionDocument[] | null
   has_agenda?: boolean | null
@@ -1371,7 +1376,7 @@ export default function DecisionDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#f6faf8] py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex justify-center items-center h-96">
             <div className="text-center">
@@ -1389,7 +1394,7 @@ export default function DecisionDetail() {
     const errorMessage =
       err?.response?.data?.detail || err?.message || 'Unable to load decision details'
     return (
-      <div className="min-h-screen bg-[#f6faf8] py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
             <div className="text-red-600 text-5xl mb-4">⚠️</div>
@@ -1431,7 +1436,7 @@ export default function DecisionDetail() {
   return (
     <MeetingVideoProvider videoId={decision.meeting_video_id} caption={videoCaption || undefined}>
     <DocumentViewerProvider>
-    <div className="min-h-screen bg-[#f6faf8] py-8" style={CV_FONT}>
+    <div className="min-h-screen page-bg py-8" style={CV_FONT}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button — returns to wherever the user came from */}
         <div className="mb-6">
@@ -1487,6 +1492,11 @@ export default function DecisionDetail() {
               <span className="flex items-center gap-1.5">
                 <CalendarIcon className="h-4 w-4 text-[#9bb8b8]" />
                 {new Date(decision.meeting_date).toLocaleDateString()}
+              </span>
+            )}
+            {decision.meeting_type && (
+              <span className="flex items-center gap-1.5" data-testid="meeting-type">
+                {decision.meeting_type}
               </span>
             )}
             <WatchRecordingLink />
@@ -1575,6 +1585,7 @@ export default function DecisionDetail() {
               )}
             </div>
           </div>
+          <AnalysisProvenance provenance={decision.provenance} />
         </div>
       </div>
     </div>

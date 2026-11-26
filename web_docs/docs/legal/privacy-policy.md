@@ -5,8 +5,8 @@ sidebar_label: Privacy Policy
 
 # Privacy Policy
 
-**Effective Date:** April 28, 2026  
-**Last Updated:** April 28, 2026
+**Effective Date:** April 28, 2026
+**Last Updated:** November 22, 2026
 
 :::info[Your Privacy Matters]
 Open Navigator is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and protect your information when you use our Service.
@@ -106,14 +106,14 @@ We may use information to:
 
 We are committed to privacy minimization:
 
-- ❌ **No tracking across websites** - We do not track your browsing on other sites
-- ❌ **No behavioral profiling** - We do not build advertising profiles
-- ❌ **No selling of data** - We never sell your information to third parties
-- ❌ **No private information collection** - We only aggregate publicly available data
-- ❌ **No financial information** - We do not collect credit cards or payment info
-- ❌ **No health information** - We do not collect personal health data
-- ❌ **No Social Security numbers** - We never collect SSNs or tax IDs
-- ❌ **No background checks** - We do not conduct or facilitate background checks
+- No **No tracking across websites** - We do not track your browsing on other sites
+- No **No behavioral profiling** - We do not build advertising profiles
+- No **No selling of data** - We never sell your information to third parties
+- No **No private information collection** - We only aggregate publicly available data
+- No **No financial information** - We do not collect credit cards or payment info
+- No **No health information** - We do not collect personal health data
+- No **No Social Security numbers** - We never collect SSNs or tax IDs
+- No **No background checks** - We do not conduct or facilitate background checks
 
 ## 5. Public Data Sources & Privacy
 
@@ -142,9 +142,9 @@ If your information appears in public records and you believe it should be remov
 
 **For data we process:**
 1. Email us at [contact email] with:
-   - Your name and the information you want removed
-   - Reason for the request
-   - Proof of identity
+ - Your name and the information you want removed
+ - Reason for the request
+ - Proof of identity
 2. We will evaluate requests on a case-by-case basis
 3. We may retain data required by law or for legitimate public interest
 
@@ -237,8 +237,9 @@ We implement industry-standard security measures:
 - **Authoritative sources:** Refreshed monthly from source agencies
 - **Historical archive:** Public records retained indefinitely for historical research
 - **Cached data:** Retained for performance, updated per provider requirements
-  - Google Civic API: Maximum 30 days (per Google's terms)
-  - Other sources: Until refreshed from source
+ - Google Civic API: Maximum 30 days (per Google's terms)
+ - YouTube API Services (public video/channel metadata): retained while useful for the meeting catalog; see §9
+ - Other sources: Until refreshed from source
 
 ### 8.3 Technical Logs
 
@@ -246,9 +247,37 @@ We implement industry-standard security measures:
 - **Error logs:** Retained for 180 days for debugging
 - **Aggregated analytics:** Retained indefinitely (personally identifiable info removed)
 
-## 9. Your Privacy Rights
+## 9. YouTube API Services
 
-### 9.1 Access & Correction
+CommunityOne uses **[YouTube API Services](https://developers.google.com/youtube/terms/api-services-terms-of-service)** to discover and catalog **public** YouTube videos and channels that relate to local government and community meetings (for example city councils, school boards, and town halls). By using the Service, you acknowledge that YouTube API Services are used as described here.
+
+**Google Privacy Policy.** Information Google collects when you use YouTube is governed by the [Google Privacy Policy](https://policies.google.com/privacy) (also at http://www.google.com/policies/privacy).
+
+### 9.1 What we access via YouTube API Services
+
+We use a Google Cloud **API key** (not user OAuth) to read **public** metadata only, including:
+
+- Video IDs, titles, descriptions, published dates, and thumbnails
+- Channel IDs, channel titles, and public channel statistics
+- Playlist and search results for public videos
+
+We store that metadata in our systems together with canonical YouTube URLs so we can show meeting-related results on CommunityOne and send users to YouTube to watch. We do **not** upload videos, edit channel or video metadata, access private user YouTube data, or obtain **Authorized Data** through a user’s Google Account for YouTube.
+
+### 9.2 How we use and share that information
+
+- **Use:** Index and display public meeting-related video metadata; link out to YouTube for playback.
+- **Share:** We do not sell YouTube API data. We may share aggregated public metadata with infrastructure providers that host the Service (see §6), under contracts that limit use to operating CommunityOne.
+- **Ads / device tracking via YouTube API:** We do not use YouTube API Services to serve third-party ads or to place YouTube-related tracking cookies on your device.
+
+### 9.3 Deletion and retention (YouTube-related data)
+
+- **User account data** (email, preferences, saved items): delete via account settings or email **johnbowyer@communityone.com**. See [Data Deletion Request](./data-deletion.md). We process email deletion requests as soon as practicable and within **30 days**.
+- **Public YouTube metadata** we indexed (video/channel IDs, titles, descriptions, URLs): this is public record–style content from YouTube, not your private account data. We refresh or remove stale entries in the ordinary course of operating the catalog. If you believe a listing should be removed from CommunityOne, email **johnbowyer@communityone.com** with the video or page URL.
+- **OAuth / Authorized Data:** We do **not** request YouTube OAuth access today. If that changes, this policy will be updated, users will be able to revoke access at [Google security permissions](https://security.google.com/settings/security/permissions), and we will delete Authorized Data tied to that consent within the timeframes required by YouTube’s developer policies (as soon as possible, and within 7 days after revocation through our product or within 30 days after revocation via Google’s settings).
+
+## 10. Your Privacy Rights
+
+### 10.1 Access & Correction
 
 You have the right to:
 - Access the personal information we hold about you
@@ -257,14 +286,14 @@ You have the right to:
 
 **How to exercise:** Email johnbowyer@communityone.com with your request.
 
-### 9.2 Deletion
+### 10.2 Deletion
 
 You have the right to request deletion of:
 - Your account and associated preferences
 - Comments or contributions you submitted
 - Saved searches and notes
 
-**How to exercise:** 
+**How to exercise:**
 1. Delete your account through account settings (self-service), or
 2. Email us at johnbowyer@communityone.com
 3. See detailed instructions at [Data Deletion Request](./data-deletion.md)
@@ -273,14 +302,14 @@ You have the right to request deletion of:
 
 **Limitations:** We may retain information required by law or legitimate public interest.
 
-### 9.3 Opt-Out Rights
+### 10.3 Opt-Out Rights
 
 You can opt out of:
 - **Email communications:** Unsubscribe link in all emails
 - **Cookies:** Browser settings (may affect functionality)
 - **Analytics:** Do Not Track (DNT) signals respected where possible
 
-### 9.4 California Privacy Rights (CCPA)
+### 10.4 California Privacy Rights (CCPA)
 
 If you are a California resident, you have additional rights:
 
@@ -291,7 +320,7 @@ If you are a California resident, you have additional rights:
 
 **To exercise CCPA rights:** Email johnbowyer@communityone.com with "CCPA Request" in subject line.
 
-### 9.5 European Privacy Rights (GDPR)
+### 10.5 European Privacy Rights (GDPR)
 
 If you are in the European Economic Area (EEA), you have rights under GDPR:
 
@@ -314,7 +343,7 @@ If you are in the European Economic Area (EEA), you have rights under GDPR:
 
 **Supervisory Authority:** You may lodge a complaint with your local data protection authority.
 
-## 10. Children's Privacy
+## 11. Children's Privacy
 
 The Service is **not directed to children under 13 years of age**. We do not knowingly collect personal information from children under 13.
 
@@ -324,7 +353,7 @@ If you believe we have collected information from a child under 13:
 
 **Parents/Guardians:** If you become aware your child has provided us with information, please contact us.
 
-## 11. International Data Transfers
+## 12. International Data Transfers
 
 The Service is operated in the United States. If you access the Service from outside the U.S.:
 
@@ -337,7 +366,7 @@ The Service is operated in the United States. If you access the Service from out
 - Adequacy decisions where applicable
 - Your explicit consent for certain transfers
 
-## 12. Third-Party Links
+## 13. Third-Party Links
 
 The Service contains links to third-party websites and services:
 
@@ -349,9 +378,9 @@ The Service contains links to third-party websites and services:
 - IRS.gov, Census.gov, OpenStates.org, CharityNavigator.org, etc.
 - Each has its own privacy policy
 
-## 13. Cookies & Tracking Technologies
+## 14. Cookies & Tracking Technologies
 
-### 13.1 What We Use
+### 14.1 What We Use
 
 **Essential Cookies:**
 - Authentication tokens (required for login)
@@ -368,7 +397,7 @@ The Service contains links to third-party websites and services:
 - Feature popularity tracking
 - Performance monitoring
 
-### 13.2 Your Choices
+### 14.2 Your Choices
 
 **Browser Controls:**
 - Block cookies through browser settings
@@ -379,7 +408,7 @@ The Service contains links to third-party websites and services:
 - We respect Do Not Track (DNT) signals where technically feasible
 - Blocking cookies may affect functionality
 
-## 14. Changes to This Privacy Policy
+## 15. Changes to This Privacy Policy
 
 We may update this Privacy Policy from time to time. Changes will be posted on this page with an updated "Last Updated" date.
 
@@ -392,12 +421,12 @@ We may update this Privacy Policy from time to time. Changes will be posted on t
 - Continued use after changes constitutes acceptance
 - If you disagree, please stop using the Service and delete your account
 
-## 15. Contact Us
+## 16. Contact Us
 
 For questions about this Privacy Policy or privacy practices:
 
-**Email:** johnbowyer@communityone.com  
-**GitHub Issues:** [Privacy-related issues](https://github.com/getcommunityone/open-navigator-for-engagement/issues)  
+**Email:** johnbowyer@communityone.com
+**GitHub Issues:** [Privacy-related issues](https://github.com/getcommunityone/open-navigator-for-engagement/issues)
 **Mail:** 5617 Lakeridge Court, Tuscaloosa, AL 35406
 
 **For specific requests:**
@@ -405,11 +434,11 @@ For questions about this Privacy Policy or privacy practices:
 - Include: Your name, email, and detailed description of request
 - We will respond within 30 days
 
-## 16. Effective Date & Version
+## 17. Effective Date & Version
 
 - **Effective Date:** April 28, 2026
-- **Last Updated:** April 28, 2026
-- **Version:** 1.0
+- **Last Updated:** November 22, 2026
+- **Version:** 1.1
 
 ---
 
@@ -418,16 +447,17 @@ For questions about this Privacy Policy or privacy practices:
 | What We Collect | Why We Collect It | Your Rights |
 |----------------|------------------|-------------|
 | **Public government data** | To provide civic engagement tools | Request removal (case-by-case) |
+| **Public YouTube metadata** (via YouTube API Services) | Find and link meeting videos | Ask us to remove a listing; see §9 |
 | **Email (optional)** | Account management, notifications | Delete account anytime |
 | **Usage data** | Improve the Service | Opt out of analytics |
 | **Cookies** | Authentication, preferences | Block through browser |
 
 **Key Principles:**
-- ✅ Public data only (no private information)
-- ✅ Transparent about sources
-- ✅ No selling of data
-- ✅ Respect user rights
-- ✅ Industry-standard security
+- Yes Public data only (no private information)
+- Yes Transparent about sources
+- Yes No selling of data
+- Yes Respect user rights
+- Yes Industry-standard security
 
 **Questions?** Contact us at johnbowyer@communityone.com
 

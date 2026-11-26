@@ -512,8 +512,9 @@ async def search_persons_pg(
 
     - Deduplicates to one result per RESOLVED person (master_person_id), picking
       the best source occurrence.
-    - Matches names with trigram similarity (typo-tolerant; uses the
-      mdm_person_full_name_trgm_idx GIN index).
+    - Matches names with trigram similarity (typo-tolerant; uses the GIN
+      gin_trgm_ops index on mdm_person.full_name, declared in the model's
+      dbt `indexes` config under a generated name, #935).
     - Joins mdm_bridge_person_organization for the person's top org / title.
 
     Location scoping (city / jurisdiction_id) goes through the MDM
@@ -1292,7 +1293,12 @@ async def search_organizations_pg(
                     title=row['name'],
                     subtitle=location,
                     description=description,
-                    url=f"/search?types=organizations&state={row['state_code']}&ein={row['ein']}",
+                    # The organization page when the row has a master id (#1015), else the filtered search as before.
+                    url=(
+                        f"/organizations/{row['master_org_id']}"
+                        if row['master_org_id']
+                        else f"/search?types=organizations&state={row['state_code']}&ein={row['ein']}"
+                    ),
                     score=1.0,
                     metadata={
                         'master_org_id': row['master_org_id'],
@@ -1398,6 +1404,48 @@ async def get_nonprofit_compensation_pg(
         return []
 
 
+def date_sort_direction(sort: Optional[str]) -> Optional[str]:
+    """'DESC' / 'ASC' for a date sort (#1009), else None (keep the type's relevance order)."""
+    s = (sort or '').lower()
+    if s in ('date_desc', 'newest', 'date'):
+        return 'DESC'
+    if s in ('date_asc', 'oldest'):
+        return 'ASC'
+    return None
+
+
+def meeting_passage_where(
+    *,
+    match_sql: Optional[str],
+    state_idx: Optional[int],
+    city_idx: Optional[int],
+    use_county: bool,
+    county_names_lower_idx: Optional[int],
+) -> Optional[str]:
+    """WHERE for the meeting-passage leg of meeting search (#1007), or None when it doesn't apply.
+
+    ``data_center_meeting_mention`` holds verbatim transcript passages (one row per passage, alias ``dm``).
+    It is on the serving copy even where the transcripts (``event_documents``) are not (Neon's size cap),
+    so these meetings stay findable there. Only with a query or topic (``match_sql`` is the tsquery
+    expression): the leg exists to surface a matched passage, never for a plain browse. Videos already
+    returned by the analyzed or transcript legs are left out.
+    """
+    if not match_sql:
+        return None
+    where: List[str] = [f"to_tsvector('english', dm.evidence) @@ {match_sql}"]
+    if state_idx:
+        where.append(f"dm.state_code = ${state_idx}")
+    if use_county:
+        where.append(
+            f"lower(dm.jurisdiction_name) = ANY(${county_names_lower_idx})" if county_names_lower_idx else "FALSE"
+        )
+    elif city_idx:
+        where.append(f"lower(dm.jurisdiction_name) = lower(${city_idx})")
+    where.append("NOT EXISTS (SELECT 1 FROM event_meeting em3 WHERE em3.video_id = dm.video_id)")
+    where.append("NOT EXISTS (SELECT 1 FROM event_documents ed3 WHERE ed3.video_id = dm.video_id)")
+    return " AND ".join(where)
+
+
 async def search_events_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -1406,6 +1454,7 @@ async def search_events_pg(
     offset: int = 0,
     topic_tsquery: Optional[str] = None,
     county_fips: Optional[str] = None,
+    sort: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Search meetings using PostgreSQL.
@@ -1628,6 +1677,20 @@ async def search_events_pg(
         elif topic_idx:
             _match_q = f"to_tsquery('english', ${topic_idx})"
 
+        dm_where_sql = meeting_passage_where(
+            match_sql=_match_q,
+            state_idx=state_idx,
+            city_idx=city_idx,
+            use_county=use_county,
+            county_names_lower_idx=county_names_lower_idx,
+        )
+        # Passage leg snippet: the meeting's matching passages, tags stripped, headlined on the match query.
+        _dm_snippet = (
+            "(SELECT ts_headline('english', string_agg(regexp_replace(m.evidence, '</?mark>', '', 'g'), ' … ' "
+            f"ORDER BY m.passage_index), {_match_q}, {_hl_opts}) "
+            "FROM data_center_meeting_mention m WHERE m.video_id = merged.video_id)"
+        ) if _match_q else "NULL"
+
         # Transcript leg: headline the body on the match query (keyword OR topic) so
         # the matched passage is centered and <mark>-wrapped; plain opener otherwise.
         # CRITICAL: detoast `content` (43KB avg, TOASTed) ONLY for the rows in the
@@ -1675,10 +1738,50 @@ async def search_events_pg(
         else:
             em_snippet = "LEFT(COALESCE(meeting_summary, agenda_summary, ''), 200)"
 
+        # Default: analyzed meetings first, then newest. A date sort (#1009) orders every leg by date alone.
+        _dir = date_sort_direction(sort)
+        meeting_order_by = (
+            f"iso_date {_dir} NULLS LAST, row_id {_dir}"
+            if _dir
+            else "is_analyzed DESC, iso_date DESC NULLS LAST, row_id DESC"
+        )
+
+        dm_leg_sql = (
+            f"""
+                UNION ALL
+
+                SELECT * FROM (
+                    SELECT DISTINCT ON (dm.video_id)
+                        FALSE AS is_analyzed,
+                        'dm'::text                    AS leg,
+                        hashtext(dm.video_id)::bigint AS row_id,
+                        NULL::bigint                  AS event_meeting_id,
+                        NULL::bigint                  AS event_document_id,
+                        dm.meeting_title              AS body_name,
+                        dm.jurisdiction_name,
+                        NULL                          AS jurisdiction_type,
+                        dm.state_code,
+                        dm.state,
+                        NULL                          AS city,
+                        dm.meeting_date::text         AS iso_date,
+                        NULL::text                    AS meeting_summary,
+                        NULL::text                    AS agenda_summary,
+                        dm.video_id,
+                        dm.video_url,
+                        NULL::varchar                 AS c1_event_id
+                    FROM data_center_meeting_mention dm
+                    WHERE {dm_where_sql}
+                    ORDER BY dm.video_id, dm.passage_index
+                ) dm_distinct"""
+            if dm_where_sql
+            else ""
+        )
+
         sql = f"""
             WITH merged AS (
                 SELECT
                     TRUE  AS is_analyzed,
+                    'em'::text                    AS leg,
                     em.event_meeting_id           AS row_id,
                     em.event_meeting_id,
                     NULL::bigint                  AS event_document_id,
@@ -1702,6 +1805,7 @@ async def search_events_pg(
                 SELECT * FROM (
                     SELECT DISTINCT ON (ed.video_id)
                         FALSE AS is_analyzed,
+                        'ed'::text                    AS leg,
                         ed.event_document_id          AS row_id,
                         NULL::bigint                  AS event_meeting_id,
                         ed.event_document_id,
@@ -1733,18 +1837,21 @@ async def search_events_pg(
                     ) ed
                     ORDER BY ed.video_id, ed.event_date DESC NULLS LAST, ed.event_document_id DESC
                 ) ed_distinct
+                {dm_leg_sql}
             )
             SELECT
                 is_analyzed, event_meeting_id, event_document_id,
                 body_name, jurisdiction_name, jurisdiction_type,
                 state_code, state, city, iso_date,
                 video_id, video_url,
+                leg,
                 CASE
                     WHEN is_analyzed THEN {em_snippet}
+                    WHEN leg = 'dm' THEN {_dm_snippet}
                     ELSE {ed_snippet}
                 END AS snippet
             FROM merged
-            ORDER BY is_analyzed DESC, iso_date DESC NULLS LAST, row_id DESC
+            ORDER BY {meeting_order_by}
             LIMIT ${limit_idx} OFFSET ${offset_idx}
         """
 
@@ -1824,6 +1931,8 @@ async def search_events_pg(
                             'video_id': row['video_id'],
                             'document_id': row['event_document_id'],
                             'analysis_pending': True,
+                            # #1007: found through a verbatim meeting passage, not a transcript row.
+                            'source': 'meeting_passage' if row['leg'] == 'dm' else 'transcript',
                         }
                     ))
 
@@ -1891,6 +2000,7 @@ async def search_documents_pg(
     limit: int = 10,
     offset: int = 0,
     county_fips: Optional[str] = None,
+    sort: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Full-text search over event documents (meeting transcripts) using PostgreSQL.
@@ -1975,6 +2085,12 @@ async def search_documents_pg(
             order_by = "event_date DESC NULLS LAST"
             snippet_sql = "LEFT(content, 200)"
 
+        # A date sort (#1009) replaces the relevance order; the candidate pool follows the same direction so
+        # "oldest first" reaches the oldest matches, not the oldest of the most recent ones.
+        _tx_dir = date_sort_direction(sort) or 'DESC'
+        if date_sort_direction(sort):
+            order_by = f"event_date {_tx_dir} NULLS LAST"
+
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
         capped_limit = min(limit, DOCUMENT_RESULT_CAP)
@@ -1998,7 +2114,7 @@ async def search_documents_pg(
                     SELECT {select_cols}, content
                     FROM event_documents
                     WHERE {where_sql}
-                    ORDER BY event_date DESC NULLS LAST, event_document_id DESC
+                    ORDER BY event_date {_tx_dir} NULLS LAST, event_document_id {_tx_dir}
                     LIMIT {pool_size}
                 )
                 SELECT {select_cols}, {snippet_sql} AS snippet
@@ -2128,6 +2244,7 @@ async def search_meeting_documents_pg(
     document_type: Optional[str] = None,
     limit: int = 10,
     offset: int = 0,
+    sort: Optional[str] = None,
 ) -> List[SearchResult]:
     """Full-text search over official meeting documents (agenda / minutes /
     attachments) backed by public.event_meeting_document.
@@ -2202,6 +2319,11 @@ async def search_meeting_documents_pg(
         else:
             order_by = "doc_date DESC NULLS LAST, event_meeting_document_id"
             snippet_sql = "LEFT(coalesce(content, meeting_title, ''), 200)"
+
+        # A date sort (#1009) replaces the relevance order; the snippet still marks the match.
+        _doc_dir = date_sort_direction(sort)
+        if _doc_dir:
+            order_by = f"doc_date {_doc_dir} NULLS LAST, event_meeting_document_id"
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
         capped_limit = min(limit, 50)

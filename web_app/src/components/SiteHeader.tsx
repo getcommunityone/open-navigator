@@ -1,7 +1,37 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
+import { DATA_EXPLORER_MAP_BASE } from '../utils/dataExplorerPaths'
+import { DOCS_INTRO } from '../utils/docsLinks'
+import { SOUND_EVENT, readSoundSetting, writeSoundSetting } from '../utils/stanceSound'
+
+const DATA_EXPLORER_ENTRY = `${DATA_EXPLORER_MAP_BASE}/us/2024/median_household_income`
+
+const menuBtn: CSSProperties = {
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  background: 'none',
+  border: 'none',
+  padding: '10px 12px',
+  fontSize: 14,
+  color: '#44403c',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  borderRadius: 8,
+}
+
+const menuSectionLabel: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0.4,
+  textTransform: 'uppercase',
+  color: '#a8a29e',
+  padding: '8px 12px 2px',
+  borderTop: '1px solid #f5f5f4',
+  marginTop: 4,
+}
 
 const TEAL = '#0d9488'
 const TEAL_DARK = '#0f766e'
@@ -23,11 +53,13 @@ const HEADER_CSS = `
 .site-header .v9-navlink.active { color: ${TEAL_DARK}; }
 .site-header .v9-navlink.active::after { width: 100%; }
 .site-header .v9-nav { display: flex; gap: 22px; margin-left: auto; align-items: center; }
+.site-header .v9-nav-sound { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
   .site-header .v9-nav { display: none; }
   .site-header .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
   .site-header .v9-burger { display: grid; margin-left: auto; }
+  .site-header .v9-nav.open .v9-nav-sound { display: block; text-align: center; }
   .site-header .v9-brand-sub { display: none; }
   .site-header .v9-header-inner { padding-left: 16px !important; padding-right: 16px !important; gap: 12px !important; }
 }
@@ -42,6 +74,13 @@ export default function SiteHeader() {
   const navigate = useNavigate()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  // Story sound lives here on phones (#1017): the story header drops its sound button below 768px.
+  const [soundOn, setSoundOn] = useState(() => readSoundSetting())
+  useEffect(() => {
+    const on = (e: Event) => setSoundOn(Boolean((e as CustomEvent<boolean>).detail))
+    window.addEventListener(SOUND_EVENT, on)
+    return () => window.removeEventListener(SOUND_EVENT, on)
+  }, [])
   const [showLoginMenu, setShowLoginMenu] = useState(false)
   // Which in-page section is currently active, so its nav link stays highlighted
   // after a click and as the user scrolls through it.
@@ -56,12 +95,17 @@ export default function SiteHeader() {
       setActiveSection('')
       return
     }
-    const ids = ['how-it-works', 'impact']
+    const ids = ['data-stories', 'search', 'how-it-works', 'impact']
+    // The section crossing the middle of the screen is active; between sections (the meetings and maps in the
+    // middle of the page) none is, so no tab stays lit over unrelated content.
+    const inView = new Set<string>()
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
-          if (e.isIntersecting) setActiveSection(e.target.id)
+          if (e.isIntersecting) inView.add(e.target.id)
+          else inView.delete(e.target.id)
         })
+        setActiveSection(ids.find((id) => inView.has(id)) ?? '')
       },
       { rootMargin: '-50% 0px -50% 0px' },
     )
@@ -78,23 +122,48 @@ export default function SiteHeader() {
     }
   }, [location.pathname])
 
-  // "How It Works" / "Impact" are in-page sections that only exist on the home
-  // page. On home we smooth-scroll to them; elsewhere we route home with a hash
-  // so HomeV9's hash-scroll effect lands on the right section.
+  // Every main tab is a section of the home page (#975): Search, Data Stories,
+  // How It Works, Impact. On home we smooth-scroll to it; elsewhere we route home
+  // with a hash so HomeV9's hash-scroll effect lands on the right section. The
+  // detail pages (/search, /stories, ...) open from actions inside each section.
+  // The place in the address (?state=&city=) travels with the tab, so the home section shows the same scope the
+  // reader had (CLAUDE.md: filters carry over across navigation).
   const goSection = (id: string) => {
     setActiveSection(id) // keep the clicked link highlighted immediately
+    const here = new URLSearchParams(location.search)
+    const q = new URLSearchParams()
+    const st = here.get('state')
+    if (st) {
+      q.set('state', st)
+      const c = here.get('city')
+      if (c) q.set('city', c)
+    }
+    const query = q.toString() ? `?${q}` : ''
     if (location.pathname === '/') {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // Already home: keep or set the carried place (compared by value, not by encoding), then scroll. The home page
+      // doesn't remount on a same-route navigate, so the scroll can't wait for its hash effect.
+      const samePlace = (here.get('state') ?? '') === (q.get('state') ?? '') && (here.get('city') ?? '') === (q.get('city') ?? '')
+      if (!samePlace) navigate(`/${query}#${id}`, { replace: true })
+      requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     } else {
-      navigate(`/#${id}`)
+      navigate(`/${query}#${id}`)
     }
   }
 
+  // Chat & Contact lives in the profile menu and the site footer (#952 / #860).
+  // On home a tab lights up for the section in view; on a detail page, for the section it was opened from.
+  const onHome = location.pathname === '/'
   const navItems: { label: string; onClick: () => void; active: boolean }[] = [
-    { label: 'Search', onClick: () => navigate('/search'), active: location.pathname === '/search' },
-    { label: 'How It Works', onClick: () => goSection('how-it-works'), active: location.pathname === '/' && activeSection === 'how-it-works' },
-    { label: 'Impact', onClick: () => goSection('impact'), active: location.pathname === '/' && activeSection === 'impact' },
-    { label: 'Contact', onClick: () => navigate('/support'), active: location.pathname === '/support' },
+    {
+      label: 'Data Stories',
+      onClick: () => goSection('data-stories'),
+      active: onHome
+        ? activeSection === 'data-stories'
+        : location.pathname.startsWith('/stories'),
+    },
+    { label: 'Search', onClick: () => goSection('search'), active: onHome ? activeSection === 'search' : location.pathname === '/search' },
+    { label: 'How It Works', onClick: () => goSection('how-it-works'), active: onHome && activeSection === 'how-it-works' },
+    { label: 'Impact', onClick: () => goSection('impact'), active: onHome && activeSection === 'impact' },
   ]
 
   const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -160,6 +229,18 @@ export default function SiteHeader() {
             </button>
           ))}
 
+          {/* Phone menu only, on a story: the sound setting (#1017). */}
+          {location.pathname.startsWith('/stories/') && (
+            <button
+              type="button"
+              className="v9-navlink v9-nav-sound"
+              aria-pressed={soundOn}
+              onClick={() => writeSoundSetting(!soundOn)}
+            >
+              Story sound: {soundOn ? 'On' : 'Off'}
+            </button>
+          )}
+
           {/* Register / Login — auth-aware */}
           {authLoading ? (
             <div style={{ width: 34, height: 34, borderRadius: '50%', border: `3px solid #e7e5e4`, borderTopColor: TEAL, animation: 'spin 0.8s linear infinite' }} />
@@ -181,21 +262,48 @@ export default function SiteHeader() {
                 </span>
               </button>
               {showLoginMenu && (
-                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 200, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
-                  <button onClick={() => { setShowLoginMenu(false); navigate('/data-explorer/map/us/2024/median_household_income') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, fontWeight: 600, color: TEAL_DARK, cursor: 'pointer', fontFamily: 'inherit', borderBottom: '1px solid #f5f5f4', marginBottom: 4, borderRadius: 8 }}>Explore Now</button>
-                  <button onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>My Profile</button>
-                  <button onClick={() => { setShowLoginMenu(false); navigate('/settings') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Settings</button>
-                  {user.is_admin && (
-                    <button onClick={() => { setShowLoginMenu(false); navigate('/admin') }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8 }}>Admin</button>
-                  )}
+                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 6, zIndex: 60 }}>
+                  <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/profile') }} style={menuBtn}>My Profile</button>
+                  <button type="button" onClick={() => { setShowLoginMenu(false); navigate('/settings?section=account&tab=profile') }} style={menuBtn}>Settings</button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); navigate('/chat') }}
+                    style={menuBtn}
+                  >
+                    Chat & Contact
+                  </button>
+                  <a
+                    href={DOCS_INTRO}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowLoginMenu(false)}
+                    style={{ ...menuBtn, textDecoration: 'none' }}
+                  >
+                    Documentation ↗
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); navigate(DATA_EXPLORER_ENTRY) }}
+                    style={{ ...menuBtn, fontWeight: 600, color: TEAL_DARK }}
+                  >
+                    Data explorer
+                  </button>
+
                   {user.is_admin && (
                     <>
-                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: '#a8a29e', padding: '8px 12px 2px', borderTop: '1px solid #f5f5f4', marginTop: 4 }}>Databricks</div>
-                      <a href={DATABRICKS_WORKSPACE_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8, textDecoration: 'none' }}>Workspace ↗</a>
-                      <a href={DATABRICKS_APP_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', fontSize: 14, color: '#44403c', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 8, textDecoration: 'none' }}>App ↗</a>
+                      <div style={menuSectionLabel}>Databricks</div>
+                      <a href={DATABRICKS_WORKSPACE_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ ...menuBtn, textDecoration: 'none' }}>Workspace ↗</a>
+                      <a href={DATABRICKS_APP_URL} target="_blank" rel="noopener noreferrer" onClick={() => setShowLoginMenu(false)} style={{ ...menuBtn, textDecoration: 'none' }}>App ↗</a>
                     </>
                   )}
-                  <button onClick={() => { setShowLoginMenu(false); logout() }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 12px', fontSize: 14, color: '#dc2626', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', borderTop: '1px solid #f5f5f4', marginTop: 4, borderRadius: 8 }}>Sign out</button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); logout() }}
+                    style={{ ...menuBtn, color: '#dc2626', fontWeight: 600, borderTop: '1px solid #f5f5f4', marginTop: 4 }}
+                  >
+                    Sign out
+                  </button>
                 </div>
               )}
             </div>
@@ -210,7 +318,14 @@ export default function SiteHeader() {
               </button>
               {showLoginMenu && (
                 <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 220, background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, boxShadow: '0 16px 32px rgba(28,25,23,0.12)', padding: 8, zIndex: 60 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#78716c', padding: '4px 8px 8px' }}>Sign in with:</div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginMenu(false); navigate('/chat') }}
+                    style={menuBtn}
+                  >
+                    Chat & Contact
+                  </button>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#78716c', padding: '8px 8px 8px', borderTop: '1px solid #f5f5f4', marginTop: 4 }}>Sign in with:</div>
                   {(['google', 'facebook', 'github', 'huggingface'] as const).map((provider) => (
                     <button
                       key={provider}

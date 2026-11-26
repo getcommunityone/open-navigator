@@ -19,11 +19,46 @@ export type DeploymentStep = {
   note?: string | null
   log: string
   cmd: string
+  /** Counts recorded by the step (#823); null when it left no result file. */
+  counts?: Record<string, number> | null
+  result?: string | null
+}
+
+export type StepResultReason = {
+  reason: string
+  outcome: string
+  label: string
+  advice: string
+  count: number
+}
+
+export type StepResultItem = {
+  file: string
+  video_id?: string | null
+  tier?: string | null
+  outcome: string
+  reason: string
+  detail?: string | null
+}
+
+export type StepResult = {
+  job_id: string
+  step: string
+  /** False when the step left no result file (older runs, dry runs). */
+  available: boolean
+  kind: string
+  dry_run: boolean
+  counts: Record<string, number>
+  reasons: StepResultReason[]
+  total: number
+  rows: StepResultItem[]
 }
 
 export type DeploymentJob = {
   job_id: string
   job_type: string
+  /** 'load' or 'deploy'. */
+  group?: string
   label: string
   dry_run: boolean
   pid?: number | null
@@ -36,11 +71,15 @@ export type DeploymentJob = {
   live: boolean
 }
 
+/** ``load`` = tab "2 Load" (analysis files → bronze → dbt gold); ``deploy`` = tab "3 Deploy". */
+export type DeploymentGroup = 'load' | 'deploy'
+
 export type DeploymentStepDef = {
   key: string
   label: string
   description: string
   target: string
+  group?: DeploymentGroup
 }
 
 export type DeploymentsListPayload = {
@@ -77,8 +116,10 @@ async function readError(r: Response): Promise<string> {
   return detail
 }
 
-export async function fetchDeployments(): Promise<DeploymentsListPayload> {
-  const r = await tracedFetch('/api/deployments/', {
+export async function fetchDeployments(
+  group?: DeploymentGroup,
+): Promise<DeploymentsListPayload> {
+  const r = await tracedFetch(`/api/deployments/${group ? `?group=${group}` : ''}`, {
     headers: authHeaders(),
     signal: AbortSignal.timeout(15_000),
   })
@@ -89,6 +130,7 @@ export async function fetchDeployments(): Promise<DeploymentsListPayload> {
 export async function launchDeployment(body: {
   steps?: string[]
   dry_run: boolean
+  group?: DeploymentGroup
 }): Promise<LaunchDeploymentResult> {
   const r = await tracedFetch('/api/deployments/launch', {
     method: 'POST',
@@ -122,4 +164,23 @@ export async function fetchDeploymentLog(
   )
   if (!r.ok) throw new Error(await readError(r))
   return (await r.json()) as DeploymentLog
+}
+
+export async function fetchStepResult(
+  jobId: string,
+  step: string,
+  opts: { outcome?: string; reason?: string; q?: string; limit?: number; offset?: number } = {},
+): Promise<StepResult> {
+  const p = new URLSearchParams({ step })
+  if (opts.outcome) p.set('outcome', opts.outcome)
+  if (opts.reason) p.set('reason', opts.reason)
+  if (opts.q) p.set('q', opts.q)
+  p.set('limit', String(opts.limit ?? 50))
+  p.set('offset', String(opts.offset ?? 0))
+  const r = await tracedFetch(`/api/deployments/${encodeURIComponent(jobId)}/result?${p.toString()}`, {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!r.ok) throw new Error(await readError(r))
+  return (await r.json()) as StepResult
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
+import { MAP_POPUP_OPTIONS } from '../lib/mapPopup'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
@@ -9,7 +10,7 @@ import { STATE_CODES } from '../lib/usStates'
 import 'leaflet/dist/leaflet.css'
 
 /**
- * A single geocoded civic-decision pin from `GET /decisions/map`.
+ * A single geocoded civic-decision pin from `GET /api/decision/map`.
  *
  * NOTE: this maps the `event_decision` mart, NOT `event_policy_decision`. The
  * `/decisions/{id}` detail route resolves against a *different* mart, so the
@@ -87,7 +88,7 @@ export default function DecisionsMapPage() {
       return withSpan(
         'decisions_map.fetch',
         async () => {
-          const response = await api.get('/decisions/map', { params })
+          const response = await api.get('/decision/map', { params })
           // Tolerate both a bare array and an envelope ({ decisions: [...] }).
           const data = response.data
           if (Array.isArray(data)) return data as DecisionPin[]
@@ -240,7 +241,7 @@ export default function DecisionsMapPage() {
                 weight: 2,
               }}
             >
-              <Popup>
+              <Popup {...MAP_POPUP_OPTIONS}>
                 <div className="min-w-[260px] p-1">
                   <h4 className="font-bold text-gray-900">
                     {p.headline || 'Untitled decision'}

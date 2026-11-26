@@ -6,16 +6,16 @@ sidebar_position: 1
 
 LinkedIn-style search across contacts, meetings, organizations, and causes.
 
-## ✨ Features
+## Features
 
-### 🔍 Unified Search
+### Unified Search
 - **Single search box** searches across all content types
 - **Real-time autocomplete** suggestions as you type
 - **Grouped results** by type (People, Meetings, Organizations, Causes)
 - **Advanced filters** for state, NTEE codes, and content types
 - **Relevance scoring** - most relevant results first
 
-### 📱 Search Experience
+### Search Experience
 
 The search works like LinkedIn:
 1. **Type in the search box** - Get instant suggestions
@@ -23,7 +23,7 @@ The search works like LinkedIn:
 3. **Filter by type** - Click badges to show only specific content
 4. **Filter by location** - Narrow results to specific states
 
-## 🚀 Using the Search
+## Using the Search
 
 ### From the Header
 Every page (except home) has a search bar in the header:
@@ -60,7 +60,7 @@ Search: "education"
 Results: NTEE categories related to education
 ```
 
-## 🔧 API Endpoints
+## API Endpoints
 
 ### Unified Search
 ```bash
@@ -77,19 +77,19 @@ GET /api/search?q=dental&types=meetings,organizations&state=AL
 **Response:**
 ```json
 {
-  "query": "dental",
-  "total_results": 45,
-  "results": {
-    "contacts": [...],
-    "meetings": [...],
-    "organizations": [...],
-    "causes": [...]
-  },
-  "filters": {
-    "state": "AL",
-    "ntee_code": null,
-    "types": ["meetings", "organizations"]
-  }
+ "query": "dental",
+ "total_results": 45,
+ "results": {
+ "contacts": [...],
+ "meetings": [...],
+ "organizations": [...],
+ "causes": [...]
+ },
+ "filters": {
+ "state": "AL",
+ "ntee_code": null,
+ "types": ["meetings", "organizations"]
+ }
 }
 ```
 
@@ -101,15 +101,15 @@ GET /api/search/suggest?q=dent&limit=5
 **Response:**
 ```json
 {
-  "query": "dent",
-  "suggestions": [
-    "dental health",
-    "dental services"
-  ]
+ "query": "dent",
+ "suggestions": [
+ "dental health",
+ "dental services"
+ ]
 }
 ```
 
-## 📊 Data Sources
+## Data Sources
 
 Search queries across:
 
@@ -133,7 +133,7 @@ Search queries across:
 - Codes, descriptions, categories
 - File: `data/gold/reference/causes_ntee_codes`
 
-## 🎨 UI Components
+## UI Components
 
 ### Search Result Card
 Each result shows:
@@ -156,7 +156,7 @@ Quick-toggle filters for:
 - State filter
 - Advanced filters panel
 
-## 🔥 Example Use Cases
+## Example Use Cases
 
 ### 1. Find Local Health Officials
 ```
@@ -188,7 +188,7 @@ Types: Causes
 → Shows NTEE categories for schools, scholarships, tutoring
 ```
 
-## 📈 Performance
+## Performance
 
 - **Relevance scoring**: Text matching with position boosting
 - **Limited file scanning**: Max 5 states for contacts/meetings
@@ -196,34 +196,34 @@ Types: Causes
 - **Autocomplete**: Common terms pre-indexed
 - **Real-time filtering**: Client-side type filtering
 
-## 🛠️ Technical Details
+## Technical Details
 
 ### Backend (FastAPI)
 - **Router**: `/api/routes/search.py`
 - **Functions**:
-  - `unified_search()` - Main search endpoint
-  - `search_suggestions()` - Autocomplete
-  - `search_contacts()` - People search
-  - `search_meetings()` - Meeting search
-  - `search_organizations()` - Org search
-  - `search_causes()` - Cause search
-  - `calculate_relevance_score()` - Scoring algorithm
+ - `unified_search()` - Main search endpoint
+ - `search_suggestions()` - Autocomplete
+ - `search_contacts()` - People search
+ - `search_meetings()` - Meeting search
+ - `search_organizations()` - Org search
+ - `search_causes()` - Cause search
+ - `calculate_relevance_score()` - Scoring algorithm
 
 ### Frontend (React + TypeScript)
 - **Component**: `/frontend/src/pages/UnifiedSearch.tsx`
 - **Features**:
-  - React Query for data fetching
-  - Autocomplete with debouncing
-  - URL parameter sync
-  - Responsive design
-  - Keyboard navigation
+ - React Query for data fetching
+ - Autocomplete with debouncing
+ - URL parameter sync
+ - Responsive design
+ - Keyboard navigation
 
 ### Routing
 - **URL**: `/search?q={query}&state={state}`
 - **Header Integration**: Global search redirects to `/search`
 - **Deep Linking**: Share search results via URL
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Start the API
 ```bash
@@ -245,7 +245,7 @@ npm run dev
 4. Press Enter
 5. See results grouped by type!
 
-## 📝 Future Enhancements
+## Future Enhancements
 
 Potential improvements:
 - Full-text search with Elasticsearch
@@ -258,7 +258,7 @@ Potential improvements:
 - Email alerts for new results
 - Export results to CSV
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 **No results found:**
 - Check data files exist in `data/gold/`

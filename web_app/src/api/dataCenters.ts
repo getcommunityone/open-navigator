@@ -10,6 +10,181 @@ import { withSpan } from '../instrumentation'
 // Generated from the FastAPI schema (`npm run gen:api`), so the page and the API
 // can't drift apart.
 type Schemas = components['schemas']
+
+// --- who spoke for and against, and the recorded votes (#930) ------------------------------------------------------
+// Written by hand to match `DataCenterPositionsResponse` in api/routes/data_centers.py; `npm run gen:api` adds the same
+// shapes to api.types.ts.
+
+export interface PositionTotals {
+  /** Meetings the counts come from. */
+  meetings: number | null
+  /** Analysed meetings in scope where a data center came up. */
+  meetings_reviewed: number | null
+  speakers_for: number | null
+  speakers_against: number | null
+  speakers_question: number | null
+  speakers_neutral: number | null
+  decisions_with_tally: number | null
+  /** Null (never 0) when no decision recorded a tally. */
+  votes_for: number | null
+  votes_against: number | null
+}
+
+export interface PositionQuote {
+  public_comment_id: string
+  /** The speaker's own words, verbatim from the transcript. */
+  quote: string
+  speaker_role?: string | null
+  /** "Audra T." (#1036): first name + last initial, or the first name only; null when no name was heard. */
+  speaker_display_name?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  meeting_date?: string | null
+  video_url?: string | null
+  start_seconds?: number | null
+  jump_url?: string | null
+  /** The item the comment is on (a contested decision or an uncontested item); null for general public comment. */
+  decision_headline?: string | null
+  /** Why the comment counts (#932): its decision or uncontested item names a data center, its own words do, or another speaker on the same item does. */
+  match_basis?: 'data_center_decision' | 'data_center_item' | 'own_words' | 'same_item' | null
+}
+
+/** One state's speaker sums for the home box map (#1087); national, never narrowed by the scope. Generated type. */
+export type PositionStateCount = Schemas['PositionStateCount']
+
+export interface DataCenterPositionsResponse {
+  scope: Schemas['JobClaimScope']
+  /** False when the table is not in the database yet: every total is null, not zero. */
+  available: boolean
+  totals: PositionTotals
+  quotes: { for: PositionQuote[]; against: PositionQuote[]; question: PositionQuote[] }
+  /** Speakers per state across the country (#1087); empty when the table isn't loaded. Optional for older servers. */
+  by_state?: PositionStateCount[]
+  /** National totals of Jev's meeting readings for the home hero (#1122); null when the lean table isn't loaded. */
+  lean_totals?: Schemas['LeanTotals'] | null
+}
+
+/** Public speakers for and against a data center item, questions asked and recorded votes, for the scope (#930). */
+export async function fetchDataCenterPositions(params: {
+  state?: string
+  city?: string
+  limit?: number
+}): Promise<DataCenterPositionsResponse> {
+  const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.positions.load',
+    async (span) => {
+      const res = await api.get<DataCenterPositionsResponse>('/data-centers/positions', { params: q })
+      span.setAttribute('data_centers.positions.available', res.data?.available === true)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
+}
+
+/** One decision a local meeting took on a data center item, debated or taken up without debate (#933). */
+export interface DataCenterDecision {
+  data_center_decision_id: string
+  /** True: debated. False: taken up without debate (consent agenda). */
+  contested: boolean
+  headline?: string | null
+  outcome?: string | null
+  /** Recorded yes / no votes; null unless a debated decision's tally records both sides. */
+  votes_for?: number | null
+  votes_against?: number | null
+  /** How an item taken up without debate, as said ("voice vote", "5-0"); never parsed into numbers. */
+  vote_text?: string | null
+  meeting_date?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  video_url?: string | null
+  /** Site path of the decision's page; debated decisions only. */
+  decision_url?: string | null
+}
+
+export interface DataCenterDecisionsResponse {
+  scope: Schemas['JobClaimScope']
+  /** False when the table is not in the database yet: every count is null, not zero. */
+  available: boolean
+  counts: { contested?: number | null; uncontested?: number | null; meetings?: number | null }
+  items: DataCenterDecision[]
+}
+
+/** A data center hearing whose official government page states the date together with the data center item (#955). */
+export interface DataCenterHearing {
+  data_center_hearing_id: string
+  jurisdiction_id?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  state?: string | null
+  body_name?: string | null
+  topic?: string | null
+  meeting_date: string
+  /** The official page that states the hearing. */
+  source_url: string
+  source_name?: string | null
+  /** Verbatim excerpt of the official page; matched words in <mark>. */
+  evidence?: string | null
+  /** The page calls the date tentative, expected, not final or to be determined. */
+  tentative?: boolean
+  checked_at?: string | null
+  is_upcoming: boolean
+}
+
+export interface DataCenterHearingsResponse {
+  scope: Schemas['JobClaimScope']
+  /** False when the table is not loaded: counts are null, not zero. */
+  available: boolean
+  counts: { upcoming?: number | null; past?: number | null }
+  items: DataCenterHearing[]
+}
+
+/** Verified upcoming data center hearings for the scope, soonest first (#955). */
+export async function fetchDataCenterHearings(params: {
+  state?: string
+  city?: string
+  when?: 'upcoming' | 'past' | 'all'
+}): Promise<DataCenterHearingsResponse> {
+  const q: Record<string, string> = { when: params.when ?? 'upcoming' }
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.hearings.load',
+    async (span) => {
+      const res = await api.get<DataCenterHearingsResponse>('/data-centers/hearings', { params: q })
+      span.setAttribute('data_centers.hearings.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
+}
+
+/** Decisions on data center items for the scope, newest first, with whole-scope counts (#933). */
+export async function fetchDataCenterDecisions(params: {
+  state?: string
+  city?: string
+  limit?: number
+}): Promise<DataCenterDecisionsResponse> {
+  const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
+  if (params.state) q.state = params.state
+  if (params.city) q.city = params.city
+  const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
+  return withSpan(
+    'data-centers.decisions.load',
+    async (span) => {
+      const res = await api.get<DataCenterDecisionsResponse>('/data-centers/decisions', { params: q })
+      span.setAttribute('data_centers.decisions.count', res.data?.items?.length ?? 0)
+      return res.data
+    },
+    { 'data_centers.scope_level': scopeLevel },
+  )
+}
 export type JobClaim = Schemas['JobClaim']
 export type JobClaimPhase = JobClaim['phase']
 export type JobClaimsScope = Schemas['JobClaimScope']
@@ -31,8 +206,10 @@ export type DataCenterProjectsResponse = Schemas['DataCenterProjectsResponse']
 export async function fetchJobClaims(params: {
   state?: string
   city?: string
+  limit?: number
 }): Promise<JobClaimsResponse> {
   const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
@@ -49,9 +226,10 @@ export async function fetchJobClaims(params: {
 }
 
 /** Data center sites (DC-4.1, #249): Epoch AI, CC BY 4.0. Narrows by state only. */
-export async function fetchDataCenterSites(params: { state?: string }): Promise<DataCenterSitesResponse> {
+export async function fetchDataCenterSites(params: { state?: string; limit?: number }): Promise<DataCenterSitesResponse> {
   const q: Record<string, string> = {}
   if (params.state) q.state = params.state
+  if (params.limit) q.limit = String(params.limit)
   return withSpan(
     'data-centers.sites.load',
     async (span) => {
@@ -67,8 +245,10 @@ export async function fetchDataCenterSites(params: { state?: string }): Promise<
 export async function fetchDataCenterAgendaItems(params: {
   state?: string
   city?: string
+  limit?: number
 }): Promise<DataCenterAgendaItemsResponse> {
   const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
@@ -96,8 +276,10 @@ export async function fetchAreaConcerns(params: { state?: string; city?: string 
 export async function fetchDataCenterMeetingMentions(params: {
   state?: string
   city?: string
+  limit?: number
 }): Promise<DataCenterMeetingMentionsResponse> {
   const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
@@ -117,8 +299,10 @@ export async function fetchCommunityEvents(params: {
   state?: string
   city?: string
   projectId?: string
+  limit?: number
 }): Promise<CommunityEventsResponse> {
   const q: Record<string, string> = {}
+  if (params.limit) q.limit = String(params.limit)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   if (params.projectId) q.project_id = params.projectId

@@ -4,7 +4,7 @@ Share your jurisdiction discovery datasets and run outputs on HuggingFace Hub fo
 
 ---
 
-## 🎯 What Gets Published
+## What Gets Published
 
 ### Available Datasets
 
@@ -20,7 +20,7 @@ Share your jurisdiction discovery datasets and run outputs on HuggingFace Hub fo
 
 ---
 
-## 🔧 Setup
+## Setup
 
 ### 1. Get HuggingFace Token
 
@@ -29,7 +29,7 @@ Visit: https://huggingface.co/settings/tokens
 **Create a Write Token:**
 1. Click "New token"
 2. **Name:** "oral-health-policy-pulse-upload"
-3. **Token type:** Write ⚠️ (required for publishing)
+3. **Token type:** Write Warning (required for publishing)
 4. **Repository permissions:** All repositories
 5. Copy the token (starts with `hf_`)
 
@@ -46,7 +46,7 @@ Add to your `.env` file:
 ```bash
 # HuggingFace Configuration
 HF_TOKEN=hf_your_write_token_here
-HF_ORGANIZATION=CommunityOne  # Optional: your org name
+HF_ORGANIZATION=CommunityOne # Optional: your org name
 HF_DATASET_PREFIX=oral-health-policy-pulse
 ```
 
@@ -58,7 +58,7 @@ pip install datasets huggingface-hub
 
 ---
 
-## 🚀 Publishing Datasets
+## Publishing Datasets
 
 ### Publish All Datasets
 
@@ -68,16 +68,16 @@ python main.py publish-to-hf --dataset all
 
 **Output:**
 ```
-🚀 Publishing datasets to HuggingFace Hub...
+ Publishing datasets to HuggingFace Hub...
 
-📊 Published Datasets:
-  ✓ census: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-census-gid
-  ✓ gov_domains: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-gov-domains
-  ✓ nces_schools: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-nces-schools
-  ✓ discovered_urls: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-discovered-urls
-  ✓ scraping_targets: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-scraping-targets
+ Published Datasets:
+ Yes census: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-census-gid
+ Yes gov_domains: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-gov-domains
+ Yes nces_schools: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-nces-schools
+ Yes discovered_urls: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-discovered-urls
+ Yes scraping_targets: https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-scraping-targets
 
-🎉 Publishing complete!
+ Publishing complete!
 ```
 
 ### Publish Individual Datasets
@@ -113,7 +113,7 @@ python main.py publish-to-hf --dataset census --sample
 
 ---
 
-## 📦 Programmatic Publishing
+## Programmatic Publishing
 
 Use the publisher directly in Python:
 
@@ -130,12 +130,12 @@ print(f"Published to: {result['url']}")
 # Publish all datasets
 results = publisher.publish_all(private=False, sample_census=False)
 for name, info in results.items():
-    print(f"{name}: {info['url']}")
+ print(f"{name}: {info['url']}")
 ```
 
 ---
 
-## 🌐 Accessing Published Datasets
+## Accessing Published Datasets
 
 ### View on HuggingFace Hub
 
@@ -176,14 +176,14 @@ head(census$counties)
 
 ```bash
 curl https://datasets-server.huggingface.co/rows \
-  -d dataset=CommunityOne/oral-health-policy-pulse-census-gid \
-  -d config=counties \
-  -d split=train
+ -d dataset=CommunityOne/oral-health-policy-pulse-census-gid \
+ -d config=counties \
+ -d split=train
 ```
 
 ---
 
-## 📊 Dataset Structure
+## Dataset Structure
 
 ### Census GID
 
@@ -224,7 +224,7 @@ curl https://datasets-server.huggingface.co/rows \
 
 ---
 
-## 🔄 Update Workflow
+## Update Workflow
 
 ### After Each Discovery Run
 
@@ -251,38 +251,38 @@ python main.py publish-to-hf --dataset nces-schools
 
 ---
 
-## 📝 Dataset Cards
+## Dataset Cards
 
 Each published dataset includes auto-generated metadata:
 
 ```yaml
 dataset_info:
-  features:
-    - name: jurisdiction_name
-      dtype: string
-    - name: state
-      dtype: string
-  splits:
-    - name: train
-      num_examples: 90735
-  
+ features:
+ - name: jurisdiction_name
+ dtype: string
+ - name: state
+ dtype: string
+ splits:
+ - name: train
+ num_examples: 90735
+
 license: cc-by-4.0
 task_categories:
-  - text-classification
-  - information-retrieval
+ - text-classification
+ - information-retrieval
 language:
-  - en
+ - en
 tags:
-  - government
-  - open-data
-  - civic-tech
-  - jurisdiction-discovery
-  - oral-health-policy
+ - government
+ - open-data
+ - civic-tech
+ - jurisdiction-discovery
+ - oral-health-policy
 ```
 
 ---
 
-## 🤝 Collaboration Features
+## Collaboration Features
 
 ### Dataset Discussions
 
@@ -301,8 +301,8 @@ HuggingFace automatically tracks versions:
 
 ```python
 dataset = load_dataset(
-    "CommunityOne/oral-health-policy-pulse-discovered-urls",
-    revision="main"  # or specific commit hash
+ "CommunityOne/oral-health-policy-pulse-discovered-urls",
+ revision="main" # or specific commit hash
 )
 ```
 
@@ -316,14 +316,14 @@ HuggingFace provides automatic dataset preview:
 
 ---
 
-## 💡 Best Practices
+## Best Practices
 
 ### Privacy Considerations
 
-- ✅ **Public datasets:** Census, CISA, NCES data (already public)
-- ✅ **Discovered URLs:** Government website URLs (public)
-- ⚠️ **Scraped content:** Consider using `--private` flag
-- ❌ **PII data:** Never publish personal information
+- Yes **Public datasets:** Census, CISA, NCES data (already public)
+- Yes **Discovered URLs:** Government website URLs (public)
+- Warning **Scraped content:** Consider using `--private` flag
+- No **PII data:** Never publish personal information
 
 ### Storage Limits
 
@@ -338,13 +338,13 @@ Your datasets will be named:
 {organization}/{prefix}-{dataset-name}
 
 Examples:
-  CommunityOne/oral-health-policy-pulse-census-gid
-  CommunityOne/oral-health-policy-pulse-discovered-urls
+ CommunityOne/oral-health-policy-pulse-census-gid
+ CommunityOne/oral-health-policy-pulse-discovered-urls
 ```
 
 ---
 
-## 🔍 Use Cases
+## Use Cases
 
 **For Researchers:**
 ```python
@@ -371,7 +371,7 @@ df.groupby("state_name")["population"].sum()
 
 ---
 
-## 🎯 Example: Complete Publishing Workflow
+## Example: Complete Publishing Workflow
 
 ```bash
 # 1. Run discovery
@@ -397,7 +397,7 @@ open https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-disco
 ### Authentication Error
 
 ```
-❌ Configuration error: HuggingFace token required
+No Configuration error: HuggingFace token required
 ```
 
 **Solution:** Set `HF_TOKEN` in `.env` file
@@ -405,10 +405,10 @@ open https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-disco
 ### Repository Not Found
 
 ```
-❌ Failed to create repo: 404 Not Found
+No Failed to create repo: 404 Not Found
 ```
 
-**Solution:** 
+**Solution:**
 - Check organization name in `.env`
 - Verify token has write access
 - Create organization on HuggingFace first
@@ -416,7 +416,7 @@ open https://huggingface.co/datasets/CommunityOne/oral-health-policy-pulse-disco
 ### Import Error
 
 ```
-❌ HuggingFace libraries not installed!
+No HuggingFace libraries not installed!
 ```
 
 **Solution:**
@@ -430,12 +430,12 @@ For very large datasets (>1M rows), publish in batches:
 
 ```python
 publisher = HuggingFacePublisher()
-publisher.publish_census_data(sample_size=100000)  # Publish 100k at a time
+publisher.publish_census_data(sample_size=100000) # Publish 100k at a time
 ```
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 - **HuggingFace Datasets Docs:** https://huggingface.co/docs/datasets
 - **Dataset Card Guide:** https://huggingface.co/docs/hub/datasets-cards
@@ -443,4 +443,4 @@ publisher.publish_census_data(sample_size=100000)  # Publish 100k at a time
 
 ---
 
-**Ready to share your jurisdiction discovery data with the world!** 🌍🦷✨
+**Ready to share your jurisdiction discovery data with the world!**

@@ -16,6 +16,9 @@ profile: 'open_navigator'
 # marts on every run. Guarded: no-op until the partitioned parent is bootstrapped
 # (dbt run-operation bootstrap_event_people). See macros/event_extractions.sql.
 on-run-start:
+  # pg_trgm before any model builds: trigram indexes are declared in models' `indexes`
+  # config, which dbt builds on the tmp table before the swap, ahead of any hook (#938).
+  - "create extension if not exists pg_trgm"
   - "{{ ensure_event_partitions('gold.event_person') }}"
   - "{{ ensure_event_partitions('gold.event_decision') }}"
   - "{{ ensure_event_partitions('gold.event_place') }}"
@@ -23,11 +26,15 @@ on-run-start:
   - "{{ ensure_event_partitions('gold.event_topic') }}"
   - "{{ ensure_event_partitions('gold.event_bill') }}"
   - "{{ ensure_event_partitions('gold.event_organization') }}"
+  # bronze tables the data center hearing marts read; empty until the loaders run (#956)
+  - "{{ ensure_data_center_hearing_tables() }}"
+  # bronze tables of the open data center inventories; empty until the loader runs (#958)
+  - "{{ ensure_data_center_inventory_tables() }}"
 
-# Rebuild-proof the /search performance indexes. Per-model post_hooks declare them,
-# but some rebuild paths skip post_hooks and silently drop them, turning text-search
-# legs into multi-second seq-scans that blow the homepage past the frontend's
-# fetch-abort. This re-ensures them idempotently after every run.
+# Rebuild-proof the /search performance indexes. Models declare them in their dbt `indexes`
+# config (#938; built before the swap). If one still goes missing, its text-search leg
+# falls back to a multi-second seq-scan that can push the homepage past the frontend's
+# fetch-abort, so this re-ensures them idempotently after every run.
 # See macros/ensure_search_indexes.sql.
 #
 # Then re-publish the public serving layer: the warehouse marts live in `gold`
@@ -37,6 +44,7 @@ on-run-start:
 # See macros/publish_public_serving.sql.
 on-run-end:
   - "{{ ensure_search_indexes() }}"
+  - "{{ ensure_declared_foreign_keys() }}"
   - "{{ publish_public_serving() }}"
 
 # These configurations specify where dbt should look for different types of files.
@@ -77,7 +85,9 @@ models:
     marts:
       +materialized: incremental
       +schema: gold
-      +on_schema_change: sync_all_columns
+      # append_new_columns (not sync_all_columns): contracted incremental models
+      # require append_new_columns or fail (#271). Uncontracted models keep working.
+      +on_schema_change: append_new_columns
       +unique_key: id
 
 # Seeds configuration

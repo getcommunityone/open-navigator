@@ -114,14 +114,14 @@ export default function PolicyQuestionPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen page-bg flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
       </div>
     )
   }
   if (error || !q) {
     return (
-      <div className="min-h-screen bg-gray-50 py-12">
+      <div className="min-h-screen page-bg py-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
           <p className="text-red-700">Unable to load this policy question.</p>
           <Link to="/policy-questions" className="text-blue-600 underline">
@@ -137,7 +137,7 @@ export default function PolicyQuestionPage() {
   const other = q.arguments.filter((a) => a.stance !== 'pro' && a.stance !== 'con')
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen page-bg py-8">
       <div className="max-w-5xl mx-auto px-4 space-y-6">
         <BackLink />
         <div>

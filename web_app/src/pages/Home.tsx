@@ -906,7 +906,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-300">
+    <div className="min-h-screen page-bg">
       {/* Navigation Header */}
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -2309,7 +2309,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-4">
                       <a
-                        href="/pdf/c1_strategic_plan.PDF"
+                        href="/pdf/c1_strategic_plan.pdf"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm font-medium text-[#52796F] hover:underline"
@@ -2326,7 +2326,7 @@ export default function Home() {
                     </div>
                   </div>
                   <iframe
-                    src="/pdf/c1_strategic_plan.PDF"
+                    src="/pdf/c1_strategic_plan.pdf"
                     title="CommunityOne Strategic Plan"
                     className="flex-1 w-full"
                   />

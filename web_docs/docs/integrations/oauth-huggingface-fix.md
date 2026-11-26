@@ -4,12 +4,12 @@ title: OAuth Login Fix for HuggingFace
 
 # OAuth Login Fix for HuggingFace
 
-## Problem Fixed ✅
+## Problem Fixed Yes
 
 **Issue:** Google OAuth login was failing on HuggingFace with the error:
 ```
-🔐 Stored token found: false
-🔐 No token found - user not authenticated
+ Stored token found: false
+ No token found - user not authenticated
 ```
 
 **Root Cause:** The OAuth callback was redirecting to `http://localhost:5173/?token=...` instead of staying on the HuggingFace domain.
@@ -23,32 +23,32 @@ title: OAuth Login Fix for HuggingFace
 ### Flow Diagram:
 ```
 1. User clicks "Login with Google"
-   ↓
+ ↓
 2. Frontend → /auth/login/google
-   ↓
+ ↓
 3. Backend → Redirects to Google
-   ↓
+ ↓
 4. Google → User approves
-   ↓
+ ↓
 5. Google → /auth/callback/google?code=xxx&state=yyy
-   ↓
+ ↓
 6. Backend → Exchanges code for access token
-   ↓
+ ↓
 7. Backend → Gets user info from Google
-   ↓
+ ↓
 8. Backend → Creates/updates user in database
-   ↓
+ ↓
 9. Backend → Creates JWT token
-   ↓
-10. Backend → Redirects to /?token=JWT_TOKEN  ← FIXED!
-    ↓
+ ↓
+10. Backend → Redirects to /?token=JWT_TOKEN ← FIXED!
+ ↓
 11. Frontend → Detects token in URL
-    ↓
+ ↓
 12. Frontend → Saves token to localStorage
-    ↓
+ ↓
 13. Frontend → Fetches user data from /auth/me
-    ↓
-14. ✅ User is logged in!
+ ↓
+14. Yes User is logged in!
 ```
 
 ---
@@ -72,14 +72,14 @@ frontend_url = os.getenv('FRONTEND_URL', '')
 
 # If FRONTEND_URL is localhost or not set, use relative redirect
 if not frontend_url or 'localhost' in frontend_url:
-    redirect_url = oauth_state.redirect_uri or '/'
+ redirect_url = oauth_state.redirect_uri or '/'
 else:
-    redirect_url = oauth_state.redirect_uri or frontend_url
+ redirect_url = oauth_state.redirect_uri or frontend_url
 
 return RedirectResponse(url=f"{redirect_url}?token={jwt_token}")
 ```
 
-**Solution:** 
+**Solution:**
 - On HuggingFace (same domain): Redirects to `/?token=...` (relative)
 - On local dev (separate servers): Redirects to `http://localhost:5173/?token=...` (absolute)
 
@@ -94,23 +94,23 @@ return RedirectResponse(url=f"{redirect_url}?token={jwt_token}")
 3. **Observe:** You should be redirected to Google
 4. **After approving:** You should return to www.communityone.com (NOT localhost!)
 5. **Check browser console:**
-   ```
-   🔐 OAuth callback - Token received from URL
-   🔐 Token preview: eyJhbGciOiJIUzI1NiIs...
-   ✅ User data loaded: {id: 1, email: "user@example.com"}
-   ```
+ ```
+ OAuth callback - Token received from URL
+ Token preview: eyJhbGciOi…<truncated>
+ User data loaded: {id: 1, email: "user@example.com"}
+ ```
 6. **Verify:** Your avatar should appear in top right corner
 
 ### Expected Console Output (Success):
 ```javascript
-🔐 Auth initialization starting...
-🔐 Current URL: https://www.communityone.com/?token=eyJhbGc...
-🔐 OAuth callback - Token received from URL
-🔐 Token preview: eyJhbGciOiJIUzI1NiIs...
-🔐 Fetching user data from: /api/auth/me
-🔐 Response status: 200
-✅ User data loaded: {id: 1, email: "you@gmail.com", ...}
-🔐 User state changed: {user: {id: 1, email: "you@gmail.com"}, isAuthenticated: true}
+ Auth initialization starting...
+ Current URL: https://www.communityone.com/?token=eyJhbGc…<truncated>
+ OAuth callback - Token received from URL
+ Token preview: eyJhbGciOi…<truncated>
+ Fetching user data from: /api/auth/me
+ Response status: 200
+User data loaded: {id: 1, email: "you@gmail.com", ...}
+ User state changed: {user: {id: 1, email: "you@gmail.com"}, isAuthenticated: true}
 ```
 
 ---
@@ -149,13 +149,13 @@ Make sure your Google Cloud Console has the correct redirect URI:
 2. **Navigate to:** APIs & Services → Credentials
 3. **Select:** Your OAuth 2.0 Client ID
 4. **Authorized redirect URIs must include:**
-   ```
-   https://www.communityone.com/auth/callback/google
-   ```
+ ```
+ https://www.communityone.com/auth/callback/google
+ ```
 5. **For local dev, also add:**
-   ```
-   http://localhost:8001/auth/callback/google
-   ```
+ ```
+ http://localhost:8001/auth/callback/google
+ ```
 
 ---
 
@@ -166,7 +166,7 @@ Make sure your Google Cloud Console has the correct redirect URI:
 **Check 1: Console Logs**
 Open browser DevTools (F12) and look for:
 ```javascript
-🔐 OAuth callback - Token received from URL  // ← Should see this!
+ OAuth callback - Token received from URL // ← Should see this!
 ```
 
 If you DON'T see this, the redirect isn't working.
@@ -174,9 +174,9 @@ If you DON'T see this, the redirect isn't working.
 **Check 2: URL After Login**
 After Google redirects back, the URL should be:
 ```
-✅ CORRECT: https://www.communityone.com/?token=eyJhbGc...
-❌ WRONG:   http://localhost:5173/?token=...
-❌ WRONG:   https://www.communityone.com/auth/callback/google?code=...
+Yes CORRECT: https://www.communityone.com/?token=eyJhbGc…<truncated>
+No WRONG: http://localhost:5173/?token=...
+No WRONG: https://www.communityone.com/auth/callback/google?code=...
 ```
 
 **Check 3: HuggingFace Logs**
@@ -190,7 +190,7 @@ In DevTools → Network, filter for "callback" and check the redirect:
 ```
 Request: GET /auth/callback/google?code=xxx
 Status: 302 Found
-Location: /?token=eyJhbGc...  ← Should be relative!
+Location: /?token=eyJhbGc…<truncated> ← Should be relative!
 ```
 
 ### Google OAuth errors?
@@ -223,27 +223,27 @@ Location: /?token=eyJhbGc...  ← Should be relative!
 For local development (frontend on :5173, backend on :8001):
 
 1. **Set FRONTEND_URL in `.env`:**
-   ```bash
-   FRONTEND_URL=http://localhost:5173
-   ```
+ ```bash
+ FRONTEND_URL=http://localhost:5173
+ ```
 
 2. **This makes the callback redirect to:**
-   ```
-   http://localhost:5173/?token=...
-   ```
+ ```
+ http://localhost:5173/?token=...
+ ```
 
 3. **Google OAuth redirect URI:**
-   ```
-   http://localhost:8001/auth/callback/google
-   ```
+ ```
+ http://localhost:8001/auth/callback/google
+ ```
 
 ---
 
 ## Summary
 
-✅ **Fixed:** OAuth callback now redirects correctly on HuggingFace  
-✅ **Works:** All OAuth providers (Google, HuggingFace, Facebook, GitHub)  
-✅ **Tested:** Same-domain deployment (HuggingFace) and separate servers (local dev)  
-✅ **No config needed:** FRONTEND_URL can be empty on HuggingFace  
+Yes **Fixed:** OAuth callback now redirects correctly on HuggingFace
+Yes **Works:** All OAuth providers (Google, HuggingFace, Facebook, GitHub)
+Yes **Tested:** Same-domain deployment (HuggingFace) and separate servers (local dev)
+Yes **No config needed:** FRONTEND_URL can be empty on HuggingFace
 
-**The fix is live!** Try logging in with Google at https://www.communityone.com 🚀
+**The fix is live!** Try logging in with Google at https://www.communityone.com

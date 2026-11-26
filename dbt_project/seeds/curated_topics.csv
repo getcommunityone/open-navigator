@@ -1,3 +1,8 @@
 topic_id,name,query_id,keywords
 100001,Data centers,data-centers,data center|data centre|data centers|hyperscale|server farm
 100002,Water fluoridation,water-fluoridation,fluoridation|fluoride|water fluoridation
+100003,Short-term rentals,short-term-rentals,short-term rental|short term rental|short-term rentals|short term rentals|vacation rental|airbnb|vrbo
+100004,Flock and license plate readers,license-plate-readers,license plate reader|license plate readers|license plate camera|flock safety|flock camera|flock cameras|alpr
+100005,Guns,guns,firearm|firearms|gun violence|gun show|gun shows|shooting range|gun range|gunshot|gunshots|gunfire|shotspotter|concealed carry|ghost gun|ghost guns|assault weapon|assault weapons|gun store|gun shop|gun safety|gun owners
+100006,Pickleball,pickleball,pickleball|pickle ball|pickleball court|pickleball courts|pickleball players
+100007,Bike lanes,bike-lanes,bike lane|bike lanes|bicycle lane|bicycle lanes|protected bike lane|protected bike lanes|bike path|bike paths|bikeway|bikeways|cycle track|cycle tracks|bike trail|bike trails|bike infrastructure|bicycle infrastructure

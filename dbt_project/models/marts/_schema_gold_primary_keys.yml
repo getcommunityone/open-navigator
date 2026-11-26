@@ -6,172 +6,263 @@ version: 2
 # after a full reload of those tables.
 
 models:
-  - name: events_text_search
-    description: >
-      Video transcripts for full-text search. Grain: one row per video_id
-      (best-quality transcript). PK video_id.
-    columns:
-      - name: video_id
-        description: "YouTube video id. Primary key."
-        constraints:
-          - type: not_null
-          - type: primary_key
-        tests:
-          - unique
-          - not_null
+- name: events_text_search
+  description: 'Video transcripts for full-text search. Grain: one row per video_id (best-quality transcript).
+    PK video_id.
 
-  - name: events_channels_search
-    description: >
-      Enriched YouTube channels for search/filters. Grain: one row per
-      channel_id. PK channel_id.
-    columns:
-      - name: channel_id
-        description: "YouTube channel id. Primary key."
-        constraints:
-          - type: not_null
-          - type: primary_key
-        tests:
-          - unique
-          - not_null
-
-  - name: serving_mdm_organization_nonprofit
-    description: >
-      Serving-tier nonprofit satellite (990 financials) for orgs retained in
-      serving_mdm_organization. Grain: one row per ein. PK ein.
-    columns:
-      - name: ein
-        description: "IRS EIN. Primary key."
-        constraints:
-          - type: not_null
-          - type: primary_key
-        tests:
-          - unique
-          - not_null
-
-  - name: serving_mdm_bridge_org_jurisdiction
-    description: >
-      Serving-tier org↔jurisdiction bridge edges for retained orgs. Grain: one
-      row per org_jurisdiction_id. PK org_jurisdiction_id.
-    columns:
-      - name: org_jurisdiction_id
-        description: "Bridge surrogate id. Primary key."
-        constraints:
-          - type: not_null
-          - type: primary_key
-        tests:
-          - unique
-          - not_null
-
-  - name: jurisdiction_mapping_analysis
-    description: >
-      Per-jurisdiction website/YouTube mapping analysis for DQ dashboards.
-      Grain: one row per jurisdiction_id. PK jurisdiction_id.
-    columns:
-      - name: jurisdiction_id
-        description: "Jurisdiction id. Primary key."
-        constraints:
-          - type: not_null
-          - type: primary_key
-        tests:
-          - unique
-          - not_null
-
-  - name: jurisdiction_mapping_analysis_sources
-    description: >
-      Website candidate rows feeding jurisdiction_mapping_analysis. Grain: one
-      row per (jurisdiction_id, website_record_key). Composite PK.
+    '
+  columns:
+  - name: video_id
+    description: YouTube video id. Primary key.
     constraints:
-      - type: primary_key
-        columns: [jurisdiction_id, website_record_key]
-    columns:
-      - name: jurisdiction_id
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-      - name: website_record_key
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
+    - type: not_null
+    - type: primary_key
     tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - jurisdiction_id
-            - website_record_key
+    - unique
+    - not_null
+- name: events_channels_search
+  description: 'Enriched YouTube channels for search/filters. Grain: one row per channel_id. PK channel_id.
 
-  - name: dq_jurisdiction_mapping_summary
-    description: >
-      Mapping coverage rollup by jurisdiction_type. Grain: one row per
-      jurisdiction_type. PK jurisdiction_type.
-    columns:
-      - name: jurisdiction_type
-        description: "Jurisdiction type. Primary key."
-        constraints:
-          - type: not_null
-          - type: primary_key
-        tests:
-          - unique
-          - not_null
-
-  - name: dq_jurisdiction_mapping_summary_by_acs_income_level
-    description: >
-      Mapping coverage rollup by (jurisdiction_type, acs_income_level).
-      Composite PK.
+    '
+  columns:
+  - name: channel_id
+    description: YouTube channel id. Primary key.
     constraints:
-      - type: primary_key
-        columns: [jurisdiction_type, acs_income_level]
-    columns:
-      - name: jurisdiction_type
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-      - name: acs_income_level
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
+    - type: not_null
+    - type: primary_key
     tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - jurisdiction_type
-            - acs_income_level
+    - unique
+    - not_null
+- name: serving_mdm_organization
+  description: 'Serving-tier organizations (the civic subset of mdm_organization served to the API).
+    Grain: one row per master_org_id. PK master_org_id, attached by gold_pk_post_hook (#941).
 
-  - name: dq_jurisdiction_mapping_summary_by_acs_population_tier
-    description: >
-      Mapping coverage rollup by (jurisdiction_type, acs_population_tier).
-      Composite PK.
+    '
+  columns:
+  - name: master_org_id
+    description: MDM organization master id. Primary key.
     constraints:
-      - type: primary_key
-        columns: [jurisdiction_type, acs_population_tier]
-    columns:
-      - name: jurisdiction_type
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-      - name: acs_population_tier
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
+    - type: not_null
+    - type: primary_key
     tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - jurisdiction_type
-            - acs_population_tier
+    - unique
+    - not_null
+- name: serving_mdm_organization_nonprofit
+  description: 'Serving-tier nonprofit satellite (990 financials) for orgs retained in serving_mdm_organization.
+    Grain: one row per ein. PK ein.
 
-  - name: dq_jurisdiction_mapping_summary_municipality_places
-    description: >
-      Mapping coverage rollup for municipality place kinds. Grain: one row per
-      municipality_place_kind. PK municipality_place_kind.
+    '
+  columns:
+  - name: ein
+    description: IRS EIN. Primary key.
+    constraints:
+    - type: not_null
+    - type: primary_key
+    tests:
+    - unique
+    - not_null
+- name: serving_mdm_bridge_org_jurisdiction
+  description: "Serving-tier org\u2194jurisdiction bridge edges for retained orgs. Grain: one row per\
+    \ org_jurisdiction_id. PK org_jurisdiction_id.\n"
+  columns:
+  - name: org_jurisdiction_id
+    description: Bridge surrogate id. Primary key.
+    constraints:
+    - type: not_null
+    - type: primary_key
+    tests:
+    - unique
+    - not_null
+- name: jurisdiction_mapping_analysis
+  description: 'Per-jurisdiction website/YouTube mapping analysis for DQ dashboards. Grain: one row per
+    jurisdiction_id. PK jurisdiction_id.
+
+    '
+  columns:
+  - name: jurisdiction_id
+    data_type: text
+    description: Jurisdiction id. Primary key.
+    tests:
+    - unique
+    - not_null
+    constraints:
+    - type: not_null
+    - type: primary_key
+  - name: name
+    data_type: varchar
+  - name: state_code
+    data_type: varchar
+  - name: jurisdiction_type
+    data_type: text
+  - name: geoid
+    data_type: varchar
+  - name: primary_website_url
+    data_type: text
+  - name: primary_website_source
+    data_type: text
+  - name: primary_website_record_key
+    data_type: text
+  - name: primary_domain_name
+    data_type: text
+  - name: website_mapping_method
+    data_type: text
+  - name: has_naco_source
+    data_type: boolean
+  - name: has_uscm_source
+    data_type: boolean
+  - name: has_nces_directory_source
+    data_type: boolean
+  - name: has_gsa_source
+    data_type: boolean
+  - name: has_league_source
+    data_type: boolean
+  - name: has_wikidata_source
+    data_type: boolean
+  - name: has_override_source
+    data_type: boolean
+  - name: n_website_candidate_rows
+    data_type: bigint
+  - name: has_primary_website
+    data_type: boolean
+  - name: primary_url_syntax_ok
+    data_type: boolean
+  - name: primary_url_likely_wrong_host
+    data_type: boolean
+  - name: primary_url_passes_basic_checks
+    data_type: boolean
+  - name: lsad
+    data_type: varchar(5)
+  - name: municipality_place_kind
+    data_type: varchar
+  - name: acs_vintage_year
+    data_type: integer
+  - name: acs_total_population
+    data_type: bigint
+  - name: acs_population_tier
+    data_type: varchar(120)
+  - name: acs_income_level
+    data_type: varchar(80)
+  - name: has_youtube_channel
+    data_type: boolean
+  - name: youtube_channel_url
+    data_type: text
+  - name: youtube_channel_id
+    data_type: text
+  - name: youtube_discovery_method
+    data_type: text
+  - name: n_youtube_channel_rows
+    data_type: bigint
+  - name: leadership_directory_url
+    data_type: text
+  - name: leadership_mapping_method
+    data_type: text
+  - name: analysis_generated_at
+    data_type: timestamptz
+  config:
+    contract:
+      enforced: true
+    on_schema_change: fail
+- name: jurisdiction_mapping_analysis_sources
+  description: 'Website candidate rows feeding jurisdiction_mapping_analysis. Grain: one row per (jurisdiction_id,
+    website_record_key). Composite PK.
+
+    '
+  constraints:
+  - type: primary_key
     columns:
-      - name: municipality_place_kind
-        description: "Municipality place kind. Primary key."
-        constraints:
-          - type: not_null
-          - type: primary_key
-        tests:
-          - unique
-          - not_null
+    - jurisdiction_id
+    - website_record_key
+  columns:
+  - name: jurisdiction_id
+    constraints:
+    - type: not_null
+    tests:
+    - not_null
+  - name: website_record_key
+    constraints:
+    - type: not_null
+    tests:
+    - not_null
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - jurisdiction_id
+      - website_record_key
+- name: dq_jurisdiction_mapping_summary
+  description: 'Mapping coverage rollup by jurisdiction_type. Grain: one row per jurisdiction_type. PK
+    jurisdiction_type.
+
+    '
+  columns:
+  - name: jurisdiction_type
+    description: Jurisdiction type. Primary key.
+    constraints:
+    - type: not_null
+    - type: primary_key
+    tests:
+    - unique
+    - not_null
+- name: dq_jurisdiction_mapping_summary_by_acs_income_level
+  description: 'Mapping coverage rollup by (jurisdiction_type, acs_income_level). Composite PK.
+
+    '
+  constraints:
+  - type: primary_key
+    columns:
+    - jurisdiction_type
+    - acs_income_level
+  columns:
+  - name: jurisdiction_type
+    constraints:
+    - type: not_null
+    tests:
+    - not_null
+  - name: acs_income_level
+    constraints:
+    - type: not_null
+    tests:
+    - not_null
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - jurisdiction_type
+      - acs_income_level
+- name: dq_jurisdiction_mapping_summary_by_acs_population_tier
+  description: 'Mapping coverage rollup by (jurisdiction_type, acs_population_tier). Composite PK.
+
+    '
+  constraints:
+  - type: primary_key
+    columns:
+    - jurisdiction_type
+    - acs_population_tier
+  columns:
+  - name: jurisdiction_type
+    constraints:
+    - type: not_null
+    tests:
+    - not_null
+  - name: acs_population_tier
+    constraints:
+    - type: not_null
+    tests:
+    - not_null
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - jurisdiction_type
+      - acs_population_tier
+- name: dq_jurisdiction_mapping_summary_municipality_places
+  description: 'Mapping coverage rollup for municipality place kinds. Grain: one row per municipality_place_kind.
+    PK municipality_place_kind.
+
+    '
+  columns:
+  - name: municipality_place_kind
+    description: Municipality place kind. Primary key.
+    constraints:
+    - type: not_null
+    - type: primary_key
+    tests:
+    - unique
+    - not_null

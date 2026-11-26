@@ -1,0 +1,88 @@
+{
+  "pack_id": "data-centers",
+  "title": "Data Center Challenge",
+  "version": 3,
+  "question": {
+    "question_id": "allow-new",
+    "version": 1,
+    "text": "Should we allow new data centers?",
+    "place_text": "Should {place} allow new data centers?",
+    "options": [
+      { "id": "yes", "label": "Yes" },
+      { "id": "no", "label": "No" },
+      { "id": "moratorium", "label": "Pause for now" }
+    ]
+  },
+  "statements": [
+    {
+      "statement_id": "jobs-worth-it",
+      "version": 1,
+      "order": 1,
+      "category": "Jobs",
+      "statement": "The jobs a data center brings are worth what it asks of a community.",
+      "chart": "job-claims",
+      "story_screen": "jobs",
+      "speaker_lean": "for"
+    },
+    {
+      "statement_id": "enough-already",
+      "version": 1,
+      "order": 2,
+      "category": "Where they are",
+      "statement": "My area already has enough data centers.",
+      "chart": "concerns",
+      "story_screen": "sites",
+      "speaker_lean": "against"
+    },
+    {
+      "statement_id": "water-power-decide",
+      "version": 1,
+      "order": 3,
+      "category": "Concerns",
+      "statement": "Water and power use should decide whether a data center is approved.",
+      "chart": "concerns",
+      "story_screen": "concerns",
+      "speaker_lean": null
+    },
+    {
+      "statement_id": "officials-discuss-enough",
+      "version": 1,
+      "order": 4,
+      "category": "In the meeting",
+      "statement": "Local officials discuss data centers enough before they vote on them.",
+      "chart": "meeting-mentions",
+      "story_screen": "meetings",
+      "speaker_lean": null
+    },
+    {
+      "statement_id": "enough-notice",
+      "version": 1,
+      "order": 5,
+      "category": "On the agenda",
+      "statement": "The public gets enough notice before a data center decision is made.",
+      "chart": "agenda-items",
+      "story_screen": "agendas",
+      "speaker_lean": null
+    },
+    {
+      "statement_id": "residents-real-say",
+      "version": 1,
+      "order": 6,
+      "category": "Public voice",
+      "statement": "Residents get a real say before a data center is approved.",
+      "chart": "community-events",
+      "story_screen": "gatherings",
+      "speaker_lean": null
+    },
+    {
+      "statement_id": "near-homes-ok",
+      "version": 1,
+      "order": 7,
+      "category": "Where they go",
+      "statement": "A data center that meets the rules should be allowed near homes.",
+      "chart": "concerns",
+      "story_screen": "projects",
+      "speaker_lean": "for"
+    }
+  ]
+}

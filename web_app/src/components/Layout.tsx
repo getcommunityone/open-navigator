@@ -1,18 +1,19 @@
 import { Outlet } from 'react-router-dom'
 import { XMarkIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
+import SiteFooter from './SiteFooter'
 import SiteHeader from './SiteHeader'
 
 export default function Layout() {
   const { authError, clearAuthError } = useAuth()
 
   return (
-    <div className="min-h-screen bg-slate-300">
+    <div className="min-h-screen page-bg">
       {/* Shared top navigation — identical to the home page header. */}
       <SiteHeader />
 
       {/* Main content — full width (global sidebar removed; home page is the nav hub) */}
-      <div className="flex w-full min-w-0 min-h-[calc(100dvh-5rem)] flex-col bg-slate-300">
+      <div className="flex w-full min-w-0 min-h-[calc(100dvh-5rem)] flex-col page-bg">
         {/* Auth Error Banner - Mobile Friendly */}
         {authError && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 m-4">
@@ -43,6 +44,7 @@ export default function Layout() {
         <main className="flex min-h-0 flex-1 flex-col">
           <Outlet />
         </main>
+        <SiteFooter />
       </div>
     </div>
   )

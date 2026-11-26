@@ -2,10 +2,11 @@
 {#-
     Rebuild-proof the /search performance indexes.
 
-    Each search-serving mart declares its indexes in its own model post_hook, but
-    some rebuild paths skip post_hooks (the table is renamed in from
-    <model>__dbt_tmp without the CREATE INDEX statements firing — the tell is a
-    surviving `<model>__dbt_tmp_pkey` and NO other indexes). When that happens the
+    Each search-serving mart declares its indexes in its model's dbt `indexes`
+    config (#938), built on <model>__dbt_tmp before the swap. They used to be
+    named post_hook indexes, which a rebuild skipped on alternate builds (the old
+    table still owned the name) and then dropped with the backup. When an index is
+    missing anyway the
     index silently vanishes and the matching /search text leg degrades to a full
     sequential scan: ~18s for org name FTS over mdm_organization (~4.1M rows), ~19s
     for the un-indexed ILIKE over public.grant (~6.7M rows). Concurrently fanned
@@ -26,6 +27,12 @@
 
     See api/routes/search_postgres.py (search_organizations_pg / search_grants_pg /
     search_persons_pg) and the *_index_drops notes.
+
+    An entry may carry `match`: a fragment of pg_get_indexdef(). Any index on the table whose
+    definition contains it counts as present, whatever its name (valid, non-partial indexes only). Models that declare the
+    index in their dbt `indexes` config (built before the swap, under a generated name; see
+    swap_guard and non-blocking-table-rebuilds.md, #935) use this, so the backstop doesn't
+    build a duplicate beside it.
 -#}
 {%- if not execute -%}{{ return('') }}{%- endif -%}
 
@@ -34,16 +41,16 @@
     can't carry its own index, and the planner uses the base table's indexes
     through the pass-through view. -#}
 {%- set indexes = [
-    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_org_name_fts_idx',  'def': "using gin (to_tsvector('english', org_name))"},
-    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_org_name_norm_idx', 'def': '(org_name_norm)'},
-    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_state_code_idx',     'def': '(state_code)'},
-    {'rel': 'gold.mdm_person',        'name': 'mdm_person_full_name_trgm_idx',       'def': 'using gin (full_name gin_trgm_ops)'},
-    {'rel': 'gold.contact_official',  'name': 'contact_official_full_name_trgm_idx', 'def': 'using gin (full_name gin_trgm_ops)'},
-    {'rel': 'gold.contact_official',  'name': 'contact_official_title_trgm_idx',     'def': 'using gin (title gin_trgm_ops)'},
-    {'rel': 'gold."grant"',           'name': 'grant_grantor_name_trgm_idx',         'def': 'using gin (grantor_name gin_trgm_ops)'},
-    {'rel': 'gold."grant"',           'name': 'grant_grantee_name_trgm_idx',         'def': 'using gin (grantee_name gin_trgm_ops)'},
-    {'rel': 'gold."grant"',           'name': 'grant_purpose_trgm_idx',              'def': 'using gin (purpose gin_trgm_ops)'},
-    {'rel': 'gold.jurisdictions',     'name': 'jurisdictions_search_fts_idx',        'def': "using gin (to_tsvector('english', coalesce(search_text, display_name)))"}
+    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_org_name_fts_idx',  'def': "using gin (to_tsvector('english', org_name))", 'match': "USING gin (to_tsvector('english'::regconfig, org_name))"},
+    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_org_name_norm_idx', 'def': '(org_name_norm)', 'match': 'USING btree (org_name_norm)'},
+    {'rel': 'gold.mdm_organization',  'name': 'mdm_organization_state_code_idx',     'def': '(state_code)', 'match': 'USING btree (state_code)'},
+    {'rel': 'gold.mdm_person',        'name': 'mdm_person_full_name_trgm_idx',       'def': 'using gin (full_name gin_trgm_ops)', 'match': 'USING gin (full_name gin_trgm_ops)'},
+    {'rel': 'gold.contact_official',  'name': 'contact_official_full_name_trgm_idx', 'def': 'using gin (full_name gin_trgm_ops)', 'match': 'USING gin (full_name gin_trgm_ops)'},
+    {'rel': 'gold.contact_official',  'name': 'contact_official_title_trgm_idx',     'def': 'using gin (title gin_trgm_ops)', 'match': 'USING gin (title gin_trgm_ops)'},
+    {'rel': 'gold."grant"',           'name': 'grant_grantor_name_trgm_idx',         'def': 'using gin (grantor_name gin_trgm_ops)', 'match': 'USING gin (grantor_name gin_trgm_ops)'},
+    {'rel': 'gold."grant"',           'name': 'grant_grantee_name_trgm_idx',         'def': 'using gin (grantee_name gin_trgm_ops)', 'match': 'USING gin (grantee_name gin_trgm_ops)'},
+    {'rel': 'gold."grant"',           'name': 'grant_purpose_trgm_idx',              'def': 'using gin (purpose gin_trgm_ops)', 'match': 'USING gin (purpose gin_trgm_ops)'},
+    {'rel': 'gold.jurisdictions',     'name': 'jurisdictions_search_fts_idx',        'def': "using gin (to_tsvector('english', coalesce(search_text, display_name)))", 'match': "USING gin (to_tsvector('english'::regconfig, COALESCE(search_text, (display_name)::text)))"}
 ] -%}
 
 {%- do run_query("create extension if not exists pg_trgm") -%}
@@ -53,11 +60,18 @@
 {%- for ix in indexes -%}
   {%- set check = run_query("select to_regclass('" ~ ix.rel ~ "') as r") -%}
   {%- if check and check.rows and check.rows[0][0] is not none -%}
-    {%- set present = run_query("select to_regclass('gold." ~ ix.name ~ "') as r") -%}
+    {%- if ix.match -%}
+      {%- set present = run_query(
+          "select 1 from pg_index i where i.indrelid = to_regclass('" ~ ix.rel ~ "') "
+          ~ "and i.indisvalid and i.indpred is null "
+          ~ "and position(lower('" ~ (ix.match | replace("'", "''")) ~ "') in lower(pg_get_indexdef(i.indexrelid))) > 0 limit 1") -%}
+    {%- else -%}
+      {%- set present = run_query("select to_regclass('gold." ~ ix.name ~ "') as r") -%}
+    {%- endif -%}
     {%- if not (present and present.rows and present.rows[0][0] is not none) -%}
       {%- do created.append(ix.name) -%}
+      {%- do run_query("create index if not exists " ~ ix.name ~ " on " ~ ix.rel ~ " " ~ ix.def) -%}
     {%- endif -%}
-    {%- do run_query("create index if not exists " ~ ix.name ~ " on " ~ ix.rel ~ " " ~ ix.def) -%}
   {%- else -%}
     {%- do skipped.append(ix.name) -%}
   {%- endif -%}

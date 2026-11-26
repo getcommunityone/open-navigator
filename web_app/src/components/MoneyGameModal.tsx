@@ -440,6 +440,8 @@ function YourBill({
   if (fees > 0) parts.push({ label: 'Fees & other', value: fees, color: '#7fd0c4' })
   const total = parts.reduce((s, p) => s + p.value, 0)
   const sharePct = income > 0 && total > 0 ? (total / income) * 100 : null
+  // Calendar year for the annual-bill chrome (estimate time grain), not ACS/sales vintage.
+  const billYear = new Date().getFullYear()
 
   return (
     <div>
@@ -474,9 +476,13 @@ function YourBill({
             </p>
           )}
           <EstRow label="Your yearly spending on taxable goods" value={spend} min={0} max={100_000} step={500} onChange={setSpend} display={spend > 0 ? fmtDollars(spend) : 'add yours'} sweepDelayMs={90} />
-          <EstRow label="Your local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} sweepDelayMs={180} />
+          <EstRow label="Your yearly local fees (utilities, permits, garbage)" value={fees} min={0} max={2_500} step={50} onChange={setFees} display={fees > 0 ? fmtDollars(fees) : 'add yours'} sweepDelayMs={180} />
           <EstRow
-            label={incomeIsMedian ? 'Household income · local median' : 'Your household income'}
+            label={
+              incomeIsMedian
+                ? 'Yearly household income · local median'
+                : 'Your yearly household income'
+            }
             value={income}
             min={0}
             max={Math.max(250_000, Math.ceil(((medianIncome ?? 0) * 2.5) / 10_000) * 10_000)}
@@ -492,14 +498,23 @@ function YourBill({
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5d7d7d]" style={MONO}>
-                You pay approximately
+                You pay approximately · {billYear}
               </p>
               <p className="text-[36px] font-semibold leading-none text-[#0f2b2b]" style={SERIF}>
-                {total > 0 ? fmtDollars(total) : '—'}
+                {total > 0 ? (
+                  <>
+                    {fmtDollars(total)}
+                    <span className="ml-1.5 text-[18px] font-semibold tracking-normal text-[#56635e]" style={FONT}>
+                      / year
+                    </span>
+                  </>
+                ) : (
+                  '—'
+                )}
               </p>
               {total > 0 && (
                 <p className="mt-1 text-[13px] text-[#56635e]" style={FONT}>
-                  per year · {fmtDollars(total / 12)}/mo
+                  Annual estimate for {billYear} · about {fmtDollars(total / 12)}/mo
                 </p>
               )}
               {(acsYear || salesYear) && (
@@ -515,7 +530,8 @@ function YourBill({
 
           {sharePct != null && (
             <p className="mt-3 text-[13.5px] font-semibold text-[#0f2b2b]" style={FONT}>
-              That&apos;s {sharePct.toFixed(1)}% of your household income going to local government.
+              That&apos;s {sharePct.toFixed(1)}% of your yearly household income going to local
+              government.
             </p>
           )}
 
@@ -523,7 +539,7 @@ function YourBill({
             {parts.map((p) => (
               <span key={p.label} className="flex items-center gap-1.5 text-[11.5px] text-[#56635e]" style={FONT}>
                 <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
-                {p.label} · {fmtDollars(p.value)}
+                {p.label} · {fmtDollars(p.value)}/yr
               </span>
             ))}
           </div>
@@ -1957,7 +1973,7 @@ export default function MoneyGameModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
+              <Dialog.Panel className="relative flex max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-[#f7fafb] text-left shadow-2xl">
                 {/* Close button — pinned to the panel, outside the scroll area. */}
                 <button
                   type="button"

@@ -117,5 +117,10 @@ def test_upsert_keeps_real_name_but_drops_an_id_shaped_one():
     src = inspect.getsource(YouTubeEventsLoader.insert_events)
     update = src.partition("ON CONFLICT")[2]
     assert "jurisdiction_name = EXCLUDED.jurisdiction_name," not in update
-    assert re.search(r"jurisdiction_name = COALESCE\(\s*EXCLUDED\.jurisdiction_name", update)
-    assert "'^c-[A-Z]{2}-[0-9]+$'" in update
+    # #778 wraps the geo columns in CASE WHEN <keep other place> ... ELSE <rule> END.
+    assert re.search(
+        r"jurisdiction_name = (CASE WHEN \{keep\} THEN y\.jurisdiction_name ELSE )?COALESCE\(\s*EXCLUDED\.jurisdiction_name",
+        update,
+    )
+    # Braces are doubled in the source because the query is a str.format template.
+    assert re.search(r"'\^c-\[A-Z\]\{\{?2\}?\}-\[0-9\]\+\$'", update)

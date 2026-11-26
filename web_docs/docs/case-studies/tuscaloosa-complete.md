@@ -2,17 +2,17 @@
 sidebar_position: 1
 ---
 
-# 🏡 TUSCALOOSA, ALABAMA - COMPLETE DATA SOURCES & STATISTICS
+# TUSCALOOSA, ALABAMA - COMPLETE DATA SOURCES & STATISTICS
 
-**Last Updated:** April 22, 2026  
+**Last Updated:** April 22, 2026
 **Discovery Methods:** Pattern Matching, Website Scraping, Manual Verification
 
 ---
 
-## 📺 YOUTUBE CHANNELS (2 Channels Found)
+## YOUTUBE CHANNELS (2 Channels Found)
 
 ### Channel 1: City of Tuscaloosa (Official)
-- **URL:** https://www.youtube.com/@TuscaloosaCityAL ✅
+- **URL:** https://www.youtube.com/@TuscaloosaCityAL Yes
 - **Official Name:** City of Tuscaloosa (TuscaloosaCity)
 - **Handle:** @TuscaloosaCityAL
 - **Subscribers:** 382
@@ -23,7 +23,7 @@ sidebar_position: 1
 - **Confidence:** High (official channel)
 
 ### Channel 2: Tuscaloosa Alabama
-- **URL:** https://www.youtube.com/@CityOfTuscaloosa ✅
+- **URL:** https://www.youtube.com/@CityOfTuscaloosa Yes
 - **Official Name:** Tuscaloosa Alabama
 - **Handle:** @CityOfTuscaloosa
 - **Subscribers:** 13
@@ -34,48 +34,48 @@ sidebar_position: 1
 - **Confidence:** Medium (alternate channel)
 
 **Analysis:**
-- ✅ Both channels are ACTIVE
-- ✅ @TuscaloosaCityAL appears to be the primary official channel (30x more subscribers)
-- ✅ @CityOfTuscaloosa has confirmed meeting content (17 videos)
-- 💡 Recommend monitoring BOTH channels for complete coverage
+- Yes Both channels are ACTIVE
+- Yes @TuscaloosaCityAL appears to be the primary official channel (30x more subscribers)
+- Yes @CityOfTuscaloosa has confirmed meeting content (17 videos)
+- Recommend monitoring BOTH channels for complete coverage
 
 ---
 
-## 📹 OTHER VIDEO PLATFORMS
+## OTHER VIDEO PLATFORMS
 
 ### Vimeo Channel
 - **URL:** https://vimeo.com/tuscaloosacity
-- **Status:** ACTIVE ✅
+- **Status:** ACTIVE Yes
 - **Content:** City meetings, events
 - **Discovery:** Social media scraping
 - **Note:** May contain meeting recordings not on YouTube
 
 ---
 
-## 🌐 OFFICIAL GOVERNMENT WEBSITES (2 Sites)
+## OFFICIAL GOVERNMENT WEBSITES (2 Sites)
 
 ### 1. City of Tuscaloosa
 **Primary Website:** https://www.tuscaloosa.com
-- **Status:** Active ✅
+- **Status:** Active Yes
 - **Platform:** Custom CMS
 - **Meeting Pages Found:**
-  - Meetings: https://www.tuscaloosa.com/meetings
-  - City Council: https://www.tuscaloosa.com/city-council
-  - Calendar: https://www.tuscaloosa.com/calendar
+ - Meetings: https://www.tuscaloosa.com/meetings
+ - City Council: https://www.tuscaloosa.com/city-council
+ - Calendar: https://www.tuscaloosa.com/calendar
 
 ### 2. Tuscaloosa County
 **Primary Website:** https://www.tuscco.com
-- **Status:** Active ✅
+- **Status:** Active Yes
 - **Platform:** Custom CMS
 - **Meeting Pages Found:**
-  - Commission: https://www.tuscco.com/commission
-  - Calendar: https://www.tuscco.com/calendar
+ - Commission: https://www.tuscco.com/commission
+ - Calendar: https://www.tuscco.com/calendar
 
 **Alternate URL:** https://tuscaloosacounty.com (redirects to tuscco.com)
 
 ---
 
-## 📱 SOCIAL MEDIA ACCOUNTS (7 Total)
+## SOCIAL MEDIA ACCOUNTS (7 Total)
 
 ### City of Tuscaloosa (5 accounts)
 1. **YouTube 1:** https://www.youtube.com/@TuscaloosaCityAL (382 subscribers)
@@ -90,33 +90,33 @@ sidebar_position: 1
 
 ---
 
-## 🏛️ MEETING PLATFORMS & SYSTEMS
+## MEETING PLATFORMS & SYSTEMS
 
-### ⭐ Agenda Management System
-- **SuiteOne Media:** ✅ ACTIVE
-  - **Portal URL:** https://tuscaloosaal.suiteonemedia.com/Web/Home.aspx
-  - **Content:** 279 agendas, 260 minutes mentions
-  - **Features:** Upcoming meetings, past meetings archive
-  - **Status:** Professional agenda management system
-  - **Documents:** Full agenda packets with PDFs
+### Agenda Management System
+- **SuiteOne Media:** Yes ACTIVE
+ - **Portal URL:** https://tuscaloosaal.suiteonemedia.com/Web/Home.aspx
+ - **Content:** 279 agendas, 260 minutes mentions
+ - **Features:** Upcoming meetings, past meetings archive
+ - **Status:** Professional agenda management system
+ - **Documents:** Full agenda packets with PDFs
 
 ### API-Based Systems
-- **Legistar:** ❌ Not detected
-  - Tested: tuscaloosa, tuscaloosaal, tuscaloosacounty
-  - Result: City does not use Legistar
-  
-- **Granicus:** ❌ Not detected via automation
-  - Tested: tuscaloosa.granicus.com, tuscaloosaal.granicus.com
-  - Note: May still use embedded Granicus players on website
+- **Legistar:** No Not detected
+ - Tested: tuscaloosa, tuscaloosaal, tuscaloosacounty
+ - Result: City does not use Legistar
+
+- **Granicus:** No Not detected via automation
+ - Tested: tuscaloosa.granicus.com, tuscaloosaal.granicus.com
+ - Note: May still use embedded Granicus players on website
 
 ### Content Management
-- **Custom CMS:** ✅ Both city and county use custom systems
+- **Custom CMS:** Yes Both city and county use custom systems
 - **Meeting Pages:** 5 pages discovered
 - **Calendar Systems:** Both entities have event calendars
 
 ---
 
-## 📊 COMPLETE STATISTICS
+## COMPLETE STATISTICS
 
 | Category | Count | Details |
 |----------|-------|---------|
@@ -124,86 +124,86 @@ sidebar_position: 1
 | **Video Platforms** | 3 | YouTube (2), Vimeo (1) |
 | **Official Websites** | 2 | City + County |
 | **Meeting Pages** | 5 | City (3), County (2) |
-| **Agenda Portal** | 1 | SuiteOne Media (279 agendas, 260 minutes) ⭐ |
+| **Agenda Portal** | 1 | SuiteOne Media (279 agendas, 260 minutes) |
 | **Social Media** | 7 | YouTube (2), Vimeo (1), Facebook (2), Twitter (2) |
 | **Total Data Sources** | 20 | All combined |
 
 ---
 
-## 🎯 DATA QUALITY ASSESSMENT
+## DATA QUALITY ASSESSMENT
 
-### Coverage Score: ⭐⭐⭐⭐ (4/5 - Very Good)
+### Coverage Score: (4/5 - Very Good)
 
 **Strengths:**
-- ✅ Multiple video channels (2 YouTube + 1 Vimeo)
-- ✅ Both channels discovered and verified
-- ✅ Active social media presence
-- ✅ Dedicated meeting pages
-- ✅ Calendar systems for tracking
+- Yes Multiple video channels (2 YouTube + 1 Vimeo)
+- Yes Both channels discovered and verified
+- Yes Active social media presence
+- Yes Dedicated meeting pages
+- Yes Calendar systems for tracking
 
 **Gaps:**
-- ⚠️ No API-based meeting platform (requires HTML scraping)
-- ⚠️ Video counts need manual verification for @TuscaloosaCityAL
-- ⚠️ Historical meeting archive depth unknown
+- Warning No API-based meeting platform (requires HTML scraping)
+- Warning Video counts need manual verification for @TuscaloosaCityAL
+- Warning Historical meeting archive depth unknown
 
 **Compared to National Average:**
-- 🟢 **Above Average** - Most cities only have 1 YouTube channel
-- 🟢 **Above Average** - Having Vimeo + YouTube is excellent
-- 🟢 **Average** - Meeting page organization is standard
+- **Above Average** - Most cities only have 1 YouTube channel
+- **Above Average** - Having Vimeo + YouTube is excellent
+- **Average** - Meeting page organization is standard
 
 ---
 
-## 🔍 RECOMMENDED DATA COLLECTION STRATEGY
+## RECOMMENDED DATA COLLECTION STRATEGY
 
-### Phase 1: Written Documents (Primary) ⭐
-**Priority:** 🔥 HIGHEST
+### Phase 1: Written Documents (Primary)
+**Priority:** HIGHEST
 
 1. **SuiteOne Agenda Portal** (Most Comprehensive)
-   - URL: https://tuscaloosaal.suiteonemedia.com/Web/Home.aspx
-   - Coverage: 100% of meetings (279 agendas + 260 minutes)
-   - Historical archive: Likely 5-10 years
-   - Format: PDF documents (searchable text)
-   - **Why:** Complete coverage, keyword searchable, official record
+ - URL: https://tuscaloosaal.suiteonemedia.com/Web/Home.aspx
+ - Coverage: 100% of meetings (279 agendas + 260 minutes)
+ - Historical archive: Likely 5-10 years
+ - Format: PDF documents (searchable text)
+ - **Why:** Complete coverage, keyword searchable, official record
 
 2. **Meeting Pages**
-   - Scrape 5 meeting pages for additional documents
-   - Cross-reference with SuiteOne portal
-   - Check for supplemental materials
+ - Scrape 5 meeting pages for additional documents
+ - Cross-reference with SuiteOne portal
+ - Check for supplemental materials
 
 ### Phase 2: Video Content (Secondary)
-**Priority:** 🟡 MEDIUM
+**Priority:** MEDIUM
 
 1. **@TuscaloosaCityAL** (382 subscribers)
-   - Visit channel manually to catalog videos
-   - Check for playlists (City Council, Public Meetings, etc.)
-   - Note upload frequency and date range
-   - **Why:** Most subscribers = likely primary channel
+ - Visit channel manually to catalog videos
+ - Check for playlists (City Council, Public Meetings, etc.)
+ - Note upload frequency and date range
+ - **Why:** Most subscribers = likely primary channel
 
 2. **@CityOfTuscaloosa** (17 videos, 13 subscribers)
-   - Already confirmed to have meeting content
-   - May be older/archive channel
-   - Cross-reference with @TuscaloosaCityAL to avoid duplicates
+ - Already confirmed to have meeting content
+ - May be older/archive channel
+ - Cross-reference with @TuscaloosaCityAL to avoid duplicates
 
 3. **Vimeo Channel**
-   - Check for unique content not on YouTube
-   - May have older meeting archives
+ - Check for unique content not on YouTube
+ - May have older meeting archives
 
 ### Phase 3: Cross-Reference (Ongoing)
-**Priority:** 🟢 LOW
+**Priority:** LOW
 
 1. Monitor social media for:
-   - Meeting announcements
-   - Schedule changes
-   - Live stream links
+ - Meeting announcements
+ - Schedule changes
+ - Live stream links
 
 ---
 
-## 💡 NEXT STEPS FOR TUSCALOOSA
+## NEXT STEPS FOR TUSCALOOSA
 
 ### Immediate Actions
-1. ✅ **Manual channel verification** - Visit both YouTube channels in browser
-2. ✅ **Video cataloging** - List all meeting videos with dates
-3. ⏳ **Compare channels** - Identify if overlap or complementary
+1. Yes **Manual channel verification** - Visit both YouTube channels in browser
+2. Yes **Video cataloging** - List all meeting videos with dates
+3. **Compare channels** - Identify if overlap or complementary
 
 ### This Week
 1. Set up monitoring for new video uploads
@@ -217,35 +217,35 @@ sidebar_position: 1
 
 ---
 
-## 📈 COMPARISON: TUSCALOOSA vs. OTHER CITIES
+## COMPARISON: TUSCALOOSA vs. OTHER CITIES
 
 | Feature | Tuscaloosa | Chicago | Seattle | Average City |
 |---------|------------|---------|---------|--------------|
-| YouTube Channels | **2** ✅ | 1 | 1 | 1 |
+| YouTube Channels | **2** Yes | 1 | 1 | 1 |
 | Total Subscribers | 395 | 5,000+ | 10,000+ | 500-2,000 |
-| Video Platforms | **3** ✅ | 2 | 2 | 1-2 |
-| Legistar API | ❌ | ✅ | ✅ | 30% have |
-| Meeting Pages | 5 ✅ | 10+ | 8 | 3-5 |
-| Social Media | 7 ✅ | 15+ | 12+ | 4-6 |
+| Video Platforms | **3** Yes | 2 | 2 | 1-2 |
+| Legistar API | No | Yes | Yes | 30% have |
+| Meeting Pages | 5 Yes | 10+ | 8 | 3-5 |
+| Social Media | 7 Yes | 15+ | 12+ | 4-6 |
 
 **Tuscaloosa Strengths:**
-- 🟢 Multiple YouTube channels (rare!)
-- 🟢 Vimeo presence (uncommon)
-- 🟢 Well-organized meeting pages
+- Multiple YouTube channels (rare!)
+- Vimeo presence (uncommon)
+- Well-organized meeting pages
 
 **Tuscaloosa Gaps:**
-- 🔴 No API-based platform (like Legistar)
-- 🟡 Lower subscriber counts (smaller city)
+- No API-based platform (like Legistar)
+- Lower subscriber counts (smaller city)
 
 ---
 
-## 🎬 ESTIMATED CONTENT VOLUME
+## ESTIMATED CONTENT VOLUME
 
 Based on channel statistics and typical patterns:
 
 ### Video Content
 - **@TuscaloosaCityAL:** Unknown count (need verification)
-  - Estimated: 50-200 videos (based on subscriber count)
+ - Estimated: 50-200 videos (based on subscriber count)
 - **@CityOfTuscaloosa:** 17 videos (confirmed)
 - **Vimeo:** Unknown (need to check)
 - **Total Estimate:** 70-220 meeting videos
@@ -263,46 +263,46 @@ Based on channel statistics and typical patterns:
 
 ---
 
-## ✅ KEY FINDINGS SUMMARY
+## Yes KEY FINDINGS SUMMARY
 
-1. **Both YouTube channels discovered!** ✅
-   - @TuscaloosaCityAL: 382 subscribers (primary)
-   - @CityOfTuscaloosa: 17 videos, 13 subscribers (secondary)
+1. **Both YouTube channels discovered!** Yes
+ - @TuscaloosaCityAL: 382 subscribers (primary)
+ - @CityOfTuscaloosa: 17 videos, 13 subscribers (secondary)
 
-2. **System now stores multiple channels** ✅
-   - Deduplicates by channel ID
-   - Ranks by subscriber count
-   - Tracks discovery method
+2. **System now stores multiple channels** Yes
+ - Deduplicates by channel ID
+ - Ranks by subscriber count
+ - Tracks discovery method
 
-3. **Statistics extracted** ✅
-   - Subscriber counts: YES
-   - Video counts: PARTIAL (needs improvement)
-   - Channel titles: YES
+3. **Statistics extracted** Yes
+ - Subscriber counts: YES
+ - Video counts: PARTIAL (needs improvement)
+ - Channel titles: YES
 
-4. **Total data sources: 19** ✅
-   - 2 YouTube channels
-   - 1 Vimeo channel
-   - 2 official websites
-   - 5 meeting pages
-   - 7 social media accounts
-   - 2 calendar systems
+4. **Total data sources: 19** Yes
+ - 2 YouTube channels
+ - 1 Vimeo channel
+ - 2 official websites
+ - 5 meeting pages
+ - 7 social media accounts
+ - 2 calendar systems
 
 ---
 
-## 🔧 TECHNICAL NOTES
+## TECHNICAL NOTES
 
 ### Statistics Extraction Status
 
 **Working:**
-- ✅ Channel discovery (pattern matching)
-- ✅ Subscriber counts (from HTML)
-- ✅ Channel names (from meta tags)
-- ✅ Multiple channel storage
+- Yes Channel discovery (pattern matching)
+- Yes Subscriber counts (from HTML)
+- Yes Channel names (from meta tags)
+- Yes Multiple channel storage
 
 **Needs Improvement:**
-- ⚠️ Video counts (inconsistent extraction)
-- ⚠️ View counts (not reliable from HTML)
-- ⚠️ Latest upload dates (requires API)
+- Warning Video counts (inconsistent extraction)
+- Warning View counts (not reliable from HTML)
+- Warning Latest upload dates (requires API)
 
 **Solution:**
 Use YouTube Data API v3 for 100% accurate statistics:
@@ -315,7 +315,7 @@ channels = await discovery.discover_channels("Tuscaloosa", "AL")
 
 ---
 
-## 📞 CONTACT FOR DATA PARTNERSHIP
+## CONTACT FOR DATA PARTNERSHIP
 
 If you need verified channel statistics or bulk access:
 
@@ -327,28 +327,28 @@ If you need verified channel statistics or bulk access:
 **City of Tuscaloosa**
 - Website: https://www.tuscaloosa.com
 - Potentially contact for:
-  - Official confirmation of primary YouTube channel
-  - Complete meeting video archive access
-  - API access to meeting calendar
+ - Official confirmation of primary YouTube channel
+ - Complete meeting video archive access
+ - API access to meeting calendar
 
 ---
 
-## 🎯 BOTTOM LINE
+## BOTTOM LINE
 
-**Your Hometown is Well-Covered!** 🏡
+**Your Hometown is Well-Covered!**
 
-✅ **2 YouTube channels found** (you were right!)  
-✅ **395 total subscribers** across channels  
-✅ **17+ confirmed meeting videos**  
-✅ **5 meeting pages** for agenda access  
-✅ **3 video platforms** for redundancy  
+Yes **2 YouTube channels found** (you were right!)
+Yes **395 total subscribers** across channels
+Yes **17+ confirmed meeting videos**
+Yes **5 meeting pages** for agenda access
+Yes **3 video platforms** for redundancy
 
 **Tuscaloosa has better video infrastructure than 70% of U.S. cities of similar size!**
 
 The discovery system now:
-- ✅ Finds BOTH channels (not just first)
-- ✅ Extracts subscriber counts
-- ✅ Ranks by size/activity
-- ✅ Stores all sources
+- Yes Finds BOTH channels (not just first)
+- Yes Extracts subscriber counts
+- Yes Ranks by size/activity
+- Yes Stores all sources
 
 **Next:** Visit channels manually to verify exact video counts and content!

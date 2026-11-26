@@ -1,5 +1,5 @@
 {#
-  post_hook FTS index rationale: full-text search support for search_events_pg
+  FTS index rationale (declared in `indexes`, #938): full-text search support for search_events_pg
   (api/routes/search_postgres.py). That search UNIONs a title-FTS branch with a
   jurisdiction-substring branch; both need a GIN index or Postgres falls back to
   a 153k-row seq scan that recomputes to_tsvector per row (~3.8s for a common
@@ -21,12 +21,9 @@
       {'columns': ['body_name'], 'type': 'btree'},
       {'columns': ['channel_id'], 'type': 'btree'},
       {'columns': ['video_url'], 'unique': True},
-      {'columns': ['source'], 'type': 'btree'}
-    ],
-    post_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "CREATE INDEX IF NOT EXISTS event_title_fts_idx ON {{ this }} USING gin (to_tsvector('english', event_title))",
-      "CREATE INDEX IF NOT EXISTS event_jurisdiction_trgm_idx ON {{ this }} USING gin (jurisdiction_name gin_trgm_ops)"
+      {'columns': ['source'], 'type': 'btree'},
+      {'columns': ["to_tsvector('english', event_title)"], 'type': 'gin'},
+      {'columns': ["jurisdiction_name gin_trgm_ops"], 'type': 'gin'}
     ]
   )
 }}

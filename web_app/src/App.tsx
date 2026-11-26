@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { tracer } from './instrumentation'
@@ -34,12 +34,15 @@ import Support from './pages/Support'
 import JurisdictionMappingQualityPage from './pages/JurisdictionMappingQualityPage'
 import LighthouseReportPage from './pages/LighthouseReportPage'
 import BatchJobStatusPage from './pages/BatchJobStatusPage'
+import BatchFailureReasonsPage from './pages/BatchFailureReasonsPage'
 import ApplicationLinksAdminPage from './pages/ApplicationLinksAdminPage'
+import MeetingKindsAdminPage from './pages/MeetingKindsAdminPage'
 import Hackathons from './pages/Hackathons'
 import OpenSource from './pages/OpenSource'
 import AdvocacyTopics from './pages/AdvocacyTopics'
 import FactChecking from './pages/FactChecking'
 import UnifiedSearch from './pages/UnifiedSearch'
+import MeetingChat from './pages/MeetingChat'
 import JurisdictionsSearch from './pages/JurisdictionsSearch'
 import PolicyMap from './pages/PolicyMap'
 import DecisionsMapPage from './pages/DecisionsMapPage'
@@ -48,6 +51,7 @@ import CensusDrilldownMapPage from './pages/CensusDrilldownMapPage'
 import DataExplorerLayout from './components/DataExplorerLayout'
 import AdminLayout from './components/AdminLayout'
 import DataExplorerScorecardPage from './pages/DataExplorerScorecardPage'
+import LazyRouteBoundary from './components/LazyRouteBoundary'
 import BillDetail from './pages/BillDetail'
 import GrantDetail from './pages/GrantDetail'
 import DecisionDetail from './pages/DecisionDetail'
@@ -57,6 +61,11 @@ import MeetingCompare from './pages/MeetingCompare'
 import EventBillDetail from './pages/EventBillDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
+import { storyRoute } from './utils/topicStories'
+
+// Loaded only when its route is visited (#856): its fonts and chart code stay out of the main bundle, and a
+// failure to load it cannot blank the rest of the site.
+const DataExplorerMatrixPage = lazy(() => import('./pages/DataExplorerMatrixPage'))
 
 /** Old route-based drill-down (`/map/state/13/...`, `/map/place/13/...`) is now in-page;
  * redirect those bookmarks to the unified `/map/us/{vintage}/{metric}` entry. */
@@ -143,6 +152,32 @@ function RouteChangeTracer() {
   return null
 }
 
+// The challenge and the story pull in gsap and lenis, so they load on their own route chunks and no other page pays for them.
+const DataStory = lazy(() => import('./pages/DataStory'))
+const TopicStory = lazy(() => import('./pages/TopicStory'))
+const OrganizationPage = lazy(() => import('./pages/OrganizationPage'))
+const DataStories = lazy(() => import('./pages/DataStories'))
+
+/**
+ * The Data Center Challenge is retired (#981): its statements are asked in the story itself. `/challenge`,
+ * `/challenge/:packId`, `/play` and `/play/:packId` go to the story for that topic, keeping the place in the URL.
+ */
+function ChallengeRedirect({ to = 'data-centers' }: { to?: string }) {
+  const { search } = useLocation()
+  return <Navigate to={`/stories/${to}${search}`} replace />
+}
+
+function PlayPackRedirect() {
+  const { packId = 'data-centers' } = useParams()
+  return <ChallengeRedirect to={encodeURIComponent(packId)} />
+}
+
+/** `/stories/:storyId` (#1133): the registry's stories (data centers) on DataStory, topic slugs on TopicStory. */
+function StoryRoute() {
+  const { storyId = '' } = useParams()
+  return storyRoute(storyId) === 'data' ? <DataStory /> : <TopicStory slug={storyId} />
+}
+
 function App() {
   return (
     <>
@@ -158,6 +193,7 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route path="explore" element={<Explore />} />
         <Route path="search" element={<UnifiedSearch />} />
+        <Route path="chat" element={<MeetingChat />} />
         <Route path="jurisdictions" element={<JurisdictionsSearch />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="analytics" element={<Analytics />} />
@@ -171,12 +207,50 @@ function App() {
         <Route path="browse-topics" element={<BrowseTopics />} />
         <Route path="browse-causes" element={<BrowseCauses />} />
         <Route path="data-centers" element={<DataCenters />} />
+        <Route path="play" element={<ChallengeRedirect />} />
+        <Route path="play/:packId" element={<PlayPackRedirect />} />
+        <Route path="challenge" element={<ChallengeRedirect />} />
+        <Route path="challenge/:packId" element={<PlayPackRedirect />} />
+        <Route
+          path="stories"
+          element={
+            <LazyRouteBoundary name="Data stories">
+              <DataStories />
+            </LazyRouteBoundary>
+          }
+        />
+        {/* One route for every story (#1133): the registry's stories on DataStory, any curated topic on TopicStory. */}
+        <Route
+          path="stories/:storyId"
+          element={
+            <LazyRouteBoundary name="Data story">
+              <StoryRoute />
+            </LazyRouteBoundary>
+          }
+        />
+        {/* Organization page (#1015). */}
+        <Route
+          path="organizations/:masterOrgId"
+          element={
+            <LazyRouteBoundary name="Organization">
+              <OrganizationPage />
+            </LazyRouteBoundary>
+          }
+        />
         <Route path="money-and-talk" element={<MoneyTalk />} />
         <Route path="census-map/county/:vintage/:metric" element={<CensusCountyAliasRedirect />} />
         <Route path="census-map/*" element={<LegacyCensusMapRedirect />} />
         <Route path="data-explorer" element={<DataExplorerLayout />}>
           <Route index element={<DataExplorerMapDefaultRedirect />} />
           <Route path="scorecard" element={<DataExplorerScorecardPage />} />
+          <Route
+            path="matrix"
+            element={
+              <LazyRouteBoundary name="How states compare">
+                <DataExplorerMatrixPage />
+              </LazyRouteBoundary>
+            }
+          />
           <Route path="jurisdiction-quality" element={<JurisdictionMappingQualityPage />} />
           {/* Lighthouse report + batch jobs moved to the Admin area; keep old URLs working. */}
           <Route path="lighthouse-report" element={<Navigate to="/admin/lighthouse-report" replace />} />
@@ -195,10 +269,12 @@ function App() {
         </Route>
         {/* Admin area — operational tools, reachable from the logged-in profile menu. */}
         <Route path="admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/admin/lighthouse-report" replace />} />
+          <Route index element={<Navigate to="/admin/batch-jobs" replace />} />
           <Route path="lighthouse-report" element={<LighthouseReportPage />} />
           <Route path="batch-jobs" element={<BatchJobStatusPage />} />
+          <Route path="batch-jobs/failures" element={<BatchFailureReasonsPage />} />
           <Route path="application-links" element={<ApplicationLinksAdminPage />} />
+          <Route path="meeting-kinds" element={<MeetingKindsAdminPage />} />
         </Route>
         <Route path="bill/:billId" element={<BillDetail />} />
         <Route path="grants/:id" element={<GrantDetail />} />

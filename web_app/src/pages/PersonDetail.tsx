@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import api from '../lib/api'
+import ClaimProfile from '../components/ClaimProfile'
+import { isOfficialId } from '../api/personClaims'
 import { formatCityState, titleCaseCity } from '../utils/formatters'
 import {
   ArrowLeftIcon,
@@ -105,7 +107,7 @@ export default function PersonDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex justify-center items-center h-96">
             <div className="text-center">
@@ -120,7 +122,7 @@ export default function PersonDetail() {
 
   if (error || !person) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen page-bg py-8">
         <div className="max-w-4xl mx-auto px-4">
           <div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
             <div className="text-red-600 text-5xl mb-4">⚠️</div>
@@ -145,7 +147,7 @@ export default function PersonDetail() {
   const location = formatCityState(person.city, person.state_code)
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen page-bg py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
         <div className="mb-6">
@@ -332,6 +334,9 @@ export default function PersonDetail() {
             </div>
           </div>
         )}
+
+        {/* "Is this you?" — officials can claim their profile (#1062). */}
+        {id && isOfficialId(id) && <ClaimProfile personId={id} />}
       </div>
     </div>
   )

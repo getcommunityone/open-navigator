@@ -1818,6 +1818,48 @@ sources:
             description: "The site's Name column, trimmed."
           - name: record
             description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_facility_registry
+        config:
+          loaded_at_field: last_seen_at
+          freshness:
+            warn_after: {count: 14, period: day}
+        description: >
+          US Data Center Registry records (#958), one row per registry id, as published (CSV
+          row header -> value), landed by
+          `python -m ingestion.data_centers.facility_inventories --source registry`.
+          first_seen_at is kept; last_seen_at moves to each load that lists the record.
+        columns:
+          - name: record_id
+            description: "The registry's id; primary key."
+          - name: record
+            description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_facility_public_evidence
+        config:
+          loaded_at_field: last_seen_at
+          freshness:
+            warn_after: {count: 14, period: day}
+        description: >
+          Public Evidence Project records (#958), one row per record id, as published, landed by
+          `python -m ingestion.data_centers.facility_inventories --source public_evidence`.
+        columns:
+          - name: record_id
+            description: "The project's record id; primary key."
+          - name: record
+            description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_state_count_greencalculus
+        config:
+          loaded_at_field: last_seen_at
+          freshness:
+            warn_after: {count: 30, period: day}
+        description: >
+          State data center figures from github.com/greencalculus/us-data-centers-by-state (#958),
+          one row per figure id, landed by
+          `python -m ingestion.data_centers.facility_inventories --source greencalculus`. Not served.
+        columns:
+          - name: record_id
+            description: "The repo's figure id; primary key."
+          - name: record
+            description: "The whole CSV row, header -> value."
       - name: bronze_epoch_data_center_timelines
         description: >
           Epoch AI "AI data center timelines" CSV rows (CC BY 4.0): dated construction status and
@@ -1835,6 +1877,57 @@ sources:
             description: "The site name this timeline row belongs to (Epoch's 'Data center' link)."
           - name: record
             description: "The whole CSV row, header -> value."
+      - name: bronze_data_center_hearing_source
+        config:
+          loaded_at_field: fetched_at
+          freshness:
+            warn_after: {count: 7, period: day}
+        description: >
+          The official page behind each data center hearing lead (#955), one row per lead_id
+          (latest fetch), landed by `python -m ingestion.data_centers.fetch_hearing_sources`.
+          page_text is the page's visible text (HTML main content, or a PDF's extracted text);
+          null when the fetch failed or robots.txt / the never-fetch list said no (see error).
+        columns:
+          - name: lead_id
+            description: "FK -> intermediate.int_data_center_hearing_lead.lead_id; primary key."
+          - name: source_url
+            description: "The lead's official URL, tracking parameters removed."
+          - name: final_url
+            description: "Where the request ended after redirects."
+          - name: fetched_at
+            description: "When the page was fetched."
+          - name: http_status
+            description: "HTTP status; null when no request was made."
+          - name: content_type
+            description: "Response content type."
+          - name: page_text
+            description: "Visible text of the page; null when nothing was read."
+          - name: error
+            description: "Why nothing was read: 'not fetched: robots.txt disallows …', 'HTTP 403', a transport error, a bot challenge, or a PDF extraction failure."
+      - name: bronze_data_center_hearing_tracker_lead
+        config:
+          loaded_at_field: fetched_at
+          freshness:
+            warn_after: {count: 7, period: day}
+        description: >
+          Meeting records from the CC BY 4.0 data center hearing trackers (#956), one row per
+          (tracker, record_id), as published, landed by
+          `python -m ingestion.data_centers.load_hearing_tracker_leads`: Data Center Fights
+          (data.json `meetings`) and Siting Radar (the upcoming CSV). Leads only; never served.
+          Terms: web_docs/docs/development/data-center-source-review.md.
+        columns:
+          - name: tracker
+            description: "datacenterfights or sitingradar; with record_id, the primary key."
+          - name: record_id
+            description: "The tracker's own id (Data Center Fights `id`, Siting Radar `item_id`)."
+          - name: feed_url
+            description: "The published file the record came from."
+          - name: attribution
+            description: "The credit the tracker's CC BY 4.0 license asks for."
+          - name: fetched_at
+            description: "When the file was fetched."
+          - name: record
+            description: "The whole record as published (JSON object, or the CSV row header -> value)."
       - name: bronze_data_center_news_item
         config:
           loaded_at_field: last_seen_at
@@ -2081,6 +2174,69 @@ sources:
           - name: raw_row
             description: "JSONB original payload; carries parent election_id, links, sources for candidacies/measures."
           - name: scraped_at
+          - name: loaded_at
+            description: "When the row was landed."
+
+      - name: bronze_transcript_screen_jev
+        description: >
+          Jev (TypeSafe) transcript screen, one row per video (PK video_id), latest question_version. Landed by
+          ``llm.typesafe.screen_transcripts`` (#661, #703, #1029). Classifier probabilities only; Jev writes no text.
+          #1029 adds dc_outcome / str_outcome (approved, denied, tabled_or_deferred, moratorium, discussed_no_action,
+          no item) with their probability maps, and question_probabilities ({policy-question slug: P(debated)}).
+        columns:
+          - name: video_id
+          - name: question_version
+          - name: model
+          - name: meeting_kind
+          - name: has_decisions_p
+          - name: mentions_data_center_p
+          - name: mentions_short_term_rentals_p
+          - name: dc_outcome
+          - name: dc_outcome_probabilities
+          - name: str_outcome
+          - name: str_outcome_probabilities
+          - name: question_probabilities
+          - name: screened_at
+
+      - name: bronze_bls_qcew_industry
+        description: >
+          BLS Quarterly Census of Employment and Wages, annual averages for one industry (default NAICS 518210,
+          computing infrastructure / data processing / web hosting: where BLS counts data center employment), every
+          area and ownership, as published. A withheld cell has disclosure_code 'N'. Landed by
+          ``ingestion.bls.qcew`` (FETCH -> ``data/cache/bls/qcew/``, LAND -> bronze), #1019.
+        columns:
+          - name: area_fips
+            description: "QCEW area code: 'US000' national, 'SS000' state, 5-digit county FIPS, 'C####' MSA."
+          - name: own_code
+            description: "Ownership: 0 total covered, 1-3 government, 5 private."
+          - name: industry_code
+            description: "NAICS industry code."
+          - name: agglvl_code
+            description: "Aggregation level (e.g. 18 national, 58 state, 78 county for a 6-digit industry)."
+          - name: size_code
+            description: "Establishment size class (0 = all sizes)."
+          - name: year
+            description: "Calendar year, as published (VARCHAR; staging casts to integer)."
+          - name: qtr
+            description: "'A' = annual average."
+          - name: disclosure_code
+            description: "'N' = not disclosed (figures withheld to protect an employer)."
+          - name: annual_avg_estabs
+            description: "Annual average establishments (text as published)."
+          - name: annual_avg_emplvl
+            description: "Annual average employment (text as published)."
+          - name: total_annual_wages
+            description: "Total annual wages in dollars (text as published)."
+          - name: annual_avg_wkly_wage
+            description: "Average weekly wage (text as published)."
+          - name: avg_annual_pay
+            description: "Average annual pay (text as published)."
+          - name: oty_annual_avg_emplvl_chg
+            description: "Over-the-year change in employment."
+          - name: oty_annual_avg_emplvl_pct_chg
+            description: "Over-the-year percent change in employment."
+          - name: source_url
+            description: "The CSV the row came from."
           - name: loaded_at
             description: "When the row was landed."
 

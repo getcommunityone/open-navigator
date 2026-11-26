@@ -2,6 +2,11 @@
 """Discover candidate YouTube channels for county jurisdictions missing channel mappings.
 
 Outputs a CSV suitable for manual review and downstream catalog loading.
+
+With ``--load``, each state's CSV is immediately fed to
+``load_channel_candidates_to_catalog.py`` so bronze scraped-channel columns
+(and ``discovered_at``) update as loads land — the Discover dashboard clock
+(#740).
 """
 
 from __future__ import annotations
@@ -10,9 +15,10 @@ import argparse
 import asyncio
 import csv
 import os
+import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import psycopg2
 from dotenv import load_dotenv
@@ -23,7 +29,14 @@ _REPO_ROOT = repo_root(__file__)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scrapers.youtube.discover_progress import stamp_channel_checked
+from scrapers.youtube.vpn_guard import VpnRequiredError, exit_if_vpn_off, require_vpn
 from scrapers.youtube.youtube_channel_discovery import YouTubeChannelDiscovery
+
+_LOAD_SCRIPT = (
+    _REPO_ROOT
+    / "packages/scrapers/src/scrapers/youtube/load_channel_candidates_to_catalog.py"
+)
 
 
 def resolve_database_url(explicit: str | None) -> str:
@@ -38,7 +51,12 @@ def resolve_database_url(explicit: str | None) -> str:
     )
 
 
-def fetch_missing_counties(database_url: str, state_code: str) -> list[dict[str, Any]]:
+def fetch_missing_counties(
+    database_url: str,
+    state_code: str,
+    *,
+    data_center_jids: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
     sql = """
         SELECT
             j.jurisdiction_id,
@@ -69,12 +87,16 @@ def fetch_missing_counties(database_url: str, state_code: str) -> list[dict[str,
               WHERE state_code = %s
                 AND jurisdiction_id LIKE 'county_%%'
           )
-        ORDER BY j.name
     """
+    params: list[Any] = [state_code, state_code]
+    if data_center_jids is not None:
+        sql += " AND j.jurisdiction_id = ANY(%s)"
+        params.append(list(data_center_jids))
+    sql += " ORDER BY j.name"
 
     with psycopg2.connect(database_url) as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, (state_code, state_code))
+            cur.execute(sql, params)
             rows = cur.fetchall()
 
     return [
@@ -115,8 +137,18 @@ async def discover_channels(
     state_code: str,
     *,
     skip_homepage_scrape: bool = False,
+    on_checked: Callable[[dict[str, Any]], Any] | None = None,
 ) -> list[dict[str, Any]]:
+    """Search each county for its channel. ``on_checked(row)`` runs after each county, found or not (#770)."""
     out: list[dict[str, Any]] = []
+
+    def report_checked(row: dict[str, Any]) -> None:
+        if on_checked is None:
+            return
+        try:
+            on_checked(row)
+        except Exception as exc:  # noqa: BLE001 - progress bookkeeping never stops discovery
+            logger.warning("Discover progress not recorded for {}: {}", row.get("geoid"), exc)
 
     def title_fallback(channel: dict[str, Any]) -> str:
         title = str(channel.get("channel_title") or "").strip()
@@ -209,6 +241,7 @@ async def discover_channels(
                         "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
                     }
                 )
+                report_checked(row)
                 if idx % 10 == 0 or idx == total:
                     logger.info("Progress: {}/{}", idx, total)
                 continue
@@ -220,6 +253,15 @@ async def discover_channels(
                     state_code=state_code,
                     homepage_url=website,
                 )
+            except VpnRequiredError:
+                # Do not keep grinding counties while Surfshark is down — abort so
+                # the launch log ends with a clear error the dashboard can surface (#750).
+                logger.error(
+                    "VPN required — aborting discover for {} (Surfshark off). "
+                    "Connect the VPN and re-run.",
+                    state_code,
+                )
+                raise
             except Exception as exc:
                 logger.warning("Discovery failed for {}: {}", county_name, exc)
                 channels = []
@@ -250,6 +292,7 @@ async def discover_channels(
                     "scraped_discovered_at": row.get("scraped_discovered_at", "") or "",
                 }
             )
+            report_checked(row)
             if idx % 10 == 0 or idx == total:
                 logger.info("Progress: {}/{}", idx, total)
     return out
@@ -291,6 +334,41 @@ def _state_output_path(output: str, state_code: str, multi: bool) -> Path:
     return base.with_name(f"{base.stem}_{state_code}{base.suffix}")
 
 
+def load_candidates_for_state(
+    csv_path: Path,
+    state_code: str,
+    *,
+    python: str,
+    max_videos: int = 100,
+    min_duration_seconds: int = 120,
+) -> int:
+    """Load a state's candidate CSV into bronze; return subprocess exit code."""
+    if not _LOAD_SCRIPT.is_file():
+        logger.error("Load script missing: {}", _LOAD_SCRIPT)
+        return 2
+    if not csv_path.is_file():
+        logger.warning("No CSV to load for {}: {}", state_code, csv_path)
+        return 0
+    argv = [
+        python,
+        str(_LOAD_SCRIPT),
+        "--input",
+        str(csv_path),
+        "--state",
+        state_code,
+        "--jurisdiction-type",
+        "county",
+        "--max-videos",
+        str(max_videos),
+        "--min-duration-seconds",
+        str(min_duration_seconds),
+        "--python",
+        python,
+    ]
+    logger.info("Loading candidates for {} from {}", state_code, csv_path)
+    return subprocess.run(argv, cwd=str(_REPO_ROOT)).returncode
+
+
 def discover_one_state(
     state_code: str,
     db_url: str,
@@ -298,21 +376,48 @@ def discover_one_state(
     output: str,
     multi: bool,
     skip_homepage_scrape: bool,
+    data_center_jids: frozenset[str] | None = None,
+    load: bool = False,
+    python: str | None = None,
+    max_videos: int = 100,
+    min_duration_seconds: int = 120,
 ) -> int:
-    """Discover candidate channels for one state; returns # rows with a channel."""
-    missing = fetch_missing_counties(db_url, state_code)
+    """Discover candidate channels for one state; returns # rows with a channel.
+
+    When ``load`` is true, immediately catalogs each candidate with a channel_id
+    so scraped bronze ``discovered_at`` advances during the run (#740).
+    """
+    missing = fetch_missing_counties(
+        db_url, state_code, data_center_jids=data_center_jids,
+    )
     logger.info("Missing county mappings in {}: {}", state_code, len(missing))
     if not missing:
         logger.success("No missing county mappings for {}", state_code)
         return 0
 
-    results = asyncio.run(
-        discover_channels(
-            missing,
-            state_code,
-            skip_homepage_scrape=skip_homepage_scrape,
+    # Stamp each county as it is tried, so Discover's Last activity moves during the run (#770).
+    progress_conn = None
+    try:
+        progress_conn = psycopg2.connect(db_url)
+    except Exception as exc:  # noqa: BLE001 - discovery still runs; only the clock lags
+        logger.warning("Discover progress connection failed ({}); Last activity will lag", exc)
+
+    def on_checked(row: dict[str, Any]) -> None:
+        if progress_conn is not None:
+            stamp_channel_checked(progress_conn, state_code=state_code, geoid=str(row.get("geoid") or ""))
+
+    try:
+        results = asyncio.run(
+            discover_channels(
+                missing,
+                state_code,
+                skip_homepage_scrape=skip_homepage_scrape,
+                on_checked=on_checked,
+            )
         )
-    )
+    finally:
+        if progress_conn is not None:
+            progress_conn.close()
     out_path = _state_output_path(output, state_code, multi)
     write_csv(out_path, results)
 
@@ -323,9 +428,25 @@ def discover_one_state(
         out_path,
         with_channel,
     )
+
+    if load and with_channel > 0:
+        ec = load_candidates_for_state(
+            out_path,
+            state_code,
+            python=python or sys.executable,
+            max_videos=max_videos,
+            min_duration_seconds=min_duration_seconds,
+        )
+        if ec != 0:
+            logger.warning(
+                "Load for {} exited {} — Discover last activity may lag for failed rows",
+                state_code,
+                ec,
+            )
     return with_channel
 
 
+@exit_if_vpn_off
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--state", default="GA", help="Two-letter state code (default: GA)")
@@ -345,7 +466,45 @@ def main() -> int:
         help="Output CSV path (per-state suffix added when sweeping multiple states)",
     )
     p.add_argument("--database-url", default="", help="Postgres URL override")
+    p.add_argument(
+        "--cohort",
+        default="",
+        help="Launch cohort (e.g. data_centers restricts to data-center jurisdictions)",
+    )
+    p.add_argument(
+        "--load",
+        action="store_true",
+        help=(
+            "After each state CSV, load candidates with a channel_id into bronze "
+            "(updates Discover last activity as loads land; #740)"
+        ),
+    )
+    p.add_argument(
+        "--max-videos",
+        type=int,
+        default=100,
+        help="When --load, max videos per channel cataloged (default: 100)",
+    )
+    p.add_argument(
+        "--min-duration-seconds",
+        type=int,
+        default=120,
+        help="When --load, skip videos shorter than this (default: 120)",
+    )
     args = p.parse_args()
+
+    require_vpn()
+
+    cohort = (args.cohort or "").strip().lower()
+    data_center_jids: frozenset[str] | None = None
+    if cohort == "data_centers":
+        from api.batch_jobs.cohorts import data_center_jurisdiction_ids
+
+        with psycopg2.connect(resolve_database_url(args.database_url)) as conn:
+            data_center_jids = frozenset(data_center_jurisdiction_ids(conn))
+        if not data_center_jids:
+            logger.warning("data_centers cohort: no jurisdiction ids in warehouse")
+            return 0
 
     if args.states.strip():
         states = [s.strip().upper() for s in args.states.split(",") if s.strip()]
@@ -355,12 +514,18 @@ def main() -> int:
 
     multi = len(states) > 1
     for state_code in states:
+        require_vpn()
         discover_one_state(
             state_code,
             db_url,
             output=args.output,
             multi=multi,
             skip_homepage_scrape=args.skip_homepage_scrape,
+            data_center_jids=data_center_jids,
+            load=bool(args.load),
+            python=sys.executable,
+            max_videos=int(args.max_videos),
+            min_duration_seconds=int(args.min_duration_seconds),
         )
     return 0
 

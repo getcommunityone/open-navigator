@@ -1,11 +1,11 @@
 {{
     config(
         materialized='table',
-        tags=['intermediate', 'browse', 'transcripts', 'topic', 'keyword-fts'],
-        post_hook=[
-            "create index if not exists {{ this.name }}_topic_idx on {{ this }} (topic_id)",
-            "create index if not exists {{ this.name }}_video_idx on {{ this }} (video_id)"
-        ]
+        indexes=[
+          {'columns': ["topic_id"], 'type': 'btree'},
+          {'columns': ["video_id"], 'type': 'btree'}
+        ],
+        tags=['intermediate', 'browse', 'transcripts', 'topic', 'keyword-fts']
     )
 }}
 

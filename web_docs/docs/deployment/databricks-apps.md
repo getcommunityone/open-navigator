@@ -8,11 +8,11 @@ sidebar_position: 1
 
 The CommunityOne Open Navigator application has been refactored as a **React + FastAPI Databricks App**, providing:
 
-- 🎨 **Modern React UI** with TypeScript, Tailwind CSS, and interactive visualizations
-- ⚡ **FastAPI Backend** serving both API and static frontend
-- ☁️ **Databricks Apps Deployment** with Unity Catalog integration
-- 🔒 **Enterprise Security** via Databricks secrets and authentication
-- 📊 **Real-time Analytics** powered by Delta Lake and Model Serving
+- **Modern React UI** with TypeScript, Tailwind CSS, and interactive visualizations
+- **FastAPI Backend** serving both API and static frontend
+- **Databricks Apps Deployment** with Unity Catalog integration
+- **Enterprise Security** via Databricks secrets and authentication
+- **Real-time Analytics** powered by Delta Lake and Model Serving
 
 ---
 
@@ -20,34 +20,34 @@ The CommunityOne Open Navigator application has been refactored as a **React + F
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   Databricks Workspace                   │
+│ Databricks Workspace │
 ├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │         Databricks App (This Application)        │   │
-│  │                                                  │   │
-│  │  ┌──────────────┐      ┌──────────────────┐    │   │
-│  │  │ React        │ ───▶ │ FastAPI Backend   │    │   │
-│  │  │ Frontend     │      │                   │    │   │
-│  │  │ (TypeScript) │      │ • REST API        │    │   │
-│  │  │              │      │ • Static Serving  │    │   │
-│  │  └──────────────┘      └──────────────────┘    │   │
-│  │                               │                 │   │
-│  └───────────────────────────────┼─────────────────┘   │
-│                                  │                      │
-│  ┌───────────────────────────────▼─────────────────┐   │
-│  │          Unity Catalog & Delta Lake             │   │
-│  │  • raw_documents                                │   │
-│  │  • classified_documents                         │   │
-│  │  • advocacy_opportunities                       │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │           Model Serving Endpoints                │   │
-│  │  • policy-classifier-prod                       │   │
-│  │  • sentiment-analyzer-prod                      │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                          │
+│ │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ Databricks App (This Application) │ │
+│ │ │ │
+│ │ ┌──────────────┐ ┌──────────────────┐ │ │
+│ │ │ React │ ─── │ FastAPI Backend │ │ │
+│ │ │ Frontend │ │ │ │ │
+│ │ │ (TypeScript) │ │ • REST API │ │ │
+│ │ │ │ │ • Static Serving │ │ │
+│ │ └──────────────┘ └──────────────────┘ │ │
+│ │ │ │ │
+│ └───────────────────────────────┼─────────────────┘ │
+│ │ │
+│ ┌────────────────────────────────────────────────┐ │
+│ │ Unity Catalog & Delta Lake │ │
+│ │ • raw_documents │ │
+│ │ • classified_documents │ │
+│ │ • advocacy_opportunities │ │
+│ └─────────────────────────────────────────────────┘ │
+│ │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ Model Serving Endpoints │ │
+│ │ • policy-classifier-prod │ │
+│ │ • sentiment-analyzer-prod │ │
+│ └─────────────────────────────────────────────────┘ │
+│ │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -90,7 +90,7 @@ cd open-navigator
 source venv/bin/activate
 uvicorn api.app:app --reload
 
-# Terminal 2 - Frontend  
+# Terminal 2 - Frontend
 cd frontend
 npm run dev
 ```
@@ -136,11 +136,11 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 This script will:
-1. ✅ Build React frontend (optimized production build)
-2. ✅ Create Databricks secrets for credentials
-3. ✅ Deploy app to Databricks Apps
-4. ✅ Configure Model Serving endpoints
-5. ✅ Provide access URL
+1. Yes Build React frontend (optimized production build)
+2. Yes Create Databricks secrets for credentials
+3. Yes Deploy app to Databricks Apps
+4. Yes Configure Model Serving endpoints
+5. Yes Provide access URL
 
 ### Step 3: Access Your App
 
@@ -159,29 +159,29 @@ The main configuration file for Databricks Apps:
 
 ```yaml
 command:
-  - "uvicorn"
-  - "api.app:app"
-  - "--host"
-  - "0.0.0.0"
-  - "--port"
-  - "8000"
+ - "uvicorn"
+ - "api.app:app"
+ - "--host"
+ - "0.0.0.0"
+ - "--port"
+ - "8000"
 
 env:
-  - name: DATABRICKS_HOST
-    valueFrom:
-      databricksSecret:
-        key: host
-        scope: oral-health-app
-  - name: OPENAI_API_KEY
-    valueFrom:
-      databricksSecret:
-        key: openai_key
-        scope: oral-health-app
+ - name: DATABRICKS_HOST
+ valueFrom:
+ databricksSecret:
+ key: host
+ scope: oral-health-app
+ - name: OPENAI_API_KEY
+ valueFrom:
+ databricksSecret:
+ key: openai_key
+ scope: oral-health-app
 
 resources:
-  - name: policy-classifier-endpoint
-    modelServing:
-      endpoint: policy-classifier-prod
+ - name: policy-classifier-endpoint
+ modelServing:
+ endpoint: policy-classifier-prod
 
 port: 8000
 ```
@@ -203,30 +203,30 @@ port: 8000
 ## Frontend Features
 
 ### Dashboard
-- 📊 Real-time statistics
-- 📈 Topic distribution charts
-- 📋 Recent opportunities list
+- Real-time statistics
+- Topic distribution charts
+- Recent opportunities list
 
 ### Interactive Heatmap
-- 🗺️ Geographic visualization
-- 🎯 Filterable by state, topic, urgency
-- 💡 Click markers for details
+- Geographic visualization
+- Filterable by state, topic, urgency
+- Click markers for details
 
 ### Documents Browser
-- 🔍 Full-text search
-- 📄 Paginated results
-- 🏷️ Topic tags
+- Full-text search
+- Paginated results
+- Topic tags
 
 ### Opportunities Manager
-- 🚨 Urgency-based filtering
-- ✉️ One-click email generation
-- 📅 Meeting calendar integration
+- Urgency-based filtering
+- One-click email generation
+- Meeting calendar integration
 
 ### Settings Panel
-- ⚙️ Configure target states
-- 📝 Select policy topics
-- 🔔 Email notifications
-- 📊 Agent status monitoring
+- Configure target states
+- Select policy topics
+- Email notifications
+- Agent status monitoring
 
 ---
 
@@ -235,16 +235,16 @@ port: 8000
 ### Core Endpoints
 
 ```
-GET  /api/health                    - Health check
-GET  /api/dashboard                 - Dashboard statistics
-GET  /api/opportunities             - List opportunities (filterable)
-GET  /api/documents                 - List documents (searchable)
-POST /api/workflow/start            - Start analysis workflow
-GET  /api/workflow/{id}/status      - Check workflow status
-POST /api/advocacy/email/{id}       - Generate advocacy email
-GET  /api/settings                  - Get settings
-PUT  /api/settings                  - Update settings
-GET  /api/agents/status             - Agent health status
+GET /api/health - Health check
+GET /api/dashboard - Dashboard statistics
+GET /api/opportunities - List opportunities (filterable)
+GET /api/documents - List documents (searchable)
+POST /api/workflow/start - Start analysis workflow
+GET /api/workflow/{id}/status - Check workflow status
+POST /api/advocacy/email/{id} - Generate advocacy email
+GET /api/settings - Get settings
+PUT /api/settings - Update settings
+GET /api/agents/status - Agent health status
 ```
 
 ### API Documentation
@@ -343,56 +343,56 @@ databricks apps logs open-navigator --follow
 ### Authentication
 
 Databricks Apps automatically integrate with:
-- ✅ Workspace SSO
-- ✅ OAuth 2.0
-- ✅ SCIM user provisioning
+- Yes Workspace SSO
+- Yes OAuth 2.0
+- Yes SCIM user provisioning
 
 ### Data Access
 
 All data access is governed by:
-- ✅ Unity Catalog permissions
-- ✅ Row-level security
-- ✅ Column-level masking
+- Yes Unity Catalog permissions
+- Yes Row-level security
+- Yes Column-level masking
 
 ### Secrets Management
 
 Sensitive credentials stored in:
-- ✅ Databricks Secrets
-- ✅ Never in code or logs
-- ✅ Automatic rotation support
+- Yes Databricks Secrets
+- Yes Never in code or logs
+- Yes Automatic rotation support
 
 ---
 
 ## Next Steps
 
 1. **Deploy Model Serving Endpoints**
-   ```bash
-   python -m databricks.deployment
-   ```
+ ```bash
+ python -m databricks.deployment
+ ```
 
 2. **Initialize Delta Lake Tables**
-   ```sql
-   -- Run in Databricks SQL
-   CREATE SCHEMA IF NOT EXISTS main.agents;
-   ```
+ ```sql
+ -- Run in Databricks SQL
+ CREATE SCHEMA IF NOT EXISTS main.agents;
+ ```
 
 3. **Start Data Ingestion**
-   - Configure target municipalities
-   - Run initial scraping workflow
-   - Monitor agent status
+ - Configure target municipalities
+ - Run initial scraping workflow
+ - Monitor agent status
 
 4. **Customize UI**
-   - Edit frontend components in `frontend/src/`
-   - Rebuild: `npm run build`
-   - Redeploy: `./scripts/deploy-databricks-app.sh`
+ - Edit frontend components in `frontend/src/`
+ - Rebuild: `npm run build`
+ - Redeploy: `./scripts/deploy-databricks-app.sh`
 
 ---
 
 ## Support
 
-- 📖 **Documentation**: See README.md and DATABRICKS_MIGRATION.md
-- 🐛 **Issues**: Report via GitHub Issues
-- 💬 **Community**: Join discussions
+- **Documentation**: See README.md and DATABRICKS_MIGRATION.md
+- **Issues**: Report via GitHub Issues
+- **Community**: Join discussions
 
 ---
 

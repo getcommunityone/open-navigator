@@ -1,11 +1,11 @@
 {{
   config(
     materialized='table',
-    post_hook=[
-      "CREATE INDEX IF NOT EXISTS serving_grant_grantor_master_org_id_idx ON {{ this }} (grantor_master_org_id)",
-      "CREATE INDEX IF NOT EXISTS serving_grant_grantee_master_org_id_idx ON {{ this }} (grantee_master_org_id)",
-      "CREATE INDEX IF NOT EXISTS serving_grant_grantee_name_trgm_idx ON {{ this }} USING gin (grantee_name gin_trgm_ops)",
-      "CREATE INDEX IF NOT EXISTS serving_grant_grantor_name_trgm_idx ON {{ this }} USING gin (grantor_name gin_trgm_ops)"
+    indexes=[
+      {'columns': ["grantor_master_org_id"], 'type': 'btree'},
+      {'columns': ["grantee_master_org_id"], 'type': 'btree'},
+      {'columns': ["grantee_name gin_trgm_ops"], 'type': 'gin'},
+      {'columns': ["grantor_name gin_trgm_ops"], 'type': 'gin'}
     ]
   )
 }}

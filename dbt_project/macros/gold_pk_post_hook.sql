@@ -2,8 +2,11 @@
   #567: post_hook SQL that (re)attaches a PRIMARY KEY after a table rebuild.
   Promotes an existing unique non-partial index on the same columns when present
   (avoids a duplicate unique index from dbt `indexes:` config).
-  Usage: post_hook=[gold_pk_post_hook('video_id')]
-         post_hook=[gold_pk_post_hook('level, state_code, county, city')]
+  Usage, AS A STRING so it renders when the hook runs, against the model's real relation:
+         post_hook=["{{ gold_pk_post_hook('video_id') }}"]
+         post_hook=["{{ gold_pk_post_hook('level, state_code, county, city') }}"]
+  Called directly inside config() (post_hook=[gold_pk_post_hook(...)]) it renders at parse time,
+  when {{ this }} still points at the default schema (public), not gold (#941).
 #}
 {% macro gold_pk_post_hook(col_list) %}
 do $pk$
@@ -32,13 +35,14 @@ begin
     ) = cols
   limit 1;
 
+  -- No constraint name: post_hooks run after dbt renames the old table to __dbt_backup, which
+  -- still owns an index called <model>_pkey until it is dropped after COMMIT. A fixed name
+  -- collides with it on every rebuild after the first (#941). Unnamed, a new key gets a free
+  -- <model>_pkey / _pkey1, and a promoted unique index keeps its own name.
   if idx is not null then
-    execute format(
-      'alter table {{ this }} add constraint %I primary key using index %I',
-      '{{ this.identifier }}_pkey', idx
-    );
+    execute format('alter table {{ this }} add primary key using index %I', idx);
   else
-    execute 'alter table {{ this }} add constraint {{ this.identifier }}_pkey primary key ({{ col_list }})';
+    execute 'alter table {{ this }} add primary key ({{ col_list }})';
   end if;
 end
 $pk$

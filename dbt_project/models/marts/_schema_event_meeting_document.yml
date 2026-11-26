@@ -109,7 +109,7 @@ models:
         description: >
           Stored full-text search vector over content + meeting_title + body_name,
           so search ranks/matches without recomputing to_tsvector. Backed by a GIN
-          index (see model post_hook).
+          index (see the model's indexes config).
         data_type: tsvector
       - name: source
         description: "Scrape source — 'suiteone' (SuiteOne portal listing), 'scraped_meetings' (nationwide homepage crawl), or 'legistar' / 'granicus' (meeting platforms, #536)."

@@ -100,7 +100,8 @@ RUN mkdir -p /app/logs /app/data /var/log/supervisor
 COPY .huggingface/nginx.conf /etc/nginx/nginx.conf
 COPY .huggingface/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .huggingface/start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+COPY .huggingface/restore_lfs_static.sh /app/restore_lfs_static.sh
+RUN chmod +x /app/start.sh /app/restore_lfs_static.sh
 
 # Expose port 7860 (Hugging Face Spaces default)
 EXPOSE 7860

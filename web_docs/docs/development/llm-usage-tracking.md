@@ -125,3 +125,32 @@ that made it (`demo1` to `demo4`, set by the demo runners in `colab_demos.py`), 
 Both staging views build empty until `python -m llm.usage.load_bronze` creates the bronze tables, so `dbt build`
 passes before any usage is loaded. `llm_usage_daily` has no cost column, for the reason above, and is not published
 to `public`.
+
+## DeepSeek thinking mode (#866)
+
+DeepSeek turns thinking on by default, at effort `high`, and bills the thinking tokens with the output. The
+DeepSeek call in `llm.gemini.genai_text_client` sent no thinking setting until #866, so every light analysis and
+report call paid for it. The usage report for November 23 and 24, 2026 (`deepseek-flash`, stages `part1` and `part2`):
+
+| | Tokens |
+|---|---|
+| Input | 52,162,224 (36,665,650 of them cache hits) |
+| Output | 5,036,514 |
+| Thinking | 22,836,836 |
+
+Thinking was 82% of the tokens billed at the output rate. The report priced those two days at 24.01 USD.
+
+Since #866 the call sends thinking **off**. `DEEPSEEK_THINKING` changes it:
+
+| Value | Request |
+|---|---|
+| `off` (default) | `extra_body={"thinking": {"type": "disabled"}}` |
+| `low`, `high`, `max` | `extra_body={"thinking": {"type": "enabled"}}` and `reasoning_effort` set to the value |
+
+Any other value fails before a request is made. The report still shows a thinking column, so the effect of the
+setting can be read from the next run: with `off` the column should be empty or zero for DeepSeek.
+
+What this does not settle: whether answers are as good without thinking. The Gemini path ran these stages with
+thinking off, but DeepSeek without thinking has not been compared on our prompts. Check a sample with
+`python -m llm.gemini.public_comment_checks` before a large run, and set `DEEPSEEK_THINKING=low` if quotes stop
+being found.

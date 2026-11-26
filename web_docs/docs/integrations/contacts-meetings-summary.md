@@ -4,7 +4,7 @@ title: Contacts and Meetings Summary
 
 # Contacts & Meetings Gold Relationships - Complete
 
-## ✅ **What Was Completed**
+## Yes **What Was Completed**
 
 ### 1. **Unified Management System**
 
@@ -23,35 +23,35 @@ python scripts/manage_contacts.py refresh-all --confirm
 
 ### 2. **Data Model** (3 Tables)
 
-✅ **`meetings_transcripts.parquet`** (2.8 GB)
+Yes **`meetings_transcripts.parquet`** (2.8 GB)
 - 153,452 meeting transcripts
 - Source data for extraction
 
-✅ **`contacts_local_officials.parquet`**
+Yes **`contacts_local_officials.parquet`**
 - Unique officials aggregated from meetings
 - Deduplicated by (name, jurisdiction)
 - Columns: name, title, jurisdiction, meetings_count, first_seen, last_updated
 
-✅ **`contacts_meeting_attendance.parquet`** (Junction Table)
+Yes **`contacts_meeting_attendance.parquet`** (Junction Table)
 - Many-to-many relationship
 - Links meetings ↔ contacts
 - Columns: meeting_id, name, title, jurisdiction, source, recorded_at
 
 ### 3. **NLP Extraction** (3 Patterns)
 
-✅ **Roll Call Pattern**
+Yes **Roll Call Pattern**
 ```
 "Jerry Schultz here, Ted Nelson present"
 → Extracts: Jerry Schultz, Ted Nelson
 ```
 
-✅ **Title Mention Pattern**
+Yes **Title Mention Pattern**
 ```
 "Mayor Smith called the meeting to order"
 → Extracts: Mayor Smith
 ```
 
-✅ **Speaker Label Pattern**
+Yes **Speaker Label Pattern**
 ```
 "John Doe: Thank you Mr. Mayor"
 → Extracts: John Doe
@@ -60,10 +60,10 @@ python scripts/manage_contacts.py refresh-all --confirm
 ### 4. **Name Validation** (Improved)
 
 Filters out false positives:
-- ❌ "Thank You" (contains: thank, you)
-- ❌ "Vice Chair" (contains: chair)
-- ❌ "Good Morning" (contains: good, morning)
-- ✅ "Stephanie Briggs" (valid 2-word name)
+- No "Thank You" (contains: thank, you)
+- No "Vice Chair" (contains: chair)
+- No "Good Morning" (contains: good, morning)
+- Yes "Stephanie Briggs" (valid 2-word name)
 
 **Validation Rules:**
 - Must have 2-4 words
@@ -73,11 +73,11 @@ Filters out false positives:
 
 ### 5. **Documentation**
 
-✅ **Created:**
+Yes **Created:**
 - `docs/CONTACTS_MEETINGS_WORKFLOW.md` - Complete guide
 - `docs/CONTACTS_MEETINGS_SUMMARY.md` - This file
 
-## 📊 **Test Results** (5,000 Meetings Sample)
+## **Test Results** (5,000 Meetings Sample)
 
 ### Before Improvement
 - 186 contacts extracted
@@ -89,9 +89,9 @@ Filters out false positives:
 - **Expected**: ~8,000 attendance records
 - **Time**: ~60 minutes
 
-## 🎯 **Current Status**
+## **Current Status**
 
-### ✅ Completed
+### Yes Completed
 1. Created unified management script
 2. Implemented NLP extraction (3 patterns)
 3. Added name validation (filters false positives)
@@ -99,38 +99,38 @@ Filters out false positives:
 5. Tested on 5K meetings sample
 6. Created comprehensive documentation
 
-### 🔄 In Progress
+### In Progress
 1. **Full extraction running**: All 153K meetings
-   - Started: 2026-04-27 17:24:23
-   - Batch size: 10,000 meetings
-   - Total batches: 16
-   - Expected completion: ~17:25:23 (60 minutes)
+ - Started: 2026-04-27 17:24:23
+ - Batch size: 10,000 meetings
+ - Total batches: 16
+ - Expected completion: ~17:25:23 (60 minutes)
 
-### 📅 Next Steps
+### Next Steps
 1. Wait for extraction to complete (~60 min)
 2. Verify results with `python scripts/manage_contacts.py stats`
 3. Upload to HuggingFace: `python -m hosting.huggingface contacts`
 
-## 📁 **Files Created**
+## **Files Created**
 
 ### Scripts
-- ✅ `scripts/manage_contacts.py` (469 lines)
-  - Commands: stats, extract, build-attendance, refresh-all
-  - Batch processing for memory efficiency
-  - Auto-merge with existing data
+- Yes `scripts/manage_contacts.py` (469 lines)
+ - Commands: stats, extract, build-attendance, refresh-all
+ - Batch processing for memory efficiency
+ - Auto-merge with existing data
 
 ### Documentation
-- ✅ `docs/CONTACTS_MEETINGS_WORKFLOW.md` (350+ lines)
-  - Complete guide
-  - Use cases and examples
-  - Troubleshooting
-- ✅ `docs/CONTACTS_MEETINGS_SUMMARY.md` (This file)
+- Yes `docs/CONTACTS_MEETINGS_WORKFLOW.md` (350+ lines)
+ - Complete guide
+ - Use cases and examples
+ - Troubleshooting
+- Yes `docs/CONTACTS_MEETINGS_SUMMARY.md` (This file)
 
 ### Data Tables (Generated)
-- ✅ `data/gold/contacts_local_officials.parquet`
-- ✅ `data/gold/contacts_meeting_attendance.parquet`
+- Yes `data/gold/contacts_local_officials.parquet`
+- Yes `data/gold/contacts_meeting_attendance.parquet`
 
-## 🔄 **Workflow Comparison**
+## **Workflow Comparison**
 
 ### Old Way (Problematic)
 ```bash
@@ -150,14 +150,14 @@ python pipeline/create_contacts_gold_tables.py
 python scripts/manage_contacts.py extract --batch-size 10000 --limit 50000
 
 # Benefits:
-# ✅ Process 10K meetings at a time (manageable memory)
-# ✅ Can stop and resume (merges with existing)
-# ✅ Test on small samples first
-# ✅ Progress bar shows status
-# ✅ Auto-deduplication
+# Yes Process 10K meetings at a time (manageable memory)
+# Yes Can stop and resume (merges with existing)
+# Yes Test on small samples first
+# Yes Progress bar shows status
+# Yes Auto-deduplication
 ```
 
-## 📊 **Projected Final Results**
+## **Projected Final Results**
 
 Based on 5K meeting sample:
 
@@ -168,7 +168,7 @@ Coverage: 3.7% of meetings have extractable officials
 Contacts: 186 per 5K meetings
 → 153,452 / 5,000 × 186 = ~5,708 unique contacts
 
-Attendance: 262 per 5K meetings  
+Attendance: 262 per 5K meetings
 → 153,452 / 5,000 × 262 = ~8,040 attendance records
 
 Titles:
@@ -177,51 +177,51 @@ Titles:
 - Commissioners: ~765 (14%)
 ```
 
-## 🎨 **Data Model Diagram**
+## **Data Model Diagram**
 
 ```
 ┌─────────────────────────┐
-│  meetings_transcripts   │
-│  (153,452 meetings)     │
-│                         │
-│  - meeting_id (PK)      │
-│  - jurisdiction         │
-│  - date                 │
-│  - transcript_text      │
+│ meetings_transcripts │
+│ (153,452 meetings) │
+│ │
+│ - meeting_id (PK) │
+│ - jurisdiction │
+│ - date │
+│ - transcript_text │
 └────────────┬────────────┘
-             │
-             │ (extracted via NLP)
-             │
-             ↓
+ │
+ │ (extracted via NLP)
+ │
+ ↓
 ┌─────────────────────────────────────────────────────────┐
-│       contacts_meeting_attendance (Junction)            │
-│                  (~8,000 records)                       │
-│                                                          │
-│  - meeting_id (FK → meetings)                           │
-│  - name (FK → contacts)                                 │
-│  - title                                                │
-│  - jurisdiction                                         │
-│  - source (roll_call | title_mention | speaker_label)  │
-│  - recorded_at                                          │
+│ contacts_meeting_attendance (Junction) │
+│ (~8,000 records) │
+│ │
+│ - meeting_id (FK → meetings) │
+│ - name (FK → contacts) │
+│ - title │
+│ - jurisdiction │
+│ - source (roll_call | title_mention | speaker_label) │
+│ - recorded_at │
 └────────────┬────────────────────────────────────────────┘
-             │
-             │ (aggregated)
-             │
-             ↓
+ │
+ │ (aggregated)
+ │
+ ↓
 ┌─────────────────────────┐
 │ contacts_local_officials│
-│   (~5,700 contacts)     │
-│                         │
-│  - name (PK)            │
-│  - title                │
-│  - jurisdiction         │
-│  - meetings_count       │
-│  - first_seen           │
-│  - last_updated         │
+│ (~5,700 contacts) │
+│ │
+│ - name (PK) │
+│ - title │
+│ - jurisdiction │
+│ - meetings_count │
+│ - first_seen │
+│ - last_updated │
 └─────────────────────────┘
 ```
 
-## 🔍 **Example Queries**
+## **Example Queries**
 
 ### 1. Find Most Active Officials
 
@@ -232,7 +232,7 @@ contacts = pd.read_parquet('data/gold/contacts_local_officials.parquet')
 top_10 = contacts.nlargest(10, 'meetings_count')
 
 for _, row in top_10.iterrows():
-    print(f"{row['name']} ({row['title']}): {row['meetings_count']} meetings")
+ print(f"{row['name']} ({row['title']}): {row['meetings_count']} meetings")
 ```
 
 ### 2. Find All Meetings for an Official
@@ -252,10 +252,10 @@ meeting_officials = attendance[attendance['meeting_id'] == 'some-id']
 
 print(f"Meeting had {len(meeting_officials)} officials:")
 for _, row in meeting_officials.iterrows():
-    print(f"  - {row['name']} ({row['title']})")
+ print(f" - {row['name']} ({row['title']})")
 ```
 
-## 🚀 **Integration with Existing Systems**
+## **Integration with Existing Systems**
 
 ### Nonprofits Integration (Future)
 
@@ -281,9 +281,9 @@ python -m hosting.huggingface contacts
 # - CommunityOne/one-contacts-meeting-attendance
 ```
 
-## 📝 **Checklist**
+## **Checklist**
 
-### Completed ✅
+### Completed Yes
 - [x] Create unified management script
 - [x] Implement NLP extraction patterns
 - [x] Add name validation (filter false positives)
@@ -292,57 +292,57 @@ python -m hosting.huggingface contacts
 - [x] Document workflow
 - [x] Start full extraction (153K meetings)
 
-### In Progress 🔄
+### In Progress
 - [ ] Complete full extraction (~60 min)
 
-### Next Steps 📅
+### Next Steps
 - [ ] Verify results (`python scripts/manage_contacts.py stats`)
 - [ ] Upload to HuggingFace
 - [ ] Add external enrichment (Open States, Ballotpedia)
 - [ ] Create search index
 - [ ] Build API endpoints for contact lookup
 
-## 🎉 **Success Criteria**
+## **Success Criteria**
 
-1. ✅ **All meetings processed**: 153,452/153,452
-2. ✅ **Unified management tool**: `manage_contacts.py` working
-3. ✅ **Junction table created**: Many-to-many relationships
-4. ✅ **Documentation complete**: Workflow guide created
-5. 🔄 **Extraction running**: Full refresh in progress
-6. 📅 **Upload ready**: HuggingFace upload script exists
+1. Yes **All meetings processed**: 153,452/153,452
+2. Yes **Unified management tool**: `manage_contacts.py` working
+3. Yes **Junction table created**: Many-to-many relationships
+4. Yes **Documentation complete**: Workflow guide created
+5. **Extraction running**: Full refresh in progress
+6. **Upload ready**: HuggingFace upload script exists
 
-## 📚 **Related Files**
+## **Related Files**
 
 - `scripts/manage_contacts.py` - Main management tool
 - `docs/CONTACTS_MEETINGS_WORKFLOW.md` - Complete guide
 - `pipeline/create_contacts_gold_tables.py` - Old script (deprecated)
 - `scripts/upload_meetings_to_hf.py` - HuggingFace upload tool
 
-## 💡 **Key Insights**
+## **Key Insights**
 
 1. **Batch Processing is Essential**
-   - Can't load 2.8 GB all at once
-   - 10K meetings per batch = manageable memory
+ - Can't load 2.8 GB all at once
+ - 10K meetings per batch = manageable memory
 
 2. **Incremental Updates Work**
-   - Merge with existing data
-   - Can stop and resume
-   - No data loss
+ - Merge with existing data
+ - Can stop and resume
+ - No data loss
 
 3. **Name Validation is Critical**
-   - Many false positives without filtering
-   - "Thank You", "Vice Chair" were common issues
-   - Word-level filtering works better than exact match
+ - Many false positives without filtering
+ - "Thank You", "Vice Chair" were common issues
+ - Word-level filtering works better than exact match
 
 4. **Coverage is Low (~4%)**
-   - Most meetings lack structured patterns
-   - Roll calls are rare in transcripts
-   - Needs more sophisticated NLP or manual cleanup
+ - Most meetings lack structured patterns
+ - Roll calls are rare in transcripts
+ - Needs more sophisticated NLP or manual cleanup
 
 5. **Junction Table is Powerful**
-   - Enables bidirectional queries
-   - Meeting → Officials and Officials → Meetings
-   - Essential for relationship analysis
+ - Enables bidirectional queries
+ - Meeting → Officials and Officials → Meetings
+ - Essential for relationship analysis
 
 ## 🆘 **If Extraction Fails**
 

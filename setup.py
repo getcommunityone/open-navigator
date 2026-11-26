@@ -38,7 +38,7 @@ setup(
         "httpx>=0.25.2",
         "aiohttp>=3.9.1",
         "openai>=1.6.1",
-        "anthropic>=0.8.0",
+        "anthropic>=2.13",
         "langchain>=0.1.0",
         "langchain-openai>=0.0.2",
         "langchain-community>=0.0.10",

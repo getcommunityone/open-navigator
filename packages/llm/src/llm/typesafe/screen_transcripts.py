@@ -1,12 +1,14 @@
 """Screen meeting transcripts with Jev before the paid Gemini analysis.
 
-For each captioned video not yet screened, Jev answers three questions about the
-transcript:
+For each captioned video not yet screened, Jev answers meeting-kind / decision /
+data-center questions plus light topic Noul flags (same request — #702 / #703):
 
-- ``meeting_kind`` (Choice): an official public meeting of a governing body, other
-  government video (press conference, ceremony, training), or not government at all.
+- ``meeting_kind`` (Choice): governing-body meeting, town hall, other government
+  video (press conference, ceremony, training), or not government at all.
 - ``has_decisions`` (Noul): the body votes on or approves something.
 - ``mentions_data_center`` (Noul): a data center is discussed.
+- ``mentions_zoning``, ``mentions_budget``, ``mentions_housing``,
+  ``mentions_environment`` (Noul): light topic flags for browse without Gemini.
 
 The answers land in ``bronze.bronze_transcript_screen_jev``, one row per video.
 ``llm.gemini.batch_backlog submit --skip-jev-below P`` then leaves out videos whose
@@ -54,15 +56,105 @@ MEETING_KINDS = {
         "An official public meeting of a governing body: a city or town council, county "
         "commission, school board, planning or zoning board, authority, or a public hearing"
     ),
+    "town_hall": (
+        "A government town hall or community listening session: elected officials or staff "
+        "taking public comment or Q&A with residents, without (or aside from) a formal vote "
+        "of a governing body"
+    ),
     "government_other": (
-        "A government video that isn't a meeting of a governing body: a press conference, "
-        "ceremony, proclamation event, training, town hall Q&A or public service announcement"
+        "A government video that isn't a governing-body meeting or town hall: a press "
+        "conference, ceremony, proclamation event, training, or public service announcement"
     ),
     "not_government": (
         "Not a government video: entertainment, sports, worship service, news commentary, "
         "a business or a private event"
     ),
 }
+
+# Probabilities summed for ``--skip-jev-meeting-below`` (meetings + town halls stay in).
+MEETING_KEEP_KIND_KEYS: tuple[str, ...] = ("government_meeting", "town_hall")
+
+# Light topic flags (#703) — same Jev request as the screen; nearly free once state is paid.
+TOPIC_NOUL_KEYS: tuple[str, ...] = (
+    "mentions_zoning",
+    "mentions_budget",
+    "mentions_housing",
+    "mentions_environment",
+    "mentions_short_term_rentals",
+)
+
+# Featured policy questions (public.policy_question, is_featured), #1029. The slug is ours; dbt maps it to the
+# registry's question_id by canonical_text. Asked in the same request: Jev prices the transcript, not the questions.
+POLICY_QUESTIONS: dict[str, dict[str, str]] = {
+    "allow_data_centers": {
+        "canonical_text": "Should we allow new data centers?",
+        "noul": "The meeting debates whether to allow, approve, rezone for, restrict or pause a data center",
+    },
+    "allow_short_term_rentals": {
+        "canonical_text": "Should we allow short-term rentals?",
+        "noul": "The meeting debates whether to allow, permit, regulate or restrict short-term rentals "
+        "(Airbnb, VRBO, vacation rentals)",
+    },
+    "build_bike_lanes": {
+        "canonical_text": "Should we build bike lanes and paths?",
+        "noul": "The meeting debates whether to build, fund or remove bike lanes, bike paths or greenway trails",
+    },
+    "license_plate_readers": {
+        "canonical_text": "Should police use automated license plate readers?",
+        "noul": "The meeting debates whether police should use automated license plate readers or Flock cameras",
+    },
+    "no_bid_contracts": {
+        "canonical_text": "Should the jurisdiction award no-bid contracts?",
+        "noul": "The meeting debates awarding a contract without competitive bidding (a no-bid or sole-source contract)",
+    },
+}
+
+
+def _outcomes(thing: str, none_key: str) -> dict[str, str]:
+    """The outcome choices for one kind of item (#1029)."""
+    return {
+        "approved": f"A {thing} item was approved, adopted or granted (permit, rezoning, ordinance, agreement)",
+        "denied": f"A {thing} item was denied, rejected or voted down",
+        "tabled_or_deferred": f"A {thing} item was tabled, deferred, continued or postponed to a later meeting",
+        "moratorium": f"A pause or moratorium on {thing}s was adopted or extended",
+        "discussed_no_action": f"A {thing} was discussed, but no vote or action on it was taken",
+        none_key: f"No {thing} was discussed",
+    }
+
+
+DC_OUTCOMES = _outcomes("data center", "no_data_center_item")
+STR_OUTCOMES = _outcomes("short-term rental", "no_short_term_rental_item")
+# What counts as a data center here (#1113): a large facility, never an office's or a government's IT equipment.
+_DC = (
+    "a large data center facility (a building or campus of computer servers, often called a hyperscale or AI data "
+    "center), not an office server room, a government's IT systems or a records 'data center'"
+)
+# Who counts as the public (#1113): people speaking as members of the public, never officials or the project's own team.
+_PUBLIC = (
+    "members of the public who spoke (residents, local business owners, advocacy groups), not elected officials, "
+    "government staff, consultants, or the project's applicant, developer or their representatives"
+)
+DC_PUBLIC_LEAN = {
+    "mostly_opposed": f"During public comment, most {_PUBLIC} who spoke said they were against {_DC}",
+    "mostly_supported": f"During public comment, most {_PUBLIC} who spoke said they were in favor of {_DC}",
+    "mixed": f"During public comment, some {_PUBLIC} spoke in favor of and others against {_DC}",
+    "no_public_comment_on_data_center": (
+        f"None of the {_PUBLIC} spoke for or against {_DC}; only officials, staff or the applicant discussed it, "
+        "or nobody did"
+    ),
+}
+DC_LEAN_NONE = "no_public_comment_on_data_center"
+# How elected officials leaned (#1113): council, commission or board members, never staff or the public.
+_OFFICIALS = "the elected officials (council, commission or board members), not staff and not the public"
+DC_OFFICIAL_LEAN = {
+    "mostly_supportive": f"Most of {_OFFICIALS} who spoke supported {_DC}",
+    "mostly_opposed": f"Most of {_OFFICIALS} who spoke opposed {_DC}",
+    "divided": f"Some of {_OFFICIALS} spoke or voted for and others against {_DC}",
+    "no_official_position": f"None of {_OFFICIALS} took a position on {_DC}",
+}
+DC_OFFICIAL_NONE = "no_official_position"
+# Choice answers averaged across chunks and stored as <key> + <key>_probabilities (#1029).
+OUTCOME_KEYS: tuple[str, ...] = ("dc_outcome", "str_outcome")
 
 QUESTIONS: dict[str, dict[str, Any]] = {
     "meeting_kind": choice(
@@ -76,6 +168,37 @@ QUESTIONS: dict[str, dict[str, Any]] = {
         "The transcript discusses a data center: a proposed, approved or operating facility, "
         "its zoning, tax deal, power or water use, or residents' views on one"
     ),
+    "mentions_zoning": noul(
+        "The transcript discusses zoning, land use, site plans, special exceptions, "
+        "variances, annexation, or a planning/zoning board decision"
+    ),
+    "mentions_budget": noul(
+        "The transcript discusses a budget, tax or millage rate, bond issue, appropriation, "
+        "or a material contract / spend approval"
+    ),
+    "mentions_housing": noul(
+        "The transcript discusses housing, affordable housing, homelessness housing programs, "
+        "or residential density / multifamily zoning"
+    ),
+    "mentions_environment": noul(
+        "The transcript discusses water, sewer, stormwater, electric power or utilities capacity, "
+        "or an environmental impact / pollution concern (including data-center utilities)"
+    ),
+    "mentions_short_term_rentals": noul(
+        "The transcript discusses short-term rentals: Airbnb, VRBO, vacation rentals, their permits, "
+        "registration, taxes, density limits or neighbors' complaints"
+    ),
+    "dc_outcome": choice("What happened to a data center item in this meeting", DC_OUTCOMES),
+    "str_outcome": choice("What happened to a short-term rental item in this meeting", STR_OUTCOMES),
+    "dc_public_lean": choice(f"How the {_PUBLIC} leaned on {_DC}", DC_PUBLIC_LEAN),
+    "dc_official_lean": choice(f"How {_OFFICIALS} leaned on {_DC}", DC_OFFICIAL_LEAN),
+    # #1113: a disagreement only counts when officials approved a project, not rules limiting data centers.
+    "dc_project_approved": noul(
+        f"The body approved, granted or advanced a specific project for {_DC} (a rezoning, site plan, permit, "
+        "tax incentive or development agreement for a facility), not rules, standards or a moratorium that limit "
+        "data centers"
+    ),
+    **{f"q_{slug}": noul(spec["noul"]) for slug, spec in POLICY_QUESTIONS.items()},
 }
 
 # Changes whenever a question's wording changes, so a rewording can be rescreened.
@@ -92,6 +215,21 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
     meeting_kind_probabilities  jsonb,
     has_decisions_p             double precision,
     mentions_data_center_p      double precision,
+    mentions_zoning_p           double precision,
+    mentions_budget_p           double precision,
+    mentions_housing_p          double precision,
+    mentions_environment_p      double precision,
+    mentions_short_term_rentals_p double precision,
+    dc_outcome                  text,
+    dc_outcome_probabilities    jsonb,
+    str_outcome                 text,
+    str_outcome_probabilities   jsonb,
+    dc_public_lean              text,
+    dc_public_lean_probabilities jsonb,
+    dc_official_lean            text,
+    dc_official_lean_probabilities jsonb,
+    dc_project_approved_p       double precision,
+    question_probabilities      jsonb,
     chunk_count                 integer NOT NULL,
     chunks_screened             integer NOT NULL,
     transcript_chars            integer NOT NULL,
@@ -101,14 +239,45 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
 )
 """
 
+# Additive columns for DBs created before #703 topic flags.
+ALTER_TOPIC_COLUMNS_SQL = f"""
+ALTER TABLE {TABLE}
+    ADD COLUMN IF NOT EXISTS mentions_zoning_p double precision,
+    ADD COLUMN IF NOT EXISTS mentions_budget_p double precision,
+    ADD COLUMN IF NOT EXISTS mentions_housing_p double precision,
+    ADD COLUMN IF NOT EXISTS mentions_environment_p double precision,
+    ADD COLUMN IF NOT EXISTS mentions_short_term_rentals_p double precision,
+    ADD COLUMN IF NOT EXISTS dc_outcome text,
+    ADD COLUMN IF NOT EXISTS dc_outcome_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS str_outcome text,
+    ADD COLUMN IF NOT EXISTS str_outcome_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS question_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS dc_public_lean text,
+    ADD COLUMN IF NOT EXISTS dc_public_lean_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS dc_official_lean text,
+    ADD COLUMN IF NOT EXISTS dc_official_lean_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS dc_project_approved_p double precision
+"""
+
 UPSERT_SQL = f"""
 INSERT INTO {TABLE} (
     video_id, question_version, model, meeting_kind, meeting_kind_probabilities,
-    has_decisions_p, mentions_data_center_p, chunk_count, chunks_screened,
+    has_decisions_p, mentions_data_center_p,
+    mentions_zoning_p, mentions_budget_p, mentions_housing_p, mentions_environment_p,
+    mentions_short_term_rentals_p, dc_outcome, dc_outcome_probabilities, str_outcome, str_outcome_probabilities,
+    question_probabilities, dc_public_lean, dc_public_lean_probabilities, dc_official_lean,
+    dc_official_lean_probabilities, dc_project_approved_p,
+    chunk_count, chunks_screened,
     transcript_chars, input_tokens, answers, screened_at
 ) VALUES (
     %(video_id)s, %(question_version)s, %(model)s, %(meeting_kind)s,
     %(meeting_kind_probabilities)s, %(has_decisions_p)s, %(mentions_data_center_p)s,
+    %(mentions_zoning_p)s, %(mentions_budget_p)s, %(mentions_housing_p)s,
+    %(mentions_environment_p)s,
+    %(mentions_short_term_rentals_p)s, %(dc_outcome)s, %(dc_outcome_probabilities)s, %(str_outcome)s,
+    %(str_outcome_probabilities)s, %(question_probabilities)s, %(dc_public_lean)s,
+    %(dc_public_lean_probabilities)s, %(dc_official_lean)s, %(dc_official_lean_probabilities)s,
+    %(dc_project_approved_p)s,
     %(chunk_count)s, %(chunks_screened)s, %(transcript_chars)s, %(input_tokens)s,
     %(answers)s, %(screened_at)s
 )
@@ -119,6 +288,21 @@ ON CONFLICT (video_id) DO UPDATE SET
     meeting_kind_probabilities = EXCLUDED.meeting_kind_probabilities,
     has_decisions_p = EXCLUDED.has_decisions_p,
     mentions_data_center_p = EXCLUDED.mentions_data_center_p,
+    mentions_zoning_p = EXCLUDED.mentions_zoning_p,
+    mentions_budget_p = EXCLUDED.mentions_budget_p,
+    mentions_housing_p = EXCLUDED.mentions_housing_p,
+    mentions_environment_p = EXCLUDED.mentions_environment_p,
+    mentions_short_term_rentals_p = EXCLUDED.mentions_short_term_rentals_p,
+    dc_outcome = EXCLUDED.dc_outcome,
+    dc_outcome_probabilities = EXCLUDED.dc_outcome_probabilities,
+    str_outcome = EXCLUDED.str_outcome,
+    str_outcome_probabilities = EXCLUDED.str_outcome_probabilities,
+    question_probabilities = EXCLUDED.question_probabilities,
+    dc_public_lean = EXCLUDED.dc_public_lean,
+    dc_public_lean_probabilities = EXCLUDED.dc_public_lean_probabilities,
+    dc_official_lean = EXCLUDED.dc_official_lean,
+    dc_official_lean_probabilities = EXCLUDED.dc_official_lean_probabilities,
+    dc_project_approved_p = EXCLUDED.dc_project_approved_p,
     chunk_count = EXCLUDED.chunk_count,
     chunks_screened = EXCLUDED.chunks_screened,
     transcript_chars = EXCLUDED.transcript_chars,
@@ -138,11 +322,28 @@ class ScreenResult:
     meeting_kind_probabilities: dict[str, float]
     has_decisions_p: float | None
     mentions_data_center_p: float | None
+    mentions_zoning_p: float | None
+    mentions_budget_p: float | None
+    mentions_housing_p: float | None
+    mentions_environment_p: float | None
     chunk_count: int
     chunks_screened: int
     transcript_chars: int
     input_tokens: int | None
     answers: list[dict[str, Any]]
+    # #1029: short-term rental flag, the two outcome Choices and the policy-question Nouls.
+    mentions_short_term_rentals_p: float | None = None
+    dc_outcome: str | None = None
+    dc_outcome_probabilities: dict[str, float] | None = None
+    str_outcome: str | None = None
+    str_outcome_probabilities: dict[str, float] | None = None
+    question_probabilities: dict[str, float] | None = None
+    # #1113: how the public leaned on a data center, over the chunks where the public spoke about one.
+    dc_public_lean: str | None = None
+    dc_public_lean_probabilities: dict[str, float] | None = None
+    dc_official_lean: str | None = None
+    dc_official_lean_probabilities: dict[str, float] | None = None
+    dc_project_approved_p: float | None = None
 
     def row(self, *, screened_at: datetime | None = None) -> dict[str, Any]:
         return {
@@ -153,6 +354,21 @@ class ScreenResult:
             "meeting_kind_probabilities": json.dumps(self.meeting_kind_probabilities),
             "has_decisions_p": self.has_decisions_p,
             "mentions_data_center_p": self.mentions_data_center_p,
+            "mentions_zoning_p": self.mentions_zoning_p,
+            "mentions_budget_p": self.mentions_budget_p,
+            "mentions_housing_p": self.mentions_housing_p,
+            "mentions_environment_p": self.mentions_environment_p,
+            "mentions_short_term_rentals_p": self.mentions_short_term_rentals_p,
+            "dc_outcome": self.dc_outcome,
+            "dc_outcome_probabilities": json.dumps(self.dc_outcome_probabilities) if self.dc_outcome_probabilities is not None else None,
+            "str_outcome": self.str_outcome,
+            "str_outcome_probabilities": json.dumps(self.str_outcome_probabilities) if self.str_outcome_probabilities is not None else None,
+            "question_probabilities": json.dumps(self.question_probabilities) if self.question_probabilities is not None else None,
+            "dc_public_lean": self.dc_public_lean,
+            "dc_public_lean_probabilities": json.dumps(self.dc_public_lean_probabilities) if self.dc_public_lean_probabilities is not None else None,
+            "dc_official_lean": self.dc_official_lean,
+            "dc_official_lean_probabilities": json.dumps(self.dc_official_lean_probabilities) if self.dc_official_lean_probabilities is not None else None,
+            "dc_project_approved_p": self.dc_project_approved_p,
             "chunk_count": self.chunk_count,
             "chunks_screened": self.chunks_screened,
             "transcript_chars": self.transcript_chars,
@@ -229,12 +445,65 @@ def aggregate(responses: Sequence[JevResponse]) -> dict[str, Any]:
         ]
         return max(values) if values else None
 
-    return {
+    out: dict[str, Any] = {
         "meeting_kind": meeting_kind,
         "meeting_kind_probabilities": probs,
         "has_decisions_p": _max_noul("has_decisions"),
         "mentions_data_center_p": _max_noul("mentions_data_center"),
     }
+    for key in TOPIC_NOUL_KEYS:
+        out[f"{key}_p"] = _max_noul(key)
+    # Outcome Choices (#1029): average each label across the chunks that answered.
+    for key in OUTCOME_KEYS:
+        sums: dict[str, float] = {}
+        n = 0
+        for resp in responses:
+            a = resp.answers.get(key)
+            if a and a.probabilities:
+                n += 1
+                for label, prob in a.probabilities.items():
+                    sums[label] = sums.get(label, 0.0) + prob
+        dist = {k: round(v / n, 4) for k, v in sums.items()} if n else {}
+        out[key] = max(dist, key=dist.get) if dist else None
+        out[f"{key}_probabilities"] = dist or None
+    out.update(public_lean(responses))
+    out.update(public_lean(responses, key="dc_official_lean", none_label=DC_OFFICIAL_NONE))
+    # A project approval anywhere in the meeting counts (#1113): the max over chunks.
+    out["dc_project_approved_p"] = _max_noul("dc_project_approved")
+    # Policy questions (#1029): debated anywhere in the meeting, so the max over chunks.
+    questions = {slug: _max_noul(f"q_{slug}") for slug in POLICY_QUESTIONS}
+    out["question_probabilities"] = {k: v for k, v in questions.items() if v is not None} or None
+    return out
+
+
+def public_lean(
+    responses: Sequence[JevResponse],
+    *,
+    min_spoke_p: float = 0.5,
+    key: str = "dc_public_lean",
+    none_label: str = DC_LEAN_NONE,
+) -> dict[str, Any]:
+    """How the public leaned on a data center (#1113). Averaged only over the chunks where Jev judges it likely the
+    public spoke about one (P(no public comment) < 1 - ``min_spoke_p``), so the rest of a long meeting doesn't drown
+    it out. No such chunk: ``no_public_comment_on_data_center``."""
+    dists = []
+    for resp in responses:
+        a = resp.answers.get(key)
+        if a and a.probabilities:
+            dists.append(a.probabilities)
+    if not dists:
+        return {key: None, f"{key}_probabilities": None}
+    spoke = [d for d in dists if d.get(none_label, 0.0) < 1.0 - min_spoke_p]
+    if not spoke:
+        return {key: none_label, f"{key}_probabilities": {none_label: round(min(d.get(none_label, 0.0) for d in dists), 4)}}
+    sums: dict[str, float] = {}
+    for d in spoke:
+        for label, prob in d.items():
+            if label != none_label:
+                sums[label] = sums.get(label, 0.0) + prob
+    total = sum(sums.values()) or 1.0
+    dist = {k: round(v / total, 4) for k, v in sums.items()}
+    return {key: max(dist, key=dist.get), f"{key}_probabilities": dist}
 
 
 def screen_transcript(
@@ -282,11 +551,28 @@ def estimate_tokens(
     )
 
 
+# Meeting sets that can be screened together (#1029).
+COHORTS: dict[str, str] = {
+    # Transcripts that name a data center (verbatim passages in data_center_meeting_mention).
+    "data-centers": "t.video_id IN (SELECT video_id FROM public.data_center_meeting_mention)",
+    # Transcripts linked to the short-term rentals topic (topic_transcript_link, topic 100003).
+    "short-term-rentals": "t.video_id IN (SELECT video_id FROM public.topic_transcript_link WHERE topic_id = 100003)",
+}
+
+
 def select_sql(
-    *, states: Iterable[str], jurisdiction_id: str, rescreen: bool
+    *,
+    states: Iterable[str],
+    jurisdiction_id: str,
+    rescreen: bool,
+    analyzed_only: bool = False,
+    cohorts: Iterable[str] = (),
 ) -> tuple[str, list[Any]]:
     """Captioned videos to screen, newest first. Already screened with the current
-    questions are left out unless ``rescreen``."""
+    questions are left out unless ``rescreen``.
+
+    ``analyzed_only`` keeps videos Gemini has already analyzed
+    (``policy_analysis_at``) — use this to build a calibrate sample."""
     where = ["t.has_transcript IS TRUE"]
     params: list[Any] = []
     state_list = [s.strip().upper() for s in states if s and s.strip()]
@@ -296,6 +582,11 @@ def select_sql(
     if jurisdiction_id:
         where.append("e.jurisdiction_id = %s")
         params.append(jurisdiction_id)
+    if analyzed_only:
+        where.append("e.policy_analysis_at IS NOT NULL")
+    cohort_list = [c for c in cohorts if c]
+    if cohort_list:
+        where.append("(" + " OR ".join(COHORTS[c] for c in cohort_list) + ")")
     if not rescreen:
         where.append(
             f"NOT EXISTS (SELECT 1 FROM {TABLE} s WHERE s.video_id = t.video_id "
@@ -330,14 +621,136 @@ def jev_skip_video_ids(database_url: str, min_decisions_p: float) -> set[str]:
             cur.execute("SELECT to_regclass(%s)", [TABLE])
             if cur.fetchone()[0] is None:
                 return set()
+            # Any screen version: topic-flag bumps must not disable the decisions gate.
             cur.execute(
-                f"SELECT video_id FROM {TABLE} WHERE question_version = %s "
-                "AND has_decisions_p IS NOT NULL AND has_decisions_p < %s",
-                [QUESTION_VERSION, min_decisions_p],
+                f"SELECT video_id FROM {TABLE} "
+                "WHERE has_decisions_p IS NOT NULL AND has_decisions_p < %s",
+                [min_decisions_p],
             )
             return {row[0] for row in cur.fetchall()}
     finally:
         conn.close()
+
+
+def meeting_keep_p(probabilities: dict[str, Any] | None) -> float | None:
+    """``P(government_meeting) + P(town_hall)`` from a screen's kind probabilities.
+
+    Returns ``None`` when neither keep-kind key is present (treat like unscreened)."""
+    if not probabilities:
+        return None
+    total = 0.0
+    saw = False
+    for key in MEETING_KEEP_KIND_KEYS:
+        if key not in probabilities:
+            continue
+        raw = probabilities.get(key)
+        if raw is None:
+            continue
+        saw = True
+        total += float(raw)
+    return total if saw else None
+
+
+def meeting_keep_p_below(keep_p: float | None, min_meeting_p: float) -> bool:
+    """True when the keep-score is strictly below the floor.
+
+    ``None`` never skips — same spirit as unscreened."""
+    return keep_p is not None and keep_p < min_meeting_p
+
+
+# Back-compat alias used by older tests / callers.
+gov_meeting_p_below = meeting_keep_p_below
+
+
+OVERRIDE_TABLE = "bronze.bronze_video_meeting_kind_override"
+# Overrides that mean "keep for analysis" even when the screen keep-score is low.
+KEEP_OVERRIDE_KINDS = ("government_meeting", "town_hall")
+
+
+def jev_skip_meeting_video_ids(database_url: str, min_meeting_p: float) -> set[str]:
+    """Videos whose keep-score ``P(government_meeting)+P(town_hall)`` is below ``min_meeting_p``.
+
+    Unscreened videos, older question wording, and screens missing both keep-kind
+    keys are never returned. Human overrides in
+    ``bronze.bronze_video_meeting_kind_override`` with kind
+    ``government_meeting`` or ``town_hall`` are never skipped (#668)."""
+    import psycopg2
+
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass(%s)", [TABLE])
+            if cur.fetchone()[0] is None:
+                return set()
+            cur.execute("SELECT to_regclass(%s)", [OVERRIDE_TABLE])
+            has_override = cur.fetchone()[0] is not None
+            if has_override:
+                cur.execute(
+                    f"""
+                    SELECT s.video_id FROM {TABLE} s
+                    WHERE (
+                        s.meeting_kind_probabilities ? 'government_meeting'
+                        OR s.meeting_kind_probabilities ? 'town_hall'
+                      )
+                      AND (
+                        COALESCE((s.meeting_kind_probabilities->>'government_meeting')::float, 0)
+                        + COALESCE((s.meeting_kind_probabilities->>'town_hall')::float, 0)
+                      ) < %s
+                      AND NOT EXISTS (
+                        SELECT 1 FROM {OVERRIDE_TABLE} o
+                        WHERE o.video_id = s.video_id
+                          AND o.override_kind = ANY(%s)
+                      )
+                    """,
+                    [min_meeting_p, list(KEEP_OVERRIDE_KINDS)],
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT video_id FROM {TABLE}
+                    WHERE (
+                        meeting_kind_probabilities ? 'government_meeting'
+                        OR meeting_kind_probabilities ? 'town_hall'
+                      )
+                      AND (
+                        COALESCE((meeting_kind_probabilities->>'government_meeting')::float, 0)
+                        + COALESCE((meeting_kind_probabilities->>'town_hall')::float, 0)
+                      ) < %s
+                    """,
+                    [min_meeting_p],
+                )
+            return {row[0] for row in cur.fetchall()}
+    finally:
+        conn.close()
+
+
+CALIBRATE_THRESHOLDS: tuple[float, ...] = (0.5, 0.6, 0.7)
+
+
+def calibrate_threshold_table(
+    rows: Sequence[tuple[str, float | None]],
+    *,
+    thresholds: Sequence[float] = CALIBRATE_THRESHOLDS,
+) -> list[dict[str, Any]]:
+    """Keep/skip counts if ``--skip-jev-meeting-below T`` had gated these analyzed videos.
+
+    Each row is ``(video_id, P(government_meeting)+P(town_hall) | None)``. Null
+    keep-score is never a skip. ``false_skip_rate`` is skip/n among this sample.
+    """
+    n = len(rows)
+    out: list[dict[str, Any]] = []
+    for t in thresholds:
+        skip = sum(1 for _, p in rows if meeting_keep_p_below(p, t))
+        out.append(
+            {
+                "threshold": float(t),
+                "n": n,
+                "keep": n - skip,
+                "skip": skip,
+                "false_skip_rate": (skip / n) if n else 0.0,
+            }
+        )
+    return out
 
 
 def _segment_texts(row: dict[str, Any]) -> list[str]:
@@ -355,22 +768,116 @@ def _database_url(explicit: str) -> str:
     return _resolve_database_url(explicit)
 
 
+def _calibrate_analyzed_rows(
+    database_url: str,
+    *,
+    states: Sequence[str],
+    jurisdiction_id: str,
+    limit: int,
+) -> list[tuple[str, float | None]]:
+    """Current-version screens joined to videos Gemini has already analyzed."""
+    import psycopg2
+
+    where = [
+        "s.question_version = %s",
+        "e.policy_analysis_at IS NOT NULL",
+    ]
+    params: list[Any] = [QUESTION_VERSION]
+    state_list = [s.strip().upper() for s in states if s and s.strip()]
+    if state_list:
+        where.append("e.state_code = ANY(%s)")
+        params.append(state_list)
+    if jurisdiction_id:
+        where.append("e.jurisdiction_id = %s")
+        params.append(jurisdiction_id)
+    sql = f"""
+        SELECT s.video_id,
+               CASE
+                 WHEN s.meeting_kind_probabilities ? 'government_meeting'
+                   OR s.meeting_kind_probabilities ? 'town_hall'
+                 THEN COALESCE((s.meeting_kind_probabilities->>'government_meeting')::float, 0)
+                    + COALESCE((s.meeting_kind_probabilities->>'town_hall')::float, 0)
+                 ELSE NULL
+               END AS keep_p
+        FROM {TABLE} s
+        JOIN bronze.bronze_event_youtube e ON e.video_id = s.video_id
+        WHERE {" AND ".join(where)}
+        ORDER BY e.policy_analysis_at DESC NULLS LAST
+        LIMIT %s
+    """
+    params.append(limit)
+    conn = psycopg2.connect(database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass(%s)", [TABLE])
+            if cur.fetchone()[0] is None:
+                return []
+            cur.execute(sql, params)
+            return [(str(vid), p) for vid, p in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def run_calibrate(args: argparse.Namespace) -> dict[str, Any]:
+    """Print keep/skip rates at candidate T values; does not call Jev."""
+    database_url = _database_url(args.database_url)
+    states = [s for part in (args.state or []) for s in part.split(",")]
+    rows = _calibrate_analyzed_rows(
+        database_url,
+        states=states,
+        jurisdiction_id=args.jurisdiction_id or "",
+        limit=args.limit,
+    )
+    table = calibrate_threshold_table(rows)
+    logger.info(
+        "Calibrate on {:,} already-analyzed video(s) with current Jev screens "
+        "(questions {}); keep-score = P(government_meeting)+P(town_hall)",
+        len(rows),
+        QUESTION_VERSION,
+    )
+    if not rows:
+        logger.warning(
+            "No joined rows — screen some analyzed videos first, or widen --state/--limit."
+        )
+        return {"n": 0, "thresholds": table}
+    for row in table:
+        logger.success(
+            "T={threshold:.2f}: keep {keep:,} / skip {skip:,} "
+            "(false-skip rate {false_skip_rate:.1%} of this sample)",
+            **row,
+        )
+    logger.info(
+        "Pick T from the table, record it under Chosen threshold in "
+        "web_docs/docs/development/jev-meeting-kind-gate.md, then submit with "
+        "--skip-jev-meeting-below T."
+    )
+    return {"n": len(rows), "thresholds": table}
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
     from llm.usage.prices import load_prices, model_price
 
+    if getattr(args, "calibrate", False):
+        return run_calibrate(args)
+
     database_url = _database_url(args.database_url)
     states = [s for part in (args.state or []) for s in part.split(",")]
     sql, params = select_sql(
-        states=states, jurisdiction_id=args.jurisdiction_id, rescreen=args.rescreen
+        states=states,
+        jurisdiction_id=args.jurisdiction_id,
+        rescreen=args.rescreen,
+        analyzed_only=bool(getattr(args, "analyzed_only", False)),
+        cohorts=[c for part in (getattr(args, "cohort", None) or []) for c in part.split(",")],
     )
 
     conn = psycopg2.connect(database_url)
     try:
         with conn.cursor() as cur:
             cur.execute(CREATE_SQL)
+            cur.execute(ALTER_TOPIC_COLUMNS_SQL)
         conn.commit()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, [*params, args.limit])
@@ -471,6 +978,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--jurisdiction-id", default="")
     p.add_argument(
+        "--cohort",
+        action="append",
+        default=None,
+        help=f"Only these meeting sets (repeatable or comma-separated): {', '.join(COHORTS)} (#1029)",
+    )
+    p.add_argument(
         "--limit", type=int, default=100, help="Most videos to screen (default 100)"
     )
     p.add_argument(
@@ -488,6 +1001,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--dry-run", action="store_true", help="Count and estimate tokens; send nothing"
+    )
+    p.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="Join current screens to already-analyzed videos and report "
+        "keep/skip rates at P(government_meeting)+P(town_hall) thresholds; "
+        "does not call Jev",
+    )
+    p.add_argument(
+        "--analyzed-only",
+        action="store_true",
+        help="Only screen videos that already have Gemini analysis "
+        "(policy_analysis_at); for building a calibrate sample",
     )
     return p
 

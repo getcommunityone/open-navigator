@@ -3,7 +3,7 @@
 
   ts_stat() walks the STORED content_tsv vectors of event_documents and returns
   one row per distinct lexeme with its document/occurrence counts. The pg_trgm
-  GIN index on `word` (post_hook) lets search_documents_pg map a misspelled query
+  GIN index on `word` (in `indexes`) lets search_documents_pg map a misspelled query
   term (e.g. "flouride") to its nearest real corpus lexeme ("fluorid") in a single
   indexed lookup, instead of failing the full-text match and returning nothing.
 
@@ -19,14 +19,8 @@
   config(
     materialized='table',
     tags=['marts', 'events', 'documents', 'search', 'production'],
-    post_hook=(
-      (
-        [
-          "CREATE INDEX IF NOT EXISTS event_document_lexicon_word_trgm_idx "
-          "ON {{ this }} USING gin (word gin_trgm_ops)"
-        ] if target.name != 'neon' else []
-      ) + [gold_pk_post_hook('word')]
-    )
+    indexes=([{'columns': ['word gin_trgm_ops'], 'type': 'gin'}] if target.name != 'neon' else []),
+    post_hook=["{{ gold_pk_post_hook('word') }}"]
   )
 }}
 

@@ -13,17 +13,23 @@ go away and traffic silently leaves through the home connection.
 2. the public IP seen on the default route differs from the public IP seen from a
    socket bound (``SO_BINDTODEVICE``) to the home interface.
 
-Anything else, including an IP lookup that fails, raises :class:`VpnRequiredError`:
-the check fails closed. The route table is read on every call (it's a local file);
-the two IP lookups run at most every ``recheck_seconds`` while the check keeps
-passing.
+Anything else, including an IP lookup that fails after retries, raises
+:class:`VpnRequiredError`: the check fails closed. The route table is read on
+every call (it's a local file); the two IP lookups run at most every
+``recheck_seconds`` while the check keeps passing.
 
 Entry points that stop for the VPN exit with :data:`VPN_EXIT_CODE` (5); wrap a CLI
-``main`` with :func:`exit_if_vpn_off` to get that.
+``main`` with :func:`exit_if_vpn_off` to get that. Long batch shells
+(``youtube_run_priority_states_last_n.sh``) wait and retry on exit 5 (#644)
+instead of ending the crawl.
 
 Environment:
   YOUTUBE_REQUIRE_VPN — ``1`` (default). ``0`` turns the check off and logs a
     warning on every run; YouTube is then reached on whatever route is up.
+  VPN_IP_LOOKUP_ATTEMPTS — how many times to try each public-IP echo before
+    treating the lookup as failed (default ``3``). Softens one-shot ifconfig
+    blips that used to abort overnight crawls (#644).
+  VPN_IP_LOOKUP_DELAY_SECONDS — sleep between lookup attempts (default ``2``).
 """
 
 from __future__ import annotations
@@ -45,6 +51,8 @@ from loguru import logger
 
 VPN_EXIT_CODE = 5
 DEFAULT_RECHECK_SECONDS = 120.0
+DEFAULT_IP_LOOKUP_ATTEMPTS = 3
+DEFAULT_IP_LOOKUP_DELAY_SECONDS = 2.0
 ROUTE_TABLE = Path("/proc/net/route")
 OFF_MESSAGE = "Surfshark is off: connect it, then re-run"
 
@@ -126,12 +134,22 @@ def mask_ip(ip: Optional[str]) -> str:
     return f"{groups[0]}:{groups[1]}:x:x:x:x:x:x"
 
 
-def default_route_public_ip(timeout: float = 10.0) -> Optional[str]:
-    """Public IP over the default route (the VPN when it's up)."""
-    from scrapers.youtube.vpn_refresh import public_ip
+def _ip_lookup_attempts() -> int:
+    raw = (os.getenv("VPN_IP_LOOKUP_ATTEMPTS") or str(DEFAULT_IP_LOOKUP_ATTEMPTS)).strip()
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return DEFAULT_IP_LOOKUP_ATTEMPTS
 
-    ip = public_ip(timeout=timeout)
-    return _valid_ip(ip) if ip else None
+
+def _ip_lookup_delay_seconds() -> float:
+    raw = (
+        os.getenv("VPN_IP_LOOKUP_DELAY_SECONDS") or str(DEFAULT_IP_LOOKUP_DELAY_SECONDS)
+    ).strip()
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return DEFAULT_IP_LOOKUP_DELAY_SECONDS
 
 
 def _valid_ip(text: str) -> Optional[str]:
@@ -139,6 +157,38 @@ def _valid_ip(text: str) -> Optional[str]:
         return str(ipaddress.ip_address(text.strip()))
     except ValueError:
         return None
+
+
+def _with_ip_lookup_retries(
+    label: str, once: Callable[[], Optional[str]]
+) -> Optional[str]:
+    """Run ``once`` up to ``VPN_IP_LOOKUP_ATTEMPTS`` times; return the first IP."""
+    attempts = _ip_lookup_attempts()
+    delay = _ip_lookup_delay_seconds()
+    for i in range(attempts):
+        try:
+            ip = once()
+        except Exception as exc:  # noqa: BLE001 - any failure means retry / unknown
+            logger.debug("vpn_guard: {} lookup failed ({}/{}): {!r}", label, i + 1, attempts, exc)
+            ip = None
+        if ip:
+            if i > 0:
+                logger.info("vpn_guard: {} lookup succeeded on attempt {}", label, i + 1)
+            return ip
+        if i + 1 < attempts and delay > 0:
+            time.sleep(delay)
+    return None
+
+
+def default_route_public_ip(timeout: float = 10.0) -> Optional[str]:
+    """Public IP over the default route (the VPN when it's up)."""
+    from scrapers.youtube.vpn_refresh import public_ip
+
+    def once() -> Optional[str]:
+        ip = public_ip(timeout=timeout)
+        return _valid_ip(ip) if ip else None
+
+    return _with_ip_lookup_retries("default-route public IP", once)
 
 
 async def _bound_public_ip(iface: str, timeout: float) -> Optional[str]:
@@ -166,14 +216,15 @@ def home_public_ip(iface: str, timeout: float = 10.0) -> Optional[str]:
     """Public IP seen from a socket bound to ``iface`` (the home connection).
 
     Runs scrape_http's interface-bound transport on a private event loop in a worker
-    thread, so it works whether or not the caller is inside an event loop.
+    thread, so it works whether or not the caller is inside an event loop. Retries
+    transient echo failures (#644).
     """
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        try:
+
+    def once() -> Optional[str]:
+        with ThreadPoolExecutor(max_workers=1) as pool:
             return pool.submit(asyncio.run, _bound_public_ip(iface, timeout)).result()
-        except Exception as exc:  # noqa: BLE001 - any failure means "unknown", fail closed
-            logger.debug("vpn_guard: home IP lookup on {} failed: {!r}", iface, exc)
-            return None
+
+    return _with_ip_lookup_retries(f"home IP on {iface}", once)
 
 
 def vpn_status(*, routes: Optional[RouteInfo] = None) -> dict[str, Any]:

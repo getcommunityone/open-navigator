@@ -97,7 +97,7 @@ def test_state_scope_counts_and_credit(get) -> None:
     body = resp.json()
     assert body["scope"] == {"level": "state", "state_code": "TX", "state": "Texas", "city": None, "jurisdiction_id": None}
     assert body["city_applied"] is False
-    assert body["counts"] == {"planned": 1, "under_construction": 0, "operating": 0,
+    assert body["counts"] == {"planned": 1, "under_construction": 0, "operating": 0, "cancelled": 0,
                               "no_longer_listed": 1, "status_not_published": 2}
     gone = body["items"][1]
     assert gone["status"] == "no_longer_listed" and gone["last_known_status"] == "operating"
@@ -117,13 +117,48 @@ def test_status_filter_narrows_items_not_counts() -> None:
 
 
 def test_bad_status_is_422(get) -> None:
-    assert get(_Conn(), {"status": "cancelled"}).status_code == 422
+    assert get(_Conn(), {"status": "abandoned"}).status_code == 422
+
+
+def test_registry_sites_carry_their_own_source_and_credit(get) -> None:
+    """#958: a registry site is credited to the registry on its own row, and may be cancelled (the registry says so)."""
+    reg = _site(
+        data_center_site_id="r1", site_name="100 Jersey Avenue Data Center", state_code="NJ", state="New Jersey",
+        status="cancelled", last_known_status="cancelled", source="us_data_center_registry",
+        source_status="cancelled", city="New Brunswick", county="Middlesex", latitude=40.488, longitude=-74.457,
+        source_name="US Data Center Registry (SueDataCenters.org)",
+        source_url="https://suedatacenters.org/data-centers/jersey-avenue-new-brunswick-data-center-nj",
+        attribution="US Data Center Registry, SueDataCenters.org (Theory Road LLC), base data from Compute Atlas. CC BY 4.0.",
+    )
+    conn = _Conn(rows=[_site(), reg], counts=[{"status": "planned", "n": 1}, {"status": "cancelled", "n": 1}])
+    body = get(conn, {"status": "cancelled"}).json()
+    assert body["counts"]["cancelled"] == 1
+    epoch, registry = body["items"]
+    assert epoch["source"] == "epoch" and epoch["source_name"] == "Epoch AI"
+    assert registry["source"] == "us_data_center_registry" and registry["status"] == "cancelled"
+    assert registry["source_url"].startswith("https://suedatacenters.org/") and "Compute Atlas" in registry["attribution"]
+    assert registry["city"] == "New Brunswick"
+    items_sql, _ = conn.calls[0]
+    assert "source, source_status" in items_sql and "WHEN 'cancelled' THEN 3" in items_sql
 
 
 def test_missing_mart_is_an_empty_list(get) -> None:
     resp = get(_Conn(error=asyncpg.exceptions.UndefinedTableError("no relation")))
     assert resp.status_code == 200
     assert resp.json()["items"] == [] and resp.json()["scope"]["level"] == "national"
+
+
+def test_table_without_the_new_columns_is_an_empty_list_not_500(get) -> None:
+    """#958: an API deployed before data_center_site is rebuilt with its new columns answers empty, not 500."""
+    resp = get(_Conn(error=asyncpg.exceptions.UndefinedColumnError('column "source" does not exist')))
+    assert resp.status_code == 200 and resp.json()["items"] == []
+
+
+def test_a_site_without_a_source_url_is_served_not_500(get) -> None:
+    """#983: a registry record with no record page must not turn the whole list into a 500."""
+    conn = _Conn(rows=[_site(source_url=None, source="us_data_center_registry")], counts=[{"status": "planned", "n": 1}])
+    resp = get(conn, {"state": "AL"})
+    assert resp.status_code == 200 and resp.json()["items"][0]["source_url"] is None
 
 
 def test_other_errors_are_500(get) -> None:

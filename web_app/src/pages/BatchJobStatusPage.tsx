@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   batchJobsStreamUrl,
   batchJobsFetchErrorMessage,
   fetchBatchJobDetail,
   fetchBatchJurisdictions,
   fetchBatchJobsDashboard,
+  fetchCohorts,
+  type BatchCohort,
   fetchFailedVideos,
   fetchLaunchLog,
   fetchLaunchStatus,
@@ -18,6 +20,7 @@ import {
   type BatchJurisdictionRun,
   type BatchJobsDashboardPayload,
   type BatchVideoResult,
+  FULL_FILTER_OPTIONS,
   type PipelineStage,
   type StageReportRow,
 } from '../api/batchJobs'
@@ -47,7 +50,24 @@ import {
   formatDateTimeAbsolute,
   formatUpdatedAt,
 } from '../utils/dateTime'
+import {
+  fullRunPhaseFromLog,
+  fullRunPhaseLabel,
+  stageOwnsFullRunLog,
+  type FullRunPhase,
+} from '../lib/batchJobFullRunPhase'
 import { STATE_CODES } from '../lib/usStates'
+
+/** Stages lit as "running" for a live Run-all / Run-each phase (#761). */
+function phasesToRunningStages(phase: FullRunPhase | null): PipelineStage[] {
+  if (!phase) return []
+  if (phase === 'discover') return ['discover']
+  if (phase === 'videos') return ['videos']
+  if (phase === 'transcripts') return ['transcripts']
+  if (phase === 'analyses') return ['analyses_light']
+  if (phase === 'reports') return ['reports_light']
+  return []
+}
 
 type FailedVideoRow = {
   batch_id: string
@@ -85,8 +105,38 @@ const STAGE_STEP: Record<string, string> = {
   discover: 'discover',
   videos: 'catalog',
   transcripts: 'captions',
-  analyses: 'analyze',
-  reports: 'analyze',
+  analyses_light: 'analyze-light',
+  reports_light: 'reports-light',
+  analyses_full: 'analyze-full',
+  reports_full: 'reports-full',
+  // Legacy
+  analyses: 'analyze-light',
+  reports: 'reports-light',
+}
+
+const FULL_STAGE_SET = new Set(['analyses_full', 'reports_full'])
+const FULL_FILTERS_STORAGE_KEY = 'batch-full-filters'
+
+function defaultFullFilters(cohort: string): string[] {
+  const keys = ['has_decisions', 'interestingness']
+  if (cohort === 'data_centers') keys.push('data_center')
+  return keys
+}
+
+function loadFullFilters(cohort: string): string[] {
+  try {
+    const raw = localStorage.getItem(FULL_FILTERS_STORAGE_KEY)
+    if (!raw) return defaultFullFilters(cohort)
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return defaultFullFilters(cohort)
+    const allowed = new Set(['has_decisions', 'interestingness', 'data_center'])
+    const out = parsed
+      .map((x) => String(x))
+      .filter((k) => allowed.has(k))
+    return out.length ? out : defaultFullFilters(cohort)
+  } catch {
+    return defaultFullFilters(cohort)
+  }
 }
 
 function fmtSecs(s?: number | null): string {
@@ -868,7 +918,22 @@ function BatchDetailPanel({
 // youtube_run_priority_states_last_n.sh). "All states" uses STATE_CODES (50 + DC).
 const PRIORITY_STATE_CODES = ['AL', 'GA', 'IN', 'MA', 'MT', 'WA', 'WI']
 
-type JobType = 'youtube' | 'deployment'
+function parseBatchCohort(raw: string | null | undefined): BatchCohort {
+  if (raw === 'priority' || raw === 'data_centers' || raw === 'all') return raw
+  return 'priority'
+}
+
+function cohortLaunchLabel(cohort: BatchCohort): string {
+  if (cohort === 'data_centers') return 'data centers'
+  if (cohort === 'all') return 'all 50 + DC'
+  return 'priority'
+}
+
+function batchJobsDashboardQueryKey(cohort: BatchCohort) {
+  return ['batch-jobs-dashboard', cohort] as const
+}
+
+type JobType = 'youtube' | 'load' | 'deployment'
 
 function JobTypeTabs({
   active,
@@ -878,8 +943,9 @@ function JobTypeTabs({
   onChange: (t: JobType) => void
 }) {
   const tabs: { key: JobType; label: string }[] = [
-    { key: 'youtube', label: 'YouTube pipeline' },
-    { key: 'deployment', label: 'Prod deployment' },
+    { key: 'youtube', label: '1 Extract Transform' },
+    { key: 'load', label: '2 Load' },
+    { key: 'deployment', label: '3 Deploy' },
   ]
   return (
     <div className="flex gap-1 border-b border-slate-200">
@@ -903,11 +969,14 @@ function JobTypeTabs({
 
 export default function BatchJobStatusPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const jobType: JobType = searchParams.get('type') === 'deployment' ? 'deployment' : 'youtube'
+  const navigate = useNavigate()
+  const typeParam = searchParams.get('type')
+  const jobType: JobType =
+    typeParam === 'deployment' ? 'deployment' : typeParam === 'load' ? 'load' : 'youtube'
   const setJobType = useCallback(
     (t: JobType) => {
       const next = new URLSearchParams(searchParams)
-      if (t === 'deployment') next.set('type', 'deployment')
+      if (t === 'deployment' || t === 'load') next.set('type', t)
       else next.delete('type')
       setSearchParams(next, { replace: true })
     },
@@ -922,25 +991,86 @@ export default function BatchJobStatusPage() {
   const [streamLive, setStreamLive] = useState(false)
   const [videosLoading, setVideosLoading] = useState(false)
 
+  // URL is the single source of truth for Filter (cohort). Avoid useState↔URL
+  // sync races that briefly (or permanently) keep Priority counts while the
+  // select already shows Data centers.
+  const allScope = parseBatchCohort(
+    searchParams.get('cohort') ?? localStorage.getItem('batch-launch-scope'),
+  )
+  const setAllScope = useCallback(
+    (v: BatchCohort, cohortStates?: string[]) => {
+      localStorage.setItem('batch-launch-scope', v)
+      const next = new URLSearchParams(searchParams)
+      next.set('cohort', v)
+      const st = (searchParams.get('state') ?? '').toUpperCase()
+      const allowed = cohortStates ?? []
+      if (st && allowed.length > 0 && !allowed.includes(st)) {
+        next.delete('state')
+      }
+      setSearchParams(next, { replace: true })
+      // Drop cached dashboards so numerator/denominator always refetch for the
+      // newly selected Filter (priority / data_centers / all).
+      void queryClient.invalidateQueries({ queryKey: ['batch-jobs-dashboard'] })
+    },
+    [searchParams, setSearchParams, queryClient],
+  )
+
+  useEffect(() => {
+    if (searchParams.get('cohort')) return
+    const next = new URLSearchParams(searchParams)
+    next.set('cohort', allScope)
+    setSearchParams(next, { replace: true })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- seed ?cohort= once
+
+  useEffect(() => {
+    localStorage.setItem('batch-launch-scope', allScope)
+  }, [allScope])
+
+  const { data: cohortsData } = useQuery({
+    queryKey: ['batch-cohorts'],
+    queryFn: fetchCohorts,
+    staleTime: 300_000,
+    retry: 1,
+  })
+
   const { data, isPending, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['batch-jobs-dashboard'],
-    queryFn: () => fetchBatchJobsDashboard(false, 'summary'),
-    staleTime: 30_000,
+    queryKey: batchJobsDashboardQueryKey(allScope),
+    queryFn: ({ queryKey }) => {
+      const cohort = (queryKey[1] as BatchCohort) || 'priority'
+      return fetchBatchJobsDashboard(false, 'summary', cohort)
+    },
+    staleTime: 0,
     refetchOnWindowFocus: true,
     retry: 1,
   })
 
   useEffect(() => {
-    const url = batchJobsStreamUrl()
+    if (!cohortsData || !stateFilter) return
+    const allowed = cohortsData[allScope] ?? []
+    if (allowed.length > 0 && !allowed.includes(stateFilter)) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('state')
+      setSearchParams(next, { replace: true })
+    }
+  }, [cohortsData, allScope, stateFilter, searchParams, setSearchParams])
+
+  useEffect(() => {
+    const cohort = allScope
+    const url = batchJobsStreamUrl(cohort)
     const es = new EventSource(url)
+    let active = true
 
     const applyPayload = (payload: BatchJobsDashboardPayload) => {
-      queryClient.setQueryData<BatchJobsDashboardPayload>(['batch-jobs-dashboard'], (prev) =>
-        mergeDashboardFromStream(prev, payload),
+      if (!active) return
+      queryClient.setQueryData<BatchJobsDashboardPayload>(
+        batchJobsDashboardQueryKey(cohort),
+        (prev) => mergeDashboardFromStream(prev, payload),
       )
     }
 
-    es.onopen = () => setStreamLive(true)
+    es.onopen = () => {
+      if (active) setStreamLive(true)
+    }
     es.addEventListener('summary', (ev) => {
       try {
         applyPayload(JSON.parse(ev.data) as BatchJobsDashboardPayload)
@@ -949,23 +1079,39 @@ export default function BatchJobStatusPage() {
       }
     })
     es.onerror = () => {
+      if (!active) return
       setStreamLive(false)
       es.close()
       void refetch()
     }
 
     return () => {
+      active = false
       setStreamLive(false)
       es.close()
     }
-  }, [queryClient, refetch])
+  }, [queryClient, refetch, allScope])
 
   const { data: launchStatus, refetch: refetchLaunch } = useQuery({
     queryKey: ['batch-launch-status'],
     queryFn: fetchLaunchStatus,
-    refetchInterval: 20_000,
+    // Snappy so Run/Stop enablement and dashboard poll wake with the launch (#761).
+    refetchInterval: 4000,
     retry: false,
   })
+  const launchBusy =
+    !!launchStatus?.busy ||
+    (launchStatus?.running_steps?.length ?? 0) > 0 ||
+    (launchStatus?.stalled_steps?.length ?? 0) > 0
+  // Catalog/discover do not bump youtube_batch_job_runs — poll while a launch
+  // is live so Last activity / pills move (#757 / #761).
+  useEffect(() => {
+    if (!launchBusy) return
+    const id = window.setInterval(() => {
+      void refetch()
+    }, 5000)
+    return () => window.clearInterval(id)
+  }, [launchBusy, refetch])
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [launchMsg, setLaunchMsg] = useState<string | null>(null)
@@ -978,16 +1124,6 @@ export default function BatchJobStatusPage() {
   const setParallel = useCallback((v: number) => {
     setParallelism(v)
     localStorage.setItem('batch-parallelism', String(v))
-  }, [])
-  // Which states a full / "ALL"-scope launch targets: the priority dev set
-  // (matches the script default) or every US state + DC. Picking a single state
-  // from the scope dropdown overrides this. Persisted across reloads.
-  const [allScope, setAllScopeState] = useState<'priority' | 'all'>(() => {
-    return localStorage.getItem('batch-launch-scope') === 'all' ? 'all' : 'priority'
-  })
-  const setAllScope = useCallback((v: 'priority' | 'all') => {
-    setAllScopeState(v)
-    localStorage.setItem('batch-launch-scope', v)
   }, [])
   // How many missing transcripts one ▶ Backfill click fetches. 0 = "All" (sweep
   // every missing transcript). The run is resumable — it re-queries what's still
@@ -1003,18 +1139,65 @@ export default function BatchJobStatusPage() {
     setBackfillSizeState(v)
     localStorage.setItem('batch-backfill-size', String(v))
   }, [])
+  // Per-stage drill-down: expand one stage to see its live log + current file.
+  const [expandedStage, setExpandedStage] = useState<string | null>(null)
+  const [fullFilters, setFullFiltersState] = useState<string[]>(() =>
+    loadFullFilters('priority'),
+  )
+  const setFullFilters = useCallback((next: string[]) => {
+    setFullFiltersState(next)
+    localStorage.setItem(FULL_FILTERS_STORAGE_KEY, JSON.stringify(next))
+  }, [])
+  const toggleFullFilter = useCallback(
+    (key: string) => {
+      setFullFilters(
+        fullFilters.includes(key)
+          ? fullFilters.filter((k) => k !== key)
+          : [...fullFilters, key],
+      )
+    },
+    [fullFilters, setFullFilters],
+  )
+
   const runLaunch = useCallback(
     async (step: string, states: string[], nOverride?: number) => {
       setLaunching(true)
       setLaunchMsg(null)
       try {
+        const needsFilters =
+          step === 'analyze-full' || step === 'reports-full'
+        if (needsFilters && fullFilters.length === 0) {
+          setLaunchMsg('Select at least one full eligibility filter before running.')
+          return
+        }
         const res = await launchPipeline({
           step,
           states,
           parallel: parallelism,
           n: nOverride ?? 25,
+          cohort: allScope,
+          ...(needsFilters ? { full_filters: fullFilters } : {}),
         })
         setLaunchMsg(res.detail || 'Launched.')
+        // Open the stage that matches the launch so the live log is visible.
+        if (step === 'all') {
+          // Run all fans out stages 1–5 in parallel (#763); no single shared log.
+          setExpandedStage(null)
+        } else if (step === 'each' || step === 'catalog') {
+          setExpandedStage('videos')
+        } else if (step === 'discover') {
+          setExpandedStage('discover')
+        } else if (step === 'captions' || step === 'backfill') {
+          setExpandedStage('transcripts')
+        } else if (step === 'analyze' || step === 'analyze-light') {
+          setExpandedStage('analyses_light')
+        } else if (step === 'reports-light') {
+          setExpandedStage('reports_light')
+        } else if (step === 'analyze-full') {
+          setExpandedStage('analyses_full')
+        } else if (step === 'reports-full') {
+          setExpandedStage('reports_full')
+        }
         void refetchLaunch()
         window.setTimeout(() => void refetch(), 2500)
       } catch (e) {
@@ -1023,7 +1206,7 @@ export default function BatchJobStatusPage() {
         setLaunching(false)
       }
     },
-    [refetchLaunch, refetch, parallelism],
+    [refetchLaunch, refetch, parallelism, allScope, fullFilters],
   )
 
   const stopLaunch = useCallback(
@@ -1047,28 +1230,55 @@ export default function BatchJobStatusPage() {
     },
     [refetchLaunch, refetch],
   )
-
-  // Per-stage drill-down: expand one stage to see its live log + current file.
-  const [expandedStage, setExpandedStage] = useState<string | null>(null)
+  const liveLaunchSteps = useMemo(() => {
+    const steps = new Set<string>([
+      ...(launchStatus?.running_steps ?? []),
+      ...(launchStatus?.stalled_steps ?? []),
+    ])
+    return steps
+  }, [launchStatus?.running_steps, launchStatus?.stalled_steps])
   // The Transcripts stage is advanced by two steps — per-jurisdiction `captions`
   // and the global `backfill` — which write separate launch logs. Show the
   // backfill log while it's the live (running/stalled) step; otherwise the
   // conventional captions log.
-  const transcriptsBackfillLive =
-    (launchStatus?.running_steps ?? []).includes('backfill') ||
-    (launchStatus?.stalled_steps ?? []).includes('backfill')
+  const transcriptsBackfillLive = liveLaunchSteps.has('backfill')
+  // Run all / each write one shared log. Only the *active* phase stage tails it
+  // so Videos never dumps Discover output while Discover is still running (#761).
+  const fullRunLogStep = liveLaunchSteps.has('each')
+    ? 'each'
+    : liveLaunchSteps.has('all')
+      ? 'all'
+      : null
+  const { data: fullRunLog } = useQuery({
+    queryKey: ['launch-log', fullRunLogStep, 'phase'],
+    queryFn: () => fetchLaunchLog(fullRunLogStep as string),
+    enabled: !!fullRunLogStep,
+    refetchInterval: 4000,
+    retry: false,
+  })
+  const fullRunPhase = useMemo(
+    () =>
+      fullRunPhaseFromLog(fullRunLog?.lines ?? [], fullRunLog?.current ?? '', {
+        step: fullRunLogStep,
+      }),
+    [fullRunLog?.lines, fullRunLog?.current, fullRunLogStep],
+  )
+  const expandedOwnsFullRunLog = stageOwnsFullRunLog(expandedStage, fullRunPhase)
   const expandedStep = expandedStage
     ? expandedStage === 'transcripts' && transcriptsBackfillLive
       ? 'backfill'
-      : STAGE_STEP[expandedStage]
+      : expandedOwnsFullRunLog && fullRunLogStep
+        ? fullRunLogStep
+        : STAGE_STEP[expandedStage]
     : null
   const { data: stageLog } = useQuery({
     queryKey: ['launch-log', expandedStep],
     queryFn: () => fetchLaunchLog(expandedStep as string),
-    enabled: !!expandedStep,
+    enabled: !!expandedStep && !expandedOwnsFullRunLog,
     refetchInterval: 4000,
     retry: false,
   })
+  const displayLog = expandedOwnsFullRunLog ? fullRunLog : stageLog
 
   const selectedBatch = useMemo(() => {
     if (!data?.batches?.length) return null
@@ -1244,7 +1454,7 @@ export default function BatchJobStatusPage() {
       .then((batch) => {
         if (cancelled) return
         queryClient.setQueryData<BatchJobsDashboardPayload>(
-          ['batch-jobs-dashboard'],
+          batchJobsDashboardQueryKey(allScope),
           (prev) => mergeBatchIntoDashboard(prev, batch) ?? prev,
         )
       })
@@ -1260,6 +1470,7 @@ export default function BatchJobStatusPage() {
     showFailedVideos,
     selectedJurisdictionForVideos,
     data?.totals.videos_fail,
+    allScope,
     queryClient,
   ])
 
@@ -1387,11 +1598,11 @@ export default function BatchJobStatusPage() {
     (data?.totals.running ?? 0) > 0 && !!runningTiming.activeVideo,
   )
 
-  if (jobType === 'deployment') {
+  if (jobType === 'deployment' || jobType === 'load') {
     return (
       <div className="min-h-0 w-full space-y-4">
         <JobTypeTabs active={jobType} onChange={setJobType} />
-        <DeploymentPanel />
+        <DeploymentPanel group={jobType === 'load' ? 'load' : 'deploy'} />
       </div>
     )
   }
@@ -1452,7 +1663,21 @@ export default function BatchJobStatusPage() {
         <>
           {(() => {
             const report = data.stage_report ?? { states: [], rows: [] }
-            const stateOpts = report.states ?? []
+            // Prefer API cohort state lists; fall back so Data centers still has a
+            // Scope list (and ALL rollup) before /cohorts returns.
+            const cohortStates =
+              cohortsData?.[allScope] ??
+              (allScope === 'all'
+                ? STATE_CODES
+                : allScope === 'data_centers'
+                  ? report.states?.length
+                    ? report.states
+                    : []
+                  : PRIORITY_STATE_CODES)
+            // Cohort list is source of truth; intersect with report.states to hide empty rows.
+            const stateOpts = report.states?.length
+              ? cohortStates.filter((s) => report.states!.includes(s))
+              : cohortStates
             const scope = stateFilter && stateOpts.includes(stateFilter) ? stateFilter : 'ALL'
             const rowFor = (
               sc: string,
@@ -1466,7 +1691,13 @@ export default function BatchJobStatusPage() {
             }
             const agoFromIso = (iso?: string) =>
               iso ? formatAgoCompact(iso, agoClockMs) : null
-            const openFailed = () => setShowFailedVideos(true, { allBatches: true })
+            // #792: the failed count on Videos / Transcripts opens the reason breakdown for the
+            // same Filter and Scope (both ride in the URL so the page's title matches the numbers).
+            const openReasons = (stage: PipelineStage) => () => {
+              const q = new URLSearchParams({ stage, cohort: allScope })
+              if (scope !== 'ALL') q.set('state', scope)
+              navigate(`/admin/batch-jobs/failures?${q}`)
+            }
             const setScope = (sc: string) => {
               const next = new URLSearchParams(searchParams)
               if (sc) next.set('state', sc)
@@ -1477,15 +1708,19 @@ export default function BatchJobStatusPage() {
               'discover',
               'videos',
               'transcripts',
-              'analyses',
-              'reports',
+              'analyses_light',
+              'reports_light',
+              'analyses_full',
+              'reports_full',
             ]
-            const stageLabel: Record<PipelineStage, string> = {
+            const stageLabel: Record<string, string> = {
               discover: 'Discover',
               videos: 'Videos',
               transcripts: 'Transcripts',
-              analyses: 'Analyses',
-              reports: 'Reports',
+              analyses_light: 'Analysis light',
+              reports_light: 'Reports light',
+              analyses_full: 'Analysis full',
+              reports_full: 'Reports full',
             }
             // Discover-stage per-entity split labels (counties vs municipalities).
             const entityShort: Record<string, string> = {
@@ -1497,19 +1732,24 @@ export default function BatchJobStatusPage() {
               municipalities: 'Municipalities (cities/towns)',
             }
             // Which runnable step each stage's "Run" button kicks off.
-            const stageStep: Record<PipelineStage, string> = {
+            const stageStep: Record<string, string> = {
               discover: 'discover',
               videos: 'catalog',
               transcripts: 'captions',
-              analyses: 'analyze',
-              reports: 'analyze',
+              analyses_light: 'analyze-light',
+              reports_light: 'reports-light',
+              analyses_full: 'analyze-full',
+              reports_full: 'reports-full',
             }
-            const stepDesc: Record<PipelineStage, string> = {
-              discover: 'discover channels (scrape sites / search YouTube)',
+            const stepDesc: Record<string, string> = {
+              discover:
+                'discover channels (scrape sites / search YouTube) then load matches to bronze',
               videos: 'catalog — list videos on the channel',
               transcripts: 'captions — download transcripts',
-              analyses: 'analyze — Gemini policy analysis',
-              reports: 'analyze — regenerates reports too',
+              analyses_light: 'analyze-light — lite Part 1 (DeepSeek, Jev-gated)',
+              reports_light: 'reports-light — Part 2 from light analysis (DeepSeek)',
+              analyses_full: 'analyze-full — deep Part 1 on filtered subset',
+              reports_full: 'reports-full — Part 2 from full analysis',
             }
             type Def = {
               n: number
@@ -1519,49 +1759,77 @@ export default function BatchJobStatusPage() {
               pill: boolean
               drill: (() => void) | null
               failTitle: string
+              inRunAll?: boolean
             }
             const defs: Def[] = [
               {
                 n: 0,
                 stage: 'discover',
                 unit: 'jurisdictions',
-                sub: 'channel discovery — scrape county sites / search YouTube',
+                sub: 'channel discovery + load — scrape sites / search YouTube, then catalog matches',
                 pill: true,
                 drill: null,
                 failTitle: 'Jurisdictions still missing a YouTube channel',
+                inRunAll: true,
               },
               {
                 n: 1,
                 stage: 'videos',
                 unit: 'attempted',
                 pill: false,
-                drill: openFailed,
-                failTitle: 'Videos whose caption fetch failed — tap to list',
+                drill: openReasons('videos'),
+                failTitle: 'Videos whose caption fetch failed — tap to see why',
+                inRunAll: true,
               },
               {
                 n: 2,
                 stage: 'transcripts',
                 unit: 'videos',
-                sub: `${formatCompactNumber(data.totals.files_transcripts_disk ?? 0)} segment rows · deduped to videos`,
+                sub: 'YouTube caption attempts in this Filter (not LocalView/CivicSearch)',
                 pill: true,
-                drill: openFailed,
-                failTitle: 'Videos with no usable transcript — tap to list',
+                drill: openReasons('transcripts'),
+                failTitle: 'Videos with no usable transcript — tap to see why',
+                inRunAll: true,
               },
               {
                 n: 3,
-                stage: 'analyses',
+                stage: 'analyses_light',
                 unit: 'videos',
+                sub: 'lite Part 1 stamps ÷ transcripts in this Filter (not deep Part 1 / full)',
                 pill: true,
-                drill: null,
-                failTitle: 'Analysis errors (bronze policy_analysis_error)',
+                drill: openReasons('analyses_light'),
+                failTitle: 'Analysis errors (bronze policy_analysis_error) — tap to see them',
+                inRunAll: true,
               },
               {
                 n: 4,
-                stage: 'reports',
+                stage: 'reports_light',
                 unit: 'videos',
+                sub: 'lite Part 2 stamps ÷ analysis light in this Filter',
                 pill: true,
-                drill: null,
-                failTitle: 'Report errors (bronze policy_report_error)',
+                drill: openReasons('reports_light'),
+                failTitle: 'Report errors (bronze policy_report_error) — tap to see them',
+                inRunAll: true,
+              },
+              {
+                n: 5,
+                stage: 'analyses_full',
+                unit: 'videos',
+                sub: 'deep Part 1 stamps ÷ transcripts · opt-in filters',
+                pill: true,
+                drill: openReasons('analyses_full'),
+                failTitle: 'Full analysis errors (bronze policy_analysis_full_error) — tap to see them',
+                inRunAll: false,
+              },
+              {
+                n: 6,
+                stage: 'reports_full',
+                unit: 'videos',
+                sub: 'deep Part 2 stamps ÷ analysis full · opt-in',
+                pill: true,
+                drill: openReasons('reports_full'),
+                failTitle: 'Full report errors (bronze policy_report_full_error) — tap to see them',
+                inRunAll: false,
               },
             ]
             // Fixed-width Failed/Run columns so the progress column lines up across rows.
@@ -1570,14 +1838,10 @@ export default function BatchJobStatusPage() {
             const ls = launchStatus
             // ALL view scope → an explicit launch target (priority set or 50 + DC)
             // so the backend can't silently fall back to its priority-only default.
-            const launchScopeStates =
-              scope === 'ALL'
-                ? allScope === 'all'
-                  ? STATE_CODES
-                  : PRIORITY_STATE_CODES
-                : [scope]
+            const launchScopeStates = scope === 'ALL' ? cohortStates : [scope]
+            const cohortLabel = cohortLaunchLabel(allScope)
             const scopeLaunchLabel =
-              scope !== 'ALL' ? scope : allScope === 'all' ? 'all 50 + DC' : 'priority'
+              scope !== 'ALL' ? `${cohortLabel} · ${scope}` : cohortLabel
             // Each running step maps to the stage(s) it advances. Different steps
             // run concurrently, so we union them for the live "running" markers.
             const stepStages: Record<string, PipelineStage[]> = {
@@ -1586,48 +1850,90 @@ export default function BatchJobStatusPage() {
               captions: ['videos', 'transcripts'],
               // Global mart-wide sweep — advances only the transcripts stage.
               backfill: ['transcripts'],
-              analyze: ['analyses', 'reports'],
-              all: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
-              each: ['discover', 'videos', 'transcripts', 'analyses', 'reports'],
+              analyze: ['analyses_light'],
+              'analyze-light': ['analyses_light'],
+              'reports-light': ['reports_light'],
+              'analyze-full': ['analyses_full'],
+              'reports-full': ['reports_full'],
+              // `all` = discover → … → reports-light (#755). Full stages excluded.
+              all: [
+                'discover',
+                'videos',
+                'transcripts',
+                'analyses_light',
+                'reports_light',
+              ],
+              each: [
+                'videos',
+                'transcripts',
+                'analyses_light',
+                'reports_light',
+              ],
             }
             const runningSteps = new Set(ls?.running_steps ?? [])
             const stalledSteps = new Set(ls?.stalled_steps ?? [])
             const runningStages = new Set<PipelineStage>()
-            runningSteps.forEach((s) =>
-              (stepStages[s] ?? []).forEach((g) => runningStages.add(g)),
-            )
-            const anyFullRun = runningSteps.has('all') || runningSteps.has('each')
-            // A stage's Run is allowed unless its step (or a full-pipeline run) is
-            // already running — so e.g. Discover can launch while Analyze runs.
-            const canRunStage = (g: PipelineStage) =>
-              !!ls?.enabled &&
-              !launching &&
-              !runningSteps.has(stageStep[g]) &&
-              !anyFullRun
-            // The global backfill is its own step, so it may run alongside
-            // captions; it's only blocked by another backfill or a full run.
+            runningSteps.forEach((s) => {
+              if ((s === 'all' || s === 'each') && fullRunPhase) {
+                phasesToRunningStages(fullRunPhase).forEach((g) =>
+                  runningStages.add(g),
+                )
+                return
+              }
+              ;(stepStages[s] ?? []).forEach((g) => runningStages.add(g))
+            })
+            // One launch at a time: Stop is the only action while busy (#761).
+            const pipelineBusy =
+              runningSteps.size > 0 || stalledSteps.size > 0 || !!ls?.busy
+            const canRunStage = (_g: PipelineStage) =>
+              !!ls?.enabled && !launching && !pipelineBusy
             const canRunBackfill =
-              !!ls?.enabled &&
-              !launching &&
-              !runningSteps.has('backfill') &&
-              !anyFullRun
-            const canRunAll =
-              !!ls?.enabled &&
-              !launching &&
-              runningSteps.size === 0 &&
-              data.totals.running === 0
-            // Header "last activity" = the freshest per-step stamp for this scope,
-            // not the stale batch-step clock.
+              !!ls?.enabled && !launching && !pipelineBusy
+            /** Which launch step a stage's ■ Stop should target. */
+            const stopStepForStage = (stage: PipelineStage): string | null => {
+              const step = stageStep[stage]
+              if (runningSteps.has(step) || stalledSteps.has(step)) return step
+              if (
+                stage === 'transcripts' &&
+                (runningSteps.has('backfill') || stalledSteps.has('backfill'))
+              ) {
+                return 'backfill'
+              }
+              if (
+                (runningSteps.has('all') || stalledSteps.has('all')) &&
+                stageOwnsFullRunLog(stage, fullRunPhase)
+              ) {
+                return 'all'
+              }
+              if (
+                (runningSteps.has('each') || stalledSteps.has('each')) &&
+                stageOwnsFullRunLog(stage, fullRunPhase)
+              ) {
+                return 'each'
+              }
+              return null
+            }
+            // Header "last activity" = freshest stage stamp (parsed time, not string).
             const freshestIso = stageList
               .map((s) => rowFor(scope, s)?.last_at || '')
-              .reduce((a, b) => (a > b ? a : b), '')
-            const freshestAgo = agoFromIso(freshestIso)
+              .filter(Boolean)
+              .reduce<(string | null)>((best, iso) => {
+                if (!best) return iso
+                const a = Date.parse(best)
+                const b = Date.parse(iso)
+                if (!Number.isFinite(b)) return best
+                if (!Number.isFinite(a)) return iso
+                return b >= a ? iso : best
+              }, null)
+            const freshestAgo = agoFromIso(freshestIso ?? undefined)
             // Mirrors the API stall window (_LAUNCH_STALL_SECONDS /
-            // BATCH_JOB_INACTIVITY_SECONDS, default 3600s).
+            // BATCH_JOB_INACTIVITY_SECONDS, default 3600s). Warn earlier via
+            // launchStatus.warning / vpn_down (#750, default 15m).
             const STALL_SECONDS = 3600
-            const freshestAgeSecs = freshestIso
-              ? Math.max(0, Math.floor((agoClockMs - Date.parse(freshestIso)) / 1000))
-              : null
+            const freshestAgeSecs =
+              freshestIso && Number.isFinite(Date.parse(freshestIso))
+                ? Math.max(0, Math.floor((agoClockMs - Date.parse(freshestIso)) / 1000))
+                : null
             // A batch row stays status='running' after its worker dies or starts
             // skipping already-done work, so totals.running alone overstates
             // liveness. Count row-running as live only with recent recorded
@@ -1638,22 +1944,73 @@ export default function BatchJobStatusPage() {
               freshestAgeSecs != null &&
               freshestAgeSecs > STALL_SECONDS
             const liveRunningRows = data.totals.running > 0 && !rowsStale
+            // Gate on live rows (not raw totals.running) so a phantom/stale
+            // status=running batch after Stop all does not pin Run all (#742).
+            const canRunAll =
+              !!ls?.enabled &&
+              !launching &&
+              !pipelineBusy &&
+              !liveRunningRows
             const isActive = liveRunningRows || runningSteps.size > 0
             const anyStalled = stalledSteps.size > 0 || rowsStale
-            const statusText = isActive ? 'Running' : anyStalled ? 'Stalled' : 'Idle'
-            const statusDot = isActive
-              ? 'bg-emerald-500'
-              : anyStalled
-                ? 'bg-amber-500'
-                : 'bg-slate-400'
+            const launchWarning = (
+              ls?.warning ||
+              ls?.auto_resume_note ||
+              ''
+            ).trim()
+            const vpnDown = !!ls?.vpn_down
+            const billingExhausted = !!ls?.billing_exhausted
+            const resumedSteps = ls?.resumed_steps ?? []
+            const statusText = billingExhausted
+              ? 'Billing down'
+              : vpnDown
+                ? 'VPN down'
+                : isActive
+                  ? launchWarning
+                    ? 'Running · warning'
+                    : 'Running'
+                  : anyStalled
+                    ? 'Stalled'
+                    : 'Idle'
+            const statusDot = billingExhausted || vpnDown
+              ? 'bg-rose-500'
+              : isActive
+                ? launchWarning
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+                : anyStalled
+                  ? 'bg-amber-500'
+                  : 'bg-slate-400'
             return (
               <>
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                {launchWarning ? (
+                  <div
+                    role="status"
+                    className={`border-b px-4 py-2 text-sm ${
+                      billingExhausted || vpnDown
+                        ? 'border-rose-200 bg-rose-50 text-rose-900'
+                        : 'border-amber-200 bg-amber-50 text-amber-950'
+                    }`}
+                  >
+                    <span className="font-semibold">
+                      {billingExhausted
+                        ? 'Billing error'
+                        : vpnDown
+                          ? 'VPN error'
+                          : resumedSteps.length > 0
+                            ? 'Auto-resumed'
+                            : 'Inactivity warning'}
+                    </span>
+                    <span className="mx-1.5 text-current/40">·</span>
+                    <span>{launchWarning}</span>
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1.5 text-sm">
                     <span
                       className={`inline-block h-2.5 w-2.5 rounded-full ${statusDot} ${
-                        isActive ? 'animate-pulse' : ''
+                        isActive && !vpnDown ? 'animate-pulse' : ''
                       }`}
                     />
                     <span className="font-semibold text-slate-800">{statusText}</span>
@@ -1671,23 +2028,36 @@ export default function BatchJobStatusPage() {
                     </span>
                     {scope !== 'ALL' ? (
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
-                        {scope}
+                        {scopeLaunchLabel}
                       </span>
-                    ) : null}
+                    ) : (
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+                        {cohortLabel}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {ls?.enabled && scope === 'ALL' ? (
+                    {ls?.enabled ? (
                       <label
-                        className="flex items-center gap-1 text-xs text-slate-500"
-                        title="Which states a full / ALL-scope run targets. Priority = the dev set (AL, GA, IN, MA, MT, WA, WI); All = every US state + DC. Pick a single state from the scope dropdown to run just that one. Applies to the next launch."
+                        className="flex items-center gap-1.5 text-xs text-slate-500"
+                        title="Filter: which places a run targets (priority states, data-center jurisdictions, or all US states). Use Scope to narrow to one state. Applies to the next launch and stage numbers."
                       >
-                        <span aria-hidden>🗺️</span>
+                        <span className="font-medium uppercase tracking-wide text-slate-500">
+                          Filter
+                        </span>
                         <select
+                          aria-label="Filter"
                           value={allScope}
-                          onChange={(e) => setAllScope(e.target.value as 'priority' | 'all')}
+                          onChange={(e) =>
+                            setAllScope(
+                              e.target.value as BatchCohort,
+                              cohortsData?.[e.target.value as BatchCohort],
+                            )
+                          }
                           className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs font-medium text-slate-700"
                         >
                           <option value="priority">Priority states</option>
+                          <option value="data_centers">Data centers</option>
                           <option value="all">All states (50 + DC)</option>
                         </select>
                       </label>
@@ -1719,7 +2089,7 @@ export default function BatchJobStatusPage() {
                         title={
                           runningSteps.size > 0
                             ? 'Finish the running step(s) before a full-pipeline run'
-                            : `Run the full pipeline (catalog → captions → analyze) for ${scopeLaunchLabel} states`
+                            : `Run stages 1–5 in parallel (discover, catalog, captions, analysis light, reports light) for ${scopeLaunchLabel}`
                         }
                         className="inline-flex items-center gap-1 rounded-md bg-[#354F52] px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346] disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -1738,19 +2108,27 @@ export default function BatchJobStatusPage() {
                       </button>
                     ) : null}
                     {stateOpts.length > 0 ? (
-                      <select
-                        value={scope === 'ALL' ? '' : scope}
-                        onChange={(e) => setScope(e.target.value)}
-                        title="Scope the stage numbers (and the detail tables) to one state"
-                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                      <label
+                        className="flex items-center gap-1.5 text-xs text-slate-500"
+                        title="Scope the stage numbers (and the detail tables) to one state within the Filter"
                       >
-                        <option value="">All states</option>
-                        {stateOpts.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                        <span className="font-medium uppercase tracking-wide text-slate-500">
+                          Scope
+                        </span>
+                        <select
+                          aria-label="Scope"
+                          value={scope === 'ALL' ? '' : scope}
+                          onChange={(e) => setScope(e.target.value)}
+                          className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                        >
+                          <option value="">All in filter</option>
+                          {stateOpts.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     ) : null}
                   </div>
                 </div>
@@ -1776,6 +2154,7 @@ export default function BatchJobStatusPage() {
                   const pct = total ? (done / total) * 100 : 0
                   const ago = agoFromIso(r?.last_at)
                   const running = runningStages.has(st.stage)
+                  const stopStep = stopStepForStage(st.stage)
                   const expanded = expandedStage === st.stage
                   const tm = data.stage_report?.timing?.[st.stage]
                   // Live pace: avg_seconds is the median gap between *completed*
@@ -1806,7 +2185,9 @@ export default function BatchJobStatusPage() {
                     <div className={`${cols} border-t border-slate-100 px-4 py-3`}>
                       <button
                         type="button"
-                        onClick={() => setExpandedStage(expanded ? null : st.stage)}
+                        onClick={() =>
+                          setExpandedStage(expanded ? null : st.stage)
+                        }
                         className="min-w-0 text-left"
                         title="Show this stage's live log + timing"
                       >
@@ -1825,16 +2206,21 @@ export default function BatchJobStatusPage() {
                       </button>
                       <div className="flex items-center gap-1.5 text-sm">
                         {running ? (
-                          <>
-                            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                            <span className="font-medium text-emerald-600">running…</span>
-                          </>
+                          <span
+                            className="inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500"
+                            title="Stage worker is running"
+                          />
                         ) : (
-                          <>
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-400" />
-                            <span className="text-slate-600">{ago ?? '—'}</span>
-                          </>
+                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
                         )}
+                        <span
+                          className={
+                            running ? 'font-medium tabular-nums text-emerald-700' : 'tabular-nums text-slate-600'
+                          }
+                          title={running ? 'Last activity (stage is running)' : 'Last activity'}
+                        >
+                          {ago ?? '—'}
+                        </span>
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm tabular-nums text-slate-700">
@@ -1842,6 +2228,11 @@ export default function BatchJobStatusPage() {
                             {formatCompactNumber(done)}
                           </span>{' '}
                           / {formatCompactNumber(total)} {st.unit} · {fmtPct(done, total)}
+                          {isFetching ? (
+                            <span className="ml-1 text-[10px] font-normal text-slate-400">
+                              updating…
+                            </span>
+                          ) : null}
                         </div>
                         <div className="mt-1.5">
                           <ProgressBar pct={pct} />
@@ -1896,19 +2287,35 @@ export default function BatchJobStatusPage() {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        {ls?.enabled ? (
+                        {ls?.enabled && stopStep ? (
                           <button
                             type="button"
-                            disabled={!canRunStage(st.stage)}
+                            disabled={stopping}
+                            onClick={() => void stopLaunch(stopStep)}
+                            title={`Stop ${stopStep} (auto-resume off for this step)`}
+                            className="whitespace-nowrap rounded-md border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {stopping ? 'Stopping…' : '■ Stop'}
+                          </button>
+                        ) : null}
+                        {ls?.enabled && !stopStep ? (
+                          <button
+                            type="button"
+                            disabled={
+                              !canRunStage(st.stage) ||
+                              (FULL_STAGE_SET.has(st.stage) && fullFilters.length === 0)
+                            }
                             onClick={() => runLaunch(stageStep[st.stage], launchScopeStates)}
                             title={
-                              runningSteps.has(stageStep[st.stage])
-                                ? `${stageStep[st.stage]} is already running`
-                                : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
+                              FULL_STAGE_SET.has(st.stage) && fullFilters.length === 0
+                                ? 'Select at least one eligibility filter (expand this stage)'
+                                : pipelineBusy
+                                  ? 'A pipeline job is running — Stop it before starting another'
+                                  : `Run ${stepDesc[st.stage]} · ${scopeLaunchLabel}`
                             }
                             className="whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            {running ? '· · ·' : '▶ Run'}
+                            ▶ Run
                           </button>
                         ) : null}
                         {/* Transcripts only: global mart-wide sweep (also reaches
@@ -1996,23 +2403,87 @@ export default function BatchJobStatusPage() {
                             </b>
                             {tm?.last_at ? ` · ${agoFromIso(tm.last_at) ?? ''}` : ''}
                           </span>
-                          {running && stageLog?.current ? (
+                          {running &&
+                          expandedOwnsFullRunLog &&
+                          displayLog?.current ? (
                             <span className="min-w-0">
                               current:{' '}
-                              <b className="text-emerald-700">{stageLog.current}</b>
-                              {stageLog.current_since
-                                ? ` · ${agoFromIso(stageLog.current_since) ?? ''} on it`
+                              <b className="text-emerald-700">{displayLog.current}</b>
+                              {displayLog.current_since
+                                ? ` · ${agoFromIso(displayLog.current_since) ?? ''} on it`
                                 : ''}
                             </span>
                           ) : null}
                         </div>
+                        {FULL_STAGE_SET.has(st.stage) ? (
+                          <div className="mb-2 rounded border border-slate-200 bg-white px-3 py-2">
+                            <p className="mb-1.5 text-[11px] text-slate-600">
+                              Full runs only on videos that already have analysis light and
+                              match any checked filter.
+                            </p>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+                              {FULL_FILTER_OPTIONS.map((opt) => (
+                                <label
+                                  key={opt.key}
+                                  className="inline-flex items-center gap-1.5 text-[11px] text-slate-700"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={fullFilters.includes(opt.key)}
+                                    onChange={() => toggleFullFilter(opt.key)}
+                                    className="rounded border-slate-300"
+                                  />
+                                  {opt.label}
+                                </label>
+                              ))}
+                            </div>
+                            {fullFilters.length === 0 ? (
+                              <p className="mt-1 text-[11px] font-medium text-amber-700">
+                                Check at least one filter to enable Run.
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {fullRunLogStep && expandedOwnsFullRunLog ? (
+                          <p className="mb-1 text-[11px] text-teal-800">
+                            Showing the live{' '}
+                            <code className="text-[10px]">Run {fullRunLogStep}</code> log
+                            {fullRunLogStep === 'all'
+                              ? ` · currently in ${fullRunPhaseLabel(fullRunPhase)}`
+                              : ''}
+                            .
+                          </p>
+                        ) : null}
+                        {fullRunLogStep && !expandedOwnsFullRunLog ? (
+                          <p className="mb-1 text-[11px] text-amber-800">
+                            Run {fullRunLogStep} is still in{' '}
+                            <b>{fullRunPhaseLabel(fullRunPhase)}</b>
+                            {' — '}
+                            this stage has not started yet. Open that stage for the live log.
+                          </p>
+                        ) : null}
+                        {displayLog?.blocker &&
+                        !(fullRunLogStep && !expandedOwnsFullRunLog) ? (
+                          <p
+                            role="status"
+                            className="mb-1 rounded border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-900"
+                          >
+                            <span className="font-semibold">Blocker</span>
+                            <span className="mx-1 text-rose-300">·</span>
+                            {displayLog.blocker}
+                          </p>
+                        ) : null}
                         <pre className="mt-2 max-h-56 overflow-auto rounded bg-slate-900 p-2 text-[10px] leading-snug text-slate-100">
-                          {stageLog?.lines?.length
-                            ? stageLog.lines.join('\n')
-                            : 'No log for this step yet — launch it to see live output.'}
+                          {fullRunLogStep && !expandedOwnsFullRunLog
+                            ? `(waiting) Run ${fullRunLogStep} is in ${fullRunPhaseLabel(fullRunPhase)} — no ${st.stage} output yet.`
+                            : displayLog?.lines?.length
+                              ? displayLog.lines.join('\n')
+                              : 'No log for this step yet — launch it to see live output.'}
                         </pre>
-                        {stageLog?.path ? (
-                          <div className="mt-1 text-[10px] text-slate-400">log: {stageLog.path}</div>
+                        {!(fullRunLogStep && !expandedOwnsFullRunLog) && displayLog?.path ? (
+                          <div className="mt-1 text-[10px] text-slate-400">
+                            log: {displayLog.path}
+                          </div>
                         ) : null}
                       </div>
                     ) : null}
@@ -2308,7 +2779,7 @@ export default function BatchJobStatusPage() {
               }
             />
             <SummaryCard
-              label="Analysis progress"
+              label="Analysis light %"
               value={
                 data.totals.files_transcripts_disk > 0
                   ? `${Math.round((data.totals.files_analysis / data.totals.files_transcripts_disk) * 100)}%`
@@ -2316,10 +2787,10 @@ export default function BatchJobStatusPage() {
               }
               title={`${formatCompactNumber(data.totals.files_analysis)} of ${formatCompactNumber(
                 data.totals.files_transcripts_disk ?? 0,
-              )} transcripts have an AI analysis (live bronze stamps)`}
+              )} transcripts have a light-tier analysis stamp (policy_analysis_at). Pre-split deep Part 1 rows are reclassified onto full stamps (#766).`}
             />
             <SummaryCard
-              label="Reports progress"
+              label="Reports light %"
               value={
                 data.totals.files_transcripts_disk > 0
                   ? `${Math.round((data.totals.files_reports / data.totals.files_transcripts_disk) * 100)}%`
@@ -2327,7 +2798,7 @@ export default function BatchJobStatusPage() {
               }
               title={`${formatCompactNumber(data.totals.files_reports)} of ${formatCompactNumber(
                 data.totals.files_transcripts_disk ?? 0,
-              )} transcripts have a generated report (live bronze stamps; same denominator as Analysis progress, so the two read as one funnel — not reports÷analyses)`}
+              )} transcripts have a light-tier report stamp (policy_report_at; same denominator as Analysis light %).`}
             />
             <SummaryCard
               label="Analysis (24h)"

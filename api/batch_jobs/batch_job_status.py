@@ -248,6 +248,7 @@ def fetch_batch_plan_jurisdictions(
     round_robin: bool = True,
     database_url: Optional[str] = None,
     include_homepage_channels: bool = False,
+    cohort: Optional[str] = None,
 ) -> List[JurisdictionRun]:
     """
     Canonical jurisdictions for the batch plan (``pending``), aligned with
@@ -278,11 +279,23 @@ def fetch_batch_plan_jurisdictions(
     except ImportError:
         return []
 
+    cohort_norm = (cohort or "").strip().lower() or None
+    dc_filter: Optional[List[str]] = None
+
     rows: list = []
     try:
         with psycopg2.connect(url) as conn, conn.cursor(
             cursor_factory=RealDictCursor
         ) as cur:
+            if cohort_norm == "data_centers":
+                from api.batch_jobs.cohorts import data_center_jurisdiction_ids
+
+                dc_ids = data_center_jurisdiction_ids(conn)
+                if not dc_ids:
+                    return []
+                dc_filter = list(dc_ids)
+            dc_a: Optional[List[str]] = dc_filter
+            dc_b: Optional[List[str]] = dc_filter
             cur.execute(
                 """
                 WITH yt AS MATERIALIZED (
@@ -334,11 +347,21 @@ def fetch_batch_plan_jurisdictions(
                     j.name AS jurisdiction_name,
                     j.jurisdiction_type
                 FROM j
-                WHERE j.jurisdiction_id IN (SELECT jurisdiction_id FROM with_videos)
+                WHERE (
+                      j.jurisdiction_id IN (SELECT jurisdiction_id FROM with_videos)
                    OR j.jurisdiction_id IN (SELECT jurisdiction_id FROM with_homepage_channel)
+                )
+                  AND (%s::text[] IS NULL OR j.jurisdiction_id = ANY(%s))
                 ORDER BY j.state_code, j.name, j.jurisdiction_id
                 """,
-                (st_list, st_list, include_homepage_channels, include_homepage_channels),
+                (
+                    st_list,
+                    st_list,
+                    include_homepage_channels,
+                    include_homepage_channels,
+                    dc_a,
+                    dc_b,
+                ),
             )
             rows = list(cur.fetchall())
     except Exception as exc:
@@ -355,6 +378,14 @@ def fetch_batch_plan_jurisdictions(
             with psycopg2.connect(url) as conn, conn.cursor(
                 cursor_factory=RealDictCursor
             ) as cur:
+                fallback_dc = dc_filter
+                if cohort_norm == "data_centers" and fallback_dc is None:
+                    from api.batch_jobs.cohorts import data_center_jurisdiction_ids
+
+                    dc_ids = data_center_jurisdiction_ids(conn)
+                    if not dc_ids:
+                        return []
+                    fallback_dc = list(dc_ids)
                 cur.execute(
                     """
                     SELECT DISTINCT ON (state_code, jurisdiction_id)
@@ -366,9 +397,10 @@ def fetch_batch_plan_jurisdictions(
                     WHERE state_code = ANY(%s)
                       AND jurisdiction_id IS NOT NULL
                       AND BTRIM(jurisdiction_id) <> ''
+                      AND (%s::text[] IS NULL OR jurisdiction_id = ANY(%s))
                     ORDER BY state_code, jurisdiction_id, jurisdiction_name
                     """,
-                    (st_list,),
+                    (st_list, fallback_dc, fallback_dc),
                 )
                 rows = list(cur.fetchall())
         except Exception:

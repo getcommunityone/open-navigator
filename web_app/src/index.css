@@ -3,13 +3,28 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* One type system site-wide (#975): the home page's. Loaded once in index.html. */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-label: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
   /* App shell is light (see Layout). Dark scheme + white inherited color broke native controls (e.g. <select>). */
   color-scheme: light;
   color: #0f172a;
-  background-color: #cbd5e1;
+  background-color: #fafaf9;
+}
+
+@layer base {
+  /* Page and section headings use the display face everywhere (#975); a utility class can still override. Small h2s
+     (card and admin headings set in text-xs / text-sm / text-base) keep the body face: a high-contrast serif reads poorly
+     that small. */
+  /* :where() keeps the specificity at zero, so any component class (.sh-title, .stance-dialog-title, utilities) wins. */
+  :where(h1, h2:not([class*='text-xs']):not([class*='text-sm']):not([class*='text-base'])) {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
 }
 
 html {
@@ -839,3 +854,9 @@ input.range-x::-moz-range-thumb {
 }
 input.range-x:disabled::-webkit-slider-thumb { border-color: #d6d3d1; cursor: default; }
 input.range-x:disabled::-moz-range-thumb { border-color: #d6d3d1; cursor: default; }
+
+/* The page background for every page inside the shared layout (#901). It matches the home page's warm off-white,
+   so moving between header items does not change the page colour. Change it here, in one place. */
+.page-bg {
+  background-color: #fafaf9;
+}

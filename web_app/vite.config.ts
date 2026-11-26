@@ -1,7 +1,31 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'fs'
 import path from 'path'
+
+/** Local writable @assistant-ui tree when root-owned node_modules blocks npm (#630). */
+const auiVendor = path.resolve(__dirname, 'vendor/aui-nm/node_modules/@assistant-ui/react')
+const auiAliases = fs.existsSync(auiVendor)
+  ? {
+      '@assistant-ui/react': path.resolve(
+        __dirname,
+        'vendor/aui-nm/node_modules/@assistant-ui/react',
+      ),
+      '@assistant-ui/core': path.resolve(
+        __dirname,
+        'vendor/aui-nm/node_modules/@assistant-ui/core',
+      ),
+      '@assistant-ui/store': path.resolve(
+        __dirname,
+        'vendor/aui-nm/node_modules/@assistant-ui/store',
+      ),
+      '@assistant-ui/tap': path.resolve(
+        __dirname,
+        'vendor/aui-nm/node_modules/@assistant-ui/tap',
+      ),
+    }
+  : {}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -47,10 +71,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      ...auiAliases,
     },
   },
   server: {
     port: 5173,
+    // Fail loudly if 5173 is taken instead of silently moving to 5174: Google sign-in
+    // redirects to 5173, so a hop breaks login with no error (#787).
+    strictPort: true,
     // WSL2's inotify often misses edits made from the Linux side, so HMR never
     // fires and the browser keeps serving the build from when Vite started.
     // Polling reliably picks up changes (slightly higher idle CPU is the trade).

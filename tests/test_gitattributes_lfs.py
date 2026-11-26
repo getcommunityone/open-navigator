@@ -55,3 +55,34 @@ def test_the_images_named_in_257_are_not_sent_through_lfs():
     ]
     out = _git("check-attr", "filter", "--", *named).decode()
     assert "filter: lfs" not in out, out
+
+
+# --- #864: a PDF the site links to must survive the Hugging Face deploy -----------------------------------------
+# The deploy drops every raw binary and keeps LFS pointers. `*.pdf filter=lfs` is case-sensitive, so a file named
+# `.PDF` was a raw binary, was dropped, and the live site served the app's 404 page in its place.
+
+
+def _tracked(prefixes: tuple[str, ...]) -> list[str]:
+    return [p for p in _git("ls-files", "-z", "--", *prefixes).decode().split("\0") if p]
+
+
+def test_every_served_pdf_is_in_lfs_whatever_the_case_of_its_extension():
+    pdfs = [p for p in _tracked(("web_app/public", "web_docs/static")) if p.lower().endswith(".pdf")]
+    assert pdfs, "expected at least the strategic plan"
+    out = _git("check-attr", "filter", "--", *pdfs).decode().splitlines()
+    not_lfs = [line for line in out if not line.endswith("filter: lfs")]
+    assert not not_lfs, f"PDFs the deploy would drop (not in LFS): {not_lfs}"
+
+
+def test_every_pdf_path_the_app_links_to_is_a_tracked_file():
+    import re
+
+    served = set(_tracked(("web_app/public",)))
+    linked: set[str] = set()
+    for path in _tracked(("web_app/src",)):
+        if path.endswith((".tsx", ".ts")):
+            text = (ROOT / path).read_text(encoding="utf-8", errors="replace")
+            linked.update(re.findall(r"""["'](/pdf/[^"'?#\s]+\.[Pp][Dd][Ff])["']""", text))
+    assert linked, "expected the home pages to link the strategic plan"
+    missing = sorted(p for p in linked if f"web_app/public{p}" not in served)
+    assert not missing, f"linked PDF paths with no file under web_app/public (paths are case-sensitive): {missing}"

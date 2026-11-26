@@ -317,7 +317,7 @@ export default function FeedSetup() {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all">
+              <Dialog.Panel className="relative flex max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all">
                 <button
                   type="button"
                   onClick={close}

@@ -22,6 +22,12 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel
 
+from api.meeting_type import (
+    meeting_type_available,
+    meeting_type_by_video_sql,
+    meeting_type_label,
+)
+from api.provenance import Provenance, build_provenance
 from api.routes.search_postgres import get_db_pool
 
 router = APIRouter(prefix="/decision", tags=["decision"])
@@ -79,8 +85,12 @@ class DecisionDetail(BaseModel):
     meeting_name: Optional[str] = None
     meeting_date: Optional[str] = None
     meeting_video_id: Optional[str] = None
+    # Normalized label of the meeting's stored meeting_type; None when blank/UNKNOWN (#797).
+    meeting_type: Optional[str] = None
     source_ai_model: Optional[str] = None
     extracted_at: Optional[str] = None
+    # How this summary was made (#798); None when nothing was recorded.
+    provenance: Optional[Provenance] = None
     # Associated meeting documents (agenda/minutes), joined on analysis_id ->
     # event_meeting_id. Empty list is a meaningful state (e.g. minutes unpublished).
     documents: List[MeetingDocument] = []
@@ -126,10 +136,19 @@ _DECISION_SQL = """
         m.body_name AS meeting_name,
         CASE WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
              THEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) END AS meeting_date,
-        m.video_id AS meeting_video_id
+        m.video_id AS meeting_video_id,
+        __MEETING_TYPE__
     FROM event_decision d
     LEFT JOIN event_meeting m ON m.c1_event_id = d.c1_event_id
     WHERE d.event_decision_id = $1
+"""
+
+# How the decision's analysis was made (#798). Best-effort: the table may not be published yet.
+_PROVENANCE_SQL = """
+    SELECT video_id, ai_model, generated_at, analysis_tier, prompt_name, prompt_sha,
+           transcript_source, analyses_for_meeting
+    FROM event_analysis_provenance
+    WHERE analysis_id = $1
 """
 
 # Parsed agenda/minutes content for a decision's meeting. Keyed by event_meeting_id
@@ -420,10 +439,15 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
         try:
             pool = await get_db_pool()
             doc_rows: list = []
+            prov_row = None
             lag_row = None  # jurisdiction_minutes_publish_lag row (fetched within conn)
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("decision-detail.query"):
-                    row = await conn.fetchrow(_DECISION_SQL, event_decision_id)
+                    has_type = await meeting_type_available(conn)
+                    row = await conn.fetchrow(
+                        _DECISION_SQL.replace("__MEETING_TYPE__", meeting_type_by_video_sql("m.video_id", has_type)),
+                        event_decision_id,
+                    )
 
                 if row is None:
                     span.set_attribute("decision.found", False)
@@ -474,9 +498,23 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
                             "meeting_record lookup failed for {}: {}", event_decision_id, mr_err
                         )
 
+                prov_row = None
+                if row["analysis_id"] is not None:
+                    try:
+                        prov_row = await conn.fetchrow(_PROVENANCE_SQL, row["analysis_id"])
+                    except Exception as pv_err:  # noqa: BLE001 — never 500 the decision for the footer
+                        logger.warning("provenance lookup failed for {}: {}", event_decision_id, pv_err)
+
             span.set_attribute("decision.found", True)
 
             data = dict(row)
+            data["provenance"] = build_provenance(
+                dict(prov_row) if prov_row is not None else None,
+                source_ai_model=row["source_ai_model"],
+                extracted_at=row["extracted_at"],
+                video_id=row["meeting_video_id"],
+            )
+            data["meeting_type"] = meeting_type_label(data.get("meeting_type"))
             data.pop("analysis_id", None)  # internal join key, not part of the response shape
             for field in _JSON_FIELDS:
                 data[field] = _parse_json(data.get(field))

@@ -137,8 +137,30 @@ def is_genai_transient_network_error(exc: BaseException) -> bool:
     return any(marker in msg for marker in _TRANSIENT_NETWORK_MARKERS)
 
 
+def is_genai_billing_error(exc: BaseException) -> bool:
+    """True for prepaid billing exhaustion (HTTP 402), not free-tier daily 429 (#699).
+
+    Google returns ``402 RESOURCE_EXHAUSTED`` with “prepayment credits are depleted”
+    when AI Studio prepaid balance is empty. That will not clear at midnight Pacific.
+    """
+    code = _genai_http_code(exc)
+    if code == 402:
+        return True
+    msg = str(exc).upper()
+    if "PREPAYMENT CREDITS" in msg or "CREDITS ARE DEPLETED" in msg:
+        return True
+    if "402" in msg and (
+        "RESOURCE_EXHAUSTED" in msg or "BILLING" in msg or "PREPAY" in msg
+    ):
+        return True
+    return False
+
+
 def is_genai_retryable(exc: BaseException) -> bool:
     """429/503/502 quota/overload and transient network disconnects — retry with backoff."""
+    # Prepaid depletion is permanent until top-up — do not spin on it (#699).
+    if is_genai_billing_error(exc):
+        return False
     if is_genai_transient_network_error(exc):
         return True
     msg = str(exc).upper()
@@ -195,16 +217,18 @@ def _genai_http_code(exc: BaseException) -> Optional[int]:
         if s.isdigit():
             return int(s)
     msg = str(exc)
-    for token in ("429", "502", "503", "504"):
+    for token in ("429", "402", "502", "503", "504"):
         if token in msg:
             return int(token)
     return None
 
 
 def classify_genai_error(exc: BaseException) -> str:
-    """Short category for logs (quota vs overload vs gateway vs network)."""
+    """Short category for logs (billing vs quota vs overload vs gateway vs network)."""
     if is_genai_transient_network_error(exc):
         return "transient network disconnect"
+    if is_genai_billing_error(exc):
+        return "billing exhaustion (402 prepaid credits depleted)"
     code = _genai_http_code(exc)
     msg = str(exc).upper()
     if code == 429 or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg:
@@ -221,7 +245,12 @@ def classify_genai_error(exc: BaseException) -> str:
 
 
 def is_genai_quota_error(exc: BaseException) -> bool:
-    """True for a quota / 429 / resource-exhausted failure (the daily-wall family)."""
+    """True for a quota / 429 / resource-exhausted failure (the daily-wall family).
+
+    Prepaid ``402`` billing exhaustion is excluded — it will not reset at midnight (#699).
+    """
+    if is_genai_billing_error(exc):
+        return False
     code = _genai_http_code(exc)
     msg = str(exc).upper()
     return code == 429 or "RESOURCE_EXHAUSTED" in msg or "QUOTA" in msg
@@ -680,76 +709,223 @@ def check_gemini_api_key(api_key: str, *, model: Optional[str] = None) -> None:
                 classify_genai_error(exc),
             )
             return
+        if is_genai_billing_error(exc):
+            raise SystemExit(
+                "Gemini prepaid credits are depleted (402 RESOURCE_EXHAUSTED). "
+                "Top up at https://ai.studio/projects (AI Studio billing / prepay) "
+                "or switch GEMINI_USE_TIER to a pool that still has balance. "
+                "This is not a free-tier daily wall — it will not clear at midnight Pacific."
+            ) from exc
         raise
 
 
 def ensure_valid_gemini_api_key(
     *, env_path: Optional[os.PathLike[str]] = None, model: Optional[str] = None
 ) -> str:
-    """Resolve key, probe API once, and retry ``.env`` if shell env had a stale invalid key."""
-    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
-    key = resolve_gemini_api_key(env_path=path)
-    try:
-        check_gemini_api_key(key, model=model)
-        return key
-    except SystemExit:
-        if not path.is_file():
-            raise
-        from dotenv import load_dotenv
+    """Resolve a working key from the active ``GEMINI_USE_TIER`` pool (#699).
 
-        load_dotenv(path, override=True)
-        key_from_file = _strip_api_key(
-            os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
-        )
-        if key_from_file and key_from_file != key:
-            check_gemini_api_key(key_from_file, model=model)
-            logger.info("Using GEMINI_API_KEY from {} (shell env had invalid key)", path)
-            return key_from_file
-        raise
+    Probes each key in pool order. Returns the first that validates. On total
+    billing exhaustion, exits with a pool-size / tier summary (no secret material).
+    Retries ``.env`` once if the shell had a stale invalid key.
+    """
+    path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
+    try:
+        keys = resolve_gemini_api_keys(env_path=path)
+    except RuntimeError:
+        keys = []
+    if not keys:
+        single = resolve_gemini_api_key(env_path=path)
+        keys = [single] if single else []
+
+    billing_fails = 0
+    last_billing: Optional[BaseException] = None
+    for key in keys:
+        try:
+            check_gemini_api_key(key, model=model)
+            return key
+        except SystemExit as exc:
+            msg = str(exc)
+            if "prepaid credits are depleted" in msg or "402 RESOURCE_EXHAUSTED" in msg:
+                billing_fails += 1
+                last_billing = exc
+                continue
+            # API_KEY_INVALID — try .env override once, then re-raise.
+            if not path.is_file():
+                raise
+            from dotenv import load_dotenv
+
+            load_dotenv(path, override=True)
+            key_from_file = _strip_api_key(
+                os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+            )
+            if key_from_file and key_from_file != key:
+                try:
+                    check_gemini_api_key(key_from_file, model=model)
+                    logger.info(
+                        "Using GEMINI_API_KEY from {} (shell env had invalid key)", path
+                    )
+                    return key_from_file
+                except SystemExit as exc2:
+                    msg2 = str(exc2)
+                    if "prepaid credits are depleted" in msg2 or "402 RESOURCE_EXHAUSTED" in msg2:
+                        billing_fails += 1
+                        last_billing = exc2
+                        continue
+                    raise
+            raise
+
+    tier = _gemini_use_tier()
+    if billing_fails and billing_fails >= len(keys):
+        raise SystemExit(
+            f"Gemini prepaid credits depleted on all {billing_fails} key(s) in the "
+            f"GEMINI_USE_TIER={tier!r} pool (402). Top up at https://ai.studio/projects "
+            "or retag / switch tiers. This is billing exhaustion, not a free-tier daily wall."
+        ) from last_billing
+    raise SystemExit(
+        "No usable GEMINI_API_KEY / GEMINI_API_KEYS found. "
+        "Set a key at https://aistudio.google.com/apikey"
+    )
 
 
 # --- API key rotation across workers -----------------------------------------
 _KEY_LOCK = threading.Lock()
 _CLIENT_CACHE: dict[str, Any] = {}
 _KEY_POOL: Optional[list[str]] = None
+_KEY_POOL_TIER: Optional[str] = None
 _KEY_IDX: Optional[int] = None
 
 
-def resolve_gemini_api_keys(*, env_path: Optional[os.PathLike[str]] = None) -> list[str]:
-    """All configured Gemini keys, de-duplicated, in order. Sources (merged):
-    ``GEMINI_API_KEYS`` (comma/space/newline list), ``GEMINI_API_KEY`` /
-    ``GOOGLE_API_KEY``, and ``GEMINI_API_KEY_1``..``GEMINI_API_KEY_10``."""
+def _normalize_key_tier(raw: Optional[str]) -> str:
+    """Normalize a tier tag to ``free``, ``paid``, or ``untagged``."""
+    t = (raw or "").strip().lower()
+    if t in ("free", "paid"):
+        return t
+    return "untagged"
+
+
+def _gemini_use_tier() -> str:
+    """Active pool filter from ``GEMINI_USE_TIER`` (``free`` | ``paid`` | ``all``)."""
+    use = (os.getenv("GEMINI_USE_TIER") or "all").strip().lower()
+    if use in ("", "all", "*"):
+        return "all"
+    if use in ("free", "paid"):
+        return use
+    logger.warning("Unknown GEMINI_USE_TIER={!r}; using all", use)
+    return "all"
+
+
+def resolve_gemini_api_keys(
+    *,
+    env_path: Optional[os.PathLike[str]] = None,
+    tier: Optional[str] = None,
+) -> list[str]:
+    """Configured Gemini keys, de-duplicated, in order.
+
+    Sources (merged): ``GEMINI_API_KEYS`` (comma/space/newline list),
+    ``GEMINI_API_KEY`` / ``GOOGLE_API_KEY``, and ``GEMINI_API_KEY_1``..``10``.
+
+    Tier filter (#654): set ``GEMINI_KEY_TIER`` (plain key) or
+    ``GEMINI_KEY_TIER_{N}`` to ``free`` / ``paid``. ``GEMINI_USE_TIER`` (or the
+    ``tier`` arg) selects the pool: ``free``, ``paid``, or ``all`` (default).
+    Keys in ``GEMINI_API_KEYS`` and any key without a tier tag are ``untagged``
+    and only appear when the filter is ``all``. A ``free``/``paid`` filter with
+    no matching keys raises ``RuntimeError`` so a free run never silently falls
+    back onto paid keys.
+
+    When ``tier``/``GEMINI_USE_TIER`` is ``all`` (#719), keys are ordered
+    **free → paid → untagged** so daily free quota is burned before prepaid.
+    """
     from dotenv import load_dotenv
 
     path = Path(env_path) if env_path is not None else Path(__file__).resolve().parents[5] / ".env"
     if path.is_file():
         load_dotenv(path)
-    raw: list[str] = list(re.split(r"[,\s]+", os.getenv("GEMINI_API_KEYS") or ""))
-    raw += [os.getenv("GEMINI_API_KEY") or "", os.getenv("GOOGLE_API_KEY") or ""]
-    raw += [os.getenv(f"GEMINI_API_KEY_{i}") or "" for i in range(1, 11)]
-    out: list[str] = []
+
+    # (key, tier_label) — first occurrence of a key wins.
+    tagged: list[tuple[str, str]] = []
+    for k in (_strip_api_key(x) for x in re.split(r"[,\s]+", os.getenv("GEMINI_API_KEYS") or "")):
+        if k:
+            tagged.append((k, "untagged"))
+    plain = _strip_api_key(os.getenv("GEMINI_API_KEY") or "")
+    if plain:
+        tagged.append((plain, _normalize_key_tier(os.getenv("GEMINI_KEY_TIER"))))
+    google = _strip_api_key(os.getenv("GOOGLE_API_KEY") or "")
+    if google:
+        # Same tier knob as GEMINI_API_KEY when used as an alias.
+        tagged.append((google, _normalize_key_tier(os.getenv("GEMINI_KEY_TIER"))))
+    for i in range(1, 11):
+        k = _strip_api_key(os.getenv(f"GEMINI_API_KEY_{i}") or "")
+        if k:
+            tagged.append((k, _normalize_key_tier(os.getenv(f"GEMINI_KEY_TIER_{i}"))))
+
+    use = (tier.strip().lower() if tier is not None else _gemini_use_tier())
+    if use in ("", "all", "*"):
+        use = "all"
+    elif use not in ("free", "paid"):
+        logger.warning("Unknown tier filter {!r}; using all", use)
+        use = "all"
+
+    # Preserve first-seen order within each tier; when use=all, emit free first (#719).
+    free: list[str] = []
+    paid: list[str] = []
+    untagged: list[str] = []
     seen: set[str] = set()
-    for k in (_strip_api_key(x) for x in raw):
+    for k, key_tier in tagged:
         # No prefix filtering. Both "AIza…" (classic, 39 chars) and "AQ.…" strings
         # are valid Gemini API keys — verified live that an AQ. key authenticates via
         # x-goog-api-key (HTTP 200). An invalid/expired key surfaces at call time as a
         # clean 401 (non-retryable), which is the right layer to handle it — not a
         # brittle prefix guess that also drops perfectly good keys.
-        if k and k not in seen:
-            seen.add(k)
-            out.append(k)
+        if not k or k in seen:
+            continue
+        if use != "all" and key_tier != use:
+            continue
+        seen.add(k)
+        if key_tier == "free":
+            free.append(k)
+        elif key_tier == "paid":
+            paid.append(k)
+        else:
+            untagged.append(k)
+
+    if use == "all":
+        out = [*free, *paid, *untagged]
+    elif use == "free":
+        out = free
+    else:
+        out = paid
+
+    if use != "all" and not out:
+        raise RuntimeError(
+            f"GEMINI_USE_TIER={use!r} but no keys are tagged "
+            f"GEMINI_KEY_TIER[_N]={use!r}. Tag keys in .env or set "
+            f"GEMINI_USE_TIER=all."
+        )
     return out
 
 
 def _key_pool(fallback: str) -> list[str]:
-    global _KEY_POOL
-    if _KEY_POOL is None:
-        pool = resolve_gemini_api_keys()
-        if fallback and fallback not in pool:
-            pool = [fallback, *pool]
-        _KEY_POOL = pool or ([fallback] if fallback else [])
+    global _KEY_POOL, _KEY_POOL_TIER, _KEY_IDX
+    use = _gemini_use_tier()
+    if _KEY_POOL is None or _KEY_POOL_TIER != use:
+        pool = resolve_gemini_api_keys(tier=use)
+        if fallback and fallback not in pool and use == "all":
+            # Keep free-first order: do not prepend an untagged fallback ahead of free.
+            pool = [*pool, fallback]
+        _KEY_POOL = pool or ([fallback] if fallback and use == "all" else pool)
+        _KEY_POOL_TIER = use
+        # Start at the front of the ordered pool (free first when use=all).
+        # PID offset only for a single-tier filter so workers still spread load.
+        _KEY_IDX = None if use != "all" else 0
         if len(_KEY_POOL) > 1:
-            logger.info("Gemini key rotation enabled: {} keys in pool", len(_KEY_POOL))
+            logger.info(
+                "Gemini key rotation enabled: {} keys in pool (tier={}, free-first={})",
+                len(_KEY_POOL),
+                use,
+                use == "all",
+            )
+        elif _KEY_POOL:
+            logger.info("Gemini key pool: 1 key (tier={})", use)
     return _KEY_POOL
 
 
@@ -767,9 +943,13 @@ def _client_for(key: str) -> Any:
 
 
 def _next_client(pool: list[str]) -> Any:
-    """Round-robin a client from the pool, offsetting the start by PID so separate
-    worker processes don't all hit the same key first. Retries advance the key,
-    so a 429/quota error moves off the hot key."""
+    """Round-robin a client from the pool.
+
+    When the pool was built with ``GEMINI_USE_TIER=all``, ``_KEY_IDX`` starts at
+    0 so free-tagged keys are tried before paid (#719). For a single-tier
+    filter, the first index is PID-offset so workers spread load. Retries
+    advance the key, so a 429/quota error moves off the hot key.
+    """
     global _KEY_IDX
     with _KEY_LOCK:
         if _KEY_IDX is None:
@@ -788,6 +968,27 @@ def _stream_enabled() -> bool:
         "no",
         "off",
     )
+
+
+#: Allowed values of ``DEEPSEEK_THINKING``. ``off`` is the default (#866).
+DEEPSEEK_THINKING_LEVELS = ("off", "low", "high", "max")
+
+
+def deepseek_thinking_kwargs(setting: str | None) -> dict[str, Any]:
+    """Extra request arguments that set DeepSeek's thinking mode (#866).
+
+    DeepSeek turns thinking on by default, at effort ``high``, and bills the thinking tokens with the
+    output. On the light analysis and its reports that was 82% of the output-rate tokens (22.8M
+    thinking against 5.0M output over two days), for extraction the Gemini path runs with thinking
+    off. So the default here is ``off``; ``low``, ``high`` or ``max`` turn it on at that effort for a
+    quality comparison. The OpenAI SDK has no ``thinking`` argument, so it goes in ``extra_body``.
+    """
+    level = (setting or "off").strip().lower() or "off"
+    if level not in DEEPSEEK_THINKING_LEVELS:
+        raise ValueError(f"DEEPSEEK_THINKING must be one of {DEEPSEEK_THINKING_LEVELS}, not {setting!r}")
+    if level == "off":
+        return {"extra_body": {"thinking": {"type": "disabled"}}}
+    return {"extra_body": {"thinking": {"type": "enabled"}}, "reasoning_effort": level}
 
 
 def _call_deepseek_text(
@@ -833,6 +1034,9 @@ def _call_deepseek_text(
 
     from llm.usage.calls import usage_from_openai_response
 
+    # Read once per call, before any request, so a bad value fails here and is not retried (#866).
+    thinking_kwargs = deepseek_thinking_kwargs(os.getenv("DEEPSEEK_THINKING"))
+
     max_attempts = 4
     last_exc: Optional[Exception] = None
     started = time.monotonic()
@@ -850,6 +1054,7 @@ def _call_deepseek_text(
                 messages=msgs,
                 temperature=temperature,
                 max_tokens=max_output_tokens,
+                **thinking_kwargs,
             )
             content = (resp.choices[0].message.content or "").strip()
             if not content:
@@ -893,6 +1098,105 @@ def _call_deepseek_text(
     if last_exc is not None:
         _failed(last_exc, max_attempts)
     raise RuntimeError(f"DeepSeek call failed for {model}: {last_exc}") from last_exc
+
+
+def _anthropic_api_key() -> str:
+    """``ANTHROPIC_API_KEY`` from the environment, else from the repo-root ``.env``."""
+    key = _strip_api_key(os.getenv("ANTHROPIC_API_KEY", ""))
+    if not key:
+        from dotenv import load_dotenv
+
+        env_file = Path(__file__).resolve().parents[5] / ".env"
+        if env_file.is_file():
+            load_dotenv(env_file, override=False)
+            key = _strip_api_key(os.getenv("ANTHROPIC_API_KEY", ""))
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
+    return key
+
+
+def _claude_retry_delay(exc: BaseException, attempt: int) -> float:
+    """Seconds to wait before retry ``attempt + 1``: the server's ``retry-after`` if it sent one,
+    else 2s doubling; never more than 60s."""
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    try:
+        hinted = float(headers.get("retry-after")) if headers is not None else None
+    except (TypeError, ValueError):
+        hinted = None
+    return min(hinted if hinted is not None and hinted >= 0 else 2.0 * (2**attempt), 60.0)
+
+
+def _call_claude_text(
+    *,
+    model: str,
+    user_text: str,
+    system_instruction: str = "",
+    max_output_tokens: int = 32000,
+) -> TextGenAIResult:
+    """Single-turn generation on a Claude model through the official Anthropic SDK (#871).
+
+    Builds on :func:`llm.claude.text_client.call_claude_analysis` (streaming, prompt caching,
+    effort, the long-prompt guard). ``temperature`` is not taken: current Claude models reject it.
+    At most 3 attempts; the SDK's own retries are turned off so the waits are not multiplied.
+    Rate limits (honouring ``retry-after``), 5xx and connection errors are retried; 4xx, a refusal,
+    a truncated answer and a too-long prompt are not.
+    """
+    import anthropic
+
+    from llm.claude.text_client import call_claude_analysis, claude_effort, claude_max_prompt_tokens
+
+    # Read once, before any request, so a bad value or a missing key fails here and is not retried.
+    effort = claude_effort()
+    max_prompt_tokens = claude_max_prompt_tokens()
+    client = anthropic.Anthropic(api_key=_anthropic_api_key(), max_retries=0)
+
+    max_attempts = 3
+    started = time.monotonic()
+    last_exc: Optional[BaseException] = None
+
+    def _failed(exc: BaseException, attempts: int) -> None:
+        _record_usage(
+            provider="anthropic", model=model, usage=getattr(exc, "usage", None),
+            started=started, attempts=attempts, error=exc,
+        )  # fmt: skip
+
+    for attempt in range(max_attempts):
+        try:
+            result = call_claude_analysis(
+                model=model,
+                system=system_instruction.strip(),
+                user_text=user_text,
+                max_tokens=max_output_tokens,
+                effort=effort,
+                max_prompt_tokens=max_prompt_tokens,
+                client=client,
+            )
+            usage = _record_usage(
+                provider="anthropic", model=model, usage=result.usage,
+                started=started, attempts=attempt + 1,
+            )  # fmt: skip
+            return TextGenAIResult(
+                text=result.text, model=model, raw_response=result.raw_response, usage=usage
+            )
+        except (anthropic.RateLimitError, anthropic.APIConnectionError) as exc:
+            last_exc = exc
+        except anthropic.APIStatusError as exc:
+            if exc.status_code < 500:
+                _failed(exc, attempt + 1)
+                raise RuntimeError(f"Claude call failed for {model}: {exc}") from exc
+            last_exc = exc
+        except BaseException as exc:  # too long, refusal, truncated, empty, count failure
+            _failed(exc, attempt + 1)
+            raise
+        if attempt < max_attempts - 1:
+            delay = _claude_retry_delay(last_exc, attempt)
+            logger.warning(
+                "Claude {} error ({}): sleeping {:.0f}s, retry {}/{}",
+                model, type(last_exc).__name__, delay, attempt + 1, max_attempts,
+            )  # fmt: skip
+            time.sleep(delay)
+    _failed(last_exc, max_attempts)  # type: ignore[arg-type]
+    raise RuntimeError(f"Claude call failed for {model}: {last_exc}") from last_exc
 
 
 def supports_thinking_budget(model: str) -> bool:
@@ -1023,6 +1327,8 @@ def call_gemini_text(
 
     A ``deepseek-*`` model name routes to DeepSeek's OpenAI-compatible Chat
     Completions endpoint instead of Gemini (text-only; no ``pdf_bytes`` support).
+    A ``claude-*`` model routes to the Anthropic SDK (:func:`_call_claude_text`, same limits;
+    ``temperature`` is not sent).
 
     ``thinking_budget`` caps the model's thinking tokens (``0`` turns thinking
     off); they are billed as output and add latency. It is sent only to models
@@ -1045,6 +1351,19 @@ def call_gemini_text(
             user_text=user_text,
             system_instruction=system_instruction,
             temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+
+    if model.startswith("claude-"):
+        if pdf_bytes:
+            raise ValueError(
+                "Claude calls here are text-only and cannot read pdf_bytes; "
+                "extract text first or use a Gemini model for scanned PDFs."
+            )
+        return _call_claude_text(
+            model=model,
+            user_text=user_text,
+            system_instruction=system_instruction,
             max_output_tokens=max_output_tokens,
         )
 

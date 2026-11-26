@@ -57,7 +57,7 @@ epoch_names as (
         s.source_url,
         s.site_name || ' | ' || f.label || ': ' || f.field_value as source_excerpt
     from projects as p
-    inner join {{ ref('data_center_site') }} as s on s.data_center_site_id = p.data_center_site_id
+    inner join (select * from {{ ref('data_center_site') }} where source = 'epoch') as s on s.data_center_site_id = p.data_center_site_id
     cross join lateral (values ('owner', 'Owner', s.owner), ('user', 'Users', s.users)) as f(role, label, field_value)
     cross join lateral unnest(string_to_array(coalesce(f.field_value, ''), ',')) as n(raw)
     where nullif(btrim(n.raw), '') is not null

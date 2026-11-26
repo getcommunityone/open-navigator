@@ -178,6 +178,22 @@ https://www.datamuse.com/api/
 - Commercial platform for U.S. community mapping, analytics, and licensed socio-economic data ([https://www.policymap.com/](https://www.policymap.com/))
 - **Use:** Follow PolicyMap’s **Citing Us** / terms when you use their data or maps; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#policymap)
 
+### **Proprietary competitors** (friendly reference)
+Peers in local government data, meeting intelligence, legislative AI, and civic tools. We credit their work; we do not scrape or redistribute their content. Full section: [web_docs/docs/data-sources/citations.md](web_docs/docs/data-sources/citations.md#proprietary-competitors).
+
+- **American Sentiment** — [https://americansentiment.com/](https://americansentiment.com/) — local meeting sentiment; terms forbid competitors' use; never fetched (`BLOCKED_HOSTS`)
+- **ProphecyGov** — [https://prophecygov.com/](https://prophecygov.com/) — local meeting intelligence; same never-fetched rule
+- **GroundVue** — [https://groundvue.org/](https://groundvue.org/) — local government data platform for policy analysis
+- **USLege** — [https://app.uslege.ai/](https://app.uslege.ai/) — legislative AI app
+- **Hamlet** — [https://hamlet.com/](https://hamlet.com/) — local government / civic AI
+
+### **Meeting agenda and video platforms** (friendly reference)
+Where many agencies publish official agendas and meeting video. Full section: [web_docs/docs/data-sources/citations.md](web_docs/docs/data-sources/citations.md#meeting-agenda-and-video-platforms).
+
+- **Granicus** — [https://www.granicus.com/](https://www.granicus.com/) — search `site:granicus.com "[City or County Name]"` for agenda-linked players (1,800+ agencies)
+- **CivicPlus / CivicClerk** — [https://www.civicplus.com/](https://www.civicplus.com/) — search `site:civicclerk.com "[City or County Name]"` or the city `.gov` **Agendas & Minutes**
+- **Town Hall Streams** — [https://www.townhallstreams.com/](https://www.townhallstreams.com/) — smaller towns and school districts (esp. Northeast / Mid-Atlantic); browse active feeds on the site
+
 ### **Reason Foundation** (reference)
 - Nonprofit policy research organization ([https://reason.org/](https://reason.org/)); transportation, infrastructure, and governance are among its topic areas (for example the Annual Highway Report and related publications).
 - **Use:** Cite specific Reason reports or pages when you use their materials; see [website/docs/data-sources/citations.md](website/docs/data-sources/citations.md#reason-foundation)

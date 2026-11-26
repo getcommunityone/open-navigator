@@ -51,6 +51,10 @@ const config: Config = {
   // Custom fields to make environment variables available in client-side code
   customFields: {
     appUrl: process.env.APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : 'https://www.communityone.com'),
+    // Docs Developers sidebar: Archive category (see sidebars.ts). Default off.
+    showDocsArchive: ['1', 'true', 'yes', 'on'].includes(
+      (process.env.DOCUSAURUS_SHOW_ARCHIVE || '').trim().toLowerCase(),
+    ),
   },
 
   // Even if you don't use internationalization, you can use this field to set
@@ -76,21 +80,7 @@ const config: Config = {
           editUrl:
             'https://github.com/getcommunityone/open-navigator-for-engagement/tree/main/web_docs/',
         },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/getcommunityone/open-navigator-for-engagement/tree/main/web_docs/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -117,7 +107,7 @@ const config: Config = {
       require.resolve('@easyops-cn/docusaurus-search-local'),
       {
         hashed: true,
-        indexBlog: true,
+        indexBlog: false,
         docsRouteBasePath: process.env.DOCUSAURUS_BASE_URL ? '/' : 'docs',
         highlightSearchTermsOnTargetPage: true,
       },
@@ -161,34 +151,38 @@ const config: Config = {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
     colorMode: {
-      respectPrefersColorScheme: true,
+      defaultMode: 'light',
+      disableSwitch: true,
+      respectPrefersColorScheme: false,
     },
     navbar: {
-      title: 'Open Navigator Home',
+      // Brand text is restyled in custom.css to match SiteHeader (Open Navigator / by CommunityOne).
+      title: 'Open Navigator',
       logo: {
-        alt: 'CommunityOne Logo',
+        alt: 'CommunityOne',
         src: 'img/communityone_logo.svg',
         href: process.env.APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : 'https://www.communityone.com'),
         target: '_self',
       },
+      hideOnScroll: false,
       items: [
         {
           type: 'docSidebar',
           sidebarId: 'gettingStartedSidebar',
           position: 'left',
-          label: 'Getting Started',
+          label: 'Docs',
         },
         {
           type: 'docSidebar',
           sidebarId: 'citizensSidebar',
           position: 'left',
-          label: 'Citizens and Residents',
+          label: 'Citizens',
         },
         {
           type: 'docSidebar',
           sidebarId: 'policyMakersSidebar',
           position: 'left',
-          label: 'Policy Makers',
+          label: 'Policy',
         },
         {
           type: 'docSidebar',
@@ -197,14 +191,25 @@ const config: Config = {
           label: 'Developers',
         },
         {
+          type: 'docSidebar',
+          sidebarId: 'operationsSidebar',
+          position: 'left',
+          label: 'Operations',
+        },
+        {
           type: 'doc',
           docId: 'data-sources/citations',
-          label: 'Data and Terms',
+          label: 'Data',
           position: 'left',
         },
-        {to: 'blog', label: 'Blog', position: 'left'},
         {
-          href: 'https://github.com/getcommunityone/open-navigator-for-engagement',
+          href: process.env.APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : 'https://www.communityone.com'),
+          label: 'App',
+          position: 'right',
+          target: '_self',
+        },
+        {
+          href: 'https://github.com/getcommunityone/open-navigator',
           label: 'GitHub',
           position: 'right',
         },
@@ -301,17 +306,13 @@ const config: Config = {
           title: 'More',
           items: [
             {
-              label: 'Blog',
-              to: 'blog',
-            },
-            {
               label: 'License (MIT)',
               href: 'https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/LICENSE',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Community One. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} CommunityOne Navigator, a 501(c)(3) nonprofit, EIN 42-2467803. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

@@ -6,7 +6,7 @@ sidebar_position: 1
 
 Find local events, activities for kids, and opportunities to participate in your community.
 
-## 🎈 Activities for Kids & Families
+## Activities for Kids & Families
 
 ### Youth Programs
 
@@ -43,7 +43,7 @@ Find local events, activities for kids, and opportunities to participate in your
 Many programs offer scholarships or sliding-scale fees. Don't let cost prevent your family from participating - ask about financial assistance options.
 :::
 
-## 📅 Public Meetings & Community Events
+## Public Meetings & Community Events
 
 ### Find Local Meetings
 
@@ -100,7 +100,7 @@ Open Navigator tracks thousands of public meetings where you can attend, observe
 Look for events marked "family-friendly" or "all ages" - these are designed with children in mind and often include activities for different age groups.
 :::
 
-## 🎨 Cultural & Educational Activities
+## Cultural & Educational Activities
 
 ### Museums & Cultural Centers
 
@@ -139,7 +139,7 @@ Many communities have free or low-cost options:
 - Job search assistance
 - Tax help and financial literacy
 
-## 🏃 Sports & Recreation
+## Sports & Recreation
 
 ### Youth Sports Leagues
 
@@ -184,7 +184,7 @@ Many communities have free or low-cost options:
 - Outdoor education and survival skills
 - Environmental education
 
-## 🎭 Arts & Performing Arts
+## Arts & Performing Arts
 
 ### Community Arts Programs
 
@@ -209,7 +209,7 @@ Many communities have free or low-cost options:
 - Free concerts in parks
 - Art walks and gallery openings
 
-## 🎓 Educational Enrichment
+## Educational Enrichment
 
 ### Tutoring & Homework Help
 
@@ -243,7 +243,7 @@ Many communities have free or low-cost options:
 - Workforce development centers
 - Career and technical education programs
 
-## 🎪 Seasonal & Special Events
+## Seasonal & Special Events
 
 ### Annual Community Traditions
 
@@ -290,7 +290,7 @@ Many communities have free or low-cost options:
 - Local newspaper listings
 - Community app notifications (Nextdoor, etc.)
 
-## 🤝 Volunteer Opportunities for Families
+## Volunteer Opportunities for Families
 
 ### Family-Friendly Volunteering
 
@@ -318,7 +318,7 @@ Many communities have free or low-cost options:
 Volunteering as a family creates lasting memories and teaches children the value of giving back to their community.
 :::
 
-## 📱 Finding More Activities
+## Finding More Activities
 
 ### Use Open Navigator
 
@@ -335,7 +335,7 @@ Volunteering as a family creates lasting memories and teaches children the value
 - **211 Helpline**: Call 2-1-1 to find programs and services
 - **United Way**: Community resource directory
 
-## 🌟 Getting Involved
+## Getting Involved
 
 ### Attend Events Together
 
@@ -359,10 +359,10 @@ Volunteering as a family creates lasting memories and teaches children the value
 
 Ready to find activities for your family?
 
-- [🗳️ Voter Registration](voter-registration) - Register your family to vote
-- [🎓 Training & Education](training-education) - Find learning opportunities
-- [💬 Service Requests](service-requests) - Request services or submit concerns
-- [❤️ Community Resources](community-resources) - Access support services
+- [ Voter Registration](voter-registration) - Register your family to vote
+- [ Training & Education](training-education) - Find learning opportunities
+- [ Service Requests](service-requests) - Request services or submit concerns
+- [ Community Resources](community-resources) - Access support services
 
 **Or explore directly:**
 - [Browse Nonprofits](pathname:///) - Find organizations serving families

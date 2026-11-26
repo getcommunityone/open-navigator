@@ -300,7 +300,7 @@ unit_tests:
           - {operator_name: Oracle, aliases: 'Oracle Cloud'}
       - input: ref('data_center_site')
         rows:
-          - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA}
+          - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA, source: epoch}
       # #531: the company's organization master row, by name (Amazon) or alias
       - input: ref('mdm_organization_data_center')
         format: sql
@@ -398,7 +398,7 @@ unit_tests:
           - {operator_name: Meta, aliases: 'Meta Platforms|Meta data center'}
       - input: ref('data_center_site')
         rows:
-          - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA}
+          - {data_center_site_id: s1, owner: 'Meta', users: 'Meta', project: 'Hyperion', state_code: LA, source: epoch}
       - input: ref('mdm_organization_data_center')
         format: sql
         rows: |

@@ -6,21 +6,21 @@ sidebar_position: 5
 
 Run Open Navigator data processing workflows in Google Colab with GPU/TPU acceleration and Google Drive storage.
 
-## 🎯 When to Use Google Colab
+## When to Use Google Colab
 
-- ✅ Process large datasets without local compute resources
-- ✅ Access free GPU/TPU for ML tasks (Gemini AI analysis, embeddings)
-- ✅ Bypass local disk space limitations
-- ✅ Run long-running jobs without keeping laptop on
-- ✅ Share notebooks with collaborators
+- Yes Process large datasets without local compute resources
+- Yes Access free GPU/TPU for ML tasks (Gemini AI analysis, embeddings)
+- Yes Bypass local disk space limitations
+- Yes Run long-running jobs without keeping laptop on
+- Yes Share notebooks with collaborators
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Google account
 - Google Drive with available storage (15 GB free tier)
 - GitHub account (for cloning repository)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Step 1: Create New Colab Notebook
 
@@ -78,7 +78,7 @@ drive.mount('/content/drive')
 !git lfs pull
 ```
 
-**⚠️ Common Issues:**
+**Warning Common Issues:**
 
 **"Permission denied" on git hooks:**
 ```python
@@ -139,7 +139,7 @@ uploaded = files.upload()
 !mv .env /content/drive/MyDrive/open-navigator/
 ```
 
-## 📊 Common Workflows
+## Common Workflows
 
 ### Load YouTube Videos to Bronze
 
@@ -148,10 +148,10 @@ uploaded = files.upload()
 
 # Load recent videos (last 180 days)
 !python packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-  --days 180 \
-  --max-videos 200 \
-  --skip-transcripts \
-  --states AL,MA,WI,GA,IN,WA
+ --days 180 \
+ --max-videos 200 \
+ --skip-transcripts \
+ --states AL,MA,WI,GA,IN,WA
 ```
 
 ### Process with Gemini AI
@@ -161,8 +161,8 @@ uploaded = files.upload()
 
 # Analyze meetings with Gemini (uses GPU if available)
 !python scripts/datasources/gemini/load_meeting_transcripts.py \
-  --meetings-per-channel 10 \
-  --delay 3
+ --meetings-per-channel 10 \
+ --delay 3
 ```
 
 ### Run dbt Models
@@ -188,33 +188,33 @@ uploaded = files.upload()
 
 # Download audio from recent videos (last 30 days)
 !python packages/scrapers/src/scrapers/youtube/download_audio_to_drive.py \
-  --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
-  --days 30 \
-  --limit 50
+ --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
+ --days 30 \
+ --limit 50
 
 # Download from specific channels
 !python packages/scrapers/src/scrapers/youtube/download_audio_to_drive.py \
-  --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
-  --channels "City of Seattle,Portland" \
-  --limit 100
+ --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
+ --channels "City of Seattle,Portland" \
+ --limit 100
 
 # Download from specific states
 !python packages/scrapers/src/scrapers/youtube/download_audio_to_drive.py \
-  --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
-  --states AL,MA,WI \
-  --limit 200
+ --output-dir /content/drive/MyDrive/CommunityOne/youtube_audio \
+ --states AL,MA,WI \
+ --limit 200
 ```
 
 **Output Structure:**
 ```
 youtube_audio/
 ├── City-of-Seattle_UCxxx/
-│   ├── 2026-05-01_City Council Meeting.opus
-│   ├── 2026-04-28_Planning Commission.opus
-│   └── ...
+│ ├── 2026-05-01_City Council Meeting.opus
+│ ├── 2026-04-28_Planning Commission.opus
+│ └── ...
 ├── Portland-City-Hall_UCyyy/
-│   ├── 2026-05-02_Council Session.opus
-│   └── ...
+│ ├── 2026-05-02_Council Session.opus
+│ └── ...
 ```
 
 **Audio Format:**
@@ -235,18 +235,18 @@ from sqlalchemy import create_engine
 engine = create_engine(os.environ['NEON_DATABASE_URL_DEV'])
 
 df = pd.read_sql("""
-    SELECT * FROM bronze.bronze_event_youtube
-    WHERE event_date >= '2026-01-01'
+ SELECT * FROM bronze.bronze_event_youtube
+ WHERE event_date >= '2026-01-01'
 """, engine)
 
 # Save to Drive
 df.to_parquet('/content/drive/MyDrive/open-navigator-exports/youtube_2026.parquet')
 df.to_csv('/content/drive/MyDrive/open-navigator-exports/youtube_2026.csv', index=False)
 
-print(f"✅ Exported {len(df):,} rows to Google Drive")
+print(f"Yes Exported {len(df):,} rows to Google Drive")
 ```
 
-## ⚙️ Advanced Configuration
+## Advanced Configuration
 
 ### Use GPU Runtime
 
@@ -260,7 +260,7 @@ print(f"✅ Exported {len(df):,} rows to Google Drive")
 import torch
 print(f"GPU available: {torch.cuda.is_available()}")
 if torch.cuda.is_available():
-    print(f"GPU name: {torch.cuda.get_device_name(0)}")
+ print(f"GPU name: {torch.cuda.get_device_name(0)}")
 ```
 
 ### Increase RAM
@@ -280,9 +280,9 @@ import time
 from IPython.display import clear_output
 
 while True:
-    print("❤️ Keeping session alive...")
-    time.sleep(60)  # Ping every minute
-    clear_output(wait=True)
+ print(" Keeping session alive...")
+ time.sleep(60) # Ping every minute
+ clear_output(wait=True)
 ```
 
 **Or use browser extension:**
@@ -299,24 +299,24 @@ from tqdm import tqdm
 import time
 
 for i in tqdm(range(100), desc="Processing"):
-    time.sleep(0.1)
+ time.sleep(0.1)
 ```
 
-## 📁 Organize Google Drive
+## Organize Google Drive
 
 **Recommended folder structure:**
 
 ```
 MyDrive/
-├── open-navigator/              # Git repository
-│   ├── scripts/
-│   ├── dbt_project/
-│   └── .env
-├── open-navigator-exports/      # Output files
-│   ├── youtube_2026.parquet
-│   └── reports/
-└── open-navigator-cache/        # Large cache files
-    └── gemini/
+├── open-navigator/ # Git repository
+│ ├── scripts/
+│ ├── dbt_project/
+│ └── .env
+├── open-navigator-exports/ # Output files
+│ ├── youtube_2026.parquet
+│ └── reports/
+└── open-navigator-cache/ # Large cache files
+ └── gemini/
 ```
 
 **Create structure:**
@@ -325,23 +325,23 @@ MyDrive/
 !mkdir -p /content/drive/MyDrive/open-navigator-cache
 ```
 
-## 🔒 Security Best Practices
+## Security Best Practices
 
 ### Don't Hardcode Secrets
 
-❌ **Bad:**
+No **Bad:**
 ```python
-api_key = "AIzaSyABC123..."  # Visible in notebook history!
+api_key = "AIzaSyABC123..." # Visible in notebook history!
 ```
 
-✅ **Good:**
+Yes **Good:**
 ```python
 from google.colab import userdata
 api_key = userdata.get('GEMINI_API_KEY')
 ```
 
 **Store secrets in Colab:**
-1. Click 🔑 (Secrets) in left sidebar
+1. Click (Secrets) in left sidebar
 2. Click **Add new secret**
 3. Name: `GEMINI_API_KEY`, Value: your key
 4. Click **Save**
@@ -355,7 +355,7 @@ For analytics/exports, use read-only credentials:
 os.environ['DATABASE_URL_READONLY'] = 'postgresql://readonly:pass@host:5432/db'
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Git Hooks Permission Error
 
@@ -386,9 +386,9 @@ fatal: cannot exec '/content/drive/MyDrive/.../open-navigator/.git/hooks/post-ch
 **Error:**
 ```
 Encountered 20 file(s) that should have been pointers, but weren't:
-    frontend/public/communityone_logo.jpg
-    website/static/img/favicon.ico
-    ...
+ frontend/public/communityone_logo.jpg
+ website/static/img/favicon.ico
+ ...
 ```
 
 **Fix:**
@@ -460,7 +460,7 @@ gc.collect()
 # Runtime → Restart runtime
 ```
 
-## 📝 Example Notebook Template
+## Example Notebook Template
 
 ```python
 # ========================================
@@ -488,13 +488,13 @@ os.environ['NEON_DATABASE_URL_DEV'] = userdata.get('DATABASE_URL')
 os.environ['GEMINI_API_KEY'] = userdata.get('GEMINI_API_KEY')
 
 # 6. Run data processing
-print("🚀 Starting data load...")
+print(" Starting data load...")
 !python packages/scrapers/src/scrapers/youtube/load_youtube_events_to_postgres.py \
-  --days 30 \
-  --max-videos 100 \
-  --skip-transcripts
+ --days 30 \
+ --max-videos 100 \
+ --skip-transcripts
 
-print("✅ Data load complete!")
+print("Yes Data load complete!")
 
 # 7. Export results
 import pandas as pd
@@ -503,21 +503,21 @@ from sqlalchemy import create_engine
 engine = create_engine(os.environ['NEON_DATABASE_URL_DEV'])
 
 df = pd.read_sql("""
-    SELECT COUNT(*) as total_videos, 
-           MAX(event_date) as latest_date
-    FROM bronze.bronze_event_youtube
+ SELECT COUNT(*) as total_videos,
+ MAX(event_date) as latest_date
+ FROM bronze.bronze_event_youtube
 """, engine)
 
 print(df)
 ```
 
-## 🔗 Related Resources
+## Related Resources
 
 - [Google Colab Documentation](https://colab.research.google.com/notebooks/intro.ipynb)
 - [Colab Pro Features](https://colab.research.google.com/signup) - Faster GPUs, longer runtimes
 - [Colab Tips & Tricks](https://medium.com/@oribarel/colab-tricks-7e8c07b9e4c6)
 
-## 💡 Tips
+## Tips
 
 - **Save notebooks in Drive** - File → Save a copy in Drive
 - **Use markdown cells** - Document your workflow

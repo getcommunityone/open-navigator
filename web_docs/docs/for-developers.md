@@ -71,14 +71,14 @@ Includes:
 
 ## What You'll Find Here
 
-### 🚀 Setup & Quick Start
+### Setup & Quick Start
 
 Get the platform running:
 - **[Quick Start](/docs/quickstart)** - Detailed installation instructions
 - **[Quick Reference](/docs/quick-reference)** - CLI commands cheat sheet
 - **[Architecture](/docs/architecture)** - System design and components
 
-### 📊 Data Sources (Technical)
+### Data Sources (Technical)
 
 Technical details on data ingestion:
 - **[Jurisdiction Discovery](/docs/data-sources/jurisdiction-discovery)** - Finding government websites
@@ -86,7 +86,7 @@ Technical details on data ingestion:
 - **[HuggingFace Datasets](/docs/data-sources/huggingface-datasets)** - Pre-built meeting collections
 - **[YouTube Discovery](/docs/data-sources/youtube-discovery)** - Video channel scraping
 
-### 🛠️ How-To Guides
+### How-To Guides
 
 Step-by-step technical guides:
 - **[Jurisdiction Setup](/docs/guides/jurisdiction-setup)** - Configure discovery for your area
@@ -94,26 +94,26 @@ Step-by-step technical guides:
 - **[Handling Formats](/docs/guides/handling-formats)** - Process different document types
 - **[Scraper Improvements](/docs/guides/scraper-improvements)** - Enhance scraping capabilities
 
-### 🔌 Integrations
+### Integrations
 
 Connect external services:
 - **[Dataverse Integration](/docs/integrations/dataverse)** - Harvard Dataverse API
 - **[Frontend Integration](/docs/integrations/frontend)** - React application setup
 - **[LocalView](/docs/integrations/localview)** - LocalView dataset ingestion
 
-### 🚀 Deployment
+### Deployment
 
 Production deployment:
 - **[Databricks Apps](/docs/deployment/databricks-apps)** - Deploy to Databricks
 - **[Scale Deployment](/docs/deployment/scale)** - Handle large datasets
 - **[Cost Management](/docs/deployment/costs)** - Optimize expenses
 
-### 💻 Development
+### Development
 
 Contributing and development:
-- **[Changelog](/docs/development/changelog)** - Version history
-- **[Migration Guides](/docs/development/migration-v2)** - Upgrading between versions
-- **[Refactoring Summary](/docs/development/refactoring-summary)** - Recent changes
+- **[Changelog (archive)](/docs/development/archive/changelog)** - Historical version notes
+- **[Migration Guides (archive)](/docs/development/archive/migration-v2)** - Historical v2 upgrade notes
+- **[Refactoring Summary (archive)](/docs/development/archive/refactoring-summary)** - Historical change notes
 
 ## Quick Start (TL;DR)
 
@@ -133,8 +133,8 @@ cd web_docs && npm install && cd ..
 ./start-all.sh
 
 # Visit:
-# - Main App:  http://localhost:5173
-# - API Docs:  http://localhost:8001/docs
+# - Main App: http://localhost:5173
+# - API Docs: http://localhost:8001/docs
 # - This Site: http://localhost:3000
 ```
 
@@ -144,12 +144,12 @@ cd web_docs && npm install && cd ..
 ```powershell
 git clone https://github.com/getcommunityone/open-navigator.git
 cd open-navigator
-.\install.ps1                       # Python backend (creates .venv + .env)
+.\install.ps1 # Python backend (creates .venv + .env)
 
-cd web_app;  npm install; cd ..
+cd web_app; npm install; cd ..
 cd web_docs; npm install; cd ..
 
-.\start-all.ps1                     # API (8001) + App (5173) + Docs (3000)
+.\start-all.ps1 # API (8001) + App (5173) + Docs (3000)
 ```
 
 > **Don't use `uv sync` to install the backend** — the root `pyproject.toml` is a
@@ -163,21 +163,21 @@ cd web_docs; npm install; cd ..
 
 ```
 ┌─────────────────────────────────────────┐
-│         Open Navigator Platform         │
+│ Open Navigator Platform │
 ├─────────────────────────────────────────┤
-│                                         │
-│  ┌──────────────┐   ┌──────────────┐  │
-│  │  React App   │   │  FastAPI     │  │
-│  │  (Frontend)  │──▶│  (Backend)   │  │
-│  │  Port 5173   │   │  Port 8001   │  │
-│  └──────────────┘   └──────┬───────┘  │
-│                             │           │
-│  ┌──────────────────────────▼────────┐ │
-│  │      Delta Lake (Data Storage)   │ │
-│  │  • Bronze: Raw data              │ │
-│  │  • Silver: Cleaned data          │ │
-│  │  • Gold: Analyzed data           │ │
-│  └──────────────────────────────────┘ │
+│ │
+│ ┌──────────────┐ ┌──────────────┐ │
+│ │ React App │ │ FastAPI │ │
+│ │ (Frontend) │──│ (Backend) │ │
+│ │ Port 5173 │ │ Port 8001 │ │
+│ └──────────────┘ └──────┬───────┘ │
+│ │ │
+│ ┌──────────────────────────────────┐ │
+│ │ Delta Lake (Data Storage) │ │
+│ │ • Bronze: Raw data │ │
+│ │ • Silver: Cleaned data │ │
+│ │ • Gold: Analyzed data │ │
+│ └──────────────────────────────────┘ │
 └─────────────────────────────────────────┘
 ```
 
@@ -221,8 +221,8 @@ python main.py scrape-batch --source discovered --limit 50
 
 # Single jurisdiction
 python main.py scrape --url "https://chicago.legistar.com" \
-                      --state "IL" \
-                      --municipality "Chicago"
+ --state "IL" \
+ --municipality "Chicago"
 ```
 
 ### Publish to HuggingFace
@@ -274,17 +274,17 @@ Visit http://localhost:8001/docs for interactive API documentation.
 
 ```bash
 curl -X POST "http://localhost:8001/workflow/start" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "scrape_targets": [
-         {
-           "url": "https://chicago.legistar.com",
-           "municipality": "Chicago",
-           "state": "IL",
-           "platform": "legistar"
-         }
-       ]
-     }'
+ -H "Content-Type: application/json" \
+ -d '{
+ "scrape_targets": [
+ {
+ "url": "https://chicago.legistar.com",
+ "municipality": "Chicago",
+ "state": "IL",
+ "platform": "legistar"
+ }
+ ]
+ }'
 ```
 
 ### Example: Query Opportunities
@@ -338,12 +338,12 @@ export DATABRICKS_TOKEN=dapi...
 ### Medallion Architecture
 
 ```
-Bronze (Raw)          Silver (Cleaned)       Gold (Analyzed)
+Bronze (Raw) Silver (Cleaned) Gold (Analyzed)
 ────────────────────────────────────────────────────────────
-Scraped PDFs     →    Extracted text    →    Classifications
-Meeting videos   →    Transcripts       →    Sentiment scores
-Budget docs      →    Line items        →    Budget analysis
-Form 990s        →    Financial data    →    Spending patterns
+Scraped PDFs → Extracted text → Classifications
+Meeting videos → Transcripts → Sentiment scores
+Budget docs → Line items → Budget analysis
+Form 990s → Financial data → Spending patterns
 ```
 
 ### File Locations

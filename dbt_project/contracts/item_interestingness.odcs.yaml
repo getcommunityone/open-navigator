@@ -30,6 +30,12 @@ schema:
     unique: true
     primaryKey: true
     primaryKeyPosition: 1
+    relationships:
+    - type: foreignKey
+      to: event_decision.odcs.yaml#/schema/event_decision/properties/event_decision_id
+      customProperties:
+      - property: dbtTestSeverity
+        value: warn
     quality:
     - type: library
       metric: duplicateValues

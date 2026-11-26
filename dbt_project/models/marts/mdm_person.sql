@@ -3,11 +3,12 @@
     materialized='table',
     indexes=[
       {'columns': ['state_code'], 'type': 'btree'},
-      {'columns': ['master_person_id'], 'type': 'btree'}
+      {'columns': ['master_person_id'], 'type': 'btree'},
+      {'columns': ['full_name gin_trgm_ops'], 'type': 'gin'}
     ],
+    pre_hook=["{{ swap_guard() }}"],
     post_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "CREATE INDEX IF NOT EXISTS mdm_person_full_name_trgm_idx ON {{ this }} USING gin (full_name gin_trgm_ops)"
+      "{{ swap_guard_check() }}"
     ]
   )
 }}

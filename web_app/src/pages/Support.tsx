@@ -1,10 +1,12 @@
 import { EnvelopeIcon } from '@heroicons/react/24/outline'
+import { contactMailto } from '../utils/contact'
 
 /**
  * Contact page — the simple "Get in Touch" card.
  *
  * Mirrors the legacy home-page contact CTA (a single mailto button) rather than
- * the previous full ticket form. The Contact nav link (SiteHeader) points here.
+ * the previous full ticket form. "Chat & Contact" in the profile menu and footer opens the chat, which
+ * carries the same contact link at its top (#860 / #952); this page stays for existing links.
  */
 export default function Support() {
   return (
@@ -24,7 +26,7 @@ export default function Support() {
           </p>
           <div className="flex justify-center">
             <a
-              href="mailto:johnbowyer@communityone.com"
+              href={contactMailto()}
               className="inline-flex items-center justify-center px-8 py-4 rounded-lg text-white font-semibold transition-all hover:shadow-lg"
               style={{ backgroundColor: '#354F52' }}
             >

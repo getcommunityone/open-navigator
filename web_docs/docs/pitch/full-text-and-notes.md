@@ -80,15 +80,15 @@ Story lenses
 Five ways to spot what matters in the record  
 Lens  
 What it shows  
-🔥 Contested  
+Contested  
 Split votes and heated debate among officials or residents  
-💵 Money Moves  
+Money Moves  
 Contracts, grants and budget changes pulled from the record  
-🤨 Raised Eyebrows  
+Raised Eyebrows  
 Unusual patterns, such as sole-source contracts, reversals and late additions. Flagged for a person to review, not a finding  
-⚡ Moving Fast  
+Moving Fast  
 Items moving quicker than the usual process  
-👀 Watch Next  
+Watch Next  
 Upcoming votes worth keeping on your radar  
 Lens names and descriptions as shown in the app (web_app/src/pages/HomeV9.tsx) · 5  
 

@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS {MEETING_TABLE} (
     detail_url            text,
     agenda_text           text,
     minutes_text          text,
+    votes_json            jsonb,
     has_captions          boolean     NOT NULL DEFAULT false,
     transcription_status  text        NOT NULL,
     source_modified_at    timestamptz,
@@ -61,6 +62,9 @@ CREATE TABLE IF NOT EXISTS {MEETING_TABLE} (
 );
 CREATE INDEX IF NOT EXISTS bronze_platform_meeting_jurisdiction_idx ON {MEETING_TABLE} (jurisdiction_id, meeting_date);
 CREATE INDEX IF NOT EXISTS bronze_platform_meeting_status_idx ON {MEETING_TABLE} (transcription_status);
+
+-- Existing warehouses created before #633 lack votes_json.
+ALTER TABLE {MEETING_TABLE} ADD COLUMN IF NOT EXISTS votes_json jsonb;
 
 CREATE TABLE IF NOT EXISTS {CAPTION_TABLE} (
     platform        text        NOT NULL,
@@ -98,8 +102,8 @@ CREATE TABLE IF NOT EXISTS {PORTAL_TABLE} (
 MEETING_COLS = (
     "platform", "meeting_uid", "portal", "jurisdiction_id", "state_code", "body_name", "title", "meeting_date",
     "meeting_time", "location", "agenda_url", "minutes_url", "video_url", "video_url_source", "video_clip_id",
-    "detail_url", "agenda_text", "minutes_text", "has_captions", "transcription_status", "source_modified_at",
-    "raw", "fetched_at",
+    "detail_url", "agenda_text", "minutes_text", "votes_json", "has_captions", "transcription_status",
+    "source_modified_at", "raw", "fetched_at",
 )
 CAPTION_COLS = (
     "platform", "meeting_uid", "caption_source", "caption_url", "caption_format", "language", "raw_text",
@@ -120,7 +124,9 @@ def meeting_row(m: PlatformMeeting, fetched_at: datetime) -> tuple[Any, ...]:
         m.platform, m.meeting_uid, m.portal, m.jurisdiction_id, m.state_code, _strip_nul(m.body_name),
         _strip_nul(m.title), m.meeting_date, m.meeting_time, _strip_nul(m.location), m.agenda_url, m.minutes_url,
         m.video_url, m.video_url_source, m.video_clip_id, m.detail_url, _strip_nul(m.agenda_text),
-        _strip_nul(m.minutes_text), m.transcription_status == "captions", m.transcription_status,
+        _strip_nul(m.minutes_text),
+        json.dumps(m.votes_json, default=str) if m.votes_json is not None else None,
+        m.transcription_status == "captions", m.transcription_status,
         m.source_modified_at, json.dumps(m.raw, default=str), fetched_at,
     )
 

@@ -144,10 +144,16 @@ class JevClient:
         transport: httpx.BaseTransport | None = None,
         sleep: Any = time.sleep,
     ) -> None:
-        key = (api_key or os.environ.get("TYPESAFE_API_KEY") or "").strip()
+        key = (
+            api_key
+            or os.environ.get("TYPESAFE_API_KEY")
+            or os.environ.get("JEV_API_KEY")
+            or ""
+        ).strip()
         if not key:
             raise JevError(
-                "Set TYPESAFE_API_KEY (get a key at https://console.typesafe.ai/keys)"
+                "Set TYPESAFE_API_KEY or JEV_API_KEY "
+                "(get a key at https://console.typesafe.ai/keys)"
             )
         self.model = (
             model or os.environ.get("TYPESAFE_MODEL") or DEFAULT_MODEL

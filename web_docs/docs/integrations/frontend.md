@@ -20,20 +20,20 @@ npm start
 
 ```
 Python Backend (Data Generation)
-    ↓
-    ├── Scrape meetings (agents/scraper.py)
-    ├── Extract decisions (extraction/decision_analyzer.py)
-    ├── Calculate accountability metrics (extraction/accountability_dashboards.py)
-    ├── Generate dashboards (examples/tuscaloosa_accountability_report.py)
-    ↓
+ ↓
+ ├── Scrape meetings (agents/scraper.py)
+ ├── Extract decisions (extraction/decision_analyzer.py)
+ ├── Calculate accountability metrics (extraction/accountability_dashboards.py)
+ ├── Generate dashboards (examples/tuscaloosa_accountability_report.py)
+ ↓
 Output Files
-    ├── output/tuscaloosa_accountability_dashboards.json (Python format)
-    └── frontend/policy-dashboards/src/data/dashboardData.js (React format)
-    ↓
+ ├── output/tuscaloosa_accountability_dashboards.json (Python format)
+ └── frontend/policy-dashboards/src/data/dashboardData.js (React format)
+ ↓
 React Frontend (Visualization)
-    ├── Load dashboardData.js
-    ├── Render 4 dashboards + summary
-    └── Display at http://localhost:3000
+ ├── Load dashboardData.js
+ ├── Render 4 dashboards + summary
+ └── Display at http://localhost:3000
 ```
 
 ## Data Flow
@@ -45,10 +45,10 @@ React Frontend (Visualization)
 
 # Generate all accountability dashboards
 dashboards = generate_all_accountability_dashboards(
-    jurisdiction="Tuscaloosa, AL",
-    meeting_documents=documents,
-    decisions=all_decisions,
-    budget_items=all_budget_items
+ jurisdiction="Tuscaloosa, AL",
+ meeting_documents=documents,
+ decisions=all_decisions,
+ budget_items=all_budget_items
 )
 
 # Export for frontend (automatically called)
@@ -63,16 +63,16 @@ The export function converts Python dataclasses to JavaScript modules:
 ```python
 @dataclass
 class RhetoricGapMetrics:
-    sentiment_density: float = 92.0
-    budget_change_dollars: float = -120000
+ sentiment_density: float = 92.0
+ budget_change_dollars: float = -120000
 ```
 
 **JavaScript:**
 ```javascript
 export const rhetoricGapData = {
-  sentimentScore: 92,
-  budgetDelta: -120000,
-  // ... more fields
+ sentimentScore: 92,
+ budgetDelta: -120000,
+ // ... more fields
 };
 ```
 
@@ -83,12 +83,12 @@ export const rhetoricGapData = {
 import { rhetoricGapData as d } from '../data/dashboardData';
 
 export default function WordsVsDollars() {
-  return (
-    <MetricCard 
-      value={`${d.sentimentScore}%`}
-      label="Positive sentiment" 
-    />
-  );
+ return (
+ <MetricCard
+ value={`${d.sentimentScore}%`}
+ label="Positive sentiment"
+ />
+ );
 }
 ```
 
@@ -97,20 +97,20 @@ export default function WordsVsDollars() {
 ```
 frontend/policy-dashboards/src/
 ├── components/
-│   ├── shared/                    # Reusable UI components
-│   │   ├── BarMeter.jsx          # Horizontal bar charts
-│   │   ├── MetricCard.jsx        # Key metric display
-│   │   ├── Compare.jsx           # 4-column benchmark comparison
-│   │   └── InsightBox.jsx        # Summary/logic boxes
-│   ├── Summary.jsx               # Summary dashboard (tab 0)
-│   ├── WordsVsDollars.jsx        # Dashboard 1: Rhetoric Gap
-│   ├── EndlessStudyLoop.jsx      # Dashboard 2: Deferral Pattern
-│   ├── WhereMoneyWent.jsx        # Dashboard 3: Displacement Matrix
-│   └── WhoIsInCharge.jsx         # Dashboard 4: Influence Radar
+│ ├── shared/ # Reusable UI components
+│ │ ├── BarMeter.jsx # Horizontal bar charts
+│ │ ├── MetricCard.jsx # Key metric display
+│ │ ├── Compare.jsx # 4-column benchmark comparison
+│ │ └── InsightBox.jsx # Summary/logic boxes
+│ ├── Summary.jsx # Summary dashboard (tab 0)
+│ ├── WordsVsDollars.jsx # Dashboard 1: Rhetoric Gap
+│ ├── EndlessStudyLoop.jsx # Dashboard 2: Deferral Pattern
+│ ├── WhereMoneyWent.jsx # Dashboard 3: Displacement Matrix
+│ └── WhoIsInCharge.jsx # Dashboard 4: Influence Radar
 ├── data/
-│   └── dashboardData.js          # ⚠️ AUTO-GENERATED FROM PYTHON
-├── App.jsx                        # Main app shell with tabs
-└── index.js                       # React entry point
+│ └── dashboardData.js # Warning AUTO-GENERATED FROM PYTHON
+├── App.jsx # Main app shell with tabs
+└── index.js # React entry point
 ```
 
 ## Customization
@@ -121,9 +121,9 @@ Edit `src/App.jsx`:
 
 ```jsx
 const tabs = [
-  { id: 0, label: 'Summary', component: Summary },
-  { id: 1, label: 'Your Custom Title', component: WordsVsDollars },
-  // ...
+ { id: 0, label: 'Summary', component: Summary },
+ { id: 1, label: 'Your Custom Title', component: WordsVsDollars },
+ // ...
 ];
 ```
 
@@ -137,16 +137,16 @@ Currently benchmarks use **placeholder values**. To add real data:
 # In examples/tuscaloosa_accountability_report.py
 
 def calculate_real_benchmarks(jurisdiction):
-    """Query NCES data for real benchmarks."""
-    # Query NCES Common Core of Data
-    republican_districts = nces_api.query(party="R")
-    democratic_districts = nces_api.query(party="D")
-    
-    return {
-        "republicanAvg": np.mean([d.per_student for d in republican_districts]),
-        "democraticAvg": np.mean([d.per_student for d in democratic_districts]),
-        # ...
-    }
+ """Query NCES data for real benchmarks."""
+ # Query NCES Common Core of Data
+ republican_districts = nces_api.query(party="R")
+ democratic_districts = nces_api.query(party="D")
+
+ return {
+ "republicanAvg": np.mean([d.per_student for d in republican_districts]),
+ "democraticAvg": np.mean([d.per_student for d in democratic_districts]),
+ # ...
+ }
 
 # In export_for_frontend()
 benchmarks = calculate_real_benchmarks(jurisdiction)
@@ -157,9 +157,9 @@ benchmarks = calculate_real_benchmarks(jurisdiction)
 ```javascript
 // src/data/dashboardData.js
 benchmarks: {
-  thisDistrict: { perStudent: 41, label: "This District" },
-  republicanAvg: { perStudent: 74, label: "Republican Districts" },
-  // Update these values ↑
+ thisDistrict: { perStudent: 41, label: "This District" },
+ republicanAvg: { perStudent: 74, label: "Republican Districts" },
+ // Update these values ↑
 }
 ```
 
@@ -172,7 +172,7 @@ benchmarks: {
 
 @dataclass
 class RhetoricGapMetrics:
-    new_metric: float  # Add field
+ new_metric: float # Add field
 ```
 
 **2. Python Export**
@@ -181,7 +181,7 @@ class RhetoricGapMetrics:
 # examples/tuscaloosa_accountability_report.py
 
 js_content += f"""
-  newMetric: {gap.new_metric},
+ newMetric: {gap.new_metric},
 """
 ```
 
@@ -190,9 +190,9 @@ js_content += f"""
 ```jsx
 // src/components/WordsVsDollars.jsx
 
-<MetricCard 
-  value={d.newMetric} 
-  label="New Metric Description" 
+<MetricCard
+ value={d.newMetric}
+ label="New Metric Description"
 />
 ```
 
@@ -201,9 +201,9 @@ js_content += f"""
 ```jsx
 // In any component
 const colors = {
-  positive: "#1D9E75",   // Green - change this
-  negative: "#D85A30",   // Red/orange - change this
-  neutral: "#222"        // Dark gray
+ positive: "#1D9E75", // Green - change this
+ negative: "#D85A30", // Red/orange - change this
+ neutral: "#222" // Dark gray
 };
 ```
 
@@ -229,11 +229,11 @@ npm install --save-dev gh-pages
 
 # Add to package.json:
 {
-  "homepage": "https://yourusername.github.io/oral-health-policy-pulse",
-  "scripts": {
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d build"
-  }
+ "homepage": "https://yourusername.github.io/oral-health-policy-pulse",
+ "scripts": {
+ "predeploy": "npm run build",
+ "deploy": "gh-pages -d build"
+ }
 }
 
 # Deploy
@@ -254,9 +254,9 @@ npm run deploy
 from fastapi.staticfiles import StaticFiles
 
 app.mount(
-    "/dashboards", 
-    StaticFiles(directory="frontend/policy-dashboards/build", html=True),
-    name="dashboards"
+ "/dashboards",
+ StaticFiles(directory="frontend/policy-dashboards/build", html=True),
+ name="dashboards"
 )
 ```
 
@@ -269,8 +269,8 @@ Access at: `http://localhost:8001/dashboards`
 ```bash
 # 1. Scrape new data
 python main.py scrape --state AL --municipality Tuscaloosa \
-  --url https://tuscaloosaal.suiteonemedia.com \
-  --platform suiteonemedia --max-events 0
+ --url https://tuscaloosaal.suiteonemedia.com \
+ --platform suiteonemedia --max-events 0
 
 # 2. Run accountability analysis (auto-exports to frontend)
 python examples/tuscaloosa_accountability_report.py
@@ -300,12 +300,12 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 function downloadPDF() {
-  const element = document.getElementById('dashboard-container');
-  html2canvas(element).then(canvas => {
-    const pdf = new jsPDF();
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0);
-    pdf.save('tuscaloosa-accountability.pdf');
-  });
+ const element = document.getElementById('dashboard-container');
+ html2canvas(element).then(canvas => {
+ const pdf = new jsPDF();
+ pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0);
+ pdf.save('tuscaloosa-accountability.pdf');
+ });
 }
 
 // Add button:
@@ -333,15 +333,15 @@ Visit: `http://localhost:3000?mode=present`
 import { useState, useEffect } from 'react';
 
 function App() {
-  const [data, setData] = useState(null);
-  
-  useEffect(() => {
-    fetch('/api/accountability/latest')
-      .then(res => res.json())
-      .then(data => setData(data));
-  }, []);
-  
-  // ...
+ const [data, setData] = useState(null);
+
+ useEffect(() => {
+ fetch('/api/accountability/latest')
+ .then(res => res.json())
+ .then(data => setData(data));
+ }, []);
+
+ // ...
 }
 ```
 
@@ -441,4 +441,4 @@ For issues:
 
 ---
 
-**Integration Complete** ✅ Python analysis → JavaScript export → React visualization
+**Integration Complete** Yes Python analysis → JavaScript export → React visualization
