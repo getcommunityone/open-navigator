@@ -484,27 +484,58 @@ function jobsText(res: JobClaimsResponse, scope: StoryScope): ScreenText | null 
   }
 }
 
+/** "a", "a and b", "a, b and c". */
+const andList = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
+
+/** Concerns with mentions, one per concern (rows for the same concern are merged), most mentioned first. */
+function rankedConcerns(list: Array<{ concern: string; mention_count: number; jurisdictions?: string[] | null }>) {
+  const m = new Map<string, { concern: string; mention_count: number; jurisdictions: string[] }>()
+  for (const c of list) {
+    if (!(c.mention_count > 0)) continue
+    const prev = m.get(c.concern)
+    const towns = [...(prev?.jurisdictions ?? []), ...(c.jurisdictions ?? [])]
+    m.set(c.concern, { concern: c.concern, mention_count: (prev?.mention_count ?? 0) + c.mention_count, jurisdictions: [...new Set(towns)].sort() })
+  }
+  return [...m.values()].sort((a, b) => b.mention_count - a.mention_count || a.concern.localeCompare(b.concern))
+}
+
+/** "Nationally, traffic leads, then water, then land and property." from the real national rows; null when there are none. */
+export function nationalConcernNote(res: AreaConcernsResponse | null | undefined): string | null {
+  const nat = rankedConcerns(res?.national ?? [])
+  if (nat.length === 0) return null
+  const lead = nat.filter((c) => c.mention_count === nat[0]!.mention_count)
+  const rest = nat.slice(lead.length, Math.max(3, lead.length + 1)).map((c) => concernLabel(c.concern))
+  const head = `Nationally, ${andList(lead.map((c) => concernLabel(c.concern)))} ${lead.length > 1 ? 'lead' : 'leads'}`
+  return `${head}${rest.length ? `, then ${rest.join(', then ')}` : ''}.`
+}
+
 function concernsText(res: AreaConcernsResponse, scope: StoryScope): ScreenText | null {
   const place = placeFor('concerns', scope)
-  const list = concernList(res, place) ?? []
-  const total = list.reduce((a, c) => a + c.mention_count, 0)
-  if (list.length === 0 || total <= 0) return null
-  const sorted = [...list].sort((a, b) => b.mention_count - a.mention_count || a.concern.localeCompare(b.concern))
+  const sorted = rankedConcerns(concernList(res, place) ?? [])
+  const total = sorted.reduce((a, c) => a + c.mention_count, 0)
+  if (sorted.length === 0 || total <= 0) return null
+  const records = !place ? 'in meeting records nationally' : scope.city ? `in meeting records in ${place}` : `in ${place} meeting records`
   const top = sorted[0]!
-  const second = sorted[1]
+  const tied = sorted.filter((c) => c.mention_count === top.mention_count)
   const pct = Math.round((100 * top.mention_count) / total)
   const name = concernLabel(top.concern)
   let headline: string
-  if (!second || second.mention_count <= 0) {
-    headline = `${cap(name)} is the only concern found in meeting records ${where(place)}: ${plural(top.mention_count, 'mention')}.`
-  } else if (second.mention_count === top.mention_count) {
-    headline = `${cap(name)} and ${concernLabel(second.concern)} are tied as the most raised concerns in meeting records ${where(place)}: ${plural(top.mention_count, 'mention')} each, of ${fmt(total)}.`
+  if (sorted.length === 1) {
+    // The towns are named only for a state: under a city they would repeat the place.
+    const towns = scope.city ? [] : top.jurisdictions
+    const shown = towns.length > 3 ? [...towns.slice(0, 3), plural(towns.length - 3, 'other place')] : towns
+    headline = `${cap(name)} was the only concern raised ${records}: ${plural(top.mention_count, 'mention')}${shown.length ? `, in ${andList(shown)}` : ''}.`
+  } else if (tied.length > 1) {
+    headline = `${cap(andList(tied.map((c) => concernLabel(c.concern))))} are tied as the most raised concerns ${records}: ${plural(top.mention_count, 'mention')} each, of ${fmt(total)}.`
   } else {
-    headline = `${cap(name)} is raised most in meeting records ${where(place)}: ${fmt(top.mention_count)} of ${plural(total, 'mention')} (${pct}%), ahead of ${concernLabel(second.concern)} with ${fmt(second.mention_count)}.`
+    const second = sorted[1]!
+    const next = sorted.filter((c) => c.mention_count === second.mention_count)
+    headline = `${cap(name)} is raised most ${records}: ${fmt(top.mention_count)} of ${plural(total, 'mention')} (${pct}%), ahead of ${andList(next.map((c) => concernLabel(c.concern)))} with ${fmt(second.mention_count)}${next.length > 1 ? ' each' : ''}.`
   }
+  const national = place ? nationalConcernNote(res) : null
   return {
     headline,
-    context: 'These count passages in meeting transcripts, not people. When does it come up?',
+    context: `${national ? `${national} ` : ''}These count passages in meeting transcripts, not people. When does it come up?`,
     empty: false,
     failed: false,
   }
