@@ -382,3 +382,54 @@ def test_the_combined_text_query_uses_parameter_numbers_only():
         "(plainto_tsquery('english', $3) && plainto_tsquery('english', $4))"
     )
     assert chat._chat_terms_tsquery_sql(1, 1, every=False) == "(plainto_tsquery('english', $1))"
+
+
+def _request(headers: dict[str, str] | None = None, ip: str = "203.0.113.7"):
+    from starlette.requests import Request
+
+    raw = [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()]
+    return Request({"type": "http", "headers": raw, "client": (ip, 1234), "method": "POST", "path": "/"})
+
+
+def test_visitor_key_is_the_user_when_signed_in() -> None:
+    """#1049: a signed-in user is one bucket, whatever device or cookie."""
+    from api.auth import create_access_token
+
+    token = create_access_token({"sub": "42"})
+    a = chat._visitor_key(_request({"Authorization": f"Bearer {token}"}, ip="198.51.100.1"))
+    b = chat._visitor_key(_request({"Authorization": f"Bearer {token}", "Cookie": "on_chat_sid=x"}, ip="198.51.100.2"))
+    assert a == b == "user:42"
+
+
+def test_guest_key_is_the_ip_and_ignores_cookie_and_bad_tokens() -> None:
+    plain = chat._visitor_key(_request())
+    assert plain.startswith("anon:")
+    assert chat._visitor_key(_request({"Cookie": "on_chat_sid=fresh"})) == plain
+    assert chat._visitor_key(_request({"Authorization": "Bearer not-a-token"})) == plain
+    assert chat._visitor_key(_request(ip="198.51.100.9")) != plain
+
+
+def test_guest_hourly_limit_is_lower_and_says_sign_in(monkeypatch) -> None:
+    monkeypatch.setattr(chat, "_MIN_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr(chat, "_BURST_PER_5MIN", 100)
+    monkeypatch.setattr(chat, "_ANON_RATE_PER_HOUR", 2)
+    monkeypatch.setattr(chat, "_RATE_PER_HOUR", 5)
+    for _ in range(2):
+        chat._check_rate_limit("anon:x")
+    with pytest.raises(chat.HTTPException) as e:
+        chat._check_rate_limit("anon:x")
+    assert e.value.status_code == 429 and "Sign in" in e.value.detail
+    for _ in range(3):
+        chat._check_rate_limit("user:1")  # a signed-in user still has room
+
+
+def test_daily_cap_per_visitor(monkeypatch) -> None:
+    monkeypatch.setattr(chat, "_MIN_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr(chat, "_BURST_PER_5MIN", 100)
+    monkeypatch.setattr(chat, "_USER_PER_DAY", 2)
+    chat._check_rate_limit("user:7")
+    chat._check_rate_limit("user:7")
+    with pytest.raises(chat.HTTPException) as e:
+        chat._check_rate_limit("user:7")
+    assert "Daily" in e.value.detail and "Sign in" not in e.value.detail
+    chat._check_rate_limit("user:8")  # someone else is unaffected

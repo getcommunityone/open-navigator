@@ -33,7 +33,11 @@ from api.routes.search_postgres import (
 router = APIRouter(prefix="/chat", tags=["chat"])
 tracer = trace.get_tracer(__name__)
 
+# Per person (#1049): a signed-in user is one bucket across devices; a guest is one bucket per IP. Guests get less.
 _RATE_PER_HOUR = int(os.environ.get("CHAT_RATE_PER_HOUR", "60"))
+_ANON_RATE_PER_HOUR = int(os.environ.get("CHAT_ANON_RATE_PER_HOUR", "20"))
+_USER_PER_DAY = int(os.environ.get("CHAT_USER_PER_DAY", "200"))
+_ANON_PER_DAY = int(os.environ.get("CHAT_ANON_PER_DAY", "40"))
 _BURST_PER_5MIN = int(os.environ.get("CHAT_BURST_PER_5MIN", "20"))
 _MIN_INTERVAL_SECONDS = float(os.environ.get("CHAT_MIN_INTERVAL_SECONDS", "2"))
 _DAILY_SPEND_CAP_USD = float(os.environ.get("CHAT_DAILY_SPEND_CAP_USD", "1.0"))
@@ -45,6 +49,7 @@ _FIVE_MIN = 300.0
 
 _visitor_timestamps: Dict[str, List[float]] = {}
 _visitor_last: Dict[str, float] = {}
+_visitor_daily: Dict[str, Dict[str, int]] = {}  # utc day -> visitor -> messages
 _spend_by_utc_day: Dict[str, float] = {}
 
 
@@ -52,6 +57,7 @@ def clear_chat_rate_limits() -> None:
     """Test helper: reset in-memory rate / spend state."""
     _visitor_timestamps.clear()
     _visitor_last.clear()
+    _visitor_daily.clear()
     _spend_by_utc_day.clear()
 
 
@@ -104,13 +110,33 @@ class MeetingContext:
     summary: str
 
 
+def _signed_in_user_id(request: Request) -> Optional[str]:
+    """The user id in a valid sign-in token (no database read), else None. A bad or expired token counts as a guest."""
+    auth = request.headers.get("authorization") or ""
+    if not auth.lower().startswith("bearer "):
+        return None
+    try:
+        from api.auth import decode_access_token
+
+        sub = decode_access_token(auth[7:].strip()).get("sub")
+    except Exception:  # noqa: BLE001 — any invalid token is simply not signed in
+        return None
+    return str(sub) if sub not in (None, "") else None
+
+
 def _visitor_key(request: Request) -> str:
+    """Who a chat message counts against (#1049): ``user:<id>`` when signed in, else ``anon:<hash of IP>``.
+
+    The IP alone, not IP + cookie, so clearing or changing a cookie doesn't reset a guest's allowance.
+    """
+    user_id = _signed_in_user_id(request)
+    if user_id:
+        return f"user:{user_id}"
     forwarded = request.headers.get("x-forwarded-for") or ""
     ip = (forwarded.split(",")[0].strip() if forwarded else None) or (
         request.client.host if request.client else "unknown"
     )
-    cookie = request.cookies.get("on_chat_sid") or ""
-    return hashlib.sha256(f"{ip}|{cookie}".encode()).hexdigest()[:32]
+    return "anon:" + hashlib.sha256(ip.encode()).hexdigest()[:32]
 
 
 def _check_rate_limit(visitor: str) -> None:
@@ -130,11 +156,23 @@ def _check_rate_limit(visitor: str) -> None:
             _visitor_timestamps.pop(k, None)
             _visitor_last.pop(k, None)
 
-    history = [t for t in _visitor_timestamps.get(visitor, []) if now - t < _HOUR]
-    if len(history) >= _RATE_PER_HOUR:
+    guest = not visitor.startswith("user:")
+    sign_in = " Sign in for a higher limit." if guest else ""
+    day = _utc_day_key()
+    for k in [k for k in _visitor_daily if k != day]:
+        _visitor_daily.pop(k, None)
+    today = _visitor_daily.setdefault(day, {})
+    if today.get(visitor, 0) >= (_ANON_PER_DAY if guest else _USER_PER_DAY):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Hourly chat limit reached. Try again later.",
+            detail=f"Daily chat limit reached. Try again tomorrow.{sign_in}",
+        )
+
+    history = [t for t in _visitor_timestamps.get(visitor, []) if now - t < _HOUR]
+    if len(history) >= (_ANON_RATE_PER_HOUR if guest else _RATE_PER_HOUR):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Hourly chat limit reached. Try again later.{sign_in}",
         )
     burst = [t for t in history if now - t < _FIVE_MIN]
     if len(burst) >= _BURST_PER_5MIN:
@@ -146,6 +184,7 @@ def _check_rate_limit(visitor: str) -> None:
     history.append(now)
     _visitor_timestamps[visitor] = history
     _visitor_last[visitor] = now
+    today[visitor] = today.get(visitor, 0) + 1
 
 
 def _utc_day_key() -> str:
@@ -662,7 +701,7 @@ def _log_zero_result(question: str, *, mode: str, filters: dict) -> None:
 async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeetingsResponse:
     with tracer.start_as_current_span("chat.meetings") as span:
         visitor = _visitor_key(request)
-        span.set_attribute("chat.visitor", visitor)
+        span.set_attribute("chat.visitor_kind", visitor.split(":", 1)[0])  # no ids in telemetry
         _check_rate_limit(visitor)
         _check_spend_cap()
 

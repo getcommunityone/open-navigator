@@ -41,6 +41,24 @@ and then adds nothing to the daily total.
 
 `CHAT_DAILY_SPEND_CAP_USD` (default 1.00) still stops the chat for the day once the estimates add up to it.
 
+## Limits per person
+
+The chat is throttled per person ([#1049](https://github.com/getcommunityone/open-navigator/issues/1049)). A message
+with a valid sign-in token counts against that user, across all their devices. A guest's messages count against their
+IP address alone, so clearing a cookie doesn't reset the allowance. Guests get lower limits, and a guest who reaches one
+is told that signing in raises it. The counters are kept in the API process's memory, so they reset when it restarts.
+
+| Variable | Applies to | Default |
+|---|---|---|
+| `CHAT_RATE_PER_HOUR` | signed-in user, per hour | 60 |
+| `CHAT_ANON_RATE_PER_HOUR` | guest (per IP), per hour | 20 |
+| `CHAT_USER_PER_DAY` | signed-in user, per UTC day | 200 |
+| `CHAT_ANON_PER_DAY` | guest (per IP), per UTC day | 40 |
+| `CHAT_BURST_PER_5MIN` | anyone, per 5 minutes | 20 |
+| `CHAT_MIN_INTERVAL_SECONDS` | anyone, between messages | 2 |
+
+Telemetry records only whether a message came from a user or a guest, never the id.
+
 ## When it fails
 
 The API log line `chat model call failed (<error type>): …` names the cause:
