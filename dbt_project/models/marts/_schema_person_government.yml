@@ -93,6 +93,9 @@ models:
       - name: email
         description: "Official email, lower-cased. Nullable. PII-light: redacted to NULL in the public serving copy."
         data_type: text
+      - name: email_source_url
+        description: "The government page the email was copied from (official_contact_override, #1062); null when the email came from the source feed or is absent."
+        data_type: text
       - name: email_sha256
         description: >
           Hex sha256 of lower(btrim(email)); NULL when email is NULL or blank.

@@ -74,6 +74,7 @@ select
     o.party,
     o.district,
     o.email,
+    o.email_source_url,
     -- sha256 of the normalized official email (#1062). Survives into the public
     -- serving copy (the email itself does not), so the API can verify a profile
     -- claim by comparing the signed-in user's hashed email without ever seeing
