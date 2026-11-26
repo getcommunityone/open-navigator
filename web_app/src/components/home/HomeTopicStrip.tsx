@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bike, Camera, ChevronRight, Crosshair, House, ScanLine, Server, Volleyball, type LucideIcon } from 'lucide-react'
+import { Bike, Camera, ChevronRight, Crosshair, HandHeart, House, ScanLine, Server, ShieldCheck, Volleyball, type LucideIcon } from 'lucide-react'
 import TopicCompaniesPanel from './TopicCompaniesPanel'
 
 /** The live home stories the strip can select (#1025). */
@@ -29,6 +29,9 @@ const TOPICS: Topic[] = [
   { key: 'lpr', title: 'License plate readers', blurb: 'Automated plate readers: who uses them and for what.', Icon: ScanLine, tint: '#ede9fe', ink: '#6d28d9', topic: 'license-plate-readers' },
   { key: 'pickleball', title: 'Pickleball', blurb: 'Courts, noise and new venues, as councils and parks boards weigh them.', Icon: Volleyball, tint: '#ecfccb', ink: '#4d7c0f', topic: 'pickleball' },
   { key: 'bike', title: 'Bike lanes', blurb: 'Bike lanes and paths, as councils weigh them.', Icon: Bike, tint: '#ffedd5', ink: '#c2410c' },
+  // Guides, not meeting stories (#1078, #1079): coming soon, with no companies or counts until real data backs them.
+  { key: 'nonprofit', title: 'Starting a nonprofit', blurb: 'Every step, filing and fee to start one, state by state.', Icon: HandHeart, tint: '#fce7f3', ink: '#be185d' },
+  { key: 'insurance', title: 'Insurance shopping', blurb: 'Are you paying too much? What regulators publish, made simple.', Icon: ShieldCheck, tint: '#e0f2fe', ink: '#0369a1' },
 ]
 
 interface Props {
