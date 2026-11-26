@@ -24,6 +24,11 @@ upcoming meetings first, so residents can attend the meeting where a site is dec
   text ("January 27, 2026") or the file name (`01272026`, `2026-01-27`, `1/27/26`). It keeps the date only when its year
   matches the manifest's year, and marks it `meeting_date_source = 'anchor_text_parsed'`. In Alabama this dates 908
   documents that were previously dropped. Their text is then extracted by `python -m scrapers.meetings.doctext`.
+- Scanned agendas have no embedded text. `python -m scrapers.meetings.doctext --state AL --ocr`
+  ([#1041](https://github.com/getcommunityone/open-navigator/issues/1041)) reads them with local Tesseract, through PyMuPDF,
+  so no paid service is involved. A document is marked `tesseract_ocr` when OCR reads text, or `empty_after_ocr` when it
+  reads nothing. Up to 30 pages are read per document (`--max-pages`). The text is only what OCR read, so a misread word
+  can stop a match, but nothing is added.
 - Meetings are also searched by what was **said**: transcripts that discuss a data center show under
   **Said in meetings**, each passage quoted with the matched words highlighted and a link to that moment in the
   recording ([#445](https://github.com/getcommunityone/open-navigator/issues/445)). This reaches the many places whose
