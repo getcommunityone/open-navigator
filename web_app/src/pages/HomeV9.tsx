@@ -1960,7 +1960,8 @@ export default function HomeV9() {
                 items: [
                   { kind: 'check', label: 'School Quality' },
                   { kind: 'check', label: 'Property Taxes' },
-                  { kind: 'check', label: 'Northport Schools' },
+                  // The reader's own place (#1047), never a hard-coded one.
+                  { kind: 'check', label: location?.city ? `${location.city} Schools` : 'Local Schools' },
                   { kind: 'check', label: 'Traffic & Roads' },
                   { kind: 'arrow', label: 'Why are my taxes rising?' },
                 ],
