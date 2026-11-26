@@ -5,7 +5,18 @@ import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, to
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from '../stance/QuoteCard'
 import { resolveVideoId, startFromUrl } from '../stance/quoteCardUtils'
-import { BOX_COLORS, STANCE_LABEL } from './storyColors'
+import {
+  BOX_COLORS,
+  DISAGREEMENT_LABEL,
+  DISAGREEMENT_STROKE,
+  PUBLIC_AGAINST_COLOR,
+  PUBLIC_AGAINST_LABEL,
+  STANCE_LABEL,
+  hasDisagreement,
+  leanFill,
+  leanLine,
+  type LeanCounts,
+} from './storyColors'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
@@ -18,9 +29,12 @@ export interface StateMarker {
   meetings: number
 }
 
-/** One state's real speaker counts (positions `by_state`, #1087). */
-export interface StateStance extends StanceCounts {
+/** One state's real speaker counts (positions `by_state`, #1087), plus Jev's public-against / disagreement meeting
+ *  counts (#1117; 0 or missing when none). */
+export interface StateStance extends StanceCounts, LeanCounts {
   state_code: string
+  /** Meetings for the state in the speaker mart (0 for a state that is here only for its AI reading). */
+  meetings?: number
 }
 
 /** One real meeting passage for a state's card: verbatim, with where and when it was said. */
@@ -69,7 +83,7 @@ const W = NATIONAL_BBOX[2]
 const H = NATIONAL_BBOX[3]
 const COLS = 80
 
-export { BOX_COLORS, STANCE_LABEL }
+export { BOX_COLORS, STANCE_LABEL, PUBLIC_AGAINST_COLOR, PUBLIC_AGAINST_LABEL, DISAGREEMENT_LABEL, DISAGREEMENT_STROKE }
 /** States with meetings but no stance on record, light to dark by their real meeting count (#1103). */
 export const MEETING_GREYS = ['#D2D8DA', '#B3BCC0', '#8F9A9F', '#6B777D'] as const
 
@@ -176,7 +190,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     if (!b.code) return BOX_COLORS.none
     if (b.side) return BOX_COLORS[b.side]
     const n = meetings.get(b.code) ?? 0
-    if (n > 0) return hasStance ? meetingColor(n, maxMeetings, MEETING_GREYS, BOX_COLORS.meetings) : MEETINGS_ONLY
+    if (n > 0) return hasStance ? leanFill(stanceBy.get(b.code), meetingColor(n, maxMeetings, MEETING_GREYS, BOX_COLORS.meetings)) : MEETINGS_ONLY
     return BOX_COLORS.none
   }
 
@@ -184,6 +198,10 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     .map((code) => ({ code, name: stateName(code), meetings: meetings.get(code) ?? 0, st: stanceBy.get(code) }))
     .sort((a, b) => speakersOf(b.st) - speakersOf(a.st) || b.meetings - a.meetings || a.name.localeCompare(b.name))
   const withMeetings = byState.filter((s) => s.meetings > 0).length
+  // #1117: Jev's reading, only where it is served (public against at P >= 0.7; the refined disagreement rule).
+  const leanStates = (stance ?? []).filter((s) => (s.public_against_meetings ?? 0) > 0 && speakersOf(s) === 0)
+  const disagreeStates = (stance ?? []).filter((s) => hasDisagreement(s))
+  const hasLean = hasStance && (leanStates.length > 0 || disagreeStates.length > 0)
 
   const shown = hover != null ? boxes[hover] : undefined
   const shownCode = shown?.code ?? null
@@ -198,6 +216,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   }
   const shownStance = shownCode ? stanceLine(stanceBy.get(shownCode)) : null
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
+  const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
   const left = shown ? (shown.x / W) * 100 : 0
   const size = grid.step * 0.8
   const pad = 4
@@ -208,6 +227,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       ? ` In ${plural(split.length, 'state', 'states')} the boxes are split by ${plural(speakersTotal, 'speaker', 'speakers')} on record: ` +
         split.map((s) => `${stateName(s.state_code)}, ${stanceLine(s)}`).join('; ') +
         '.'
+      : '') +
+    (leanStates.length
+      ? ` In ${plural(leanStates.length, 'other state', 'other states')} an AI reading of the meetings found the public leaned against: ${leanStates.map((s) => stateName(s.state_code)).join(', ')}.`
+      : '') +
+    (disagreeStates.length
+      ? ` In ${plural(disagreeStates.length, 'state', 'states')} the AI reading found officials sided against the public (see the data table): ${disagreeStates.map((s) => stateName(s.state_code)).join(', ')}.`
       : '') +
     ' The data table below lists every state; its links open each state’s story.'
 
@@ -276,6 +301,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             {stateName(shownCode)}: {plural(shownMeetings, 'meeting', 'meetings')}
             {shownStance ? ` · ${shownStance}` : hasStance ? ' · no stance on record' : ''}
           </p>
+          {shownLean && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#57534e' }}>{shownLean}</p>}
           {touch && (
             <p style={{ margin: '6px 0 0', fontSize: 13 }}>
               <Link to={href(shownCode)} style={{ color: '#0f766e', fontWeight: 600 }}>
@@ -289,7 +315,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.75rem] text-sm leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? '; no stance on record' : ''}. ${touch ? 'Tap again to open its story.' : 'Click to open its story.'}`
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? '; no stance on record' : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap again to open its story.' : 'Click to open its story.'}`
           : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to read what was said; tap again to open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
 
@@ -302,6 +328,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               {LEGEND_LABEL[k]}
             </li>
           ))}
+        {hasLean && leanStates.length > 0 && (
+          <li className="inline-flex items-center gap-1">
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: PUBLIC_AGAINST_COLOR, display: 'inline-block' }} />
+            {PUBLIC_AGAINST_LABEL}
+          </li>
+        )}
         <li className="inline-flex items-center gap-1">
           {hasStance ? (
             <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: MEETING_GREYS[2], display: 'inline-block' }} />
@@ -316,6 +348,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           {split.length > 0
             ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
             : 'No speaker positions on record yet; states show meetings only.'}
+          {hasLean ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
         </p>
       )}
 
@@ -336,6 +369,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                         {STANCE_LABEL[k]}
                       </th>
                     ))}
+                  {hasLean && (
+                    <>
+                      <th scope="col" className="py-1 pr-2">AI: public leaned against</th>
+                      <th scope="col" className="py-1 pr-2">AI: officials sided against the public</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -350,9 +389,15 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                     {hasStance &&
                       STANCE_ORDER.map((k) => (
                         <td key={k} className="py-1 pr-2">
-                          {r.st ? fmt(stanceCount(r.st, k)) : '—'}
+                          {r.st && (speakersOf(r.st) > 0 || (r.st.meetings ?? 1) > 0) ? fmt(stanceCount(r.st, k)) : '—'}
                         </td>
                       ))}
+                    {hasLean && (
+                      <>
+                        <td className="py-1 pr-2">{fmt(r.st?.public_against_meetings ?? 0)}</td>
+                        <td className="py-1 pr-2">{fmt(r.st?.disagreement_meetings ?? 0)}</td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>

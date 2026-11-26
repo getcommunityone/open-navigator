@@ -263,6 +263,8 @@ CIVIC_SERVING = frozenset(
         "company_grant",
         # office terms: who held which seat, when, and why they left (#1068); small
         "person_government_term",
+        # Jev's reading of each data center meeting: public lean, official lean, the two map flags (#1117); small
+        "data_center_meeting_lean",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

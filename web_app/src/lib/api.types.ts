@@ -2017,6 +2017,12 @@ export interface components {
          * @description Meetings for one government in the scoped state (#1039), placed on the county map by geoid or coordinates.
          */
         DataCenterMeetingMentionPlaceCount: {
+            /**
+             * Disagreement Meetings
+             * @description Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.
+             * @default 0
+             */
+            disagreement_meetings: number;
             /** Geoid */
             geoid?: string | null;
             /** Jurisdiction Id */
@@ -2031,6 +2037,12 @@ export interface components {
             longitude?: number | null;
             /** Meetings */
             meetings: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.
+             * @default 0
+             */
+            public_against_meetings: number;
             /**
              * Speakers Against
              * @default 0
@@ -3221,11 +3233,23 @@ export interface components {
          */
         PositionStateCount: {
             /**
+             * Disagreement Meetings
+             * @description Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.
+             * @default 0
+             */
+            disagreement_meetings: number;
+            /**
              * Meetings
              * @description Meetings in the mart for the state (analysed, a data center came up).
              * @default 0
              */
             meetings: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.
+             * @default 0
+             */
+            public_against_meetings: number;
             /**
              * Speakers Against
              * @default 0

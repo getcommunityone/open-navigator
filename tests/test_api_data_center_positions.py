@@ -22,7 +22,12 @@ PATH = "/api/data-centers/positions"
 
 
 class _Conn:
-    def __init__(self, totals=None, quotes=None, by_state=None, error: Exception | None = None):
+    def __init__(
+        self, totals=None, quotes=None, by_state=None, error: Exception | None = None,
+        lean=None, lean_error: Exception | None = None,
+    ):
+        self.lean = lean or []
+        self.lean_error = lean_error
         self.totals = totals or []
         self.quotes = quotes or []
         self.by_state = by_state or []
@@ -33,6 +38,10 @@ class _Conn:
         self.calls.append((sql, params))
         if self.error:
             raise self.error
+        if "data_center_meeting_lean" in sql:
+            if self.lean_error:
+                raise self.lean_error
+            return self.lean
         if "GROUP BY p.state_code" in sql:
             return self.by_state
         return self.totals if "FROM data_center_meeting_position" in sql else self.quotes
@@ -204,7 +213,7 @@ def test_by_state_is_national_even_on_a_scoped_page(get) -> None:
     conn = _Conn(totals=[_totals()], by_state=rows)
     resp = get(conn, {"state": "AL", "city": "Testville"})
     assert resp.status_code == 200, resp.text
-    assert resp.json()["by_state"] == rows
+    assert resp.json()["by_state"] == [{**r, "public_against_meetings": 0, "disagreement_meetings": 0} for r in rows]
     (sql, params) = next(c for c in conn.calls if "GROUP BY p.state_code" in c[0])
     assert params == ()
     assert "$1" not in sql and "ILIKE" not in sql
@@ -213,3 +222,31 @@ def test_by_state_is_national_even_on_a_scoped_page(get) -> None:
 
 def test_by_state_defaults_to_empty(get) -> None:
     assert get(_Conn(totals=[_totals()])).json()["by_state"] == []
+
+
+def test_by_state_carries_jev_lean_counts_nationally(get) -> None:
+    """#1117: public-against and disagreement meetings per state, never narrowed by the scope. A state with lean
+    counts but no speaker row still gets a row (0 speakers) so the map can tint it."""
+    rows = [_state("AZ", speakers_against=11, meetings=3)]
+    lean = [
+        {"state_code": "AZ", "public_against_meetings": 2, "disagreement_meetings": 0},
+        {"state_code": "GA", "public_against_meetings": 9, "disagreement_meetings": 2},
+    ]
+    conn = _Conn(totals=[_totals()], by_state=rows, lean=lean)
+    body = get(conn, {"state": "AL", "city": "Testville"}).json()
+    by = {s["state_code"]: s for s in body["by_state"]}
+    assert [s["state_code"] for s in body["by_state"]] == ["AZ", "GA"]
+    assert by["AZ"]["speakers_against"] == 11 and by["AZ"]["public_against_meetings"] == 2
+    assert by["GA"] == {**_state("GA", meetings=0), "public_against_meetings": 9, "disagreement_meetings": 2}
+    (sql, params) = next(c for c in conn.calls if "data_center_meeting_lean" in c[0])
+    assert params == () and "$1" not in sql
+    assert "mostly_supported" not in sql and "mixed" not in sql
+
+
+def test_by_state_lean_missing_table_is_zero_not_a_failure(get) -> None:
+    err = asyncpg.exceptions.UndefinedTableError("relation \"data_center_meeting_lean\" does not exist")
+    rows = [_state("AZ", speakers_against=1)]
+    resp = get(_Conn(totals=[_totals()], by_state=rows, lean_error=err))
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["available"] is True
+    assert resp.json()["by_state"] == [{**rows[0], "public_against_meetings": 0, "disagreement_meetings": 0}]

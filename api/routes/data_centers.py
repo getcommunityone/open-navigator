@@ -816,6 +816,16 @@ class DataCenterMeetingMentionPlaceCount(BaseModel):
     speakers_against: int = 0
     speakers_question: int = 0
     speakers_neutral: int = 0
+    public_against_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI "
+        "reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.",
+    )
+    disagreement_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the "
+        "outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.",
+    )
 
 
 class DataCenterMeetingMentionCounts(BaseModel):
@@ -946,6 +956,57 @@ def build_mention_by_place_query(state_code: str, site_id: str | None, strength:
     return sql, params
 
 
+def build_lean_by_place_query(state_code: str, site_id: str | None, strength: str | None) -> tuple[str, list[Any]]:
+    """Jev's public-against and disagreement meeting counts per government in one state (#1117), over the same
+    distinct (government, meeting) set as ``build_mention_by_place_query`` (same site and strength filters).
+    Only governments with at least one such meeting are returned."""
+    where_sql, params = _mention_where(state_code, None, site_id, strength)
+    sql = (
+        "WITH mv AS (SELECT DISTINCT m.jurisdiction_id, m.video_id FROM data_center_meeting_mention m "
+        f"WHERE ({where_sql}) AND m.jurisdiction_id IS NOT NULL) "
+        "SELECT mv.jurisdiction_id, "
+        "count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
+        "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings "
+        "FROM mv JOIN data_center_meeting_lean l ON l.video_id = mv.video_id "
+        "GROUP BY mv.jurisdiction_id "
+        "HAVING count(*) FILTER (WHERE l.public_against OR l.officials_sided_against_public) > 0"
+    )
+    return sql, params
+
+
+LEAN_BY_STATE_SQL = (
+    "SELECT l.state_code, "
+    "count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
+    "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings "
+    "FROM data_center_meeting_lean l WHERE l.state_code IS NOT NULL "
+    "GROUP BY l.state_code "
+    "HAVING count(*) FILTER (WHERE l.public_against OR l.officials_sided_against_public) > 0 "
+    "ORDER BY l.state_code"
+)
+"""Jev's public-against and disagreement meetings per state for the whole country (#1117): never narrowed by the
+scope, like ``POSITION_BY_STATE_SQL``. Only supported/mixed readings are never served."""
+
+
+async def _fetch_lean(conn: Any, sql: str, *params: Any) -> dict[str, dict[str, int]]:
+    """Lean counts keyed by the first column, or {} when data_center_meeting_lean (or a column) isn't in this
+    database: the maps then show speakers and meetings only, never a failure."""
+    try:
+        rows = await conn.fetch(sql, *params)
+    except asyncpg.exceptions.PostgresError as e:
+        logger.warning("data-centers: data_center_meeting_lean unavailable ({}); lean counts 0", e)
+        return {}
+    out: dict[str, dict[str, int]] = {}
+    for r in rows:
+        row = dict(r)
+        key = row.get("state_code") or row.get("jurisdiction_id")
+        if key:
+            out[str(key)] = {
+                "public_against_meetings": int(row.get("public_against_meetings") or 0),
+                "disagreement_meetings": int(row.get("disagreement_meetings") or 0),
+            }
+    return out
+
+
 def jump_url(video_url: str, start_seconds: float | None) -> str | None:
     """The recording at the passage's moment (YouTube ``t=`` in whole seconds)."""
     if start_seconds is None or "youtu" not in video_url:
@@ -995,6 +1056,7 @@ async def list_data_center_meeting_mentions(
                     count_rows = await conn.fetch(counts_sql, *counts_params)
                     state_rows = await conn.fetch(by_state_sql, *by_state_params)
                     place_rows = []
+                    place_lean: dict[str, dict[str, int]] = {}
                     if applied.state_code:
                         place_sql, place_params = build_mention_by_place_query(
                             applied.state_code, site_clean, strength
@@ -1004,6 +1066,9 @@ async def list_data_center_meeting_mentions(
                         except asyncpg.exceptions.PostgresError as e:
                             # A serving copy without jurisdictions: the map falls back to the national view.
                             logger.warning("data-centers: by_place unavailable ({})", e)
+                        if place_rows:
+                            lean_sql, lean_params = build_lean_by_place_query(applied.state_code, site_clean, strength)
+                            place_lean = await _fetch_lean(conn, lean_sql, *lean_params)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("meeting_mentions.relation_missing", True)
             logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)
@@ -1016,7 +1081,10 @@ async def list_data_center_meeting_mentions(
             DataCenterMeetingMentionCounts(**dict(count_rows[0])) if count_rows else DataCenterMeetingMentionCounts()
         )
         counts.by_state = [DataCenterMeetingMentionStateCount(**dict(r)) for r in state_rows]
-        counts.by_place = [DataCenterMeetingMentionPlaceCount(**dict(r)) for r in place_rows]
+        counts.by_place = [
+            DataCenterMeetingMentionPlaceCount(**{**dict(r), **place_lean.get(str(dict(r)["jurisdiction_id"]), {})})
+            for r in place_rows
+        ]
         items = []
         for r in rows:
             row = dict(r)
@@ -1571,6 +1639,16 @@ class PositionStateCount(BaseModel):
     speakers_question: int = 0
     speakers_neutral: int = 0
     meetings: int = Field(0, description="Meetings in the mart for the state (analysed, a data center came up).")
+    public_against_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI "
+        "reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.",
+    )
+    disagreement_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the "
+        "outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.",
+    )
 
 
 class DataCenterPositionsResponse(BaseModel):
@@ -1648,6 +1726,19 @@ POSITION_BY_STATE_SQL = (
 home map still shows every state. States with no row in the mart are simply absent."""
 
 
+def merge_lean_by_state(state_rows: list[Any], lean: dict[str, dict[str, int]]) -> list[PositionStateCount]:
+    """Speaker sums per state plus Jev's lean counts (#1117). A state with lean counts but no speaker rows gets a row
+    with 0 speakers and 0 meetings in the position mart, so the map can tint it; sorted by state code."""
+    out: dict[str, PositionStateCount] = {}
+    for r in state_rows:
+        row = dict(r)
+        out[row["state_code"]] = PositionStateCount(**{**row, **lean.get(row["state_code"], {})})
+    for code, counts in lean.items():
+        if code not in out:
+            out[code] = PositionStateCount(state_code=code, **counts)
+    return [out[k] for k in sorted(out)]
+
+
 @router.get("/positions", response_model=DataCenterPositionsResponse)
 async def data_center_positions(
     state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
@@ -1688,6 +1779,7 @@ async def data_center_positions(
                     total_rows = await conn.fetch(totals_sql, *params)
                     quote_rows = await conn.fetch(quotes_sql, *quote_params)
                     state_rows = await conn.fetch(POSITION_BY_STATE_SQL)
+                    state_lean = await _fetch_lean(conn, LEAN_BY_STATE_SQL)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("positions.relation_missing", True)
             logger.warning("data-centers: 'data_center_meeting_position' isn't here yet ({}); unavailable", e)
@@ -1713,7 +1805,7 @@ async def data_center_positions(
             scope=applied,
             totals=totals,
             quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
-            by_state=[PositionStateCount(**dict(r)) for r in state_rows],
+            by_state=merge_lean_by_state(state_rows, state_lean),
         )
 
 

@@ -5,7 +5,15 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { dotSides, speakersOf, sumStances, type StanceCounts } from '../../utils/boxSplit'
-import { BOX_COLORS, LEGEND_LABEL, LEGEND_STANCES, MEETING_GREYS, stanceLine } from '../home/StoryStatesMap'
+import { BOX_COLORS, LEGEND_LABEL, LEGEND_STANCES, MEETING_GREYS, featPath, stanceLine } from '../home/StoryStatesMap'
+import {
+  PUBLIC_AGAINST_COLOR,
+  PUBLIC_AGAINST_LABEL,
+  hasDisagreement,
+  leanFill,
+  leanLine,
+  type LeanCounts,
+} from '../home/storyColors'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
 import { resolveVideoId, startFromUrl } from './quoteCardUtils'
@@ -13,7 +21,7 @@ import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly } from '../../utils/touchOnly'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
-export interface PlaceCount {
+export interface PlaceCount extends LeanCounts {
   jurisdiction_id: string
   jurisdiction_name?: string | null
   jurisdiction_type?: string | null
@@ -101,7 +109,19 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       const st = sumStances(ps)
       if (speakersOf(st) > 0) stances.set(id, st)
     }
-    return { byCounty, counts, stances, rings, unplaced }
+    // #1117: Jev's public-against / disagreement meetings summed over the county's governments.
+    const leans = new Map<string, { public_against_meetings: number; disagreement_meetings: number }>()
+    for (const [id, ps] of byCounty) {
+      const l = ps.reduce(
+        (a, p) => ({
+          public_against_meetings: a.public_against_meetings + Math.max(0, p.public_against_meetings || 0),
+          disagreement_meetings: a.disagreement_meetings + Math.max(0, p.disagreement_meetings || 0),
+        }),
+        { public_against_meetings: 0, disagreement_meetings: 0 },
+      )
+      if (l.public_against_meetings > 0 || l.disagreement_meetings > 0) leans.set(id, l)
+    }
+    return { byCounty, counts, stances, leans, rings, unplaced }
   }, [grid, byPlace])
 
   // Each dot's side (grid order): a county with speakers on record is banded left to right by its real counts, as on the home map.
@@ -134,14 +154,17 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     )
   }
 
-  const { byCounty, counts, stances, rings, unplaced } = placed
+  const { byCounty, counts, stances, leans, rings, unplaced } = placed
   const max = Math.max(0, ...counts.values())
   // Home map colours (#1106): a side's colour, else grey by real meetings, else the empty colour.
   const colorFor = (i: number, n: number | undefined): string => {
     const side = sides[i]
     if (side) return BOX_COLORS[side]
-    return n && n > 0 ? meetingColor(n, max, MEETING_GREYS, BOX_COLORS.meetings) : HOUSE_THEME.neutral
+    // #1117: no speakers on record but the AI reading found the public leaned against: the lighter red.
+    return n && n > 0 ? leanFill(leans.get(grid.dots[i]!.id), meetingColor(n, max, MEETING_GREYS, BOX_COLORS.meetings)) : HOUSE_THEME.neutral
   }
+  const leanCounties = [...leans].filter(([id, l]) => l.public_against_meetings > 0 && !stances.has(id)).length
+  const disagreeCounties = new Set([...leans].filter(([, l]) => hasDisagreement(l)).map(([id]) => id))
   const speakersTotal = [...stances.values()].reduce((a, st) => a + speakersOf(st), 0)
   const nameOf = (id: string) => grid.feats.find((f) => f.id === id)?.name ?? id
   const countyLabel = (id: string) => {
@@ -156,7 +179,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     if (!n) return `${countyLabel(id)}: no meetings on record`
     const parts = (byCounty.get(id) ?? []).map((p) => `${p.jurisdiction_name ?? p.jurisdiction_id} ${fmt(p.meetings)}`)
     const st = stanceLine(stances.get(id))
-    return `${countyLabel(id)}: ${plural(n)} (${parts.join(', ')})${st ? `; ${st}` : '; no stance on record'}`
+    const lean = leanLine(leans.get(id))
+    return `${countyLabel(id)}: ${plural(n)} (${parts.join(', ')})${st ? `; ${st}` : '; no stance on record'}.${lean ? ` ${lean}` : ''}`
   }
 
   // Only while a county is hovered: the newest passage from one of its governments, if the scope has one.
@@ -172,15 +196,17 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   const vb = `${bx0 - pad} ${by0 - pad} ${bx1 - bx0 + pad * 2} ${by1 - by0 + pad * 2}`
   // Town labels (#1115), in the Data Explorer's label style: each ring's government named beside it, largest meetings first,
   // skipping any label whose box would overlap one already placed. County governments have no ring; one is named at its
-  // county's centre only when that spot is free. Sizes follow the grid step so the labels scale with the map.
+  // county's centre only when that spot is free, after every town (#1117), in the cartographic county style: small,
+  // uppercase, letter-spaced, lighter ("MARICOPA COUNTY"). Sizes follow the grid step so the labels scale with the map.
   const labelSize = grid.step * 1.5
+  const countySize = labelSize * 0.82
   const labels = (() => {
     const x0 = bx0 - pad
     const x1 = bx1 + pad
     const boxes: [number, number, number, number][] = []
     const free = (b: [number, number, number, number]) =>
       b[0] >= x0 && b[2] <= x1 && !boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])
-    const out: { key: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; text: string; county: string }[] = []
+    const out: { key: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; text: string; county: string; ring: boolean }[] = []
     const cands = [
       ...rings.map((g) => ({ place: g.place, x: g.x, y: g.y, county: g.county, ring: true })),
       ...[...byCounty].flatMap(([county, ps]) => {
@@ -192,13 +218,16 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           .filter((p) => p.jurisdiction_type === 'county' && p.geoid === county)
           .map((p) => ({ place: p, x: cx, y: cy, county, ring: false }))
       }),
-    ].sort((a, b) => b.place.meetings - a.place.meetings || Number(b.ring) - Number(a.ring))
+    ].sort((a, b) => Number(b.ring) - Number(a.ring) || b.place.meetings - a.place.meetings)
     for (const c of cands) {
-      // Shown as people say it (#1115): "Casa Grande", not "Casa Grande city" (the Data Explorer's rule).
-      const text = (c.place.jurisdiction_name ?? '').trim().replace(/\s+(city|town|village|borough|CDP)$/i, '')
+      // Shown as people say it (#1115): "Casa Grande", not "Casa Grande city" (the Data Explorer's rule). Only the Census's
+      // lowercase suffix is dropped, so a name that ends in a capitalised word keeps it ("Garden City", #1117).
+      const name = (c.place.jurisdiction_name ?? '').trim()
+      const text = c.ring ? name.replace(/\s+(city|town|village|borough|CDP)$/, '') : name.toUpperCase()
       if (!text) continue
-      const w = text.length * labelSize * 0.55
-      const h = labelSize * 1.1
+      // Uppercase with 0.08em letter-spacing runs wider per character than mixed-case town names.
+      const w = c.ring ? text.length * labelSize * 0.55 : text.length * countySize * (0.68 + 0.08)
+      const h = (c.ring ? labelSize : countySize) * 1.1
       const top = c.y - h / 2
       const gap = grid.step * 0.95
       const tries: { anchor: 'start' | 'middle' | 'end'; x: number; box: [number, number, number, number] }[] = c.ring
@@ -210,7 +239,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       const hit = tries.find((t) => free(t.box))
       if (!hit) continue
       boxes.push(hit.box)
-      out.push({ key: c.place.jurisdiction_id, x: hit.x, y: c.y, anchor: hit.anchor, text, county: c.county })
+      out.push({ key: c.place.jurisdiction_id, x: hit.x, y: c.y, anchor: hit.anchor, text, county: c.county, ring: c.ring })
     }
     return out
   })()
@@ -249,7 +278,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           viewBox={vb}
           className="stance-map-svg"
           role="img"
-          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.`}
+          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where an AI reading of the meetings found the public leaned against.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where the AI reading found officials sided against the public (see the data table).` : ''}`}
         >
           {grid.dots.map((d, i) => {
             const n = counts.get(d.id)
@@ -284,6 +313,12 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               <title>{`${g.place.jurisdiction_name ?? g.place.jurisdiction_id}: ${plural(g.place.meetings)}`}</title>
             </circle>
           ))}
+          {/* County borders over the dots (#1117), like the home map's state outlines, so neighbouring counties read apart. */}
+          <g fill="none" stroke="#57534e" strokeOpacity={0.45} strokeWidth={grid.step * 0.06} strokeLinejoin="round" pointerEvents="none">
+            {grid.feats.map((f) => (
+              <path key={f.id} d={featPath(f)} />
+            ))}
+          </g>
           <g className="stance-map-labels" pointerEvents="none" aria-hidden="true">
             {labels.map((l) => (
               <text
@@ -293,16 +328,30 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 textAnchor={l.anchor}
                 dominantBaseline="central"
                 opacity={hover && hover !== l.county ? 0.3 : 1}
-                style={{
-                  fontSize: labelSize,
-                  fontFamily: 'inherit',
-                  fontWeight: 600,
-                  fill: '#0f172a',
-                  stroke: '#ffffff',
-                  strokeWidth: labelSize * 0.32,
-                  strokeLinejoin: 'round',
-                  paintOrder: 'stroke',
-                }}
+                style={
+                  l.ring
+                    ? {
+                        fontSize: labelSize,
+                        fontFamily: 'inherit',
+                        fontWeight: 600,
+                        fill: '#0f172a',
+                        stroke: '#ffffff',
+                        strokeWidth: labelSize * 0.32,
+                        strokeLinejoin: 'round',
+                        paintOrder: 'stroke',
+                      }
+                    : {
+                        fontSize: countySize,
+                        fontFamily: 'inherit',
+                        fontWeight: 500,
+                        letterSpacing: '0.08em',
+                        fill: '#78716c',
+                        stroke: '#ffffff',
+                        strokeWidth: countySize * 0.32,
+                        strokeLinejoin: 'round',
+                        paintOrder: 'stroke',
+                      }
+                }
               >
                 {l.text}
               </text>
@@ -334,6 +383,11 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                   <span style={{ background: BOX_COLORS[k] }} /> {LEGEND_LABEL[k]}
                 </span>
               ))}
+            {leanCounties > 0 && (
+              <span className="stance-map-none">
+                <span style={{ background: PUBLIC_AGAINST_COLOR }} /> {PUBLIC_AGAINST_LABEL}
+              </span>
+            )}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
               <span className="stance-map-ramp">
                 <span style={{ background: MEETING_GREYS[2] }} />
@@ -345,6 +399,9 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             {stances.size > 0
               ? `Split by ${fmt(speakersTotal)} ${speakersTotal === 1 ? 'speaker' : 'speakers'} on record in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only.`
               : `No speaker positions on record in ${stateName} yet; counties show meetings only.`}
+            {leans.size > 0
+              ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers; only “the public leaned against” and “officials sided against the public” are shown.'
+              : ''}
           </p>
         </>
       )}
@@ -365,6 +422,12 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 <th scope="col">County</th>
                 <th scope="col">Meetings</th>
                 <th scope="col">Governments</th>
+                {leans.size > 0 && (
+                  <>
+                    <th scope="col">AI: public leaned against</th>
+                    <th scope="col">AI: officials sided against the public</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -373,6 +436,12 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                   <td>{countyLabel(id)}</td>
                   <td>{fmt(n)}</td>
                   <td>{(byCounty.get(id) ?? []).map((p) => `${p.jurisdiction_name ?? p.jurisdiction_id} (${fmt(p.meetings)})`).join(', ')}</td>
+                  {leans.size > 0 && (
+                    <>
+                      <td>{fmt(leans.get(id)?.public_against_meetings ?? 0)}</td>
+                      <td>{fmt(leans.get(id)?.disagreement_meetings ?? 0)}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

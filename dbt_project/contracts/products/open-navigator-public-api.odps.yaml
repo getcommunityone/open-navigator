@@ -455,3 +455,8 @@ outputPorts:
   contractId: open-navigator-public-person_government_term
   type: table
   description: 'Office terms (#1068): one row per (official, role, district, source, term).'
+- name: data_center_meeting_lean
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_meeting_lean
+  type: table
+  description: One row per data center meeting video (in data_center_meeting_mention) with a Jev screen under the current question version.
