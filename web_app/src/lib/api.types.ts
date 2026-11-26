@@ -1988,7 +1988,7 @@ export interface components {
         DataCenterMeetingMentionCounts: {
             /**
              * By Place
-             * @description Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map. Governments with none are left out.
+             * @description Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map, and the real speaker sums for its meetings (#1106; 0 when none). Governments with none are left out.
              */
             by_place?: components["schemas"]["DataCenterMeetingMentionPlaceCount"][];
             /**
@@ -2031,6 +2031,26 @@ export interface components {
             longitude?: number | null;
             /** Meetings */
             meetings: number;
+            /**
+             * Speakers Against
+             * @default 0
+             */
+            speakers_against: number;
+            /**
+             * Speakers For
+             * @default 0
+             */
+            speakers_for: number;
+            /**
+             * Speakers Neutral
+             * @default 0
+             */
+            speakers_neutral: number;
+            /**
+             * Speakers Question
+             * @default 0
+             */
+            speakers_question: number;
         };
         /**
          * DataCenterMeetingMentionStateCount

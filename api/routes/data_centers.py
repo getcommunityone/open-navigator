@@ -812,6 +812,10 @@ class DataCenterMeetingMentionPlaceCount(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     meetings: int
+    speakers_for: int = 0
+    speakers_against: int = 0
+    speakers_question: int = 0
+    speakers_neutral: int = 0
 
 
 class DataCenterMeetingMentionCounts(BaseModel):
@@ -826,7 +830,7 @@ class DataCenterMeetingMentionCounts(BaseModel):
     )
     by_place: list[DataCenterMeetingMentionPlaceCount] = Field(
         default_factory=list,
-        description="Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map. Governments with none are left out.",
+        description="Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map, and the real speaker sums for its meetings (#1106; 0 when none). Governments with none are left out.",
     )
 
 
@@ -903,15 +907,39 @@ def build_mention_by_place_query(state_code: str, site_id: str | None, strength:
     """Distinct meetings per government in one state (#1039), with the same site and strength filters.
 
     Never narrowed to the city: the state's county map shades every county and highlights the scope.
+    Each government also carries the real speaker sums from ``data_center_meeting_position`` (#1106) for
+    its distinct meetings: positions are summed per ``video_id`` first, then joined to the distinct
+    (government, meeting) set, so a meeting with many passages is never counted more than once. 0 when none.
     """
     where_sql, params = _mention_where(state_code, None, site_id, strength)
     sql = (
+        "WITH pos AS ("
+        "SELECT p.video_id, sum(p.speakers_for)::int AS speakers_for, "
+        "sum(p.speakers_against)::int AS speakers_against, "
+        "sum(p.speakers_question)::int AS speakers_question, "
+        "sum(p.speakers_neutral)::int AS speakers_neutral "
+        "FROM data_center_meeting_position p WHERE p.video_id IS NOT NULL GROUP BY p.video_id"
+        "), mv AS ("
+        "SELECT DISTINCT m.jurisdiction_id, m.video_id FROM data_center_meeting_mention m "
+        f"WHERE ({where_sql}) AND m.jurisdiction_id IS NOT NULL"
+        "), sp AS ("
+        "SELECT mv.jurisdiction_id, sum(pos.speakers_for)::int AS speakers_for, "
+        "sum(pos.speakers_against)::int AS speakers_against, "
+        "sum(pos.speakers_question)::int AS speakers_question, "
+        "sum(pos.speakers_neutral)::int AS speakers_neutral "
+        "FROM mv JOIN pos ON pos.video_id = mv.video_id GROUP BY mv.jurisdiction_id"
+        ") "
         "SELECT m.jurisdiction_id, max(m.jurisdiction_name) AS jurisdiction_name, "
         "max(j.jurisdiction_type) AS jurisdiction_type, max(j.geoid) AS geoid, "
         "max(j.latitude)::float8 AS latitude, max(j.longitude)::float8 AS longitude, "
-        "count(DISTINCT m.video_id)::int AS meetings "
+        "count(DISTINCT m.video_id)::int AS meetings, "
+        "coalesce(max(sp.speakers_for), 0)::int AS speakers_for, "
+        "coalesce(max(sp.speakers_against), 0)::int AS speakers_against, "
+        "coalesce(max(sp.speakers_question), 0)::int AS speakers_question, "
+        "coalesce(max(sp.speakers_neutral), 0)::int AS speakers_neutral "
         "FROM data_center_meeting_mention m "
         "LEFT JOIN jurisdictions j ON j.jurisdiction_id::text = m.jurisdiction_id "
+        "LEFT JOIN sp ON sp.jurisdiction_id = m.jurisdiction_id "
         f"WHERE ({where_sql}) AND m.jurisdiction_id IS NOT NULL "
         "GROUP BY m.jurisdiction_id ORDER BY meetings DESC, m.jurisdiction_id"
     )

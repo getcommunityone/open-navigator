@@ -4,6 +4,8 @@ import { COUNTIES_ALBERS_TOPO, albersPoint, bboxOf, dotsFor, featAt, fetchTopo, 
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
+import { STANCE_ORDER, dotSides, speakersOf, sumStances, type StanceCounts } from '../../utils/boxSplit'
+import { BOX_COLORS, MEETING_GREYS, STANCE_LABEL, stanceLine } from '../home/StoryStatesMap'
 import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
 import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly } from '../../utils/touchOnly'
@@ -17,6 +19,11 @@ export interface PlaceCount {
   latitude?: number | null
   longitude?: number | null
   meetings: number
+  /** Real speaker sums for this government's meetings (#1106); 0 or missing when none are on record. */
+  speakers_for?: number
+  speakers_against?: number
+  speakers_question?: number
+  speakers_neutral?: number
 }
 
 interface Props {
@@ -44,10 +51,12 @@ const FIPS_OF_CODE: Record<string, string> = Object.fromEntries(Object.entries(S
 const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
 
 /**
- * The Where? map at state scope (#1039), like the Census map's state drill-down: the state's counties as a grid of dots, each
- * county shaded by the real number of meetings where a data center came up in its governments. A county government counts by
- * its geoid; a city, town or school district is placed in the county its coordinates fall in, and drawn as a ring. A county
- * with none stays the empty colour. United States broadens back to the national map.
+ * The Where? map at state scope (#1039), like the Census map's state drill-down: the state's counties as a grid of dots, in the
+ * home box map's colours (#1106). Where its governments have speakers on record, a county's dots are split in bands by the real
+ * counts of those who spoke against, for, asked a question or took no side; a county with meetings but no stance is grey, light
+ * to dark by its real meeting count; a county with none stays the empty colour. A county government counts by its geoid; a
+ * city, town or school district is placed in the county its coordinates fall in, and drawn as a ring. United States broadens
+ * back to the national map.
  */
 export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages }: Props) {
   const [hover, setHover] = useState<string | null>(null)
@@ -90,8 +99,28 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       if (pt) rings.push({ x: pt[0], y: pt[1], place: p, county })
     }
     const counts = new Map([...byCounty].map(([id, ps]) => [id, ps.reduce((a, p) => a + p.meetings, 0)]))
-    return { byCounty, counts, rings, unplaced }
+    const stances = new Map<string, StanceCounts>()
+    for (const [id, ps] of byCounty) {
+      const st = sumStances(ps)
+      if (speakersOf(st) > 0) stances.set(id, st)
+    }
+    return { byCounty, counts, stances, rings, unplaced }
   }, [grid, byPlace])
+
+  // Each dot's side (grid order): a county with speakers on record is banded left to right by its real counts, as on the home map.
+  const sides = useMemo(() => {
+    if (!grid || !placed) return null
+    const idx = new Map<string, number[]>()
+    grid.dots.forEach((d, i) => idx.set(d.id, [...(idx.get(d.id) ?? []), i]))
+    const out = new Array<ReturnType<typeof dotSides>[number]>(grid.dots.length).fill(null)
+    for (const [id, st] of placed.stances) {
+      const is = idx.get(id) ?? []
+      dotSides(is.map((i) => grid.dots[i]!), st).forEach((side, k) => {
+        out[is[k]!] = side
+      })
+    }
+    return out
+  }, [grid, placed])
 
   if (isError) {
     return (
@@ -100,7 +129,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       </p>
     )
   }
-  if (!grid || !placed) {
+  if (!grid || !placed || !sides) {
     return (
       <p className="stance-note" role="status">
         {topo && !grid ? `No county shapes for ${stateName}.` : 'Loading the map…'}
@@ -108,11 +137,15 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     )
   }
 
-  const { byCounty, counts, rings, unplaced } = placed
+  const { byCounty, counts, stances, rings, unplaced } = placed
   const max = Math.max(0, ...counts.values())
-  const min = Math.min(...[...counts.values()].filter((n) => n > 0), max)
-  const ramp = HOUSE_THEME.ramp.slice(1, 5)
-  const colorFor = (n: number | undefined): string => meetingColor(n, max, ramp, HOUSE_THEME.neutral)
+  // Home map colours (#1106): a side's colour, else grey by real meetings, else the empty colour.
+  const colorFor = (i: number, n: number | undefined): string => {
+    const side = sides[i]
+    if (side) return BOX_COLORS[side]
+    return n && n > 0 ? meetingColor(n, max, MEETING_GREYS, BOX_COLORS.meetings) : HOUSE_THEME.neutral
+  }
+  const speakersTotal = [...stances.values()].reduce((a, st) => a + speakersOf(st), 0)
   const nameOf = (id: string) => grid.feats.find((f) => f.id === id)?.name ?? id
   const countyLabel = (id: string) => {
     const n = nameOf(id)
@@ -125,7 +158,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     const n = counts.get(id) ?? 0
     if (!n) return `${countyLabel(id)}: no meetings on record`
     const parts = (byCounty.get(id) ?? []).map((p) => `${p.jurisdiction_name ?? p.jurisdiction_id} ${fmt(p.meetings)}`)
-    return `${countyLabel(id)}: ${plural(n)} (${parts.join(', ')})`
+    const st = stanceLine(stances.get(id))
+    return `${countyLabel(id)}: ${plural(n)} (${parts.join(', ')})${st ? `; ${st}` : '; no stance on record'}`
   }
 
   // Only while a county is hovered: the newest passage from one of its governments, if the scope has one.
@@ -173,7 +207,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           viewBox={vb}
           className="stance-map-svg"
           role="img"
-          aria-label={`Dot map of ${stateName}'s counties, shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.`}
+          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.`}
         >
           {grid.dots.map((d, i) => {
             const n = counts.get(d.id)
@@ -184,7 +218,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 cx={d.x}
                 cy={d.y}
                 r={n ? r : r * 0.55}
-                fill={colorFor(n)}
+                fill={colorFor(i, n)}
                 opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
                 onMouseEnter={() => setHover(d.id)}
                 onClick={() => setHover(d.id)}
@@ -228,29 +262,32 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         {hover ? readout(hover) : `${isTouchOnly() ? 'Tap' : 'Hover'} a county to see its count. Rings mark the cities, towns and school districts on record.`}
       </p>
       {max > 0 && (
-        <div className="stance-map-legend" aria-hidden="true">
-          {min < max ? (
-            <>
-              <span>{fmt(min)}</span>
+        <>
+          <div className="stance-map-legend" aria-hidden="true">
+            {stances.size > 0 &&
+              STANCE_ORDER.map((k) => (
+                <span key={k} className="stance-map-none">
+                  <span style={{ background: BOX_COLORS[k] }} /> {STANCE_LABEL[k]}
+                </span>
+              ))}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
               <span className="stance-map-ramp">
-                {ramp.map((c, i) => (
-                  <span key={i} style={{ background: c }} />
+                {MEETING_GREYS.map((c) => (
+                  <span key={c} style={{ background: c }} />
                 ))}
               </span>
-              <span>{fmt(max)} meetings</span>
-            </>
-          ) : (
-            <>
-              <span className="stance-map-ramp">
-                <span style={{ background: colorFor(max) }} />
-              </span>
-              <span>{plural(max)}</span>
-            </>
-          )}
-          <span className="stance-map-none">
-            <span style={{ background: HOUSE_THEME.neutral }} /> none on record
-          </span>
-        </div>
+              Meetings, no stance on record (darker = more meetings)
+            </span>
+            <span className="stance-map-none">
+              <span style={{ background: BOX_COLORS.none }} /> No meetings on record
+            </span>
+          </div>
+          <p className="stance-note">
+            {stances.size > 0
+              ? `Split by ${fmt(speakersTotal)} ${speakersTotal === 1 ? 'speaker' : 'speakers'} on record in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only.`
+              : `No speaker positions on record in ${stateName} yet; counties show meetings only.`}
+          </p>
+        </>
       )}
       {unplacedMeetings > 0 && (
         <p className="stance-note">
