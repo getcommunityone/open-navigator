@@ -2198,6 +2198,26 @@ sources:
           - name: question_probabilities
           - name: screened_at
 
+      - name: bronze_transcript_topic_lean_jev
+        description: >
+          Jev (TypeSafe) reading of how the public and elected officials leaned on one curated topic, per meeting
+          (#1126). One row per (video_id, topic_id, question_version). Landed by
+          ``python -m llm.typesafe.screen_transcripts --topic <slug>`` (llm.typesafe.topic_lean), only for meetings
+          linked to the topic. Classifier probabilities only; Jev writes no text and nothing is tied to a person.
+          The table is created by the first run; until then stg_jev__transcript_topic_lean builds empty.
+        columns:
+          - name: video_id
+            description: "Meeting video (with topic_id and question_version, the primary key)."
+          - name: topic_id
+            description: "Curated topic id (civicsearch_topic)."
+          - name: question_version
+            description: "Hash of the topic's question wording."
+          - name: public_lean
+            description: "mostly_opposed, mostly_supportive, mixed or did_not_speak."
+          - name: official_lean
+            description: "Same labels, for the elected officials."
+          - name: outcome
+            description: "approved, denied, tabled_or_deferred, moratorium, discussed_no_action or no_item."
       - name: bronze_bls_qcew_industry
         description: >
           BLS Quarterly Census of Employment and Wages, annual averages for one industry (default NAICS 518210,

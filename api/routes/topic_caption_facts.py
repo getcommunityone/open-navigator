@@ -65,6 +65,9 @@ class CaptionSpeakers(BaseModel):
     against: int = 0
     question: int = 0
     neutral: int = 0
+    states: int = Field(
+        0, description="States in scope with any hand-counted speaker (#1134), so a basis can say where they were counted."
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -91,6 +94,9 @@ class TopicCaptionFacts(BaseModel):
     lean_meetings: int | None = Field(None, description="Meetings in scope with an AI reading (Jev); null when none loaded.")
     public_against_meetings: int | None = Field(
         None, description="AI reading: meetings where the public leaned mostly against. Null when not loaded."
+    )
+    public_against_states: int | None = Field(
+        None, description="AI reading: states with at least one public-against meeting in scope (#1134). Null when not loaded."
     )
     public_for_meetings: int | None = Field(
         None, description="AI reading: meetings where the public leaned mostly for. Null when not loaded or not read."
@@ -149,7 +155,9 @@ TOPIC_PLACES_SQL = (
 SPEAKERS_SQL = (
     "SELECT coalesce(sum(p.speakers_for), 0)::int AS for_, coalesce(sum(p.speakers_against), 0)::int AS against, "
     "coalesce(sum(p.speakers_question), 0)::int AS question, coalesce(sum(p.speakers_neutral), 0)::int AS neutral, "
-    "count(*)::int AS meetings_reviewed "
+    "count(*)::int AS meetings_reviewed, "
+    "count(DISTINCT p.state_code) FILTER (WHERE p.speakers_for + p.speakers_against + p.speakers_question "
+    "+ p.speakers_neutral > 0)::int AS states "
     "FROM data_center_meeting_position p "
     "WHERE ($1::text IS NULL OR p.state_code = $1::text) AND ($2::text IS NULL OR p.jurisdiction_name ILIKE $2::text)"
 )
@@ -175,6 +183,7 @@ def build_lean_sql(topic_id: int, state_code: str | None, city_like: str | None)
     sql = (
         "SELECT count(*)::int AS lean_meetings, "
         "count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
+        "count(DISTINCT l.state_code) FILTER (WHERE l.public_against)::int AS public_against_states, "
         "count(*) FILTER (WHERE (to_jsonb(l) ->> 'public_for')::boolean)::int AS public_for_meetings, "
         "bool_or(to_jsonb(l) ? 'public_for') AS has_public_for, "
         "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings, "
@@ -298,6 +307,7 @@ async def topic_caption_facts(
             speakers = CaptionSpeakers(
                 for_=int(r["for_"] or 0), against=int(r["against"] or 0),
                 question=int(r["question"] or 0), neutral=int(r["neutral"] or 0),
+                states=int(r.get("states") or 0),
             )
 
     lean: dict[str, Any] = {}
@@ -307,6 +317,7 @@ async def topic_caption_facts(
             lean = {
                 "lean_meetings": int(r["lean_meetings"]),
                 "public_against_meetings": int(r["public_against_meetings"] or 0),
+                "public_against_states": int(r.get("public_against_states") or 0),
                 "public_for_meetings": int(r["public_for_meetings"] or 0) if r.get("has_public_for") else None,
                 "disagreement_meetings": int(r["disagreement_meetings"] or 0),
                 "disagreement_states": int(r["disagreement_states"] or 0),

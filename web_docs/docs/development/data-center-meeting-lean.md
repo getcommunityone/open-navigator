@@ -58,6 +58,27 @@ Spoke against red; disagreement meetings are not drawn on the map (no outlines, 
 
 So only "public leaned against" (about 7 of 8 right) and the refined disagreement rule are shown.
 
+## Decision: the headline gates on confident "against" only (#1134)
+
+The data-center story's **America hates data centers.** used to rest only on 29 hand-counted speakers in 4 states. It
+may now also pass on this reading: confident (p ≥ 0.7) "public leaned against" meetings of at least **50 nationally,
+10 for a state and 3 for a city or other single place** (a single government holds few data center meetings, so 3
+separate meetings is the least that is more than one evening's crowd). Because "supported" and "mixed" failed the hand
+checks above, the gate does **not** compare against them (no "against ≥ 2× for/mixed" ratio), and the sentence states
+only the against count: "The public leaned against data centers in 283 meetings across 32 states (AI reading of
+meetings)." The confident for, mixed and spoke counts are served on positions `lean_totals` / `scope_lean_totals`
+(`public_for_meetings`, `public_mixed_meetings`, `public_spoke_meetings`, same p ≥ 0.7) for audit only. On 26 Nov 2026
+they were 14, 7 and 304 nationally; the 1,449 confident "no public comment" meetings are not counted as spoke.
+
+## Decision: one title from the caption picker (#1134, #1125)
+
+The title for every view of the story (home hero, story header, Overview) comes from one function, `pickCaption`
+(`web_app/src/utils/storyCaption.ts`; thresholds in [Story captions](story-captions.md)): "hates" first (the gates
+above, or the speaker gate), then "is divided on" (officials sided against the public in at least 10 meetings, or counted
+speakers split with both sides substantial), then volume and the question. A place gets exactly one title. "Divided" and
+"hates" never rest on the "supported" or "mixed" readings. On 26 Nov 2026 no Alabama scope reached a conclusion: the
+state had 6 confident public-against meetings (under 10) and no officials-sided meeting, and Tuscaloosa had none.
+
 ## Limits
 
 - It is a classifier's reading of a transcript. A meeting can be misread; the hover line says "AI reading" and the

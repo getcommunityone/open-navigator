@@ -186,6 +186,7 @@
     'data_center_meeting_mention':         "_s.state_code in {{states}}",
     'data_center_meeting_position':        "_s.state_code in {{states}}",
     'data_center_meeting_lean':            "_s.state_code in {{states}}",
+    'topic_meeting_lean':                  "_s.state_code in {{states}}",
     'data_center_public_comment':          "_s.state_code in {{states}}",
     'data_center_decision':                "_s.state_code in {{states}}",
     'data_center_hearing_verified':        "_s.state_code in {{states}}",
@@ -265,7 +266,8 @@
     'company_grant',
     'business', 'business_mention',
     'person_government_term',
-    'data_center_meeting_lean'
+    'data_center_meeting_lean',
+    'topic_meeting_lean'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
