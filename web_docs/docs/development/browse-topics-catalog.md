@@ -30,6 +30,8 @@ phrase is enough to tag a meeting, as for every curated topic. Some tags are inc
 while a new officer is introduced, for example. The quoted passage on each result shows which kind it is. The first
 local build tagged 7,684 transcripts in 50 states. On the home page, Guns is a **Coming soon** card, like Flock, and so is Pickleball.
 
+Two guide topics are also on the strip as **Coming soon**: **Starting a nonprofit** ([#1078](https://github.com/getcommunityone/open-navigator/issues/1078)) and **Insurance shopping** ([#1079](https://github.com/getcommunityone/open-navigator/issues/1079)). They aren't meeting topics, so they have no keywords, counts or companies until their guide or data lands.
+
 ## What the page shows
 
 | Situation | API | Browse Topics |

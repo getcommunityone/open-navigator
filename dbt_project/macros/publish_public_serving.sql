@@ -42,7 +42,9 @@
         to NULL. Officials' name/title/office/jurisdiction/party/district/photo/bio
         remain (public-figure role data). Column shape is preserved (NULL::text
         aliases) so API queries selecting email/phone keep working — they get NULL.
-        See projections[...] below.
+        `person_government.email_sha256` (a one-way hash of the email) IS kept so
+        the profile-claim API (#1062) can match a signed-in user's email without
+        reading the address. See projections[...] below.
 -#}
 {%- if not execute -%}{{ return('') }}{%- endif -%}
 
@@ -259,7 +261,8 @@
     'data_center_employment', 'data_center_job_source',
     'meeting_policy_question_jev',
     'topic_company', 'topic_company_mention',
-    'company_grant'
+    'company_grant',
+    'person_government_term'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
@@ -287,8 +290,8 @@
     'person_government':
         'select person_id, master_person_id, full_name, title, jurisdiction, '
         'jurisdiction_id, office, state_code, state, party, district, '
-        'null::text as email, null::text as phone, photo_url, biography, '
-        'website_url, is_current from gold.person_government',
+        'null::text as email, email_sha256, null::text as phone, photo_url, '
+        'biography, website_url, is_current from gold.person_government',
     'event_place_geocoded':
         'select * from gold.event_place_geocoded where latitude is not null',
     'event_decision':

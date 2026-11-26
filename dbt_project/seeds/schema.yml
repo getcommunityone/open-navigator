@@ -261,6 +261,37 @@ seeds:
       - name: verified_on
         tests: [not_null]
 
+  - name: official_term
+    config:
+      column_types:
+        full_name: text
+        state_code: text
+        jurisdiction: text
+        role: text
+        district: text
+        start_date: date
+        start_year: integer
+        end_date: date
+        end_year: integer
+        end_reason: text
+        source_url: text
+        verified_on: date
+    description: >
+      Office terms stated on a government's own page (#1068): start and end (the day when the page gives one, else the
+      year), why the term ended, and leadership roles, each with the page and the date checked. 'died' only when the
+      official source says so. Tuscaloosa from tuscaloosa.com: Kip Tyner (District 5 from 1997; died 2026-09-18, the
+      city's memorial page), Lee Busby (District 4 from the October 2019 special election), Raevan Howard (President Pro
+      Tempore from 2026-09-29).
+    columns:
+      - name: full_name
+        tests: [not_null]
+      - name: role
+        tests: [not_null]
+      - name: source_url
+        tests: [not_null]
+      - name: verified_on
+        tests: [not_null]
+
   - name: official_photo_override
     # Pin text types: biography/source_url are often all-empty on first seed, which
     # otherwise infers to integer and breaks trim()/coalesce in downstream models.

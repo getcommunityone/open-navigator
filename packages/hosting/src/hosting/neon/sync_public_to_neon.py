@@ -261,6 +261,8 @@ CIVIC_SERVING = frozenset(
         "topic_company_mention",
         # grants from the foundations tied to tracked companies, 990 amounts as filed (#1073); ~0.2 MB
         "company_grant",
+        # office terms: who held which seat, when, and why they left (#1068); small
+        "person_government_term",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

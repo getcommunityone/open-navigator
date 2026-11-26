@@ -45,3 +45,30 @@ cd dbt_project
 dbt seed --select official_contact_override
 dbt build --select contact_official person_government
 ```
+
+## Office terms and history
+
+Issue: [#1068](https://github.com/getcommunityone/open-navigator/issues/1068). `contact_official` and
+`person_government` describe who holds office now. `person_government_term` keeps who held which seat, when, and why
+they left. Each row says where it came from:
+
+| `term_source` | From | Dates |
+|---|---|---|
+| `seed` | `official_term`: a term stated on the government's own page, with `source_url` and `verified_on` | to the day when the page gives one (`start_date`, `end_date`), otherwise the year (`start_year`, `end_year`) |
+| `openstates` | OpenStates membership dates (legislators) | `start_date`, `end_date`; an ended membership's reason is `unknown` |
+| `roster_snapshot` | `officials_roster_snapshot`, a dbt snapshot of the local roster taken on each build | `first_seen_on` and `last_seen_on`: when **we saw** that version, not when the term began or ended |
+
+`end_reason` is one of `term_ended`, `resigned`, `died`, `removed` or `unknown`. It is `died` only when an official
+source says so. For example, the City of Tuscaloosa's memorial page says Councilor Kip Tyner "passed away on Friday,
+September 18, 2026, while serving his second term as Tuscaloosa City Council President and his seventh as the
+District 5 City Councilor". First elected in 1997, so his District 5 term reads 1997 to 2026-09-18, died.
+
+The snapshot starts with the first build that includes it, so roster history only accumulates from then on. Earlier
+terms come only from official pages (the seed) or OpenStates.
+
+```bash
+cd dbt_project
+dbt seed --select official_term
+dbt snapshot --select officials_roster_snapshot   # on every build, so changes are caught
+dbt build --select person_government_term
+```

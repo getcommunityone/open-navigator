@@ -2,7 +2,7 @@
 Database models for authentication, user management, and social features
 """
 from datetime import datetime, timezone
-from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Identity, Index, func, text
+from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, Identity, Index, UniqueConstraint, func, text
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -307,3 +307,80 @@ class JobApplicationLink(Base):
 
     def __repr__(self):
         return f"<JobApplicationLink {self.job_application_link_id} {self.url}>"
+
+
+# ============================================================================
+# PROFILE CLAIMS (#1062)
+# ============================================================================
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class PersonClaim(Base):
+    """A signed-in user's claim on an official's profile (#1062).
+
+    Grain: one row per (person_id, user_id). ``person_id`` is the official's
+    ``person_government.person_id`` (the OCD membership id) carried as text, not a
+    FK, because dbt drops and rebuilds that relation. App-owned like ``user``:
+    created by ``Base.metadata.create_all``. ``status`` is 'verified' only when the
+    user's verified sign-in email hashes to the official's ``email_sha256``
+    (``verified_via='official_email'``); otherwise 'pending' for manual review.
+    """
+
+    __tablename__ = "person_claim"
+    __table_args__ = (
+        UniqueConstraint("person_id", "user_id", name="uq_person_claim_person_user"),
+        CheckConstraint(
+            "status IN ('pending', 'verified', 'rejected')", name="ck_person_claim_status"
+        ),
+    )
+
+    person_claim_id = Column(Integer, primary_key=True)
+    person_id = Column(Text, nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status = Column(String(10), nullable=False, default="pending")
+    verified_via = Column(String(32), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<PersonClaim {self.person_claim_id} {self.person_id} {self.status}>"
+
+
+class PersonProfileEdit(Base):
+    """A proposed profile edit or feedback note from a claimant (#1062).
+
+    Grain: one row per submission. Nothing is published automatically: every row
+    starts 'pending' until the owner approves it.
+    """
+
+    __tablename__ = "person_profile_edit"
+    __table_args__ = (
+        CheckConstraint(
+            "field IN ('title', 'biography', 'photo_url', 'feedback')",
+            name="ck_person_profile_edit_field",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')",
+            name="ck_person_profile_edit_status",
+        ),
+    )
+
+    person_profile_edit_id = Column(Integer, primary_key=True)
+    person_claim_id = Column(
+        Integer,
+        ForeignKey("person_claim.person_claim_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    field = Column(String(16), nullable=False)
+    new_value = Column(Text, nullable=False)
+    status = Column(String(10), nullable=False, default="pending")
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<PersonProfileEdit {self.person_profile_edit_id} {self.field} {self.status}>"

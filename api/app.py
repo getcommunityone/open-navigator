@@ -710,6 +710,10 @@ app.include_router(application_links_routes.admin_router, prefix="/api")
 from api.routes import meeting_kind_reviews as meeting_kind_reviews_routes
 
 app.include_router(meeting_kind_reviews_routes.admin_router, prefix="/api")
+# Official profile claims + pending edits (#1062). Router prefix is "/people".
+from api.routes import person_claims as person_claims_routes
+
+app.include_router(person_claims_routes.router, prefix="/api")
 
 # Serve React frontend
 static_dir = Path(__file__).parent / "static"
