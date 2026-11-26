@@ -1975,7 +1975,7 @@ async def unified_search(
             search_tasks.append(('leaders', search_postgres.search_officials_pg(q, state, city=city, limit=search_limit, county_fips=county_fips)))
 
         if 'meetings' in requested_types:
-            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery, county_fips=county_fips)))
+            search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery, county_fips=county_fips, sort=sort)))
 
         if 'organizations' in requested_types:
             search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort, county_fips=county_fips)))
@@ -2011,12 +2011,12 @@ async def unified_search(
 
         if 'documents' in requested_types:
             # Full-text search over meeting transcripts (public.event_documents)
-            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset, county_fips=county_fips)))
+            search_tasks.append(('documents', search_postgres.search_documents_pg(q, state, city=city, limit=search_limit, offset=search_offset, county_fips=county_fips, sort=sort)))
 
         if 'meeting_documents' in requested_types:
             # Full-text search over official meeting documents — agenda / minutes /
             # attachments (public.event_meeting_document), filterable by document_type.
-            search_tasks.append(('meeting_documents', search_postgres.search_meeting_documents_pg(q, state, city=city, document_type=document_type, limit=search_limit, offset=search_offset)))
+            search_tasks.append(('meeting_documents', search_postgres.search_meeting_documents_pg(q, state, city=city, document_type=document_type, limit=search_limit, offset=search_offset, sort=sort)))
 
         if 'causes' in requested_types:
             # NTEE causes now come from public.tag (vocabulary='ntee'); the old
@@ -2059,8 +2059,10 @@ async def unified_search(
                 logger.info(f"🔎 {label} search returned {len(converted)} results")
                 all_results.extend(converted)
 
-        # Sort all results by score
-        all_results.sort(key=lambda x: x.score, reverse=True)
+        # Sort all results by score, except under a date sort (#1009): each type's query already ordered its rows
+        # by date, and the score (e.g. analyzed meetings 1.0, others 0.5) would undo that.
+        if not search_postgres.date_sort_direction(sort):
+            all_results.sort(key=lambda x: x.score, reverse=True)
         
         logger.info(f"📊 Total combined results: {len(all_results)}, applying pagination (offset={offset}, limit={limit})")
         

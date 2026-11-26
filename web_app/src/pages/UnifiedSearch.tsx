@@ -860,6 +860,23 @@ function UnifiedSearchInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchResults])
 
+  /** The results-header sort (#1009): reorders the current results in place. It keeps the tab and the rest of the
+   *  URL, and writes `?sort=` so the order survives refresh and back. */
+  const changeSort = (next: string) => {
+    setSortBy(next)
+    setCurrentPage(1)
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev)
+        if (next && next !== 'relevance') p.set('sort', next)
+        else p.delete('sort')
+        p.delete('page')
+        return p
+      },
+      { replace: true },
+    )
+  }
+
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault()
     // Allow search with query OR just filters (browse mode)
@@ -2126,7 +2143,9 @@ function UnifiedSearchInner() {
                     sortBy === 'revenue-desc' ? 'Revenue ↓' :
                     sortBy === 'revenue-asc' ? 'Revenue ↑' :
                     sortBy === 'assets-desc' ? 'Assets ↓' :
-                    sortBy === 'assets-asc' ? 'Assets ↑' : sortBy
+                    sortBy === 'assets-asc' ? 'Assets ↑' :
+                    sortBy === 'date_desc' ? 'Newest first' :
+                    sortBy === 'date_asc' ? 'Oldest first' : sortBy
                   }
                   <button
                     onClick={() => {
@@ -2333,7 +2352,7 @@ function UnifiedSearchInner() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
                   >
                     <option value="relevance" className="text-gray-900">Relevance</option>
-                    <optgroup label="Date (decisions)">
+                    <optgroup label="Date">
                       <option value="date_desc" className="text-gray-900">Date (Newest first)</option>
                       <option value="date_asc" className="text-gray-900">Date (Oldest first)</option>
                       <option value="theme" className="text-gray-900">Theme (A-Z)</option>
@@ -2590,10 +2609,26 @@ function UnifiedSearchInner() {
                     tabs (from the counts call); the sub-line describes the
                     active tab's current page (pagination is per-tab). */}
                 <div className="mb-6">
+                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                   <h2 className="text-xl font-semibold text-gray-900">
                     {(tabCountsData?.total_results ?? searchResults.total_results).toLocaleString()} results
                     {searchResults.query ? ` for "${searchResults.query}"` : ''}
                   </h2>
+                  {/* Visible sort (#1009): the Filters panel's select is the same state. */}
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <span>Sort</span>
+                    <select
+                      value={['relevance', 'date_desc', 'date_asc'].includes(sortBy) ? sortBy : 'relevance'}
+                      onChange={(e) => changeSort(e.target.value)}
+                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      aria-label="Sort results"
+                    >
+                      <option value="relevance">Relevance</option>
+                      <option value="date_desc">Newest first</option>
+                      <option value="date_asc">Oldest first</option>
+                    </select>
+                  </label>
+                  </div>
                   {searchResults.total_results > 0 && (
                     <p className="text-sm text-gray-600 mt-1">
                       Showing {searchResults.pagination.offset + 1}–
