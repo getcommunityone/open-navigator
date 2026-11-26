@@ -61,6 +61,7 @@ import MeetingCompare from './pages/MeetingCompare'
 import EventBillDetail from './pages/EventBillDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
+import { storyRoute } from './utils/topicStories'
 
 // Loaded only when its route is visited (#856): its fonts and chart code stay out of the main bundle, and a
 // failure to load it cannot blank the rest of the site.
@@ -171,6 +172,12 @@ function PlayPackRedirect() {
   return <ChallengeRedirect to={encodeURIComponent(packId)} />
 }
 
+/** `/stories/:storyId` (#1133): the registry's stories (data centers) on DataStory, topic slugs on TopicStory. */
+function StoryRoute() {
+  const { storyId = '' } = useParams()
+  return storyRoute(storyId) === 'data' ? <DataStory /> : <TopicStory slug={storyId} />
+}
+
 function App() {
   return (
     <>
@@ -212,20 +219,12 @@ function App() {
             </LazyRouteBoundary>
           }
         />
-        {/* Topic stories (#1013): told from the transcript record of one curated topic. */}
-        <Route
-          path="stories/short-term-rentals"
-          element={
-            <LazyRouteBoundary name="Data story">
-              <TopicStory slug="short-term-rentals" />
-            </LazyRouteBoundary>
-          }
-        />
+        {/* One route for every story (#1133): the registry's stories on DataStory, any curated topic on TopicStory. */}
         <Route
           path="stories/:storyId"
           element={
             <LazyRouteBoundary name="Data story">
-              <DataStory />
+              <StoryRoute />
             </LazyRouteBoundary>
           }
         />

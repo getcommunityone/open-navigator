@@ -18,7 +18,7 @@
 # Pins mirror the repo-root requirements.txt where they overlap.
 
 # --- Web framework / ASGI ------------------------------------------------
-fastapi==0.109.0
+fastapi==0.136.3
 uvicorn[standard]==0.25.0
 python-multipart==0.0.31
 
@@ -33,7 +33,7 @@ asyncpg==0.29.0               # async pools for the data/read routes (Neon)
 psycopg2-binary==2.9.9        # sync ORM/auth engine
 
 # --- Auth ----------------------------------------------------------------
-python-jose[cryptography]==3.5.0
+PyJWT[crypto]>=2.15.1  # JWT tokens (replaces python-jose: GHSA-3qf3-8w2g-rqmx has no fixed release; #1152)
 passlib[bcrypt]==1.7.4
 itsdangerous==2.1.2
 

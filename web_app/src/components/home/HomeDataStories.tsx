@@ -7,14 +7,14 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { fetchTopicCaptionFacts } from '../../api/topics'
 import { CAPTION_COPY, captionSubhead, captionText, pickCaption } from '../../utils/storyCaption'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
-import { fetchTopicStates } from '../../api/topics'
+import HomeTopicStoryCard from './HomeTopicStoryCard'
+import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
-import { Ban, Landmark, Quote, type LucideIcon } from 'lucide-react'
-import { storyHeroPoints, type HeroPointIcon } from '../../utils/heroPoints'
+import { storyHeroPoints } from '../../utils/heroPoints'
+import { HERO_POINT_GLYPHS } from './heroPointGlyphs'
 import { nextStoryLink } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
 
-const POINT_ICONS: Record<HeroPointIcon, LucideIcon> = { quote: Quote, stop: Ban, scale: Landmark }
 
 interface Props {
   /** The home page's place, so the Start button and the topic links carry it (CLAUDE.md, scope label rule). */
@@ -59,7 +59,11 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
-  const story: HomeStoryKey = sp.get('story') === 'short-term-rentals' ? 'short-term-rentals' : 'data-centers'
+  // Any live topic story can be shown (#1133); an unknown or not-yet-loaded ?story= shows data centers.
+  const topicStories = useTopicStories()
+  const asked = sp.get('story') ?? ''
+  const topicDef = asked ? topicStories.stories[asked] : undefined
+  const story: HomeStoryKey = topicDef ? asked : 'data-centers'
   const selectStory = (next: HomeStoryKey) =>
     setSp(
       (prev) => {
@@ -70,36 +74,6 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
       },
       { replace: true, preventScrollReset: true },
     )
-  // Short-term rentals: meetings per state and each state's newest passage, from the transcript record (#1013).
-  const str = useQuery({
-    queryKey: ['topic-story', 100003, 'states'],
-    queryFn: () => fetchTopicStates(100003),
-    enabled: story === 'short-term-rentals',
-    staleTime: 5 * 60_000,
-    retry: 1,
-  })
-  const strQuotes = useMemo(() => {
-    const out = new Map<string, StateQuote[]>()
-    for (const m of str.data?.newest ?? []) {
-      if (!m.state_code || !m.excerpt) continue
-      pushQuote(out, m.state_code, {
-        place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
-        text: m.excerpt,
-        date: m.date ?? null,
-        meeting: m.title ?? null,
-        url: m.video_url ?? null,
-        videoId: m.video_id ?? null,
-      })
-    }
-    return out
-  }, [str.data])
-  const strScoped = useMemo(() => {
-    const d = str.data
-    if (!d) return null
-    if (!stateCode) return { meetings: d.total_meetings, states: d.states.length }
-    return { meetings: d.states.find((x) => x.state_code === stateCode)?.meetings ?? 0, states: 1 }
-  }, [str.data, stateCode])
-
   // National: every state's own count, and the newest passages to quote (newest first, so the first per state is its newest).
   const national = useQuery({
     queryKey: ['home', 'story-map', 'meeting-mentions', 500],
@@ -167,44 +141,13 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     () => storyHeroPoints(speakers.data, stateCode ? scopedPositions.data : null, stateCode ? label : null),
     [speakers.data, scopedPositions.data, stateCode, label],
   )
-  const nextDc = nextStoryLink('data-centers', q)
+  const nextDc = nextStoryLink('data-centers', q, topicStories.live)
 
   return (
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
-        {story === 'short-term-rentals' ? (
-        <div className="home-story-card">
-          <div className="home-story-text">
-            <p className="font-mono-x home-story-eyebrow">Data story · Short-term rentals</p>
-            <h1 id="home-story-dc" className="font-display home-story-headline" aria-busy={str.isPending || undefined} style={str.isPending ? { visibility: 'hidden' } : undefined}>
-              {strScoped == null
-                ? 'Short-term rentals'
-                : stateName
-                  ? `Short-term rentals came up in ${strScoped.meetings.toLocaleString('en-US')} ${strScoped.meetings === 1 ? 'meeting' : 'meetings'} in ${stateName}.`
-                  : `Short-term rentals came up in ${strScoped.meetings.toLocaleString('en-US')} meetings across ${strScoped.states} states.`}
-            </h1>
-            <p className="home-story-subhead">Airbnb, VRBO and vacation rentals: where local governments are talking about them, in the words said at the meeting.</p>
-            <p className="home-story-basis">Counted from local meeting recordings and transcripts that mention the topic.</p>
-            <div style={{ marginTop: 18 }}>
-              <Link to={`/stories/short-term-rentals${stateCode ? `?state=${encodeURIComponent(stateCode)}` : ''}`} className="home-story-start">
-                Start the story{stateName ? ` for ${stateName}` : ''} <span aria-hidden="true">→</span>
-              </Link>
-            </div>
-          </div>
-          <div className="home-story-map">
-            {str.isError ? (
-              <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
-            ) : (
-              <StoryStatesMap
-                byState={str.data?.states}
-                quotes={strQuotes}
-                highlight={stateCode ?? null}
-                href={(code) => `/stories/short-term-rentals?state=${encodeURIComponent(code)}`}
-                subject="short-term rentals"
-              />
-            )}
-          </div>
-        </div>
+        {topicDef ? (
+          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} />
         ) : (
         <div className="home-story-card">
           <div className="home-story-text">
@@ -223,15 +166,16 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
             {points.length > 0 && (
               <ol className="home-story-points" aria-label={stateCode ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
                 {points.map((p) => {
-                  const Icon = POINT_ICONS[p.icon]
+                  const Icon = HERO_POINT_GLYPHS[p.icon]
                   return (
                     <li key={p.icon} className="home-story-point">
                       <span className="home-story-point-icon" aria-hidden="true">
-                        <Icon size={20} strokeWidth={2.2} />
+                        <Icon width={28} height={28} />
                       </span>
                       <div>
-                        <p className="home-story-point-n font-mono-x">{p.n}</p>
-                        <p className="home-story-point-title">“{p.title}”</p>
+                        <p className="home-story-point-title">
+                          <span className="home-story-point-n">{p.n}</span>“{p.title}”
+                        </p>
                         <p className="home-story-point-line">{p.line}</p>
                       </div>
                     </li>

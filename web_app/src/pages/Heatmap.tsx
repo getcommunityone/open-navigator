@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
+import { MAP_POPUP_OPTIONS } from '../lib/mapPopup'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import 'leaflet/dist/leaflet.css'
@@ -127,7 +128,7 @@ export default function Heatmap() {
                 weight: 2,
               }}
             >
-              <Popup>
+              <Popup {...MAP_POPUP_OPTIONS}>
                 <div className="p-2 min-w-[250px]">
                   <h4 className="font-bold text-gray-900">{opp.municipality}, {opp.state}</h4>
                   {opp.title && (

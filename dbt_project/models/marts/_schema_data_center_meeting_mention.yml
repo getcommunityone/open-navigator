@@ -20,9 +20,11 @@ models:
       contract:
         enforced: true
       tags: ['data_centers', 'serving']
-      post_hook:
-        - "create index if not exists data_center_meeting_mention_state_date_idx on {{ this }} (state_code, meeting_date desc)"
-        - "create index if not exists data_center_meeting_mention_site_idx on {{ this }} (data_center_site_id)"
+      indexes:
+        - columns: ["state_code, meeting_date desc"]
+          type: btree
+        - columns: ["data_center_site_id"]
+          type: btree
     constraints:
       - type: foreign_key
         columns: [jurisdiction_id]

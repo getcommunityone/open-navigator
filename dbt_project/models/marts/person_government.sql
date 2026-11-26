@@ -10,11 +10,8 @@
       {'columns': ['master_person_id'], 'type': 'btree'},
       {'columns': ['jurisdiction_id'], 'type': 'btree'},
       {'columns': ['state_code'], 'type': 'btree'},
-      {'columns': ['is_current'], 'type': 'btree'}
-    ],
-    post_hook=[
-      "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-      "CREATE INDEX IF NOT EXISTS person_government_full_name_trgm_idx ON {{ this }} USING gin (full_name gin_trgm_ops)"
+      {'columns': ['is_current'], 'type': 'btree'},
+      {'columns': ["full_name gin_trgm_ops"], 'type': 'gin'}
     ]
   )
 }}

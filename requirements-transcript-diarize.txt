@@ -6,5 +6,5 @@
 # ("numpy.core.multiarray failed to import" on NumPy 2.4+).
 numpy>=1.26.0,<2.0.0
 whisperx>=3.1.0
-torch>=2.0.0
+torch>=2.13.0
 torchaudio>=2.0.0
