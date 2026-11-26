@@ -1790,6 +1790,19 @@ class LeanTotals(BaseModel):
     )
     disagreement_meetings: int = Field(0, description="Meetings where officials sided against the public (#1113 rule).")
     disagreement_states: int = Field(0, description="States with at least one such meeting.")
+    public_for_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly supportive (P >= 0.7) (#1134). Kept for audit: hand checks "
+        "found 'supported' unreliable (development/data-center-meeting-lean.md), so the hero never uses it in a claim.",
+    )
+    public_mixed_meetings: int = Field(
+        0, description="Meetings where Jev read the public as mixed (P >= 0.7) (#1134). Kept for audit, like public_for."
+    )
+    public_spoke_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as speaking on a data center at all (any lean but "
+        "no_public_comment_on_data_center, P >= 0.7) (#1134).",
+    )
 
 
 class DataCenterPositionsResponse(BaseModel):
@@ -1808,6 +1821,12 @@ class DataCenterPositionsResponse(BaseModel):
         None,
         description="National totals of Jev's meeting readings for the home hero (#1122), never narrowed by the "
         "scope; null when data_center_meeting_lean (or a column) isn't in this database.",
+    )
+    scope_lean_totals: LeanTotals | None = Field(
+        None,
+        description="The same totals narrowed to the scope (#1134): the state, or the city as a case-insensitive "
+        "substring of the meeting's jurisdiction name, like the speaker totals. Equal to lean_totals nationally; null "
+        "when data_center_meeting_lean (or a column) isn't in this database.",
     )
 
 
@@ -1872,23 +1891,46 @@ POSITION_BY_STATE_SQL = (
 home map still shows every state. States with no row in the mart are simply absent."""
 
 
+_LEAN_CONFIDENT = "coalesce(l.public_lean_p, 0) >= 0.7"
+"""The confident threshold the mart's ``public_against`` uses (data_center_meeting_lean.sql), for the other leans (#1134)."""
+
 LEAN_TOTALS_SQL = (
     "SELECT count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
     "count(DISTINCT l.state_code) FILTER (WHERE l.public_against)::int AS public_against_states, "
     "count(*) FILTER (WHERE l.dc_outcome IN ('tabled_or_deferred', 'denied', 'moratorium'))::int AS stopped_meetings, "
     "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings, "
-    "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states "
+    "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states, "
+    f"count(*) FILTER (WHERE l.public_lean = 'mostly_supported' AND {_LEAN_CONFIDENT})::int AS public_for_meetings, "
+    f"count(*) FILTER (WHERE l.public_lean = 'mixed' AND {_LEAN_CONFIDENT})::int AS public_mixed_meetings, "
+    "count(*) FILTER (WHERE l.public_lean IN ('mostly_opposed', 'mostly_supported', 'mixed') "
+    f"AND {_LEAN_CONFIDENT})::int AS public_spoke_meetings "
     "FROM data_center_meeting_lean l"
 )
 """National totals of Jev's readings for the home hero (#1122): no scope parameters. The mart only holds screens
 under the current Jev question version."""
 
 
-async def _fetch_lean_totals(conn: Any) -> LeanTotals | None:
-    """``LEAN_TOTALS_SQL`` as a model, or None when data_center_meeting_lean (or a column) isn't in this database:
-    the hero then leaves its AI-reading points out, never a failure."""
+def build_scope_lean_totals_query(scope: JobClaimScope) -> tuple[str, list[Any]]:
+    """``LEAN_TOTALS_SQL`` narrowed to the scope (#1134): state code, then the city as an ILIKE substring of the
+    meeting's jurisdiction name (the speaker totals' rule). Nationally it is ``LEAN_TOTALS_SQL`` with no parameters."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"l.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"l.jurisdiction_name ILIKE ${len(params)}")
+    if not where:
+        return LEAN_TOTALS_SQL, []
+    return f"{LEAN_TOTALS_SQL} WHERE {' AND '.join(where)}", params
+
+
+async def _fetch_lean_totals(conn: Any, sql: str = LEAN_TOTALS_SQL, params: list[Any] | None = None) -> LeanTotals | None:
+    """``LEAN_TOTALS_SQL`` (or its scoped form) as a model, or None when data_center_meeting_lean (or a column) isn't
+    in this database: the hero then leaves its AI-reading points out, never a failure."""
     try:
-        rows = await conn.fetch(LEAN_TOTALS_SQL)
+        rows = await conn.fetch(sql, *(params or []))
     except asyncpg.exceptions.PostgresError as e:
         logger.warning("data-centers: data_center_meeting_lean unavailable ({}); lean_totals null", e)
         return None
@@ -1952,6 +1994,10 @@ async def data_center_positions(
                     state_rows = await conn.fetch(POSITION_BY_STATE_SQL)
                     state_lean = await _fetch_lean(conn, LEAN_BY_STATE_SQL)
                     lean_totals = await _fetch_lean_totals(conn)
+                    scope_sql, scope_params = build_scope_lean_totals_query(applied)
+                    scope_lean_totals = (
+                        await _fetch_lean_totals(conn, scope_sql, scope_params) if scope_params else lean_totals
+                    )
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("positions.relation_missing", True)
             logger.warning("data-centers: 'data_center_meeting_position' isn't here yet ({}); unavailable", e)
@@ -1979,6 +2025,7 @@ async def data_center_positions(
             quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
             by_state=merge_lean_by_state(state_rows, state_lean),
             lean_totals=lean_totals,
+            scope_lean_totals=scope_lean_totals,
         )
 
 

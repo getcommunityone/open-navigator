@@ -257,6 +257,7 @@ def _lean_totals(**kw) -> dict[str, Any]:
     base = dict(
         public_against_meetings=12, public_against_states=5, stopped_meetings=4,
         disagreement_meetings=3, disagreement_states=2,
+        public_for_meetings=2, public_mixed_meetings=1, public_spoke_meetings=15,
     )
     base.update(kw)
     return base
@@ -286,3 +287,49 @@ def test_lean_totals_null_values_become_zero(get) -> None:
     row = _lean_totals(stopped_meetings=None)
     body = get(_Conn(totals=[_totals()], lean_totals=[row])).json()
     assert body["lean_totals"]["stopped_meetings"] == 0
+
+
+def test_lean_totals_other_leans_use_the_confident_threshold() -> None:
+    """#1134: for, mixed and spoke counts take the same P >= 0.7 as public_against, and spoke leaves out no-comment."""
+    from api.routes.data_centers import LEAN_TOTALS_SQL
+
+    sql = LEAN_TOTALS_SQL
+    for col in ("public_for_meetings", "public_mixed_meetings", "public_spoke_meetings"):
+        assert f"AS {col}" in sql
+    assert "l.public_lean = 'mostly_supported' AND coalesce(l.public_lean_p, 0) >= 0.7" in sql
+    assert "l.public_lean = 'mixed' AND coalesce(l.public_lean_p, 0) >= 0.7" in sql
+    assert "l.public_lean IN ('mostly_opposed', 'mostly_supported', 'mixed') AND coalesce(l.public_lean_p, 0) >= 0.7" in sql
+    assert "no_public_comment_on_data_center" not in sql
+
+
+def test_lean_totals_serve_the_other_leans(get) -> None:
+    body = get(_Conn(totals=[_totals()], lean_totals=[_lean_totals(public_mixed_meetings=None)])).json()
+    assert body["lean_totals"]["public_for_meetings"] == 2
+    assert body["lean_totals"]["public_mixed_meetings"] == 0
+    assert body["lean_totals"]["public_spoke_meetings"] == 15
+
+
+def test_scope_lean_totals_take_the_state_and_city(get) -> None:
+    """#1134: the scoped AI-reading totals narrow by state and city the way the speaker totals do."""
+    conn = _Conn(totals=[_totals()], lean_totals=[_lean_totals()])
+    resp = get(conn, {"state": "AL", "city": "Tuscaloosa"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["scope_lean_totals"] == _lean_totals()
+    calls = [c for c in conn.calls if "AS stopped_meetings" in c[0]]
+    assert len(calls) == 2
+    sql, params = calls[1]
+    assert params == ("AL", "%Tuscaloosa%")
+    assert "l.state_code = $1" in sql and "l.jurisdiction_name ILIKE $2" in sql
+
+
+def test_scope_lean_totals_nationally_reuse_the_national_query(get) -> None:
+    conn = _Conn(totals=[_totals()], lean_totals=[_lean_totals()])
+    body = get(conn).json()
+    assert body["scope_lean_totals"] == body["lean_totals"] == _lean_totals()
+    assert len([c for c in conn.calls if "AS stopped_meetings" in c[0]]) == 1
+
+
+def test_scope_lean_totals_null_when_table_missing(get) -> None:
+    err = asyncpg.exceptions.UndefinedTableError("relation \"data_center_meeting_lean\" does not exist")
+    body = get(_Conn(totals=[_totals()], lean_error=err), {"state": "AL"}).json()
+    assert body["available"] is True and body["scope_lean_totals"] is None

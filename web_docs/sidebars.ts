@@ -111,6 +111,7 @@ function developersTechnicalItems() {
         'development/context-engineering',
         'development/transcript-analysis-cost',
         'development/jev-transcript-screening',
+        'development/search-places-handoff',
         'development/jev-meeting-kind-gate',
         'development/jev-meeting-kind-gate-plan',
         'development/jev-meta-and-scale-design',

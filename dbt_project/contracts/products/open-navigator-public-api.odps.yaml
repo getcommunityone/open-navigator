@@ -470,3 +470,8 @@ outputPorts:
   contractId: open-navigator-public-data_center_meeting_lean
   type: table
   description: One row per data center meeting video (in data_center_meeting_mention) with a Jev screen under the current question version.
+- name: topic_meeting_lean
+  version: 1.0.0
+  contractId: open-navigator-public-topic_meeting_lean
+  type: table
+  description: Jev's AI reading of how the public and elected officials leaned on a curated topic, per meeting (#1126).
