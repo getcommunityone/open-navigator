@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { clockTime, youtubeEmbedUrl } from '../../lib/youtubeEmbed'
-import { highlightSnippet } from '../../lib/highlight'
+import type { Stance } from '../../utils/boxSplit'
+import QuoteCard from './QuoteCard'
 
 export interface MeetingVideo {
   videoId: string
@@ -15,8 +16,14 @@ export interface MeetingVideo {
   url: string | null
   /** The verbatim passage that put the meeting on the chart, matched words in <mark> (#1036). */
   quote?: string | null
-  /** Who said it, when known ("Audra T. · Resident"). */
-  who?: string | null
+  /** Where and when, from the record, for the quote card (#1108): "Charlotte, NC" and an ISO date. */
+  place?: string | null
+  date?: string | null
+  /** The speaker, when the passage is a speaker's own words: name as served ("Audra T."), side, real role, item. */
+  speakerName?: string | null
+  side?: Stance | null
+  role?: string | null
+  item?: string | null
 }
 
 interface Props {
@@ -100,33 +107,42 @@ export default function MeetingVideoModal({ video, onClose }: Props) {
           className="stance-video-dialog"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="stance-video-title"
+          aria-label={`Recording: ${video.title}`}
           // Focusable, so a click on its text keeps focus inside the dialog rather than on the page body.
           tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
         >
           <div className="stance-video-head">
-            <div>
-              <p className="stance-video-title" id="stance-video-title">
-                {video.title}
-              </p>
-              <p className="stance-video-sub">
-                {[video.sub, video.start != null && video.start > 0 ? `from ${clockTime(video.start)}, where the passage starts` : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-            </div>
+            {video.quote ? (
+              // The quoted moment in the card format (#1108), without the image: the dialog plays the recording itself.
+              <QuoteCard
+                variant="header"
+                className="stance-video-qcard"
+                place={video.place || video.sub || video.title}
+                date={video.place ? video.date : null}
+                quote={video.quote}
+                side={video.side}
+                speakerName={video.speakerName}
+                role={video.role}
+                item={video.item}
+                meeting={video.title}
+                startSeconds={video.start}
+              />
+            ) : (
+              <div>
+                <p className="stance-video-title">{video.title}</p>
+                <p className="stance-video-sub">
+                  {[video.sub, video.start != null && video.start > 0 ? `from ${clockTime(video.start)}, where the passage starts` : null]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+            )}
             <button ref={closeRef} type="button" className="folio-btn stance-video-close" onClick={onClose} aria-label="Close video">
               Close <span aria-hidden="true">×</span>
             </button>
           </div>
-          {video.quote && (
-            <blockquote className="stance-video-quote">
-              “{highlightSnippet(video.quote)}”
-              {video.who && <footer>{video.who}</footer>}
-            </blockquote>
-          )}
           <div className="stance-video-frame">
             <iframe
               src={youtubeEmbedUrl(video.videoId, video.start)}

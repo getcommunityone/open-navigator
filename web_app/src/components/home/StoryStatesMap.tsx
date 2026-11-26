@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
-import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
+import { excerptAroundMark } from '../../lib/highlight'
+import QuoteCard from '../stance/QuoteCard'
+import { resolveVideoId, startFromUrl } from '../stance/quoteCardUtils'
+import { BOX_COLORS, STANCE_LABEL } from './storyColors'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
@@ -25,14 +28,23 @@ export interface StateQuote {
   place: string
   /** A speaker's recorded side, when the quote is a speaker's own words (#995); absent for a meeting passage. */
   side?: 'for' | 'against' | 'question' | null
-  /** Who spoke ("Resident"), when given. */
-  who?: string | null
+  /** The speaker's name as served ("Rob D."), when one was heard. */
+  speakerName?: string | null
+  /** The speaker's role on record ("Resident"), when given. */
+  role?: string | null
+  /** The item the comment is on (decision headline), when given. */
+  item?: string | null
   /** Verbatim transcript excerpt; matched words in <mark>. */
   text: string
   date: string | null
+  /** The meeting's title, for a meeting passage. */
   meeting: string | null
   /** The recording at the passage's moment, or the recording. */
   url: string | null
+  /** The recording's YouTube id, when known (else derived from `url`). */
+  videoId?: string | null
+  /** Seconds into the recording where the passage starts. */
+  startSeconds?: number | null
 }
 
 interface Props {
@@ -57,15 +69,7 @@ const W = NATIONAL_BBOX[2]
 const H = NATIONAL_BBOX[3]
 const COLS = 80
 
-/** Box colours: the house theme's segment colours (no red/green pair), a grey for meetings without a stance, the empty tint. */
-export const BOX_COLORS: Record<Stance | 'meetings' | 'none', string> = {
-  against: HOUSE_THEME.seg[3]!, // muted red
-  for: HOUSE_THEME.seg[0]!, // teal
-  question: HOUSE_THEME.seg[2]!, // blue
-  neutral: HOUSE_THEME.seg[6]!, // plum
-  meetings: '#9AA5A9',
-  none: HOUSE_THEME.neutral,
-}
+export { BOX_COLORS, STANCE_LABEL }
 /** States with meetings but no stance on record, light to dark by their real meeting count (#1103). */
 export const MEETING_GREYS = ['#D2D8DA', '#B3BCC0', '#8F9A9F', '#6B777D'] as const
 
@@ -78,19 +82,6 @@ export function featPath(f: Feat): string {
 
 /** Without stance data (the rentals story) a state with meetings is one teal. */
 const MEETINGS_ONLY = HOUSE_THEME.seg[0]!
-
-export const STANCE_LABEL: Record<Stance, string> = {
-  against: 'Spoke against',
-  for: 'Spoke for',
-  question: 'Asked a question',
-  neutral: 'No side',
-}
-
-function fmtDate(iso: string | null): string | null {
-  if (!iso) return null
-  const d = new Date(`${iso.slice(0, 10)}T12:00:00`)
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 /** The real speaker counts as one line ("3 spoke against · 1 asked a question"), or null with none on record. */
 export function stanceLine(s: StanceCounts | undefined): string | null {
@@ -258,24 +249,22 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
 
       {shown && shownCode && quote && (
         // At the top of the map, on the side away from the box, so it never covers the box it describes.
-        <figure className="home-map-card" style={left < 55 ? { right: 0, top: '2%' } : { left: 0, top: '2%' }}>
-          <figcaption style={{ fontWeight: 700, fontSize: 15, color: '#1c1917', margin: '0 0 2px' }}>{quote.place}</figcaption>
-          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#57534e' }}>
-            {quote.side ? `${STANCE_LABEL[quote.side]}${quote.who ? ` · ${quote.who}` : ''}` : 'In the meeting'}
-          </p>
-          <blockquote style={{ margin: 0, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.45, color: '#44403c' }}>
-            “{highlightSnippet(excerptAroundMark(quote.text))}”
-          </blockquote>
-          <p style={{ margin: '8px 0 0', paddingTop: 8, borderTop: '1px solid #e7e5e4', fontSize: 12.5, color: '#57534e', display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
-            {fmtDate(quote.date) && <span>{fmtDate(quote.date)}</span>}
-            {quote.meeting && <span>{quote.meeting}</span>}
-            {quote.url && (
-              <a href={quote.url} target="_blank" rel="noopener noreferrer" style={{ color: '#0f766e', fontWeight: 600 }}>
-                Hear it ↗
-              </a>
-            )}
-          </p>
-          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#57534e' }}>
+        <QuoteCard
+          className="home-map-card"
+          style={{ ...(left < 55 ? { right: 0, top: '2%' } : { left: 0, top: '2%' }), padding: 0, overflow: 'hidden' }}
+          place={quote.place}
+          date={quote.date}
+          quote={excerptAroundMark(quote.text)}
+          side={quote.side}
+          speakerName={quote.speakerName}
+          role={quote.role}
+          item={quote.item}
+          meeting={quote.meeting}
+          videoId={resolveVideoId(quote.videoId, quote.url)}
+          startSeconds={quote.startSeconds ?? startFromUrl(quote.url)}
+          url={quote.url}
+        >
+          <p style={{ margin: '10px 0 0', paddingTop: 8, borderTop: '1px solid #e7e5e4', fontSize: 12, color: '#57534e' }}>
             {stateName(shownCode)}: {plural(shownMeetings, 'meeting', 'meetings')}
             {shownStance ? ` · ${shownStance}` : hasStance ? ' · no stance on record' : ''}
           </p>
@@ -286,7 +275,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               </Link>
             </p>
           )}
-        </figure>
+        </QuoteCard>
       )}
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}

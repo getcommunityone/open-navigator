@@ -71,6 +71,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         date: m.date ?? null,
         meeting: m.title ?? null,
         url: m.video_url ?? null,
+        videoId: m.video_id ?? null,
       })
     }
     return out
@@ -106,11 +107,14 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         pushQuote(out, sq.state_code, {
           place: [sq.jurisdiction_name, sq.state_code].filter(Boolean).join(', '),
           side,
-          who: [sq.speaker_display_name, sq.speaker_role].filter(Boolean).join(' · ') || null,
+          speakerName: sq.speaker_display_name ?? null,
+          role: sq.speaker_role ?? null,
+          item: sq.decision_headline ?? null,
           text: sq.quote,
           date: sq.meeting_date ?? null,
-          meeting: sq.decision_headline ?? null,
+          meeting: null,
           url: sq.jump_url ?? sq.video_url ?? null,
+          startSeconds: sq.start_seconds ?? null,
         })
       }
     }
@@ -122,6 +126,8 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         date: m.meeting_date ?? null,
         meeting: m.meeting_title ?? null,
         url: m.jump_url ?? m.video_url ?? null,
+        videoId: m.video_id ?? null,
+        startSeconds: m.start_seconds ?? null,
       })
     }
     return out
