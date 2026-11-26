@@ -42,9 +42,10 @@ export function useChartData(chartKey: string, enabled: boolean, stateCode: stri
   })
 }
 
-/** A group's colour: its stance tone (set in stance.css, with a shape of its own) or the next colour of the house theme. */
+/** A group's colour: its stance tone (set in stance.css, with a shape of its own), its own fixed colour, or the next colour of the house theme. */
 function dotLook(g: DotGroup, gi: number): { className: string; background: string | undefined } {
-  return g.tone ? { className: ` stance-dot--${g.tone}`, background: undefined } : { className: '', background: GROUP_COLORS[gi % GROUP_COLORS.length] }
+  if (g.tone) return { className: ` stance-dot--${g.tone}`, background: undefined }
+  return { className: '', background: g.color ?? GROUP_COLORS[gi % GROUP_COLORS.length] }
 }
 
 /**

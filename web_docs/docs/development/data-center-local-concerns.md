@@ -30,9 +30,10 @@ actually worries about ahead of routine ones. It is part of the
 | Word lists | `dbt_project/macros/local_concerns.sql` (`local_concern_patterns`) | One list, used by both models below |
 | Area concerns | `area_concern` (public) | One row per area per concern: mention count, all objections, share, rank, `is_dominant`. Areas are jurisdictions, plus one national row |
 | Item tags | `data_center_agenda_item.concerns` | The concerns named within about 250 characters of a data center mention |
-| API | `GET /api/data-centers/concerns?state=&city=` | The area's concerns and the national ones |
+| API | `GET /api/data-centers/concerns?state=&city=` | The area's concerns and the national ones. For a state or city it rolls the town rows up to one row per concern ([#1139](https://github.com/getcommunityone/open-navigator/issues/1139)): mentions summed, `share` over the area's mentions, re-ranked, and the towns in `jurisdictions` (empty on national rows) |
 | API | `GET /api/data-centers/agenda-items` | Adds `concerns`, `local_concern`, `matches_local_concern`, and ranks by them |
 | Page | `/data-centers`, "On the agenda" | "What residents raise most" line, with the national figure, and the tag on matching items |
+| Story | `/stories/data-centers?screen=concerns` | One swatch per concern, each concern in a fixed colour; the headline names the towns when one concern is all there is, and the context line gives the national order |
 
 </details>
 
@@ -47,6 +48,9 @@ actually worries about ahead of routine ones. It is part of the
 - **The plan's "water ≈ 41% nationally" isn't hard-coded.** No source for that figure turned up, so the national share
   shown is computed from the same records (No Fabricated Data). Polls broadly agree water and electricity costs lead.
 - **At least 3 mentions** before a concern can steer the ranking, so one stray comment doesn't reorder an area's feed.
+- **A state is the sum of its towns.** The mart stores only town and national rows, so the API adds up a state's towns per
+  concern instead of listing each town's row (which once showed "water and water are tied"). Coverage is still thin;
+  extracting concerns with Jev is [#1144](https://github.com/getcommunityone/open-navigator/issues/1144).
 - **Narrow word lists.** "Power" or "zoning" alone are too common to mean a concern; the lists use phrases such as
   "electric bills" and "property values".
 
