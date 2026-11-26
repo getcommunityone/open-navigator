@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bike, Camera, ChevronRight, Crosshair, HandHeart, House, ScanLine, Server, ShieldCheck, Volleyball, type LucideIcon } from 'lucide-react'
+import { Bike, Camera, ChevronLeft, ChevronRight, Crosshair, HandHeart, House, ScanLine, Server, ShieldCheck, Volleyball, type LucideIcon } from 'lucide-react'
 import TopicCompaniesPanel from './TopicCompaniesPanel'
+import { scrollLeftForPage, scrollPages, type ScrollPages } from '../../utils/scrollPages'
 
 /** The live home stories the strip can select (#1025). */
 export type HomeStoryKey = 'data-centers' | 'short-term-rentals'
@@ -53,6 +54,47 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
   const [picked, setPicked] = useState<string>(storyCard)
   useEffect(() => setPicked(storyCard), [storyCard])
   const shown = TOPICS.find((t) => t.key === picked && t.topic)
+
+  // The scroller (#1101): snap per card, previous/next arrows and one dot per page of visible cards.
+  const listRef = useRef<HTMLUListElement>(null)
+  const [pos, setPos] = useState<ScrollPages>({ pages: 1, current: 0, atStart: true, atEnd: true })
+  const measure = useCallback(() => {
+    const el = listRef.current
+    if (!el) return
+    const next = scrollPages(el.scrollLeft, el.clientWidth, el.scrollWidth)
+    setPos((p) => (p.pages === next.pages && p.current === next.current && p.atStart === next.atStart && p.atEnd === next.atEnd ? p : next))
+  }, [])
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        measure()
+      })
+    }
+    measure()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    ro?.observe(el)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      ro?.disconnect()
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [measure])
+  const behavior = (): ScrollBehavior =>
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+  const page = (dir: 1 | -1) => {
+    const el = listRef.current
+    if (el) el.scrollBy({ left: dir * el.clientWidth, behavior: behavior() })
+  }
+  const goTo = (index: number) => {
+    const el = listRef.current
+    if (el) el.scrollTo({ left: scrollLeftForPage(index, el.clientWidth, el.scrollWidth), behavior: behavior() })
+  }
   return (
     <nav aria-labelledby="home-topics-h" className="home-topics">
       <div className="home-topics-head">
@@ -63,52 +105,74 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
           <ChevronRight size={18} aria-hidden="true" />
         </Link>
       </div>
-      <ul className="home-topics-list">
-        {TOPICS.map(({ key, title, blurb, Icon, tint, ink, story, topic }) => {
-          const on = story != null && story === selected
-          const companiesOn = !story && key === picked
-          const body = (
-            <>
-              <span className="home-topic-icon" style={{ background: tint, color: ink, opacity: story ? 1 : 0.55 }} aria-hidden="true">
-                <Icon size={26} strokeWidth={1.8} />
-              </span>
-              <span className="home-topic-text">
-                <span className="home-topic-title">{title}</span>
-                <span className="home-topic-blurb">{blurb}</span>
-                {!story ? (
-                  <span className="home-topic-soon">
-                    Coming soon{topic ? (companiesOn ? ' · Companies below' : ' · See companies') : ''}
-                  </span>
-                ) : on ? (
-                  <span className="home-topic-on">Showing above</span>
+      <div className="home-topics-scroller">
+        <button type="button" className="home-topics-arrow is-prev" aria-label="Previous topics" onClick={() => page(-1)} disabled={pos.atStart} hidden={pos.pages <= 1}>
+          <ChevronLeft size={20} aria-hidden="true" />
+        </button>
+        <ul ref={listRef} className="home-topics-list">
+          {TOPICS.map(({ key, title, blurb, Icon, tint, ink, story, topic }) => {
+            const on = story != null && story === selected
+            const companiesOn = !story && key === picked
+            const body = (
+              <>
+                <span className="home-topic-icon" style={{ background: tint, color: ink, opacity: story ? 1 : 0.55 }} aria-hidden="true">
+                  <Icon size={26} strokeWidth={1.8} />
+                </span>
+                <span className="home-topic-text">
+                  <span className="home-topic-title">{title}</span>
+                  <span className="home-topic-blurb">{blurb}</span>
+                  {!story ? (
+                    <span className="home-topic-soon">
+                      Coming soon{topic ? (companiesOn ? ' · Companies below' : ' · See companies') : ''}
+                    </span>
+                  ) : on ? (
+                    <span className="home-topic-on">Showing above</span>
+                  ) : (
+                    <span className="home-topic-go">
+                      Show this story <span aria-hidden="true">→</span>
+                    </span>
+                  )}
+                </span>
+              </>
+            )
+            return (
+              <li key={key}>
+                {story ? (
+                  <button type="button" className={'home-topic' + (on ? ' is-on' : '')} aria-pressed={on} onClick={() => { onSelect(story); setPicked(key) }}>
+                    {body}
+                  </button>
+                ) : topic ? (
+                  // Coming soon, but its companies are tracked: picking it shows them below (the story above stays).
+                  <button type="button" className={'home-topic is-soon' + (companiesOn ? ' is-picked' : '')} aria-pressed={companiesOn} onClick={() => setPicked(key)}>
+                    {body}
+                  </button>
                 ) : (
-                  <span className="home-topic-go">
-                    Show this story <span aria-hidden="true">→</span>
-                  </span>
+                  <div className="home-topic is-soon" aria-disabled="true">
+                    {body}
+                  </div>
                 )}
-              </span>
-            </>
-          )
-          return (
-            <li key={key}>
-              {story ? (
-                <button type="button" className={'home-topic' + (on ? ' is-on' : '')} aria-pressed={on} onClick={() => { onSelect(story); setPicked(key) }}>
-                  {body}
-                </button>
-              ) : topic ? (
-                // Coming soon, but its companies are tracked: picking it shows them below (the story above stays).
-                <button type="button" className={'home-topic is-soon' + (companiesOn ? ' is-picked' : '')} aria-pressed={companiesOn} onClick={() => setPicked(key)}>
-                  {body}
-                </button>
-              ) : (
-                <div className="home-topic is-soon" aria-disabled="true">
-                  {body}
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+              </li>
+            )
+          })}
+        </ul>
+        <button type="button" className="home-topics-arrow is-next" aria-label="Next topics" onClick={() => page(1)} disabled={pos.atEnd} hidden={pos.pages <= 1}>
+          <ChevronRight size={20} aria-hidden="true" />
+        </button>
+      </div>
+      {pos.pages > 1 && (
+        <div className="home-topics-dots">
+          {Array.from({ length: pos.pages }, (_, i) => (
+            <button
+              key={i}
+              type="button"
+              className={'home-topics-dot' + (i === pos.current ? ' is-on' : '')}
+              aria-label={`Topics page ${i + 1} of ${pos.pages}`}
+              aria-current={i === pos.current ? 'true' : undefined}
+              onClick={() => goTo(i)}
+            />
+          ))}
+        </div>
+      )}
       {shown?.topic && (
         <TopicCompaniesPanel queryId={shown.topic} title={shown.title} stateCode={stateCode} city={city} scopeLabel={scopeLabel} />
       )}
