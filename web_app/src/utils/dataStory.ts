@@ -16,6 +16,7 @@ import type {
 import { communityEventKindLabel, concernLabel, siteSourcesText, siteTotal } from '../lib/dataCenterJobs'
 import type { StanceQuestion } from '../api/stance'
 import { questionText } from './storyQuestion'
+import { countClauses, joinClauses } from './clauses'
 import {
   DOT_CAP,
   cap,
@@ -63,7 +64,6 @@ export interface StoryScreen {
 export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'overview', eyebrow: 'Overview', chart: null, kind: 'overview' },
   { id: 'voices', eyebrow: 'Who spoke up', chart: 'positions', kind: 'chart' },
-  { id: 'scope', eyebrow: 'Where', chart: null, kind: 'scope' },
   { id: 'sites', eyebrow: 'Sites', chart: 'sites', kind: 'chart', kicker: 'For context' },
   { id: 'projects', eyebrow: 'Proposals', chart: 'projects', kind: 'chart', kicker: 'For context' },
   { id: 'jobs', eyebrow: 'Promises', chart: 'job-claims', kind: 'chart' },
@@ -92,7 +92,26 @@ export interface StoryConclusion {
   side: 'for' | 'against'
   minRatio: number
   minSpeakers: number
+  /**
+   * The meeting-reading gate (#1134): the headline may also pass on at least this many meetings where Jev read the
+   * public as mostly opposed (P >= 0.7). Only the "against" reading is used: hand checks found "supported" and "mixed"
+   * unreliable, so no ratio against them is claimed (development/data-center-meeting-lean.md). National, state and
+   * single-place (city) gates, since a place has far fewer meetings.
+   */
+  minLeanMeetings?: { national: number; state: number; city: number }
 }
+
+/** Jev's confident readings for the scope (#1134): AI readings of meetings, not counted speakers. */
+export interface StoryLean {
+  /** Meetings where the public leaned against (P >= 0.7). */
+  against: number
+  /** States with such a meeting, nationally; omitted for a place. */
+  states?: number | null
+  /** Meetings where officials sided against the public (the #1113 rule). */
+  disagreement?: number | null
+}
+
+export type StoryLevel = 'national' | 'state' | 'city'
 
 export interface StoryEntry {
   title: string
@@ -118,79 +137,95 @@ export const STORIES: Record<string, StoryEntry> = {
       side: 'against',
       minRatio: 2,
       minSpeakers: 10,
+      minLeanMeetings: { national: 50, state: 10, city: 3 },
     },
   },
 }
 
-/** The conclusion to show, with its basis in real counts, or null when the record doesn't back it (#989). */
+export type SpeakerCounts = {
+  for: number
+  against: number
+  question: number
+  neutral: number
+  total?: number
+  /** States with any hand-counted speaker, nationally (#1134); omitted for a place. */
+  states?: number | null
+}
+
+const fmtN = (n: number) => n.toLocaleString('en-US')
+const pluralN = (n: number, one: string) => `${fmtN(n)} ${n === 1 ? one : `${one}s`}`
+const speakerTotal = (c: SpeakerCounts) => c.total ?? c.for + c.against + c.question + c.neutral
+
+/** "29 speakers counted by hand in 4 states: 18 against, 3 for." (#1134): hand counts always carry their scope. */
+function handCountSentence(c: SpeakerCounts, side: 'for' | 'against', placePhrase?: string): string | null {
+  const total = speakerTotal(c)
+  if (total <= 0) return null
+  const states = c.states ?? 0
+  const where = placePhrase ? ` ${placePhrase}` : states > 0 ? ` in ${pluralN(states, 'state')}` : ''
+  const other = side === 'against' ? 'for' : 'against'
+  const sides = countClauses(
+    [
+      { n: c[side], text: (n) => `${fmtN(n)} ${side}` },
+      { n: c[other], text: (n) => `${fmtN(n)} ${other}` },
+    ],
+    { leadLarger: true },
+  )
+  return `${pluralN(total, 'speaker')} counted by hand${where}${sides ? `: ${sides}` : ''}.`
+}
+
+/**
+ * The conclusion to show, with its basis in real counts, or null when the record doesn't back it (#989, #1134). It passes
+ * on the meeting reading (`lean`, confident "against" meetings at or above the scope's gate) or on the counted speakers'
+ * gate. The basis leads with the meeting reading, labelled as an AI reading, and gives the hand-counted speakers only with
+ * their scope ("29 speakers counted by hand in 4 states: 18 against, 3 for.").
+ */
 export function storyConclusion(
   story: StoryEntry,
-  counts: { for: number; against: number; question: number; neutral: number; total?: number } | null | undefined,
+  counts: SpeakerCounts | null | undefined,
   /** "in Washington"; omitted for the country. */
   placePhrase?: string,
+  lean?: StoryLean | null,
+  level: StoryLevel = placePhrase ? 'state' : 'national',
 ): { headline: string; subhead: string; basis: string } | null {
   const c = story.conclusion
-  if (!c || !counts) return null
-  const total = counts.total ?? counts.for + counts.against + counts.question + counts.neutral
-  const mine = counts[c.side]
-  const other = c.side === 'against' ? counts.for : counts.against
-  if (total < c.minSpeakers || mine <= 0 || mine < c.minRatio * other) return null
-  const fmtN = (n: number) => n.toLocaleString('en-US')
-  return {
-    headline: c.headline,
-    subhead: c.subhead,
-    basis: `Of ${fmtN(total)} speakers on record at local meetings${placePhrase ? ` ${placePhrase}` : ''}, ${fmtN(mine)} spoke ${c.side} and ${fmtN(other)} spoke ${c.side === 'against' ? 'for' : 'against'}.`,
+  if (!c) return null
+  const total = counts ? speakerTotal(counts) : 0
+  const mine = counts ? counts[c.side] : 0
+  const other = counts ? (c.side === 'against' ? counts.for : counts.against) : 0
+  const speakerPass = Boolean(counts) && total >= c.minSpeakers && mine > 0 && mine >= c.minRatio * other
+  const minLean = c.minLeanMeetings?.[level]
+  const against = lean && Number.isFinite(lean.against) ? lean.against : 0
+  const leanPass = c.side === 'against' && minLean != null && against > 0 && against >= minLean
+  if (!speakerPass && !leanPass) return null
+  const parts: string[] = []
+  if (leanPass) {
+    const states = lean?.states ?? 0
+    const where = placePhrase ? ` ${placePhrase}` : states > 0 ? ` across ${pluralN(states, 'state')}` : ''
+    parts.push(`The public leaned against ${story.topic} in ${pluralN(against, 'meeting')}${where} (AI reading of meetings).`)
   }
+  const hand = counts ? handCountSentence(counts, c.side, placePhrase) : null
+  if (hand) parts.push(hand)
+  return { headline: c.headline, subhead: c.subhead, basis: parts.join(' ') }
 }
 
 export type StoryTitlePart = string | { blank: 'place' | 'topic' }
 
-/**
- * The story's title for its place (#993): the strongest conclusion the place's record supports, with the place and topic as
- * blanks. (1) The sentiment headline ("[America] hates [data centers].") when the place's own speaker counts pass the
- * conclusion's gate; (2) otherwise the fact ("[Washington] talked about [data centers] in 69 meetings.") from its meeting
- * count; (3) otherwise the question. `place` is how the place blank reads ("America" for the country). `basis` is the line
- * of numbers under the title, null for the question.
- */
-export function storyTitle(
-  story: StoryEntry,
-  scope: StoryScope,
-  record: {
-    speakers: { for: number; against: number; question: number; neutral: number; total?: number } | null | undefined
-    meetings: number | null | undefined
-  },
-): { kind: 'sentiment' | 'fact' | 'question'; template: StoryTitlePart[]; place: string; basis: string | null } {
-  const label = storyScopeLabel(scope)
-  const national = !scope.stateName
-  const placePhrase = national ? undefined : `in ${label}`
-  const sentiment = storyConclusion(story, record.speakers, placePhrase)
-  if (sentiment && story.conclusion) {
-    return {
-      kind: 'sentiment',
-      template: [{ blank: 'place' }, ` ${story.conclusion.verb} `, { blank: 'topic' }, '.'],
-      place: national ? 'America' : label,
-      basis: sentiment.basis,
-    }
-  }
-  const m = record.meetings ?? 0
-  if (m > 0) {
-    return {
-      kind: 'fact',
-      template: [{ blank: 'place' }, ' talked about ', { blank: 'topic' }, ` in ${m.toLocaleString('en-US')} ${m === 1 ? 'meeting' : 'meetings'}.`],
-      place: national ? 'America' : label,
-      basis: 'Counted from local meeting recordings and transcripts. Not enough speakers on record here to say which way they lean.',
-    }
-  }
-  return {
-    kind: 'question',
-    template: ['What did local meetings in ', { blank: 'place' }, ' say about ', { blank: 'topic' }, '?'],
-    place: storyPlaceDisplay(scope),
-    basis: null,
-  }
+/** The national meeting reading from positions `lean_totals` (#1134), or null when it isn't served. */
+export function nationalLean(res: DataCenterPositionsResponse | null | undefined): StoryLean | null {
+  const t = res?.available ? res.lean_totals : null
+  if (!t) return null
+  return { against: t.public_against_meetings ?? 0, states: t.public_against_states ?? 0, disagreement: t.disagreement_meetings ?? 0 }
+}
+
+/** States with at least one hand-counted speaker in positions `by_state` (#1134), counted from the data. */
+export function speakerStateCount(res: DataCenterPositionsResponse | null | undefined): number {
+  const rows = res?.available ? (res.by_state ?? []) : []
+  return rows.filter((r) => (r.speakers_for ?? 0) + (r.speakers_against ?? 0) + (r.speakers_question ?? 0) + (r.speakers_neutral ?? 0) > 0).length
 }
 
 /** Screen ids that were renamed: an old link still lands on the screen that replaced it. */
-const SCREEN_ALIASES: Record<string, string> = { turn: 'verdict', question: 'overview' }
+// 'scope' (Where) folded into the Overview, whose title carries the place picker (#1134).
+const SCREEN_ALIASES: Record<string, string> = { turn: 'verdict', question: 'overview', scope: 'overview' }
 
 /** The position of the screen a `?screen=` value names, or -1. */
 export function storyScreenIndex(screens: StoryScreen[], param: string | null | undefined): number {
@@ -380,6 +415,23 @@ export function positionsCaption(res: DataCenterPositionsResponse | null | undef
   return `Speakers at local meetings ${place} where a data center item was discussed.${from.length ? ` From ${from.join(' and ')}.` : ''}`
 }
 
+/**
+ * "Of 6 people who spoke on a data center item at local meetings in Texas, 2 spoke for it and 1 against." (#1134): zero sides
+ * are left out and the larger side leads; with no one for or against, it says only how many spoke.
+ */
+export function speakersHeadline(c: { for: number; against: number; total: number }, place: string | null): string {
+  const sides = [
+    { n: c.for, side: 'for' },
+    { n: c.against, side: 'against' },
+  ]
+    .filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n)
+  const lead = `${plural(c.total, 'person', 'people')} who spoke on a data center item at local meetings ${where(place)}`
+  if (sides.length === 0) return `${lead.charAt(0).toUpperCase()}${lead.slice(1)}.`.replace(' who spoke on', ' spoke on')
+  const clauses = joinClauses(sides.map((x, i) => (i === 0 ? `${fmt(x.n)} spoke ${x.side} it` : `${fmt(x.n)} ${x.side}`)))
+  return `Of ${lead}, ${clauses}.`
+}
+
 function positionsText(res: DataCenterPositionsResponse, scope: StoryScope): ScreenText {
   const title = 'Who spoke up about data centers'
   if (!positionsLoaded(res)) return { headline: title, context: POSITIONS_NOT_LOADED, empty: false, failed: false }
@@ -387,10 +439,15 @@ function positionsText(res: DataCenterPositionsResponse, scope: StoryScope): Scr
   const t = res.totals
   const place = placeFor('positions', scope)
   const tallies = t.decisions_with_tally ?? 0
-  const votes =
+  // No zero clause in a title (#1134): "Recorded votes: 5 for, in 1 decision.", never "and 0 against".
+  const voteSides =
     tallies > 0 && t.votes_for != null && t.votes_against != null
-      ? `Recorded votes: ${fmt(t.votes_for)} for and ${fmt(t.votes_against)} against, in ${plural(tallies, 'decision')}.`
-      : null
+      ? countClauses([
+          { n: t.votes_for, text: (n) => `${fmt(n)} for` },
+          { n: t.votes_against, text: (n) => `${fmt(n)} against` },
+        ])
+      : ''
+  const votes = voteSides ? `Recorded votes: ${voteSides}, in ${plural(tallies, 'decision')}.` : null
   if (!c) {
     if (!votes) {
       return noData(scope)
@@ -398,8 +455,13 @@ function positionsText(res: DataCenterPositionsResponse, scope: StoryScope): Scr
     // Votes only: the figures beside the headline say why the speaker counts are not recorded.
     return { headline: `${votes.replace(/\.$/, '')} ${where(place)}.`, context: 'How often does it come up?', empty: false, failed: false }
   }
-  const headline = `Of ${plural(c.total, 'person', 'people')} who spoke on a data center item at local meetings ${where(place)}, ${fmt(c.for)} spoke for it, ${fmt(c.against)} against, and ${fmt(c.question)} asked a question.`
-  const rest = c.neutral > 0 ? `${fmt(c.neutral)} more took no side. ` : ''
+  const headline = speakersHeadline(c, place)
+  // Questions and no-side speakers go in the context line, only when there are any (#1134).
+  const others = countClauses([
+    { n: c.question, text: (n) => `${fmt(n)} asked a question` },
+    { n: c.neutral, text: (n) => `${fmt(n)} took no side` },
+  ])
+  const rest = others ? `${others.charAt(0).toUpperCase()}${others.slice(1)}. ` : ''
   // With no recorded tally the figures say so once ("not recorded", with the reason); the line here does not repeat it.
   return { headline, context: `${rest}${votes ? `${votes} ` : ''}How often does it come up?`, empty: false, failed: false }
 }
@@ -466,14 +528,11 @@ function jobsText(res: JobClaimsResponse, scope: StoryScope): ScreenText | null 
   const o = res.totals?.operations ?? 0
   if (c + o <= 0) return payrollText(res, scope)
   const place = placeFor('job-claims', scope)
-  let headline: string
-  if (c > 0 && o > 0) {
-    headline = `Meetings ${where(place)} include ${plural(c, 'claim')} about construction jobs and ${plural(o, 'claim')} about operations jobs.`
-  } else if (c > 0) {
-    headline = `Meetings ${where(place)} include ${plural(c, 'claim')} about construction jobs and none about operations jobs.`
-  } else {
-    headline = `Meetings ${where(place)} include ${plural(o, 'claim')} about operations jobs and none about construction jobs.`
-  }
+  // No zero clause (#1134): a side with no claims is left out of the title.
+  const headline = `Meetings ${where(place)} include ${countClauses([
+    { n: c, text: (n) => `${plural(n, 'claim')} about construction jobs` },
+    { n: o, text: (n) => `${plural(n, 'claim')} about operations jobs` },
+  ])}.`
   const gap = Math.abs(c - o)
   const lead = c > 0 && o > 0 && gap > 0 ? `${c > o ? 'Construction' : 'Operations'} claims outnumber ${c > o ? 'operations' : 'construction'} claims by ${fmt(gap)}. ` : ''
   return {
@@ -640,10 +699,12 @@ export function overviewLean(res: DataCenterPositionsResponse | null | undefined
   if (c.for / c.total >= OVERVIEW_LEAN_SHARE) {
     return `${place} welcomed data centers: ${fmt(c.for)} of ${plural(c.total, 'speaker')} spoke for them.`
   }
+  // A split needs speakers on both sides; never "0 spoke for" (#1134).
+  if (c.for <= 0 || c.against <= 0) return null
   return `${place} was split: ${fmt(c.for)} spoke for and ${fmt(c.against)} against data centers.`
 }
 
-function overviewText(data: StoryData, scope: StoryScope): ScreenText {
+function overviewText(data: StoryData, scope: StoryScope, caption?: ScreenCaption | null): ScreenText {
   const stats = storyStats(data)
   const place = scope.stateName ? storyScopeLabel(scope) : null
   const byKey = new Map(stats.map((s) => [s.key, s.value]))
@@ -654,6 +715,16 @@ function overviewText(data: StoryData, scope: StoryScope): ScreenText {
   // The opener's headline is always a claim from meeting records; sites and projects never lead it.
   // At a state or city scope with enough speakers on record, the headline says which way they spoke (#1115) and the meeting
   // count becomes the context line. Below the national conclusion's minimum the neutral count stays: nothing is overstated.
+  // The Overview states the same title as the header and the home hero (#1125, #1134) whenever the caption is not the question.
+  // Any caption but the bare question is the title, so the Overview never makes a different (or stronger) claim.
+  if (caption && caption.kind !== 'question' && caption.text) {
+    return {
+      headline: caption.text,
+      context: meetings ? `A data center came up in ${plural(meetings, 'meeting')}${place ? ` in ${place}` : ''}. ${context}` : context,
+      empty: false,
+      failed: false,
+    }
+  }
   const lean = place ? overviewLean(data.positions as DataCenterPositionsResponse | null | undefined, place) : null
   if (lean) {
     return {
@@ -679,12 +750,20 @@ function overviewText(data: StoryData, scope: StoryScope): ScreenText {
 export const PAUSE_NOTE = 'A pause is a moratorium: no new approvals until the rules are settled.'
 
 /** Headline and context for one screen. Loading and failed screens get a neutral description, never a number. */
+/** The caption's kind and its plain sentence, for the Overview (#1134); from pickCaption + captionText. */
+export interface ScreenCaption {
+  kind: string
+  text: string
+}
+
 export function screenText(
   screen: StoryScreen,
   data: StoryData,
   status: StoryStatus,
   scope: StoryScope,
   question?: Pick<StanceQuestion, 'text' | 'place_text'> | null,
+  /** The page's caption (utils/storyCaption, #1125): the Overview states it when it is a conclusion (#1134). */
+  caption?: ScreenCaption | null,
 ): ScreenText {
   // The three screens around the record carry the story's question, worded for the place in scope.
   if (screen.kind === 'question') {
@@ -709,7 +788,7 @@ export function screenText(
     if (keys.every((k) => status[k] === 'error')) {
       return { headline: 'Data centers in the public record', context: 'The records could not be loaded right now.', empty: false, failed: true }
     }
-    return overviewText(data, scope)
+    return overviewText(data, scope, caption)
   }
   const key = screen.chart!
   const st = status[key] ?? 'loading'

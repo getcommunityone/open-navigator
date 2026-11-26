@@ -12,6 +12,7 @@
 //   e. question: the topic's question.
 // No caption or basis line ever states a zero ("0 spoke for"): a zero clause is left out (owner rule).
 import type { TopicCaptionFacts } from '../api/topics'
+import { countClauses } from './clauses'
 import { STORIES, storyScopeLabel, type StoryScope, type StoryTitlePart } from './dataStory'
 
 // --- thresholds (story-captions.md says why) -----------------------------------------------------------------------
@@ -160,11 +161,6 @@ function timesWord(ratio: number): string | null {
   if (n < 2) return null
   return n === 2 ? 'twice' : n === 3 ? 'three times' : n === 4 ? 'four times' : `${n} times`
 }
-/** "a, b and c", dropping empty parts. */
-function joinAnd(parts: string[]): string {
-  const p = parts.filter(Boolean)
-  return p.length <= 1 ? (p[0] ?? '') : `${p.slice(0, -1).join(', ')} and ${p[p.length - 1]}`
-}
 
 /** The facts answer the scope asked for (never a stale scope's numbers under the new label). */
 function factsMatchScope(facts: TopicCaptionFacts, scope: StoryScope): boolean {
@@ -176,16 +172,23 @@ function factsMatchScope(facts: TopicCaptionFacts, scope: StoryScope): boolean {
 
 type Speakers = NonNullable<TopicCaptionFacts['speakers']>
 
-/** "Of 12 speakers on record at local meetings in Arizona, 11 spoke against." Zero clauses left out. */
-function speakerBasis(sp: Speakers, where: string): string {
+/**
+ * "29 speakers counted by hand in 4 states: 18 against and 3 for." (#1134): hand counts always name their scope (they
+ * exist in few states, so "nationwide" would overstate them), larger side first, zero sides left out. Questions and no-side
+ * speakers are not in the basis.
+ */
+function speakerBasis(sp: Speakers, where: string, national: boolean): string {
   const total = sp.for + sp.against + sp.question + sp.neutral
-  const parts = [
-    sp.against > 0 ? `${fmt(sp.against)} spoke against` : '',
-    sp.for > 0 ? `${fmt(sp.for)} spoke for` : '',
-    sp.question > 0 ? `${fmt(sp.question)} asked a question` : '',
-    sp.neutral > 0 ? `${fmt(sp.neutral)} took no side` : '',
-  ]
-  return `Of ${fmt(total)} ${total === 1 ? 'speaker' : 'speakers'} on record at local meetings ${where}, ${joinAnd(parts)}.`
+  const states = sp.states ?? 0
+  const scope = national ? (states > 0 ? ` in ${fmt(states)} ${states === 1 ? 'state' : 'states'}` : '') : ` ${where}`
+  const sides = countClauses(
+    [
+      { n: sp.against, text: (n) => `${fmt(n)} against` },
+      { n: sp.for, text: (n) => `${fmt(n)} for` },
+    ],
+    { leadLarger: true },
+  )
+  return `${fmt(total)} ${total === 1 ? 'speaker' : 'speakers'} counted by hand${scope}${sides ? `: ${sides}` : ''}.`
 }
 
 /**
@@ -228,10 +231,13 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
     )
     const leanPasses = against >= HATES_MIN_MEETINGS[level]
     if (leanPasses || speakersPass) {
+      // Nationally the basis names how many states the meetings span (#1134): "In 283 meetings across 32 states, …".
+      const leanStates = facts.public_against_states ?? 0
+      const leanWhere = national && leanStates > 1 ? `across ${fmt(leanStates)} states` : where
       const lean = leanPasses
-        ? `In ${meetingsWord(against)} ${where}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading).`
+        ? `In ${meetingsWord(against)} ${leanWhere}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading).`
         : ''
-      const counted = speakersPass && sp ? speakerBasis(sp, where) : ''
+      const counted = speakersPass && sp ? speakerBasis(sp, where, national) : ''
       return {
         kind: 'sentiment',
         template: [P, ` ${copy.hates} `, T, '.'],
@@ -258,7 +264,7 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
     const lo = Math.min(sp.for, sp.against)
     const hi = Math.max(sp.for, sp.against)
     if (lo >= SPLIT_MIN_SPEAKERS_PER_SIDE && lo / (lo + hi) >= SPLIT_MIN_MINORITY_SHARE) {
-      return { kind: 'disagreement', template: [P, ' is divided on ', T, '.'], place, basis: speakerBasis(sp, where), ai: false }
+      return { kind: 'disagreement', template: [P, ' is divided on ', T, '.'], place, basis: speakerBasis(sp, where, national), ai: false }
     }
   }
 
@@ -368,4 +374,27 @@ function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope
 /** The caption as one plain sentence (for a tile, an aria-label or a test): the blanks filled in. */
 export function captionText(caption: Caption, topic: string): string {
   return caption.template.map((p) => (typeof p === 'string' ? p : p.blank === 'place' ? caption.place : topic)).join('')
+}
+
+/**
+ * The line under the caption (#1134), about the caption's own scope: the story's national subhead only with the national
+ * "hates" caption, otherwise a sentence about the place. Null for the question. States no number (the basis does).
+ */
+export function captionSubhead(caption: Caption, topicKey: string, scope: StoryScope): string | null {
+  const topic = CAPTION_COPY[topicKey]?.topic ?? topicKey.replace(/-/g, ' ')
+  const national = !scope.stateName
+  const where = national ? '' : ` in ${storyScopeLabel(scope)}`
+  switch (caption.kind) {
+    case 'sentiment':
+      return national
+        ? (STORIES[topicKey]?.conclusion?.subhead ?? null)
+        : `At local meetings${where}, the public has mostly spoken against ${topic}.`
+    case 'disagreement':
+      return `At local meetings${where || ' across the country'}, the public and officials don't always land on the same side of ${topic}.`
+    case 'state_gap':
+    case 'volume':
+      return `Where ${topic} came up at local meetings${where}, in the words said there.`
+    default:
+      return null
+  }
 }

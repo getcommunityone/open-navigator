@@ -172,11 +172,13 @@ export interface TopicCaptionFacts {
   /** City scope: the place name the city matched, and meetings per place in the state. */
   place: string | null
   places: { name: string; meetings: number }[] | null
-  /** Counted speakers (data centers only). */
-  speakers: { for: number; against: number; question: number; neutral: number } | null
+  /** Counted speakers (data centers only); `states` is how many states in scope have any (#1134). */
+  speakers: { for: number; against: number; question: number; neutral: number; states?: number } | null
   /** AI readings (Jev) of meeting transcripts: never counted speakers. */
   lean_meetings: number | null
   public_against_meetings: number | null
+  /** States with at least one public-against meeting in scope (#1134); absent on older servers. */
+  public_against_states?: number | null
   public_for_meetings: number | null
   disagreement_meetings: number | null
   disagreement_states: number | null

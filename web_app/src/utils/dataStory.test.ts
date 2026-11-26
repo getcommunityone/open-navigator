@@ -84,7 +84,6 @@ describe('story structure', () => {
     expect(DATA_CENTER_STORY.map((s) => s.id)).toEqual([
       'overview',
       'voices',
-      'scope',
       'sites',
       'projects',
       'jobs',
@@ -112,10 +111,9 @@ describe('the screens around the record', () => {
     expect(screenText(legacyQuestion, {}, {}, tus, q).headline).toBe('Should Tuscaloosa allow new data centers?')
     expect(screenText(at('verdict'), {}, {}, al, q).headline).toBe("You've seen the record. Where do you stand now?")
     expect(screenText(at('verdict'), {}, {}, al, q).context).toBe('Should Alabama allow new data centers?')
-    expect(screenText(at('scope'), {}, {}, nat, q).headline).toBe('Where?')
   })
   it('state no number and no question that was not loaded', () => {
-    for (const screen of [legacyQuestion, at('scope'), at('verdict')]) {
+    for (const screen of [legacyQuestion, at('verdict')]) {
       const t = screenText(screen, {}, {}, nat)
       expect(`${t.headline} ${t.context}`).not.toMatch(/\d/)
       expect(t.empty || t.failed).toBe(false)
@@ -126,7 +124,7 @@ describe('the screens around the record', () => {
     expect(storyScreenIndex(DATA_CENTER_STORY, 'overview')).toBe(0)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'question')).toBe(0) // alias → overview (#950)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'voices')).toBe(1)
-    expect(storyScreenIndex(DATA_CENTER_STORY, 'scope')).toBe(2)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'scope')).toBe(0) // the Where screen folded into the Overview (#1134)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'verdict')).toBe(DATA_CENTER_STORY.length - 1)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'turn')).toBe(DATA_CENTER_STORY.length - 1)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'nope')).toBe(-1)
@@ -243,8 +241,8 @@ describe('who spoke up', () => {
     ])
     expect(f.every((x) => x.reason == null)).toBe(true)
     const t = screenText(voices, full, ready, al)
-    expect(t.headline).toBe('Of 26 people who spoke on a data center item at local meetings in Alabama, 6 spoke for it, 14 against, and 4 asked a question.')
-    expect(t.context).toBe('2 more took no side. Recorded votes: 9 for and 3 against, in 2 decisions. How often does it come up?')
+    expect(t.headline).toBe('Of 26 people who spoke on a data center item at local meetings in Alabama, 14 spoke against it and 6 for.')
+    expect(t.context).toBe('4 asked a question and 2 took no side. Recorded votes: 9 for and 3 against, in 2 decisions. How often does it come up?')
   })
   it('a vote with no recorded tally is not recorded, never zero', () => {
     const res = positions({ decisions_with_tally: 0, votes_for: null, votes_against: null })
@@ -254,7 +252,7 @@ describe('who spoke up', () => {
     // a stray 0 from the API is still not a vote count when no tally was recorded
     expect(value(positions({ decisions_with_tally: 0, votes_for: 0, votes_against: 0 }), 'votes_for').value).toBeNull()
     // the screen's line states no vote count; the figures carry "not recorded" and the reason
-    expect(screenText(voices, { positions: res }, ready, al).context).toBe('2 more took no side. How often does it come up?')
+    expect(screenText(voices, { positions: res }, ready, al).context).toBe('4 asked a question and 2 took no side. How often does it come up?')
   })
   it('reviewed meetings with no speaker are a real 0, said plainly; nothing reviewed is not recorded (#1059)', () => {
     const none = positions({ speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0 })
@@ -387,6 +385,22 @@ describe('overview headline at a place (#1115)', () => {
   it('says the place was split otherwise (the full fixture: 6 for, 14 against of 26)', () => {
     expect(screenText(overview, full, ready, al).headline).toBe('Alabama was split: 6 spoke for and 14 against data centers.')
   })
+  it('says the place was split when no conclusion is backed (3 for, 5 against, 4 asked)', () => {
+    expect(screenText(overview, withSpeakers(3, 5, 4), ready, al).headline).toBe('Alabama was split: 3 spoke for and 5 against data centers.')
+  })
+  // #1134: the Overview states the page's caption (the title) when it is a conclusion; otherwise its own headline.
+  it("states the page's caption when it is a conclusion, with the meeting count under it", () => {
+    const hates = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'sentiment', text: 'Alabama hates data centers.' })
+    expect(hates.headline).toBe('Alabama hates data centers.')
+    expect(hates.context).toBe('A data center came up in 3 meetings in Alabama. First, where are they?')
+    const divided = screenText(overview, full, ready, tus, null, { kind: 'disagreement', text: 'Tuscaloosa, Alabama is divided on data centers.' })
+    expect(divided.headline).toBe('Tuscaloosa, Alabama is divided on data centers.')
+    const volume = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'volume', text: 'Alabama talked about data centers in 3 meetings.' })
+    // One title (#1134): a volume or state-gap caption is the Overview headline too, never a stronger speaker claim.
+    expect(volume.headline).toBe('Alabama talked about data centers in 3 meetings.')
+    const question = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'question', text: 'Should Alabama pause data centers?' })
+    expect(question.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
+  })
   it('keeps the neutral count below the national minimum of speakers', () => {
     const t = screenText(overview, withSpeakers(0, 9), ready, al)
     expect(t.headline).toBe('A data center came up in 3 meetings in Alabama.')
@@ -396,5 +410,43 @@ describe('overview headline at a place (#1115)', () => {
   })
   it('keeps the neutral count nationally', () => {
     expect(screenText(overview, withSpeakers(1, 11), ready, nat).headline).toBe('A data center came up in 3 meetings nationally.')
+  })
+})
+
+// #1134: a title never states a zero clause.
+describe('no zero clause in the Who spoke up title', () => {
+  const voices = DATA_CENTER_STORY.find((s) => s.id === 'voices')!
+  const tx = { stateCode: 'TX', stateName: 'Texas', city: null }
+  const res = (f: number, a: number, q: number, n = 0) =>
+    ({ positions: positions({ speakers_for: f, speakers_against: a, speakers_question: q, speakers_neutral: n, decisions_with_tally: 0, votes_for: null, votes_against: null }) }) as StoryData
+  it('zero question: two sides only, joined plainly', () => {
+    const t = screenText(voices, res(2, 1, 0, 3), ready, tx)
+    expect(t.headline).toBe('Of 6 people who spoke on a data center item at local meetings in Texas, 2 spoke for it and 1 against.')
+    expect(t.context).toBe('3 took no side. How often does it come up?')
+  })
+  it('zero for: the against side alone, question in the context', () => {
+    const t = screenText(voices, res(0, 5, 1), ready, tx)
+    expect(t.headline).toBe('Of 6 people who spoke on a data center item at local meetings in Texas, 5 spoke against it.')
+    expect(t.context).toBe('1 asked a question. How often does it come up?')
+  })
+  it('zero against: the for side alone', () => {
+    expect(screenText(voices, res(4, 0, 0), ready, tx).headline).toBe('Of 4 people who spoke on a data center item at local meetings in Texas, 4 spoke for it.')
+  })
+  it('no side at all: says how many spoke, never a zero', () => {
+    const t = screenText(voices, res(0, 0, 2, 1), ready, tx)
+    expect(t.headline).toBe('3 people spoke on a data center item at local meetings in Texas.')
+    expect(`${t.headline} ${t.context}`).not.toMatch(/\b0\b/)
+  })
+  it('votes with a zero side drop it', () => {
+    const t = screenText(voices, { positions: positions({ decisions_with_tally: 1, votes_for: 5, votes_against: 0 }) } as StoryData, ready, tx)
+    expect(t.context).toContain('Recorded votes: 5 for, in 1 decision.')
+  })
+})
+
+describe('no zero clause in the jobs title', () => {
+  const jobs = DATA_CENTER_STORY.find((s) => s.id === 'jobs')!
+  it('a side with no claims is left out', () => {
+    const t = screenText(jobs, { 'job-claims': { ...(full['job-claims'] as object), totals: { construction: 3, operations: 0 } } } as never, ready, al)
+    expect(t.headline).toBe('Meetings in Alabama include 3 claims about construction jobs.')
   })
 })
