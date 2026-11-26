@@ -83,6 +83,14 @@ export function featPath(f: Feat): string {
 /** Without stance data (the rentals story) a state with meetings is one teal. */
 const MEETINGS_ONLY = HOUSE_THEME.seg[0]!
 
+/** The legend's four entries (#1110): three stance colours plus grey. A question is drawn as No side. */
+export const LEGEND_STANCES = ['against', 'for', 'neutral'] as const
+export const LEGEND_LABEL: Record<(typeof LEGEND_STANCES)[number], string> = {
+  against: 'Spoke against',
+  for: 'Spoke for',
+  neutral: 'No side',
+}
+
 /** The real speaker counts as one line ("3 spoke against · 1 asked a question"), or null with none on record. */
 export function stanceLine(s: StanceCounts | undefined): string | null {
   if (!s || speakersOf(s) === 0) return null
@@ -288,27 +296,19 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>
         {hasStance &&
           split.length > 0 &&
-          STANCE_ORDER.map((k) => (
+          LEGEND_STANCES.map((k) => (
             <li key={k} className="inline-flex items-center gap-1">
               <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: BOX_COLORS[k], display: 'inline-block' }} />
-              {STANCE_LABEL[k]}
+              {LEGEND_LABEL[k]}
             </li>
           ))}
         <li className="inline-flex items-center gap-1">
           {hasStance ? (
-            <span aria-hidden="true" style={{ display: 'inline-flex', gap: 1 }}>
-              {MEETING_GREYS.map((c) => (
-                <span key={c} style={{ width: 10, height: 10, borderRadius: 2, background: c, display: 'inline-block' }} />
-              ))}
-            </span>
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: MEETING_GREYS[2], display: 'inline-block' }} />
           ) : (
             <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: MEETINGS_ONLY, display: 'inline-block' }} />
           )}
           {hasStance ? 'Meetings, no stance on record (darker = more meetings)' : `Meetings where ${subject} came up`}
-        </li>
-        <li className="inline-flex items-center gap-1">
-          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 2, background: BOX_COLORS.none, display: 'inline-block' }} />
-          No meetings on record
         </li>
       </ul>
       {hasStance && (

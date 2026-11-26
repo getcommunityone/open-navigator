@@ -5,7 +5,7 @@ import type { Stance } from '../../utils/boxSplit'
 export const BOX_COLORS: Record<Stance | 'meetings' | 'none', string> = {
   against: HOUSE_THEME.seg[3]!, // muted red
   for: HOUSE_THEME.seg[0]!, // teal
-  question: HOUSE_THEME.seg[2]!, // blue
+  question: HOUSE_THEME.seg[6]!, // a question takes no side: drawn as No side (#1110)
   neutral: HOUSE_THEME.seg[6]!, // plum
   meetings: '#9AA5A9',
   none: HOUSE_THEME.neutral,

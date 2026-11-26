@@ -40,7 +40,8 @@ export interface QuoteCardProps {
 }
 
 /** Text colours for the side label: the box colour, darkened only where the box colour is too light to read as text. */
-const SIDE_TEXT: Record<Stance, string> = { ...BOX_COLORS, question: '#3F6E9E' }
+// A question is drawn as No side on the maps (#1110), so its label takes the same colour.
+const SIDE_TEXT: Record<Stance, string> = { ...BOX_COLORS }
 
 function PlayGlyph() {
   return (

@@ -355,6 +355,9 @@ export function useActs(opts: Options): ActsApi {
         .map((h) => h.pos)
         .sort((a, b) => a - b)
       if (!ps.length) return
+      // Past the last hold (the end screen and what follows it, such as the story's "Next story" card, #1102) the page
+      // scrolls freely, as in `limit`: snapping here would pull the reader back onto the end screen.
+      if (pos > ps[ps.length - 1]! + 6) return
       const pick =
         lastDir >= 0 ? (ps.find((p) => p >= pos - 6) ?? ps[ps.length - 1]!) : ([...ps].reverse().find((p) => p <= pos + 6) ?? ps[0]!)
       if (Math.abs(pick - pos) <= 1) {
