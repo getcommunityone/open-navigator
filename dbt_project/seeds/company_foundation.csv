@@ -1,0 +1,4 @@
+company_key,company_name,foundation_ein,foundation_name,relationship,source_url,source_excerpt,verified_on
+airbnb,Airbnb,833135259,Airbnb.org,founded_by_company,https://www.airbnb.org/about,"Airbnb.org is a nonprofit organization founded by Airbnb that connects people to emergency housing in times of crisis.",2026-11-26
+oracle,Oracle,431725294,Oracle Health Foundation (formerly First Hand Foundation),governed_by_company,https://www.oraclehealthfoundation.org/,"Oracle Health Foundation's Board of Directors is composed of Oracle executives",2026-11-26
+openai,OpenAI,810861541,OpenAI Foundation (formerly OpenAI Inc),controls_company,https://openai.com/our-structure/,"The OpenAI Foundation continues to control the OpenAI Group.",2026-11-26

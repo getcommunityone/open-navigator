@@ -445,3 +445,8 @@ outputPorts:
   contractId: open-navigator-public-topic_company_mention
   type: table
   description: Where a topic's companies are named (#1052).
+- name: company_grant
+  version: 1.0.0
+  contractId: open-navigator-public-company_grant
+  type: table
+  description: Grants from the foundations tied to the companies we track (#1073).
