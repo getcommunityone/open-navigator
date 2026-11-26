@@ -72,3 +72,11 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- Job boards whose terms forbid automated collection are cited, never scraped (findings recorded in the docs page). Only official BLS QCEW is loaded.
+- Withheld figures are null, never 0. Year is an integer in storage and a string on the wire. PKs declared; contracts regenerated.
+- dbt 25 tests, API 121 tests and vitest 314 pass. Browser checks are recorded in the PR.
+
+Verdict stands: approve.
