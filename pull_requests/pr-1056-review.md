@@ -64,3 +64,13 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review
+
+- Issue and branch: feat/1052-topic-companies, Closes #1052; pickleball scope added by a dated issue comment.
+- Scans: no secrets, no personal data, no deletions. No fabricated data: counts are distinct meetings/decisions from topic_company_mention; every row needs a <mark> excerpt; companies never named in scope get no number.
+- Keys: topic_company PK + FK to civicsearch_topic; topic_company_mention PK + FK to topic_company (contract enforced).
+- Correctness: seeded topics are gated to topic-tagged meetings/decisions; surname-like brands need product phrases; data center names need a data-center phrase within 250 characters; content_tsv (stored, indexed) replaces per-row to_tsvector (15 min -> 38 s). API binds topic/state/city as parameters; missing tables return an empty list; other errors 503. Scope label in the panel heading matches the page filter.
+- Checks: 4 API tests pass; ruff clean on new files; tsc clean; browser check at /?state=AL. Docs: topic-companies.md.
+
+No blocking findings.
