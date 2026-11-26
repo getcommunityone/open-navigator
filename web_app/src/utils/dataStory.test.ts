@@ -255,10 +255,14 @@ describe('who spoke up', () => {
     // the screen's line states no vote count; the figures carry "not recorded" and the reason
     expect(screenText(voices, { positions: res }, ready, al).context).toBe('2 more took no side. How often does it come up?')
   })
-  it('speakers with no public comment on record are not recorded; a real zero beside real counts stays zero', () => {
+  it('reviewed meetings with no speaker are a real 0, said plainly; nothing reviewed is not recorded (#1059)', () => {
     const none = positions({ speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0 })
-    for (const k of ['for', 'against', 'question']) expect(value(none, k)).toMatchObject({ value: null, reason: SPEAKERS_NOT_RECORDED })
+    const f = positionFigures(none, al)!
+    for (const k of ['for', 'against', 'question'])
+      expect(f.find((x) => x.key === k)).toMatchObject({ value: 0, reason: 'None of the 9 meetings reviewed in Alabama had a public speaker on a data center item.' })
     expect(value(none, 'votes_for').value).toBe(9)
+    const unreviewed = positions({ meetings_reviewed: 0, speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0 })
+    for (const k of ['for', 'against', 'question']) expect(value(unreviewed, k)).toMatchObject({ value: null, reason: SPEAKERS_NOT_RECORDED })
     expect(value(positions({ speakers_for: 0 }), 'for')).toMatchObject({ value: 0, reason: null })
   })
   it('gives no figures, and one quiet line, while the table is not loaded', () => {

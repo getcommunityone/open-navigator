@@ -42,7 +42,7 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
       </p>
     )
   }
-  const figures = positionFigures(data)
+  const figures = positionFigures(data, scope)
   if (!figures || !positionsLoaded(data)) {
     return (
       <p className="stance-note stance-voices-off" data-testid="positions-off">

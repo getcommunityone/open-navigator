@@ -326,6 +326,13 @@ export interface PositionFigure {
 
 export const VOTES_NOT_RECORDED = 'Votes were not recorded for these decisions.'
 export const SPEAKERS_NOT_RECORDED = 'No public comment on a data center item is on record for these meetings.'
+/** Meetings were reviewed and none had a speaker on a data center item (#1059): the count is a real 0, said plainly. */
+export function speakersNoneFound(reviewed: number, scope?: StoryScope | null): string {
+  const place = scope?.stateName ? ` in ${storyScopeLabel(scope)}` : ''
+  return reviewed === 1
+    ? `The 1 meeting reviewed${place} had no public speaker on a data center item.`
+    : `None of the ${fmt(reviewed)} meetings reviewed${place} had a public speaker on a data center item.`
+}
 /** The one quiet line the hub and the story show while the table behind these figures is not in the database. */
 export const POSITIONS_NOT_LOADED = 'Who spoke for and against is not loaded yet.'
 
@@ -335,18 +342,23 @@ export function positionsLoaded(res: DataCenterPositionsResponse | null | undefi
 }
 
 /**
- * The five figures, or null when the table is not loaded. A figure with no data behind it is null, never 0: speakers when no
- * public comment on a data center item is on record at all, votes when no decision recorded a tally. A real 0 beside real
- * counts (nobody spoke for, eleven spoke against) stays 0.
+ * The five figures, or null when the table is not loaded. Speakers are 0 when meetings were reviewed and none had a speaker
+ * on a data center item (said so in the reason, #1059), and null ("not recorded") only when no meeting in scope was
+ * reviewed. Votes are null when no decision recorded a tally. A real 0 beside real counts stays 0.
  */
-export function positionFigures(res: DataCenterPositionsResponse | null | undefined): PositionFigure[] | null {
+export function positionFigures(
+  res: DataCenterPositionsResponse | null | undefined,
+  scope?: StoryScope | null,
+): PositionFigure[] | null {
   if (!positionsLoaded(res)) return null
   const t = res.totals
   const c = speakerCounts(res)
   const tallies = t.decisions_with_tally ?? 0
+  const reviewed = t.meetings_reviewed ?? 0
   const vote = (v: number | null) => (tallies > 0 && v != null ? v : null)
-  const sp = (v: number | undefined) => (c ? (v ?? 0) : null)
-  const spReason = c ? null : SPEAKERS_NOT_RECORDED
+  // Reviewed meetings with no speaker found are a real 0 (#1059); "not recorded" only when nothing was reviewed.
+  const sp = (v: number | undefined) => (c ? (v ?? 0) : reviewed > 0 ? 0 : null)
+  const spReason = c ? null : reviewed > 0 ? speakersNoneFound(reviewed, scope) : SPEAKERS_NOT_RECORDED
   const voReason = tallies > 0 ? null : VOTES_NOT_RECORDED
   return [
     { key: 'for', label: 'spoke for', value: sp(c?.for), reason: spReason },

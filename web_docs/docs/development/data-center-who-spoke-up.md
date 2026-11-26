@@ -17,6 +17,7 @@ where a tally was recorded. This page is the rule for what counts, and what the 
 - "About the data center item" means one of four things, all checked with the same data center words the rest of the site uses ([#932](https://github.com/getcommunityone/open-navigator/issues/932) added two).
 - Votes count only for decisions that are about a data center **and** recorded both a yes and a no count.
 - A figure with no data behind it is null in the table and the API, and reads "not recorded" on the page. It is never zero.
+- Speaker figures are the exception ([#1059](https://github.com/getcommunityone/open-navigator/issues/1059)). When meetings in scope were reviewed but none had a public speaker on a data center item, the page shows **0** and says so, for example "None of the 40 meetings reviewed in Georgia had a public speaker on a data center item." Only a place with no reviewed meeting reads "not recorded".
 
 ## The rule for a public comment
 
