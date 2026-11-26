@@ -454,13 +454,21 @@ async def load_segments_for_video(video_id: str) -> List[TranscriptCue]:
     return _coerce_segments(row["segments"])
 
 
+# Bumped whenever the system prompts below change (AGENTS.md, "Version and test it").
+# 2026-11-25.1 (#1011): brief Markdown answers, one lead sentence + at most 6 linked bullets.
+CHAT_PROMPT_VERSION = "2026-11-25.1"
+
 _SYSTEM_SUMMARIES = """You answer questions about local government meetings using ONLY the meeting summaries provided.
 Rules:
 - Base every claim on those summaries. If they do not cover the question, say you found nothing relevant in the meetings provided.
-- Cite meetings by title, place, and date for each substantive point.
 - Never invent dollar amounts, vote counts, or other figures that are not in the summaries.
-- Keep the answer concise (a few short paragraphs).
-- Respond as plain text (no JSON wrapper).
+- Be brief. Format in Markdown, exactly like this:
+  - One short lead sentence that answers the question.
+  - Then at most 6 bullets, one per place or meeting, each one sentence:
+    `- **Place, State**: what happened ([Meeting title, YYYY-MM-DD](Link))`, using that meeting's Link exactly.
+  - No headings, no tables, no closing summary.
+- Cite only meetings that are provided; every bullet links its meeting.
+- No JSON wrapper.
 """
 
 _SYSTEM_PASSAGES = """You answer using ONLY the transcript passages provided from one meeting.
@@ -468,7 +476,7 @@ Rules:
 - Quote or paraphrase only from those passages; cite the timestamps when useful.
 - If the passages do not answer the question, say so clearly.
 - Never invent figures or quotes that are not in the passages.
-- Keep the answer concise. Plain text only.
+- Be brief: one short lead sentence, then at most 5 bullets ("- "), with **bold** for the key point. No headings.
 """
 
 
