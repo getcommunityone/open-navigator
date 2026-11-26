@@ -1,0 +1,140 @@
+version: 2
+
+models:
+  - name: business
+    description: >
+      The businesses that meetings and decisions name (#1089, #1088). One row per business named in at least one
+      meeting or decision; government bodies and political committees are left out. business_type_code is set by
+      fixed rules (nonprofit, then corporation, then local_business). is_all_locations is true for every data center
+      company and for a corporation named in 2 or more states; those rows have no single city.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: business_id
+        description: 'Primary key: master_org_id when the name matched the organization master, else md5(normalized name | state_code).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: business_name
+        description: 'The name as the most recent record gives it.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: business_type_code
+        description: 'nonprofit, corporation or local_business.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['nonprofit', 'corporation', 'local_business']
+      - name: master_org_id
+        description: 'FK to mdm_organization; null when the name did not match the organization master.'
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('mdm_organization')
+              field: master_org_id
+              config:
+                where: "master_org_id is not null"
+      - name: state_code
+        description: '2-letter state where the business is based, when known.'
+        data_type: text
+      - name: state
+        description: 'Full state name for state_code.'
+        data_type: text
+      - name: city
+        description: 'City where the business is based; null for a company listed under all locations.'
+        data_type: text
+      - name: is_all_locations
+        description: 'True for a data center company or a corporation named in 2 or more states (listed under All locations).'
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: ein
+        description: 'Employer Identification Number, when known.'
+        data_type: text
+      - name: website_url
+        description: 'The business website, when the organization master has one.'
+        data_type: text
+      - name: mention_count
+        description: 'Meetings and decisions that name the business.'
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: first_mentioned_date
+        data_type: date
+      - name: last_mentioned_date
+        data_type: date
+
+  - name: business_mention
+    description: >
+      Where a meeting or decision names a business (#1089). One row per business per record that names it, with a
+      verbatim quote (about 300 characters around the name). source_kind_code is meeting or decision for now; bills
+      and ballot measures follow in #1090.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [business_id]
+        to: ref('business')
+        to_columns: [business_id]
+    columns:
+      - name: business_mention_id
+        description: 'Primary key: md5(business_id | source_kind_code | source_record_id).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: business_id
+        description: 'FK to business.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('business')
+              field: business_id
+      - name: source_kind_code
+        description: 'meeting (source_record_id is the video_id) or decision (source_record_id is event_decision_id).'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['meeting', 'decision']
+      - name: source_record_id
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_url
+        description: 'The recording, or the decision page.'
+        data_type: text
+      - name: mention_date
+        description: 'The meeting date or decision date.'
+        data_type: date
+      - name: state_code
+        data_type: text
+      - name: jurisdiction_name
+        data_type: text
+      - name: city
+        data_type: text
+      - name: quote_text
+        description: 'Verbatim text of the record that names the business, cut to about 300 characters.'
+        data_type: text
+        constraints:
+          - type: not_null
