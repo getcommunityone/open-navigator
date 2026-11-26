@@ -124,6 +124,35 @@ def _outcomes(thing: str, none_key: str) -> dict[str, str]:
 
 DC_OUTCOMES = _outcomes("data center", "no_data_center_item")
 STR_OUTCOMES = _outcomes("short-term rental", "no_short_term_rental_item")
+# What counts as a data center here (#1113): a large facility, never an office's or a government's IT equipment.
+_DC = (
+    "a large data center facility (a building or campus of computer servers, often called a hyperscale or AI data "
+    "center), not an office server room, a government's IT systems or a records 'data center'"
+)
+# Who counts as the public (#1113): people speaking as members of the public, never officials or the project's own team.
+_PUBLIC = (
+    "members of the public who spoke (residents, local business owners, advocacy groups), not elected officials, "
+    "government staff, consultants, or the project's applicant, developer or their representatives"
+)
+DC_PUBLIC_LEAN = {
+    "mostly_opposed": f"During public comment, most {_PUBLIC} who spoke said they were against {_DC}",
+    "mostly_supported": f"During public comment, most {_PUBLIC} who spoke said they were in favor of {_DC}",
+    "mixed": f"During public comment, some {_PUBLIC} spoke in favor of and others against {_DC}",
+    "no_public_comment_on_data_center": (
+        f"None of the {_PUBLIC} spoke for or against {_DC}; only officials, staff or the applicant discussed it, "
+        "or nobody did"
+    ),
+}
+DC_LEAN_NONE = "no_public_comment_on_data_center"
+# How elected officials leaned (#1113): council, commission or board members, never staff or the public.
+_OFFICIALS = "the elected officials (council, commission or board members), not staff and not the public"
+DC_OFFICIAL_LEAN = {
+    "mostly_supportive": f"Most of {_OFFICIALS} who spoke supported {_DC}",
+    "mostly_opposed": f"Most of {_OFFICIALS} who spoke opposed {_DC}",
+    "divided": f"Some of {_OFFICIALS} spoke or voted for and others against {_DC}",
+    "no_official_position": f"None of {_OFFICIALS} took a position on {_DC}",
+}
+DC_OFFICIAL_NONE = "no_official_position"
 # Choice answers averaged across chunks and stored as <key> + <key>_probabilities (#1029).
 OUTCOME_KEYS: tuple[str, ...] = ("dc_outcome", "str_outcome")
 
@@ -161,6 +190,14 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     ),
     "dc_outcome": choice("What happened to a data center item in this meeting", DC_OUTCOMES),
     "str_outcome": choice("What happened to a short-term rental item in this meeting", STR_OUTCOMES),
+    "dc_public_lean": choice(f"How the {_PUBLIC} leaned on {_DC}", DC_PUBLIC_LEAN),
+    "dc_official_lean": choice(f"How {_OFFICIALS} leaned on {_DC}", DC_OFFICIAL_LEAN),
+    # #1113: a disagreement only counts when officials approved a project, not rules limiting data centers.
+    "dc_project_approved": noul(
+        f"The body approved, granted or advanced a specific project for {_DC} (a rezoning, site plan, permit, "
+        "tax incentive or development agreement for a facility), not rules, standards or a moratorium that limit "
+        "data centers"
+    ),
     **{f"q_{slug}": noul(spec["noul"]) for slug, spec in POLICY_QUESTIONS.items()},
 }
 
@@ -187,6 +224,11 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
     dc_outcome_probabilities    jsonb,
     str_outcome                 text,
     str_outcome_probabilities   jsonb,
+    dc_public_lean              text,
+    dc_public_lean_probabilities jsonb,
+    dc_official_lean            text,
+    dc_official_lean_probabilities jsonb,
+    dc_project_approved_p       double precision,
     question_probabilities      jsonb,
     chunk_count                 integer NOT NULL,
     chunks_screened             integer NOT NULL,
@@ -209,7 +251,12 @@ ALTER TABLE {TABLE}
     ADD COLUMN IF NOT EXISTS dc_outcome_probabilities jsonb,
     ADD COLUMN IF NOT EXISTS str_outcome text,
     ADD COLUMN IF NOT EXISTS str_outcome_probabilities jsonb,
-    ADD COLUMN IF NOT EXISTS question_probabilities jsonb
+    ADD COLUMN IF NOT EXISTS question_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS dc_public_lean text,
+    ADD COLUMN IF NOT EXISTS dc_public_lean_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS dc_official_lean text,
+    ADD COLUMN IF NOT EXISTS dc_official_lean_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS dc_project_approved_p double precision
 """
 
 UPSERT_SQL = f"""
@@ -218,7 +265,8 @@ INSERT INTO {TABLE} (
     has_decisions_p, mentions_data_center_p,
     mentions_zoning_p, mentions_budget_p, mentions_housing_p, mentions_environment_p,
     mentions_short_term_rentals_p, dc_outcome, dc_outcome_probabilities, str_outcome, str_outcome_probabilities,
-    question_probabilities,
+    question_probabilities, dc_public_lean, dc_public_lean_probabilities, dc_official_lean,
+    dc_official_lean_probabilities, dc_project_approved_p,
     chunk_count, chunks_screened,
     transcript_chars, input_tokens, answers, screened_at
 ) VALUES (
@@ -227,7 +275,9 @@ INSERT INTO {TABLE} (
     %(mentions_zoning_p)s, %(mentions_budget_p)s, %(mentions_housing_p)s,
     %(mentions_environment_p)s,
     %(mentions_short_term_rentals_p)s, %(dc_outcome)s, %(dc_outcome_probabilities)s, %(str_outcome)s,
-    %(str_outcome_probabilities)s, %(question_probabilities)s,
+    %(str_outcome_probabilities)s, %(question_probabilities)s, %(dc_public_lean)s,
+    %(dc_public_lean_probabilities)s, %(dc_official_lean)s, %(dc_official_lean_probabilities)s,
+    %(dc_project_approved_p)s,
     %(chunk_count)s, %(chunks_screened)s, %(transcript_chars)s, %(input_tokens)s,
     %(answers)s, %(screened_at)s
 )
@@ -248,6 +298,11 @@ ON CONFLICT (video_id) DO UPDATE SET
     str_outcome = EXCLUDED.str_outcome,
     str_outcome_probabilities = EXCLUDED.str_outcome_probabilities,
     question_probabilities = EXCLUDED.question_probabilities,
+    dc_public_lean = EXCLUDED.dc_public_lean,
+    dc_public_lean_probabilities = EXCLUDED.dc_public_lean_probabilities,
+    dc_official_lean = EXCLUDED.dc_official_lean,
+    dc_official_lean_probabilities = EXCLUDED.dc_official_lean_probabilities,
+    dc_project_approved_p = EXCLUDED.dc_project_approved_p,
     chunk_count = EXCLUDED.chunk_count,
     chunks_screened = EXCLUDED.chunks_screened,
     transcript_chars = EXCLUDED.transcript_chars,
@@ -283,6 +338,12 @@ class ScreenResult:
     str_outcome: str | None = None
     str_outcome_probabilities: dict[str, float] | None = None
     question_probabilities: dict[str, float] | None = None
+    # #1113: how the public leaned on a data center, over the chunks where the public spoke about one.
+    dc_public_lean: str | None = None
+    dc_public_lean_probabilities: dict[str, float] | None = None
+    dc_official_lean: str | None = None
+    dc_official_lean_probabilities: dict[str, float] | None = None
+    dc_project_approved_p: float | None = None
 
     def row(self, *, screened_at: datetime | None = None) -> dict[str, Any]:
         return {
@@ -303,6 +364,11 @@ class ScreenResult:
             "str_outcome": self.str_outcome,
             "str_outcome_probabilities": json.dumps(self.str_outcome_probabilities) if self.str_outcome_probabilities is not None else None,
             "question_probabilities": json.dumps(self.question_probabilities) if self.question_probabilities is not None else None,
+            "dc_public_lean": self.dc_public_lean,
+            "dc_public_lean_probabilities": json.dumps(self.dc_public_lean_probabilities) if self.dc_public_lean_probabilities is not None else None,
+            "dc_official_lean": self.dc_official_lean,
+            "dc_official_lean_probabilities": json.dumps(self.dc_official_lean_probabilities) if self.dc_official_lean_probabilities is not None else None,
+            "dc_project_approved_p": self.dc_project_approved_p,
             "chunk_count": self.chunk_count,
             "chunks_screened": self.chunks_screened,
             "transcript_chars": self.transcript_chars,
@@ -400,10 +466,44 @@ def aggregate(responses: Sequence[JevResponse]) -> dict[str, Any]:
         dist = {k: round(v / n, 4) for k, v in sums.items()} if n else {}
         out[key] = max(dist, key=dist.get) if dist else None
         out[f"{key}_probabilities"] = dist or None
+    out.update(public_lean(responses))
+    out.update(public_lean(responses, key="dc_official_lean", none_label=DC_OFFICIAL_NONE))
+    # A project approval anywhere in the meeting counts (#1113): the max over chunks.
+    out["dc_project_approved_p"] = _max_noul("dc_project_approved")
     # Policy questions (#1029): debated anywhere in the meeting, so the max over chunks.
     questions = {slug: _max_noul(f"q_{slug}") for slug in POLICY_QUESTIONS}
     out["question_probabilities"] = {k: v for k, v in questions.items() if v is not None} or None
     return out
+
+
+def public_lean(
+    responses: Sequence[JevResponse],
+    *,
+    min_spoke_p: float = 0.5,
+    key: str = "dc_public_lean",
+    none_label: str = DC_LEAN_NONE,
+) -> dict[str, Any]:
+    """How the public leaned on a data center (#1113). Averaged only over the chunks where Jev judges it likely the
+    public spoke about one (P(no public comment) < 1 - ``min_spoke_p``), so the rest of a long meeting doesn't drown
+    it out. No such chunk: ``no_public_comment_on_data_center``."""
+    dists = []
+    for resp in responses:
+        a = resp.answers.get(key)
+        if a and a.probabilities:
+            dists.append(a.probabilities)
+    if not dists:
+        return {key: None, f"{key}_probabilities": None}
+    spoke = [d for d in dists if d.get(none_label, 0.0) < 1.0 - min_spoke_p]
+    if not spoke:
+        return {key: none_label, f"{key}_probabilities": {none_label: round(min(d.get(none_label, 0.0) for d in dists), 4)}}
+    sums: dict[str, float] = {}
+    for d in spoke:
+        for label, prob in d.items():
+            if label != none_label:
+                sums[label] = sums.get(label, 0.0) + prob
+    total = sum(sums.values()) or 1.0
+    dist = {k: round(v / total, 4) for k, v in sums.items()}
+    return {key: max(dist, key=dist.get), f"{key}_probabilities": dist}
 
 
 def screen_transcript(
