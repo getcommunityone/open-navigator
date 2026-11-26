@@ -445,3 +445,8 @@ outputPorts:
   contractId: open-navigator-public-topic_company_mention
   type: table
   description: Where a topic's companies are named (#1052).
+- name: person_government_term
+  version: 1.0.0
+  contractId: open-navigator-public-person_government_term
+  type: table
+  description: 'Office terms (#1068): one row per (official, role, district, source, term).'
