@@ -192,6 +192,12 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     "str_outcome": choice("What happened to a short-term rental item in this meeting", STR_OUTCOMES),
     "dc_public_lean": choice(f"How the {_PUBLIC} leaned on {_DC}", DC_PUBLIC_LEAN),
     "dc_official_lean": choice(f"How {_OFFICIALS} leaned on {_DC}", DC_OFFICIAL_LEAN),
+    # #1113: a disagreement only counts when officials approved a project, not rules limiting data centers.
+    "dc_project_approved": noul(
+        f"The body approved, granted or advanced a specific project for {_DC} (a rezoning, site plan, permit, "
+        "tax incentive or development agreement for a facility), not rules, standards or a moratorium that limit "
+        "data centers"
+    ),
     **{f"q_{slug}": noul(spec["noul"]) for slug, spec in POLICY_QUESTIONS.items()},
 }
 
@@ -222,6 +228,7 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
     dc_public_lean_probabilities jsonb,
     dc_official_lean            text,
     dc_official_lean_probabilities jsonb,
+    dc_project_approved_p       double precision,
     question_probabilities      jsonb,
     chunk_count                 integer NOT NULL,
     chunks_screened             integer NOT NULL,
@@ -248,7 +255,8 @@ ALTER TABLE {TABLE}
     ADD COLUMN IF NOT EXISTS dc_public_lean text,
     ADD COLUMN IF NOT EXISTS dc_public_lean_probabilities jsonb,
     ADD COLUMN IF NOT EXISTS dc_official_lean text,
-    ADD COLUMN IF NOT EXISTS dc_official_lean_probabilities jsonb
+    ADD COLUMN IF NOT EXISTS dc_official_lean_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS dc_project_approved_p double precision
 """
 
 UPSERT_SQL = f"""
@@ -258,7 +266,7 @@ INSERT INTO {TABLE} (
     mentions_zoning_p, mentions_budget_p, mentions_housing_p, mentions_environment_p,
     mentions_short_term_rentals_p, dc_outcome, dc_outcome_probabilities, str_outcome, str_outcome_probabilities,
     question_probabilities, dc_public_lean, dc_public_lean_probabilities, dc_official_lean,
-    dc_official_lean_probabilities,
+    dc_official_lean_probabilities, dc_project_approved_p,
     chunk_count, chunks_screened,
     transcript_chars, input_tokens, answers, screened_at
 ) VALUES (
@@ -269,6 +277,7 @@ INSERT INTO {TABLE} (
     %(mentions_short_term_rentals_p)s, %(dc_outcome)s, %(dc_outcome_probabilities)s, %(str_outcome)s,
     %(str_outcome_probabilities)s, %(question_probabilities)s, %(dc_public_lean)s,
     %(dc_public_lean_probabilities)s, %(dc_official_lean)s, %(dc_official_lean_probabilities)s,
+    %(dc_project_approved_p)s,
     %(chunk_count)s, %(chunks_screened)s, %(transcript_chars)s, %(input_tokens)s,
     %(answers)s, %(screened_at)s
 )
@@ -293,6 +302,7 @@ ON CONFLICT (video_id) DO UPDATE SET
     dc_public_lean_probabilities = EXCLUDED.dc_public_lean_probabilities,
     dc_official_lean = EXCLUDED.dc_official_lean,
     dc_official_lean_probabilities = EXCLUDED.dc_official_lean_probabilities,
+    dc_project_approved_p = EXCLUDED.dc_project_approved_p,
     chunk_count = EXCLUDED.chunk_count,
     chunks_screened = EXCLUDED.chunks_screened,
     transcript_chars = EXCLUDED.transcript_chars,
@@ -333,6 +343,7 @@ class ScreenResult:
     dc_public_lean_probabilities: dict[str, float] | None = None
     dc_official_lean: str | None = None
     dc_official_lean_probabilities: dict[str, float] | None = None
+    dc_project_approved_p: float | None = None
 
     def row(self, *, screened_at: datetime | None = None) -> dict[str, Any]:
         return {
@@ -357,6 +368,7 @@ class ScreenResult:
             "dc_public_lean_probabilities": json.dumps(self.dc_public_lean_probabilities) if self.dc_public_lean_probabilities is not None else None,
             "dc_official_lean": self.dc_official_lean,
             "dc_official_lean_probabilities": json.dumps(self.dc_official_lean_probabilities) if self.dc_official_lean_probabilities is not None else None,
+            "dc_project_approved_p": self.dc_project_approved_p,
             "chunk_count": self.chunk_count,
             "chunks_screened": self.chunks_screened,
             "transcript_chars": self.transcript_chars,
@@ -456,6 +468,8 @@ def aggregate(responses: Sequence[JevResponse]) -> dict[str, Any]:
         out[f"{key}_probabilities"] = dist or None
     out.update(public_lean(responses))
     out.update(public_lean(responses, key="dc_official_lean", none_label=DC_OFFICIAL_NONE))
+    # A project approval anywhere in the meeting counts (#1113): the max over chunks.
+    out["dc_project_approved_p"] = _max_noul("dc_project_approved")
     # Policy questions (#1029): debated anywhere in the meeting, so the max over chunks.
     questions = {slug: _max_noul(f"q_{slug}") for slug in POLICY_QUESTIONS}
     out["question_probabilities"] = {k: v for k, v in questions.items() if v is not None} or None

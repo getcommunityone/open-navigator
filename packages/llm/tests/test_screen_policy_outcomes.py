@@ -85,3 +85,13 @@ def test_official_lean_is_separate_from_the_public() -> None:
     out = st.public_lean([quiet, officials], key="dc_official_lean", none_label=st.DC_OFFICIAL_NONE)
     assert out["dc_official_lean"] == "mostly_supportive"
     assert "dc_official_lean" in st.UPSERT_SQL
+
+
+def test_project_approval_is_asked_and_stored() -> None:
+    """#1113: a disagreement needs a project approval, not rules limiting data centers."""
+    q = st.QUESTIONS["dc_project_approved"]["instructions"] if "instructions" in st.QUESTIONS["dc_project_approved"] else str(st.QUESTIONS["dc_project_approved"])
+    assert "moratorium" in q and "rezoning" in q
+    a = _Resp({"dc_project_approved": _Ans(noul=0.2)})
+    b = _Resp({"dc_project_approved": _Ans(noul=0.9)})
+    assert st.aggregate([a, b])["dc_project_approved_p"] == 0.9
+    assert "dc_project_approved_p" in st.UPSERT_SQL and "dc_project_approved_p" in st.ALTER_TOPIC_COLUMNS_SQL
