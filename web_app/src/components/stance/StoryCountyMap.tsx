@@ -194,7 +194,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       }),
     ].sort((a, b) => b.place.meetings - a.place.meetings || Number(b.ring) - Number(a.ring))
     for (const c of cands) {
-      const text = (c.place.jurisdiction_name ?? '').trim()
+      // Shown as people say it (#1115): "Casa Grande", not "Casa Grande city" (the Data Explorer's rule).
+      const text = (c.place.jurisdiction_name ?? '').trim().replace(/\s+(city|town|village|borough|CDP)$/i, '')
       if (!text) continue
       const w = text.length * labelSize * 0.55
       const h = labelSize * 1.1
