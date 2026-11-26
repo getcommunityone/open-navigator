@@ -965,11 +965,32 @@ async def count_events(
             )
             ed_where_sql = " AND ".join(ed_where)
 
+            # #1007: meetings found only through a verbatim meeting passage (data_center_meeting_mention),
+            # the same third leg search_events_pg returns, so the tab total matches the list.
+            if has_query:
+                _match = f"plainto_tsquery('english', ${q_fts_idx})"
+            elif topic_idx:
+                _match = f"to_tsquery('english', ${topic_idx})"
+            else:
+                _match = None
+            dm_where_sql = search_postgres.meeting_passage_where(
+                match_sql=_match,
+                state_idx=state_idx,
+                city_idx=city_idx,
+                use_county=use_county,
+                county_names_lower_idx=county_names_lower_idx,
+            )
+            dm_count_sql = (
+                f"+ (SELECT count(DISTINCT dm.video_id) FROM data_center_meeting_mention dm WHERE {dm_where_sql})"
+                if dm_where_sql
+                else ""
+            )
             sql = f"""
                 SELECT
                     (SELECT count(*) FROM event_meeting em WHERE {em_where_sql})
                   + (SELECT count(DISTINCT ed.video_id)
                        FROM event_documents ed WHERE {ed_where_sql})
+                  {dm_count_sql}
             """
 
             pool = await search_postgres.get_db_pool()

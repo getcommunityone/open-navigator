@@ -1399,6 +1399,38 @@ async def get_nonprofit_compensation_pg(
         return []
 
 
+def meeting_passage_where(
+    *,
+    match_sql: Optional[str],
+    state_idx: Optional[int],
+    city_idx: Optional[int],
+    use_county: bool,
+    county_names_lower_idx: Optional[int],
+) -> Optional[str]:
+    """WHERE for the meeting-passage leg of meeting search (#1007), or None when it doesn't apply.
+
+    ``data_center_meeting_mention`` holds verbatim transcript passages (one row per passage, alias ``dm``).
+    It is on the serving copy even where the transcripts (``event_documents``) are not (Neon's size cap),
+    so these meetings stay findable there. Only with a query or topic (``match_sql`` is the tsquery
+    expression): the leg exists to surface a matched passage, never for a plain browse. Videos already
+    returned by the analyzed or transcript legs are left out.
+    """
+    if not match_sql:
+        return None
+    where: List[str] = [f"to_tsvector('english', dm.evidence) @@ {match_sql}"]
+    if state_idx:
+        where.append(f"dm.state_code = ${state_idx}")
+    if use_county:
+        where.append(
+            f"lower(dm.jurisdiction_name) = ANY(${county_names_lower_idx})" if county_names_lower_idx else "FALSE"
+        )
+    elif city_idx:
+        where.append(f"lower(dm.jurisdiction_name) = lower(${city_idx})")
+    where.append("NOT EXISTS (SELECT 1 FROM event_meeting em3 WHERE em3.video_id = dm.video_id)")
+    where.append("NOT EXISTS (SELECT 1 FROM event_documents ed3 WHERE ed3.video_id = dm.video_id)")
+    return " AND ".join(where)
+
+
 async def search_events_pg(
     query: Optional[str] = None,
     state: Optional[str] = None,
@@ -1629,6 +1661,20 @@ async def search_events_pg(
         elif topic_idx:
             _match_q = f"to_tsquery('english', ${topic_idx})"
 
+        dm_where_sql = meeting_passage_where(
+            match_sql=_match_q,
+            state_idx=state_idx,
+            city_idx=city_idx,
+            use_county=use_county,
+            county_names_lower_idx=county_names_lower_idx,
+        )
+        # Passage leg snippet: the meeting's matching passages, tags stripped, headlined on the match query.
+        _dm_snippet = (
+            "(SELECT ts_headline('english', string_agg(regexp_replace(m.evidence, '</?mark>', '', 'g'), ' … ' "
+            f"ORDER BY m.passage_index), {_match_q}, {_hl_opts}) "
+            "FROM data_center_meeting_mention m WHERE m.video_id = merged.video_id)"
+        ) if _match_q else "NULL"
+
         # Transcript leg: headline the body on the match query (keyword OR topic) so
         # the matched passage is centered and <mark>-wrapped; plain opener otherwise.
         # CRITICAL: detoast `content` (43KB avg, TOASTed) ONLY for the rows in the
@@ -1676,10 +1722,42 @@ async def search_events_pg(
         else:
             em_snippet = "LEFT(COALESCE(meeting_summary, agenda_summary, ''), 200)"
 
+        dm_leg_sql = (
+            f"""
+                UNION ALL
+
+                SELECT * FROM (
+                    SELECT DISTINCT ON (dm.video_id)
+                        FALSE AS is_analyzed,
+                        'dm'::text                    AS leg,
+                        hashtext(dm.video_id)::bigint AS row_id,
+                        NULL::bigint                  AS event_meeting_id,
+                        NULL::bigint                  AS event_document_id,
+                        dm.meeting_title              AS body_name,
+                        dm.jurisdiction_name,
+                        NULL                          AS jurisdiction_type,
+                        dm.state_code,
+                        dm.state,
+                        NULL                          AS city,
+                        dm.meeting_date::text         AS iso_date,
+                        NULL::text                    AS meeting_summary,
+                        NULL::text                    AS agenda_summary,
+                        dm.video_id,
+                        dm.video_url,
+                        NULL::varchar                 AS c1_event_id
+                    FROM data_center_meeting_mention dm
+                    WHERE {dm_where_sql}
+                    ORDER BY dm.video_id, dm.passage_index
+                ) dm_distinct"""
+            if dm_where_sql
+            else ""
+        )
+
         sql = f"""
             WITH merged AS (
                 SELECT
                     TRUE  AS is_analyzed,
+                    'em'::text                    AS leg,
                     em.event_meeting_id           AS row_id,
                     em.event_meeting_id,
                     NULL::bigint                  AS event_document_id,
@@ -1703,6 +1781,7 @@ async def search_events_pg(
                 SELECT * FROM (
                     SELECT DISTINCT ON (ed.video_id)
                         FALSE AS is_analyzed,
+                        'ed'::text                    AS leg,
                         ed.event_document_id          AS row_id,
                         NULL::bigint                  AS event_meeting_id,
                         ed.event_document_id,
@@ -1734,14 +1813,17 @@ async def search_events_pg(
                     ) ed
                     ORDER BY ed.video_id, ed.event_date DESC NULLS LAST, ed.event_document_id DESC
                 ) ed_distinct
+                {dm_leg_sql}
             )
             SELECT
                 is_analyzed, event_meeting_id, event_document_id,
                 body_name, jurisdiction_name, jurisdiction_type,
                 state_code, state, city, iso_date,
                 video_id, video_url,
+                leg,
                 CASE
                     WHEN is_analyzed THEN {em_snippet}
+                    WHEN leg = 'dm' THEN {_dm_snippet}
                     ELSE {ed_snippet}
                 END AS snippet
             FROM merged
@@ -1825,6 +1907,8 @@ async def search_events_pg(
                             'video_id': row['video_id'],
                             'document_id': row['event_document_id'],
                             'analysis_pending': True,
+                            # #1007: found through a verbatim meeting passage, not a transcript row.
+                            'source': 'meeting_passage' if row['leg'] == 'dm' else 'transcript',
                         }
                     ))
 

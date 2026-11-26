@@ -199,6 +199,8 @@ CIVIC_SERVING = frozenset(
         "browse_directory_summary",
         "browse_transcript_count",
         "browse_entity_state_transcript_count",
+        # /api/topics reads it for a place's counts and 503s on prod without it (#1007). ~6.7 MB.
+        "browse_entity_place_transcript_count",
         # meeting-grain browse + topic/question linkage (Browse Topics/Questions)
         "meeting_browse",
         "meeting_question_link",
