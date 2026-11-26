@@ -71,3 +71,11 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- Local dbt build: 28 tests passed, no search indexes missing. ODCS contracts regenerated (81, valid). The Airbnb.org nonprofit stays separate. Sources and mentions are verbatim.
+
+Verdict stands: approve.
+
+- Re-checked after the contracts commit: `models.odcs --check` passes and datamodels tests pass (38).
