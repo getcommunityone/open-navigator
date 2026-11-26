@@ -259,6 +259,9 @@ CIVIC_SERVING = frozenset(
         # the companies each topic names and where they are named (#1052); small
         "topic_company",
         "topic_company_mention",
+        # businesses the meetings and decisions name, and where (#1089); small: only named businesses
+        "business",
+        "business_mention",
         # office terms: who held which seat, when, and why they left (#1068); small
         "person_government_term",
         "data_center_project",
