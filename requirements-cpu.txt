@@ -46,7 +46,7 @@ chromadb>=0.4.0
 qdrant-client>=1.7.0
 
 # API Framework
-fastapi>=0.109.0
+fastapi>=0.136.3
 uvicorn[standard]>=0.25.0
 # Removed fastapi-cache2 - not strictly required
 python-multipart>=0.0.32
@@ -89,8 +89,8 @@ pre-commit>=3.6.0
 
 # Authentication & DB drivers (required at API startup — see api/auth.py, api/routes/*)
 # Kept in sync with requirements.txt so CPU-only installs (install.sh prefers this
-# file) don't break on `import jose` / `import asyncpg` at import time.
-python-jose[cryptography]==3.5.0  # JWT tokens (3.4.0 fixes CVE-2024-33663 + CVE-2024-33664)
+# file) don't break on `import jwt` / `import asyncpg` at import time.
+PyJWT[crypto]>=2.15.1  # JWT tokens (replaces python-jose: GHSA-3qf3-8w2g-rqmx has no fixed release; #1152)
 passlib[bcrypt]==1.7.4            # Password hashing
 psycopg2-binary==2.9.9           # PostgreSQL driver
 asyncpg==0.29.0                  # Async PostgreSQL driver (for Neon)
