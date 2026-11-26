@@ -38,8 +38,6 @@ DATA_CENTERS_TOPIC_ID = 100001
 TOPIC_ALIASES: dict[str, str] = {
     # The home strip's Flock card and License plate readers card share one curated topic.
     "flock": "license-plate-readers",
-    # The strip's "Bike lanes" card reads the CivicSearch "Bicycle transportation" topic.
-    "bike-lanes": "bicycle-transportation",
 }
 
 
