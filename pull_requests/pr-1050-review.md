@@ -53,3 +53,21 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review
+
+- **Issue and branch:** `feat/1049-chat-throttle-per-user`, `Closes #1049`. The sign-in change is recorded on the issue
+  as a dated comment; the original text is unchanged.
+- **Scans:** no secrets (tests mint tokens with the app's own helper at run time), no fabricated data, no personal data
+  stored (the throttle holds `user:<id>` counters in memory only; telemetry drops the id), no data changes.
+- **Correctness:**
+  - `_visitor_key` raises 401 before `_check_rate_limit`, `_check_spend_cap` or any query, so a guest can't spend.
+  - `decode_access_token` raises on a bad or expired token; that is caught and treated as not signed in, so the result is
+    401, not 500.
+  - `login(provider, returnTo)` only passes a `returnTo` on this origin, and the API's `is_safe_redirect` checks again;
+    the OAuth success redirect appends `&token=` when the URL already has a query, so the chat's `?state=` survives.
+  - The chat page shows the sign-in panel only after auth has loaded, so a signed-in user doesn't see it flash.
+- **Checks:** chat tests 26 passed; tsc clean. Required CI runs on the head commit.
+- **Docs:** `meeting-chat-model.md` updated.
+
+No blocking findings.
