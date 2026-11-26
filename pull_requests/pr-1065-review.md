@@ -50,3 +50,11 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review
+
+- Issue: Refs #1061 (the epic stays open for its stories). Docs only.
+- Scans: no secrets, no personal data, no data changes; the page commits to not storing or contacting private residents beyond the record.
+- Owner approved the decision on 2026-11-26 ("Go for both").
+
+No blocking findings.
