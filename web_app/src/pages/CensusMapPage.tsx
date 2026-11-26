@@ -82,7 +82,7 @@ import { InfoHelpTrigger } from '../components/InfoHelpTrigger'
 import MapAddressSearch, { type MapAddressResult } from '../components/MapAddressSearch'
 import CensusMapLeftRail, { type CensusMapRailSection } from '../components/CensusMapLeftRail'
 import { censusMapPathPrefix, mapPathPlace, mapPathState, mapPathUs } from '../utils/dataExplorerPaths'
-import { MAP_POPUP_OPTIONS, escapeHtml } from '../lib/mapPopup'
+import { MAP_POPUP_OPTIONS, escapeHtml, meetingsButtonHtml } from '../lib/mapPopup'
 
 const STATES_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'
 const COUNTY_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json'
@@ -3705,7 +3705,7 @@ function CensusMapPage() {
                               disp,
                               metrics,
                               valueMode,
-                            )}${rankLine}</div>`,
+                            )}${rankLine}${meetingsButtonHtml(gid7)}</div>`,
                             MAP_POPUP_OPTIONS,
                           )
                           layer.on('mouseover', () => {
