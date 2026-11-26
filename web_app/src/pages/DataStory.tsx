@@ -7,12 +7,12 @@ import { errorStatus, fetchChoiceResults, fetchStancePack, postStanceChoice, typ
 import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse } from '../api/dataCenters'
 import FloatingNext from '../components/stance/FloatingNext'
 import ProgressPips from '../components/stance/ProgressPips'
-import ProgressRail from '../components/stance/ProgressRail'
 import PlaceControl from '../components/stance/PlaceControl'
 import ScopeBar from '../components/stance/ScopeBar'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
+import { NextStoryCard, StoryBottomBar, StoryDots, StoryTopBar } from '../components/stance/StoryProgress'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
 import { QuestionScreen, ScopeScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
 import { actsMode, useActs, type Hold } from '../components/stance/useActs'
@@ -40,6 +40,7 @@ import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
 import { speakerCounts } from '../utils/stanceGame'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
+import { nextStoryLink } from '../utils/storyNav'
 
 // The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
 export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value, label: s.topic }))
@@ -142,6 +143,8 @@ export default function DataStory() {
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
   const [placeOpen, setPlaceOpen] = useState(false)
   const [whereOpen, setWhereOpen] = useState(false)
+  // The next-story card in view (#1102): the dots and the floating bar step aside so they don't sit over it or the footer.
+  const [atEnd, setAtEnd] = useState(false)
   const dialogOpen = placeOpen || whereOpen
   // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
   useIdleNudge({
@@ -429,6 +432,8 @@ export default function DataStory() {
     decisions: `/browse-topics${scopeQuery(scope)}`,
   }
   const labels = screens.map((s, i) => stopLabel(s, texts[i]!))
+  // The end of the story leads on (#1102): the next live story, or every data story, keeping the place.
+  const onward = nextStoryLink(storyId, scopeQuery(scope))
   const vote: VoteState = {
     question,
     loading: packQ.isLoading,
@@ -453,7 +458,15 @@ export default function DataStory() {
   )
 
   return (
-    <div className="folio stance-game stance-story" style={HOUSE_STYLE} ref={rootRef} data-mode={mode} data-fade={reduced ? '' : undefined}>
+    <div
+      className="folio stance-game stance-story"
+      style={HOUSE_STYLE}
+      ref={rootRef}
+      data-mode={mode}
+      data-fade={reduced ? '' : undefined}
+      data-sbar={wide ? undefined : ''}
+    >
+      {wide && <StoryTopBar active={active} count={n} />}
       <ScopeBar
         backTo={`/stories${scopeQuery(scope)}`}
         backLabel="← Data stories"
@@ -550,9 +563,25 @@ export default function DataStory() {
             )
           })}
         </div>
-        <ProgressRail labels={labels} active={active} onJump={goTo} navLabel="Story screens" />
+        {/* After the last screen, outside the screens ([data-panel]) the scroller counts: the way on to the next story. */}
+        <NextStoryCard href={onward.href} label={onward.label} isStory={onward.next != null} onInView={setAtEnd} />
+        {/* Wide screens: numbered dots down the left edge; they move with goTo, like Next and the keys. */}
+        {wide && <StoryDots labels={labels} active={active} onJump={goTo} away={atEnd} />}
       </div>
-      <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
+      {/* Phones get the bottom bar instead, which always shows Next; the floating bar would sit on top of it. */}
+      {wide ? (
+        !atEnd && <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
+      ) : (
+        <StoryBottomBar
+          active={active}
+          count={n}
+          nextLabel={active < n - 1 ? (screens[active + 1]?.eyebrow ?? null) : null}
+          onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
+          storyHref={onward.href}
+          storyLabel={onward.label}
+          storyIsNext={onward.next != null}
+        />
+      )}
       <p className="stance-keys">Keys: PageDown, Space or ↓ next · PageUp, Shift+Space or ↑ back · Home and End jump to the ends</p>
     </div>
   )
