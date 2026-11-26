@@ -2,6 +2,8 @@
  *  component so the label, the links and the escaping are unit-tested. Counts are real
  *  (from the warehouse); nothing here invents a figure. */
 
+import { MAP_POPUP_OPTIONS, escapeHtml } from './mapPopup'
+
 export interface PlacePopupPin {
   geoid: string
   name: string
@@ -10,24 +12,11 @@ export interface PlacePopupPin {
   transcript_count: number
 }
 
-/** Leaflet popup options: pan the map so the popup has room on every side, with extra
- *  space at the top for the page header, so the button can always be clicked. */
+/** Shared auto-pan padding, plus the width this popup's button needs. */
 export const PLACE_POPUP_OPTIONS = {
-  autoPan: true,
-  keepInView: true,
-  autoPanPaddingTopLeft: [40, 90] as [number, number],
-  autoPanPaddingBottomRight: [40, 40] as [number, number],
+  ...MAP_POPUP_OPTIONS,
   minWidth: 180,
   maxWidth: 260,
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 /** State pins open the places list filtered to that state; every other place opens its
