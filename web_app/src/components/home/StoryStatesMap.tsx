@@ -239,11 +239,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const onBox = (i: number) => {
     const b = boxes[i]
     if (!b?.code) return
-    // On a phone the first tap shows the card (there is no hover); a second tap on the same state opens its story.
-    if (touch && shownCode !== b.code) {
-      setHover(i)
-      return
-    }
+    // One tap or click opens the state's story (#1120): on a phone there is no hover, so a first tap that only showed
+    // the card read as a drill-down that didn't work.
     navigate(href(b.code))
   }
 
@@ -315,8 +312,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.75rem] text-sm leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? '; no stance on record' : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap again to open its story.' : 'Click to open its story.'}`
-          : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to read what was said; tap again to open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? '; no stance on record' : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap to open its story.' : 'Click to open its story.'}`
+          : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
 
       <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>
