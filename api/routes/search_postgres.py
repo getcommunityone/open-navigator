@@ -1399,6 +1399,16 @@ async def get_nonprofit_compensation_pg(
         return []
 
 
+def date_sort_direction(sort: Optional[str]) -> Optional[str]:
+    """'DESC' / 'ASC' for a date sort (#1009), else None (keep the type's relevance order)."""
+    s = (sort or '').lower()
+    if s in ('date_desc', 'newest', 'date'):
+        return 'DESC'
+    if s in ('date_asc', 'oldest'):
+        return 'ASC'
+    return None
+
+
 def meeting_passage_where(
     *,
     match_sql: Optional[str],
@@ -1439,6 +1449,7 @@ async def search_events_pg(
     offset: int = 0,
     topic_tsquery: Optional[str] = None,
     county_fips: Optional[str] = None,
+    sort: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Search meetings using PostgreSQL.
@@ -1722,6 +1733,14 @@ async def search_events_pg(
         else:
             em_snippet = "LEFT(COALESCE(meeting_summary, agenda_summary, ''), 200)"
 
+        # Default: analyzed meetings first, then newest. A date sort (#1009) orders every leg by date alone.
+        _dir = date_sort_direction(sort)
+        meeting_order_by = (
+            f"iso_date {_dir} NULLS LAST, row_id {_dir}"
+            if _dir
+            else "is_analyzed DESC, iso_date DESC NULLS LAST, row_id DESC"
+        )
+
         dm_leg_sql = (
             f"""
                 UNION ALL
@@ -1827,7 +1846,7 @@ async def search_events_pg(
                     ELSE {ed_snippet}
                 END AS snippet
             FROM merged
-            ORDER BY is_analyzed DESC, iso_date DESC NULLS LAST, row_id DESC
+            ORDER BY {meeting_order_by}
             LIMIT ${limit_idx} OFFSET ${offset_idx}
         """
 
@@ -1976,6 +1995,7 @@ async def search_documents_pg(
     limit: int = 10,
     offset: int = 0,
     county_fips: Optional[str] = None,
+    sort: Optional[str] = None,
 ) -> List[SearchResult]:
     """
     Full-text search over event documents (meeting transcripts) using PostgreSQL.
@@ -2060,6 +2080,12 @@ async def search_documents_pg(
             order_by = "event_date DESC NULLS LAST"
             snippet_sql = "LEFT(content, 200)"
 
+        # A date sort (#1009) replaces the relevance order; the candidate pool follows the same direction so
+        # "oldest first" reaches the oldest matches, not the oldest of the most recent ones.
+        _tx_dir = date_sort_direction(sort) or 'DESC'
+        if date_sort_direction(sort):
+            order_by = f"event_date {_tx_dir} NULLS LAST"
+
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
         capped_limit = min(limit, DOCUMENT_RESULT_CAP)
@@ -2083,7 +2109,7 @@ async def search_documents_pg(
                     SELECT {select_cols}, content
                     FROM event_documents
                     WHERE {where_sql}
-                    ORDER BY event_date DESC NULLS LAST, event_document_id DESC
+                    ORDER BY event_date {_tx_dir} NULLS LAST, event_document_id {_tx_dir}
                     LIMIT {pool_size}
                 )
                 SELECT {select_cols}, {snippet_sql} AS snippet
@@ -2213,6 +2239,7 @@ async def search_meeting_documents_pg(
     document_type: Optional[str] = None,
     limit: int = 10,
     offset: int = 0,
+    sort: Optional[str] = None,
 ) -> List[SearchResult]:
     """Full-text search over official meeting documents (agenda / minutes /
     attachments) backed by public.event_meeting_document.
@@ -2287,6 +2314,11 @@ async def search_meeting_documents_pg(
         else:
             order_by = "doc_date DESC NULLS LAST, event_meeting_document_id"
             snippet_sql = "LEFT(coalesce(content, meeting_title, ''), 200)"
+
+        # A date sort (#1009) replaces the relevance order; the snippet still marks the match.
+        _doc_dir = date_sort_direction(sort)
+        if _doc_dir:
+            order_by = f"doc_date {_doc_dir} NULLS LAST, event_meeting_document_id"
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
         capped_limit = min(limit, 50)
