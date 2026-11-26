@@ -53,6 +53,45 @@ An official whose verified sign-in email matches the official address on their g
 profile. They can then correct the title, biography and photo, and send feedback. Edits are stored as pending and shown
 once approved. The invitation email is drafted for the owner to send; nothing is sent automatically.
 
+## Claiming a profile
+
+Built in [#1062](https://github.com/getcommunityone/open-navigator/issues/1062). On an official's page
+(`/person/<ocd-membership id>`) a signed-in visitor sees **Is this you?** and can claim the profile.
+
+**How the check works without exposing the email.** An official's email lives only in the private warehouse (`gold`).
+The public serving copy redacts it to `NULL`, but keeps `person_government.email_sha256`: the hex sha256 of
+`lower(btrim(email))`, computed in `dbt_project/models/marts/person_government.sql` and carried by the
+`publish_public_serving` projection. On a claim the API hashes the signed-in user's sign-in email (Google, Facebook
+and GitHub give verified addresses) the same way and compares:
+
+| Result | `status` | `verified_via` |
+|---|---|---|
+| Hashes match | `verified` | `official_email` |
+| No match, or the official has no email on file | `pending` (manual review) | `null` |
+| Reviewed and refused by the owner | `rejected` | unchanged |
+
+Neither the email nor either hash is returned to the browser or written to logs.
+
+**Endpoints** (all need a signed-in user; `api/routes/person_claims.py`):
+
+| Method and path | Body or query | Returns |
+|---|---|---|
+| `POST /api/people/claim` | `{person_id}` (a body field, because the id contains slashes) | the claim: `person_claim_id`, `person_id`, `status`, `verified_via`; `404` for an unknown official |
+| `GET /api/people/claim` | `?person_id=` | the current user's claim on that official, or `null` |
+| `POST /api/people/claim/{person_claim_id}/edits` | `{field, new_value}` | the stored edit, `status: pending` |
+
+`field` is one of `title`, `biography`, `photo_url` or `feedback`. Title, biography and photo need a `verified` claim;
+feedback is accepted on a `pending` claim too. `photo_url` must be an `https://` URL, and `new_value` is at most 4,000
+characters. Only the claim's own user can add edits; anyone else gets `404`.
+
+**Storage.** Two app-owned tables, created by `Base.metadata.create_all` like `user` (not dbt, because dbt rebuilds
+`person_government`): `person_claim` (one row per official and user, unique on `person_id, user_id`, FK `user_id` →
+`user`) and `person_profile_edit` (one row per submission, FK `person_claim_id` → `person_claim`). `person_id` is kept
+as text rather than a foreign key for the same reason.
+
+**Nothing is published or emailed automatically.** Every edit is stored `pending` and shown on the site only after the
+owner approves it. Approving edits and reviewing pending claims is an owner task; there is no screen for it yet.
+
 ## Public commitments
 
 - A **Corrections and removals** page, linked from every quote, says what we store about speakers and how to change it.

@@ -93,6 +93,13 @@ models:
       - name: email
         description: "Official email, lower-cased. Nullable. PII-light: redacted to NULL in the public serving copy."
         data_type: text
+      - name: email_sha256
+        description: >
+          Hex sha256 of lower(btrim(email)); NULL when email is NULL or blank.
+          Kept in the public serving copy (the email is not) so the profile-claim
+          API (#1062) can match a signed-in user's verified email to the official
+          address without exposing it. Never returned to clients.
+        data_type: text
       - name: phone
         description: "Official phone (scraped path only). Nullable. PII-light: redacted to NULL in the public serving copy."
         data_type: text
