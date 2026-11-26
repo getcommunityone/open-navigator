@@ -124,6 +124,14 @@ def _outcomes(thing: str, none_key: str) -> dict[str, str]:
 
 DC_OUTCOMES = _outcomes("data center", "no_data_center_item")
 STR_OUTCOMES = _outcomes("short-term rental", "no_short_term_rental_item")
+# How the public leaned on a data center (#1113): members of the public, not officials or staff.
+DC_PUBLIC_LEAN = {
+    "mostly_opposed": "Most members of the public who spoke about a data center opposed it",
+    "mostly_supported": "Most members of the public who spoke about a data center supported it",
+    "mixed": "Members of the public who spoke about a data center were split between support and opposition",
+    "no_public_comment_on_data_center": "No member of the public spoke about a data center",
+}
+DC_LEAN_NONE = "no_public_comment_on_data_center"
 # Choice answers averaged across chunks and stored as <key> + <key>_probabilities (#1029).
 OUTCOME_KEYS: tuple[str, ...] = ("dc_outcome", "str_outcome")
 
@@ -161,6 +169,10 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     ),
     "dc_outcome": choice("What happened to a data center item in this meeting", DC_OUTCOMES),
     "str_outcome": choice("What happened to a short-term rental item in this meeting", STR_OUTCOMES),
+    "dc_public_lean": choice(
+        "How the members of the public (not officials or staff) who spoke about a data center leaned",
+        DC_PUBLIC_LEAN,
+    ),
     **{f"q_{slug}": noul(spec["noul"]) for slug, spec in POLICY_QUESTIONS.items()},
 }
 
@@ -187,6 +199,8 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
     dc_outcome_probabilities    jsonb,
     str_outcome                 text,
     str_outcome_probabilities   jsonb,
+    dc_public_lean              text,
+    dc_public_lean_probabilities jsonb,
     question_probabilities      jsonb,
     chunk_count                 integer NOT NULL,
     chunks_screened             integer NOT NULL,
@@ -209,7 +223,9 @@ ALTER TABLE {TABLE}
     ADD COLUMN IF NOT EXISTS dc_outcome_probabilities jsonb,
     ADD COLUMN IF NOT EXISTS str_outcome text,
     ADD COLUMN IF NOT EXISTS str_outcome_probabilities jsonb,
-    ADD COLUMN IF NOT EXISTS question_probabilities jsonb
+    ADD COLUMN IF NOT EXISTS question_probabilities jsonb,
+    ADD COLUMN IF NOT EXISTS dc_public_lean text,
+    ADD COLUMN IF NOT EXISTS dc_public_lean_probabilities jsonb
 """
 
 UPSERT_SQL = f"""
@@ -218,7 +234,7 @@ INSERT INTO {TABLE} (
     has_decisions_p, mentions_data_center_p,
     mentions_zoning_p, mentions_budget_p, mentions_housing_p, mentions_environment_p,
     mentions_short_term_rentals_p, dc_outcome, dc_outcome_probabilities, str_outcome, str_outcome_probabilities,
-    question_probabilities,
+    question_probabilities, dc_public_lean, dc_public_lean_probabilities,
     chunk_count, chunks_screened,
     transcript_chars, input_tokens, answers, screened_at
 ) VALUES (
@@ -227,7 +243,8 @@ INSERT INTO {TABLE} (
     %(mentions_zoning_p)s, %(mentions_budget_p)s, %(mentions_housing_p)s,
     %(mentions_environment_p)s,
     %(mentions_short_term_rentals_p)s, %(dc_outcome)s, %(dc_outcome_probabilities)s, %(str_outcome)s,
-    %(str_outcome_probabilities)s, %(question_probabilities)s,
+    %(str_outcome_probabilities)s, %(question_probabilities)s, %(dc_public_lean)s,
+    %(dc_public_lean_probabilities)s,
     %(chunk_count)s, %(chunks_screened)s, %(transcript_chars)s, %(input_tokens)s,
     %(answers)s, %(screened_at)s
 )
@@ -248,6 +265,8 @@ ON CONFLICT (video_id) DO UPDATE SET
     str_outcome = EXCLUDED.str_outcome,
     str_outcome_probabilities = EXCLUDED.str_outcome_probabilities,
     question_probabilities = EXCLUDED.question_probabilities,
+    dc_public_lean = EXCLUDED.dc_public_lean,
+    dc_public_lean_probabilities = EXCLUDED.dc_public_lean_probabilities,
     chunk_count = EXCLUDED.chunk_count,
     chunks_screened = EXCLUDED.chunks_screened,
     transcript_chars = EXCLUDED.transcript_chars,
@@ -283,6 +302,9 @@ class ScreenResult:
     str_outcome: str | None = None
     str_outcome_probabilities: dict[str, float] | None = None
     question_probabilities: dict[str, float] | None = None
+    # #1113: how the public leaned on a data center, over the chunks where the public spoke about one.
+    dc_public_lean: str | None = None
+    dc_public_lean_probabilities: dict[str, float] | None = None
 
     def row(self, *, screened_at: datetime | None = None) -> dict[str, Any]:
         return {
@@ -303,6 +325,8 @@ class ScreenResult:
             "str_outcome": self.str_outcome,
             "str_outcome_probabilities": json.dumps(self.str_outcome_probabilities) if self.str_outcome_probabilities is not None else None,
             "question_probabilities": json.dumps(self.question_probabilities) if self.question_probabilities is not None else None,
+            "dc_public_lean": self.dc_public_lean,
+            "dc_public_lean_probabilities": json.dumps(self.dc_public_lean_probabilities) if self.dc_public_lean_probabilities is not None else None,
             "chunk_count": self.chunk_count,
             "chunks_screened": self.chunks_screened,
             "transcript_chars": self.transcript_chars,
@@ -400,10 +424,38 @@ def aggregate(responses: Sequence[JevResponse]) -> dict[str, Any]:
         dist = {k: round(v / n, 4) for k, v in sums.items()} if n else {}
         out[key] = max(dist, key=dist.get) if dist else None
         out[f"{key}_probabilities"] = dist or None
+    out.update(public_lean(responses))
     # Policy questions (#1029): debated anywhere in the meeting, so the max over chunks.
     questions = {slug: _max_noul(f"q_{slug}") for slug in POLICY_QUESTIONS}
     out["question_probabilities"] = {k: v for k, v in questions.items() if v is not None} or None
     return out
+
+
+def public_lean(responses: Sequence[JevResponse], *, min_spoke_p: float = 0.5) -> dict[str, Any]:
+    """How the public leaned on a data center (#1113). Averaged only over the chunks where Jev judges it likely the
+    public spoke about one (P(no public comment) < 1 - ``min_spoke_p``), so the rest of a long meeting doesn't drown
+    it out. No such chunk: ``no_public_comment_on_data_center``."""
+    dists = []
+    for resp in responses:
+        a = resp.answers.get("dc_public_lean")
+        if a and a.probabilities:
+            dists.append(a.probabilities)
+    if not dists:
+        return {"dc_public_lean": None, "dc_public_lean_probabilities": None}
+    spoke = [d for d in dists if d.get(DC_LEAN_NONE, 0.0) < 1.0 - min_spoke_p]
+    if not spoke:
+        return {
+            "dc_public_lean": DC_LEAN_NONE,
+            "dc_public_lean_probabilities": {DC_LEAN_NONE: round(min(d.get(DC_LEAN_NONE, 0.0) for d in dists), 4)},
+        }
+    sums: dict[str, float] = {}
+    for d in spoke:
+        for label, prob in d.items():
+            if label != DC_LEAN_NONE:
+                sums[label] = sums.get(label, 0.0) + prob
+    total = sum(sums.values()) or 1.0
+    dist = {k: round(v / total, 4) for k, v in sums.items()}
+    return {"dc_public_lean": max(dist, key=dist.get), "dc_public_lean_probabilities": dist}
 
 
 def screen_transcript(
