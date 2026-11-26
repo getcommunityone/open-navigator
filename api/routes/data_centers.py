@@ -802,6 +802,18 @@ class DataCenterMeetingMentionStateCount(BaseModel):
     meetings: int
 
 
+class DataCenterMeetingMentionPlaceCount(BaseModel):
+    """Meetings for one government in the scoped state (#1039), placed on the county map by geoid or coordinates."""
+
+    jurisdiction_id: str
+    jurisdiction_name: str | None = None
+    jurisdiction_type: str | None = None
+    geoid: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    meetings: int
+
+
 class DataCenterMeetingMentionCounts(BaseModel):
     """Real counts for the whole scope (before ``limit``): 0 means none."""
 
@@ -811,6 +823,10 @@ class DataCenterMeetingMentionCounts(BaseModel):
     by_state: list[DataCenterMeetingMentionStateCount] = Field(
         default_factory=list,
         description="Meetings per state across the whole country (not narrowed by state or city), largest first (#970); states with none are left out.",
+    )
+    by_place: list[DataCenterMeetingMentionPlaceCount] = Field(
+        default_factory=list,
+        description="Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map. Governments with none are left out.",
     )
 
 
@@ -883,6 +899,25 @@ def build_mention_by_state_query(site_id: str | None, strength: str | None) -> t
     return sql, params
 
 
+def build_mention_by_place_query(state_code: str, site_id: str | None, strength: str | None) -> tuple[str, list[Any]]:
+    """Distinct meetings per government in one state (#1039), with the same site and strength filters.
+
+    Never narrowed to the city: the state's county map shades every county and highlights the scope.
+    """
+    where_sql, params = _mention_where(state_code, None, site_id, strength)
+    sql = (
+        "SELECT m.jurisdiction_id, max(m.jurisdiction_name) AS jurisdiction_name, "
+        "max(j.jurisdiction_type) AS jurisdiction_type, max(j.geoid) AS geoid, "
+        "max(j.latitude)::float8 AS latitude, max(j.longitude)::float8 AS longitude, "
+        "count(DISTINCT m.video_id)::int AS meetings "
+        "FROM data_center_meeting_mention m "
+        "LEFT JOIN jurisdictions j ON j.jurisdiction_id::text = m.jurisdiction_id "
+        f"WHERE ({where_sql}) AND m.jurisdiction_id IS NOT NULL "
+        "GROUP BY m.jurisdiction_id ORDER BY meetings DESC, m.jurisdiction_id"
+    )
+    return sql, params
+
+
 def jump_url(video_url: str, start_seconds: float | None) -> str | None:
     """The recording at the passage's moment (YouTube ``t=`` in whole seconds)."""
     if start_seconds is None or "youtu" not in video_url:
@@ -931,6 +966,16 @@ async def list_data_center_meeting_mentions(
                     rows = await conn.fetch(items_sql, *params)
                     count_rows = await conn.fetch(counts_sql, *counts_params)
                     state_rows = await conn.fetch(by_state_sql, *by_state_params)
+                    place_rows = []
+                    if applied.state_code:
+                        place_sql, place_params = build_mention_by_place_query(
+                            applied.state_code, site_clean, strength
+                        )
+                        try:
+                            place_rows = await conn.fetch(place_sql, *place_params)
+                        except asyncpg.exceptions.PostgresError as e:
+                            # A serving copy without jurisdictions: the map falls back to the national view.
+                            logger.warning("data-centers: by_place unavailable ({})", e)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("meeting_mentions.relation_missing", True)
             logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)
@@ -943,6 +988,7 @@ async def list_data_center_meeting_mentions(
             DataCenterMeetingMentionCounts(**dict(count_rows[0])) if count_rows else DataCenterMeetingMentionCounts()
         )
         counts.by_state = [DataCenterMeetingMentionStateCount(**dict(r)) for r in state_rows]
+        counts.by_place = [DataCenterMeetingMentionPlaceCount(**dict(r)) for r in place_rows]
         items = []
         for r in rows:
             row = dict(r)

@@ -9,6 +9,7 @@ import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
 import StoryDotMap from './StoryDotMap'
+import StoryCountyMap from './StoryCountyMap'
 import StoryStatement from './StoryStatement'
 import type { ScreenStatement } from './useStoryStatements'
 import { speakerCounts } from '../../utils/stanceGame'
@@ -73,6 +74,7 @@ export default function StoryScreenView(p: Props) {
   // The Overview map (#970) needs the per-state counts; an older API without them keeps the dot chart.
   const mentions = p.data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined
   const byState = mentions?.counts?.by_state
+  const byPlace = mentions?.counts?.by_place
   const jobsData = p.data['job-claims'] as JobClaimsResponse | null | undefined
   const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
@@ -134,7 +136,18 @@ export default function StoryScreenView(p: Props) {
           ) : screen.kind === 'overview' ? (
             stats.length > 0 ? (
               <>
-                {stats.some((s) => s.key === 'meetings') && byState ? (
+                {stats.some((s) => s.key === 'meetings') && scope.stateCode && byPlace && byPlace.length > 0 ? (
+                  // At state scope, the state's counties (#1039), like the Census map's state drill-down.
+                  <StoryCountyMap
+                    stateCode={scope.stateCode}
+                    scopeCity={scope.city ?? null}
+                    scopeLabel={storyScopeLabel(scope)}
+                    byPlace={byPlace}
+                    onPickState={(code) => p.onBroaden(code, null)}
+                    labelledBy={`story-h-${screen.id}`}
+                    passages={mentions?.items}
+                  />
+                ) : stats.some((s) => s.key === 'meetings') && byState ? (
                   <StoryDotMap
                     byState={byState}
                     scopeStateCode={scope.stateCode ?? null}

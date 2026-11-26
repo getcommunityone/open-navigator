@@ -3,7 +3,7 @@
  * Overview map (StoryDotMap, #970): US Albers shapes from us-atlas, and a square grid of dots
  * clipped to them. Each dot knows which area (state or county FIPS) it sits in.
  */
-import { geoPath } from 'd3-geo'
+import { geoAlbersUsa, geoPath } from 'd3-geo'
 import { feature } from 'topojson-client'
 
 export const STATES_ALBERS_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json'
@@ -65,6 +65,30 @@ export function dotsFor(feats: Feat[], bbox: [number, number, number, number], c
   return { dots, step }
 }
 
+
+/** The feature a point (in the albers viewBox) falls in, or null. */
+export function featAt(x: number, y: number, feats: Feat[]): Feat | null {
+  return feats.find((f) => inFeat(x, y, f)) ?? null
+}
+
+// us-atlas's *-albers-10m files are pre-projected with this projection, so a lat/lon lands on the same shapes.
+const ALBERS = geoAlbersUsa().scale(1300).translate([487.5, 305])
+
+/** A longitude/latitude in the albers viewBox (975 × 610), or null outside the projection (#1039). */
+export function albersPoint(lon: number, lat: number): [number, number] | null {
+  const p = ALBERS([lon, lat])
+  return p ? [p[0], p[1]] : null
+}
+
+/** The bounding box around a set of features. */
+export function bboxOf(feats: Feat[]): [number, number, number, number] {
+  return [
+    Math.min(...feats.map((f) => f.bbox[0])),
+    Math.min(...feats.map((f) => f.bbox[1])),
+    Math.max(...feats.map((f) => f.bbox[2])),
+    Math.max(...feats.map((f) => f.bbox[3])),
+  ]
+}
 
 /** The national grid in the states-albers viewBox (975 × 610), without Puerto Rico. */
 export const NATIONAL_BBOX: [number, number, number, number] = [0, 0, 975, 610]

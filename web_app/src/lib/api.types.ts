@@ -1920,6 +1920,11 @@ export interface components {
          */
         DataCenterMeetingMentionCounts: {
             /**
+             * By Place
+             * @description Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map. Governments with none are left out.
+             */
+            by_place?: components["schemas"]["DataCenterMeetingMentionPlaceCount"][];
+            /**
              * By State
              * @description Meetings per state across the whole country (not narrowed by state or city), largest first (#970); states with none are left out.
              */
@@ -1939,6 +1944,26 @@ export interface components {
              * @default 0
              */
             site_specific: number;
+        };
+        /**
+         * DataCenterMeetingMentionPlaceCount
+         * @description Meetings for one government in the scoped state (#1039), placed on the county map by geoid or coordinates.
+         */
+        DataCenterMeetingMentionPlaceCount: {
+            /** Geoid */
+            geoid?: string | null;
+            /** Jurisdiction Id */
+            jurisdiction_id: string;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /** Jurisdiction Type */
+            jurisdiction_type?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Meetings */
+            meetings: number;
         };
         /**
          * DataCenterMeetingMentionStateCount
