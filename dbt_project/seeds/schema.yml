@@ -438,6 +438,46 @@ seeds:
       - name: source_excerpt
         description: "Verbatim text from source_url."
         tests: [not_null]
+  - name: data_center_job_sources
+    config:
+      column_types:
+        job_source_id: text
+        name: text
+        url: text
+        kind: text
+        description: text
+        description_source_url: text
+        automated_access: text
+        checked_on: date
+    description: >
+      Where data center jobs are tracked (#1019), cited on the jobs screen. kind: official_statistics, job_board or
+      association. description is the site's own words, verbatim from description_source_url (blank when none was
+      read). automated_access records what we found on checked_on: public_data (we load it), prohibited_by_terms
+      (its terms forbid scraping or automated access; cited only), not_pulled (cited only: no listings, republished
+      listings, or the board could not be read). Job listings are never scraped from a board whose terms forbid it.
+    columns:
+      - name: job_source_id
+        description: "Stable slug (PK)."
+        tests: [unique, not_null]
+      - name: name
+        tests: [not_null]
+      - name: url
+        tests: [not_null]
+      - name: kind
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['official_statistics', 'job_board', 'association']
+      - name: description
+        description: "The site's own words (verbatim)."
+      - name: description_source_url
+      - name: automated_access
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['public_data', 'prohibited_by_terms', 'not_pulled']
+      - name: checked_on
+        description: "When the terms and robots.txt were read."
   - name: data_center_companies
     config:
       column_types:

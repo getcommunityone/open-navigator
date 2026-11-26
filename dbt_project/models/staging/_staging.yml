@@ -2177,6 +2177,48 @@ sources:
           - name: loaded_at
             description: "When the row was landed."
 
+      - name: bronze_bls_qcew_industry
+        description: >
+          BLS Quarterly Census of Employment and Wages, annual averages for one industry (default NAICS 518210,
+          computing infrastructure / data processing / web hosting: where BLS counts data center employment), every
+          area and ownership, as published. A withheld cell has disclosure_code 'N'. Landed by
+          ``ingestion.bls.qcew`` (FETCH -> ``data/cache/bls/qcew/``, LAND -> bronze), #1019.
+        columns:
+          - name: area_fips
+            description: "QCEW area code: 'US000' national, 'SS000' state, 5-digit county FIPS, 'C####' MSA."
+          - name: own_code
+            description: "Ownership: 0 total covered, 1-3 government, 5 private."
+          - name: industry_code
+            description: "NAICS industry code."
+          - name: agglvl_code
+            description: "Aggregation level (e.g. 18 national, 58 state, 78 county for a 6-digit industry)."
+          - name: size_code
+            description: "Establishment size class (0 = all sizes)."
+          - name: year
+            description: "Calendar year, as published (VARCHAR; staging casts to integer)."
+          - name: qtr
+            description: "'A' = annual average."
+          - name: disclosure_code
+            description: "'N' = not disclosed (figures withheld to protect an employer)."
+          - name: annual_avg_estabs
+            description: "Annual average establishments (text as published)."
+          - name: annual_avg_emplvl
+            description: "Annual average employment (text as published)."
+          - name: total_annual_wages
+            description: "Total annual wages in dollars (text as published)."
+          - name: annual_avg_wkly_wage
+            description: "Average weekly wage (text as published)."
+          - name: avg_annual_pay
+            description: "Average annual pay (text as published)."
+          - name: oty_annual_avg_emplvl_chg
+            description: "Over-the-year change in employment."
+          - name: oty_annual_avg_emplvl_pct_chg
+            description: "Over-the-year percent change in employment."
+          - name: source_url
+            description: "The CSV the row came from."
+          - name: loaded_at
+            description: "When the row was landed."
+
       - name: bronze_bls_cpi
         description: >
           BLS Consumer Price Index observations (monthly + annual average).

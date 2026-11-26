@@ -433,10 +433,26 @@ function projectsText(res: DataCenterProjectsResponse, scope: StoryScope): Scree
   }
 }
 
+/** No claims on record: the screen leads with actual payroll jobs (BLS QCEW, #1019) when they are published. */
+function payrollText(res: JobClaimsResponse, scope: StoryScope): ScreenText | null {
+  const rows = res.employment ?? []
+  const own = rows.find((r) => r.area_level === 'state') ?? rows.find((r) => r.area_level === 'national')
+  if (!own || !own.disclosed || own.employment == null) return null
+  const where = own.area_level === 'national' ? 'Across the U.S.,' : `In ${own.area_name},`
+  const cityNote = scope.city && own.area_level === 'state' ? ` BLS counts by county and state, not city, so this is ${own.area_name}.` : ''
+  const pct = own.employment_change_pct
+  return {
+    headline: `${where} ${fmt(own.employment)} people worked on payroll in the industry that includes data centers in ${own.year}.`,
+    context: `${pct != null ? `That is ${pct > 0 ? 'up' : pct < 0 ? 'down' : 'unchanged'}${pct ? ` ${Math.abs(pct)}%` : ''} from the year before. ` : ''}No jobs promises are on record in meetings here yet.${cityNote} What concerns come up?`,
+    empty: false,
+    failed: false,
+  }
+}
+
 function jobsText(res: JobClaimsResponse, scope: StoryScope): ScreenText | null {
   const c = res.totals?.construction ?? 0
   const o = res.totals?.operations ?? 0
-  if (c + o <= 0) return null
+  if (c + o <= 0) return payrollText(res, scope)
   const place = placeFor('job-claims', scope)
   let headline: string
   if (c > 0 && o > 0) {

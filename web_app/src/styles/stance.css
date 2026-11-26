@@ -2908,3 +2908,62 @@ html.stance-snap {
   font-size: 13px;
   color: var(--ink-2);
 }
+
+/* Payroll jobs on the jobs screen (#1019): BLS figures, then where jobs are tracked. */
+.stance-payroll {
+  margin: 0 0 16px;
+}
+.stance-payroll-head {
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.stance-payroll-rows {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.stance-payroll-rows li {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  background: #fff;
+}
+.stance-payroll-place {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.stance-payroll-n {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.stance-payroll-meta {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.stance-payroll-sources {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+}
+.stance-payroll-sources li {
+  display: grid;
+  gap: 2px;
+}
+.stance-payroll-desc {
+  font-style: italic;
+  color: var(--ink-2);
+}
+.stance-payroll-access {
+  font-size: 12px;
+  color: var(--ink-2);
+}
