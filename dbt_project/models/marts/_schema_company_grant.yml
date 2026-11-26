@@ -1,0 +1,104 @@
+version: 2
+
+models:
+  - name: company_grant
+    description: >
+      Grants from the foundations tied to the companies we track (#1073). One row per IRS 990 Schedule I grant line
+      (grant.grant_id) whose grantor is a foundation in the company_foundation seed, with the company's
+      master_org_id (from topic_company) and the grantee's master_org_id where the grant mart resolved it. amount is
+      exactly what the 990 reports. Serves GET /api/organizations/{id}/funding (Funds / Funded by).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [grant_id]
+        to: ref('grant')
+        to_columns: [grant_id]
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+      - type: foreign_key
+        columns: [foundation_master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+      - type: foreign_key
+        columns: [grantee_master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: grant_id
+        description: 'Primary key; FK to grant.'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: company_key
+        description: "The company's slug in topic_company."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: company_name
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: master_org_id
+        description: "The company's organization master row (FK to mdm_organization)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: foundation_ein
+        description: '9-digit EIN of the foundation (the 990 filer).'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: foundation_name
+        description: 'The foundation as the company_foundation seed names it.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: foundation_master_org_id
+        description: "The foundation's own organization master row (FK to mdm_organization)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: relationship
+        description: 'founded_by_company, governed_by_company or controls_company (see the seed).'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: foundation_source_url
+        description: 'The public page that ties the foundation to the company.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: grantor_name_on_filing
+        description: 'The filer name as the 990 wrote it that year (names change, e.g. First Hand Foundation).'
+        data_type: text
+      - name: grantee_name
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: grantee_ein
+        data_type: text
+      - name: grantee_master_org_id
+        description: "The grantee's organization master row, when the grant mart resolved its EIN; else null."
+        data_type: text
+      - name: grantee_city
+        data_type: text
+      - name: grantee_state_code
+        data_type: text
+      - name: amount
+        description: 'Cash grant amount in dollars, exactly as the 990 Schedule I reports.'
+        data_type: bigint
+      - name: purpose
+        data_type: text
+      - name: tax_year
+        data_type: integer
+      - name: source_url
+        description: 'The 990 filing the grant line came from.'
+        data_type: text

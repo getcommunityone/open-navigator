@@ -1,0 +1,247 @@
+/* A quoted moment from a meeting (#1108). Stacked by default; image left on a card 560px wide or more (container query). */
+.qcard {
+  --qcard-teal: #0f766e;
+  container-type: inline-size;
+  margin: 0;
+  color: #44403c;
+  text-align: left;
+}
+.qcard--card {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e7e5e4;
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(28, 25, 23, 0.12);
+}
+.qcard-in {
+  display: flex;
+  flex-direction: column;
+}
+.qcard-media {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 8;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
+  background: #1c1917;
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+}
+div.qcard-media {
+  cursor: default;
+}
+.qcard-media img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.qcard-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 30%, rgba(0, 0, 0, 0.7) 100%);
+}
+.qcard-play {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.qcard-play-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--qcard-teal);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.qcard-play-btn svg {
+  margin-left: 2px;
+}
+.qcard-media:hover .qcard-play-btn,
+.qcard-media:focus-visible .qcard-play-btn {
+  background: #115e59;
+}
+.qcard-media:focus-visible {
+  outline: 3px solid var(--qcard-teal);
+  outline-offset: -3px;
+}
+.qcard-text {
+  padding: 12px 16px 14px;
+  min-width: 0;
+}
+.qcard--header .qcard-text {
+  padding: 0;
+}
+.qcard-where {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--qcard-teal);
+}
+.qcard-meeting {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #57534e;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qcard-quote {
+  position: relative;
+  margin: 8px 0 0;
+  padding-left: 26px;
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-size: 17px;
+  line-height: 1.4;
+  color: #1c1917;
+  overflow-wrap: anywhere;
+}
+.qcard-qmark {
+  position: absolute;
+  left: 0;
+  top: -6px;
+  font-size: 44px;
+  line-height: 1;
+  color: var(--qcard-teal);
+}
+.qcard-qmark-end {
+  color: var(--qcard-teal);
+  font-size: 1.3em;
+  line-height: 0;
+  margin-left: 2px;
+  vertical-align: -0.1em;
+}
+.qcard-quote mark {
+  background: #fde68a;
+}
+.qcard-speaker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #e7e5e4;
+}
+.qcard-avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--qcard-teal);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.qcard-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.qcard-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+.qcard-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1c1917;
+}
+.qcard-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.qcard-side-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.qcard-line {
+  font-size: 12.5px;
+  color: #57534e;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qcard-summary {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid #e7e5e4;
+}
+.qcard-summary-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+.qcard-summary-text {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #44403c;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qcard-analysis {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+.qcard-analysis a {
+  color: var(--qcard-teal);
+  font-weight: 600;
+  text-decoration: none;
+}
+.qcard-analysis a:hover,
+.qcard-analysis a:focus-visible {
+  text-decoration: underline;
+}
+.qcard--header .qcard-quote {
+  font-size: 19px;
+}
+
+@container (min-width: 560px) {
+  .qcard-in.has-media {
+    flex-direction: row;
+  }
+  .qcard-in.has-media .qcard-media {
+    flex: 0 0 40%;
+    width: 40%;
+    aspect-ratio: auto;
+    min-height: 220px;
+  }
+  .qcard-in.has-media .qcard-text {
+    flex: 1;
+    padding: 18px 22px;
+  }
+  .qcard--card .qcard-quote {
+    font-size: 21px;
+  }
+}

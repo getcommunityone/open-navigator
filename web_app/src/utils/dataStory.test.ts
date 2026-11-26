@@ -8,6 +8,7 @@ import {
   chartScopeLabel,
   contextSourceFor,
   landConcernNote,
+  overviewLean,
   positionFigures,
   positionsCaption,
   scopeQuery,
@@ -364,5 +365,36 @@ describe('decisions screen when the table is not loaded (#933)', () => {
     expect(t.context).toBe(DECISIONS_NOT_LOADED)
     expect(t.empty).toBe(false)
     expect(t.failed).toBe(false)
+  })
+})
+
+describe('overview headline at a place (#1115)', () => {
+  const overview = DATA_CENTER_STORY.find((s) => s.id === 'overview')!
+  const withSpeakers = (f: number, a: number, q = 0, n = 0): StoryData => ({
+    ...full,
+    positions: positions({ speakers_for: f, speakers_against: a, speakers_question: q, speakers_neutral: n }),
+  })
+  it('says the place pushed back when two thirds or more spoke against', () => {
+    const t = screenText(overview, withSpeakers(1, 11), ready, al)
+    expect(t.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
+    expect(t.context).toBe('A data center came up in 3 meetings. First, where are they?')
+  })
+  it('says the place welcomed them when two thirds or more spoke for', () => {
+    expect(screenText(overview, withSpeakers(8, 2, 2), ready, tus).headline).toBe(
+      'Tuscaloosa, Alabama welcomed data centers: 8 of 12 speakers spoke for them.',
+    )
+  })
+  it('says the place was split otherwise (the full fixture: 6 for, 14 against of 26)', () => {
+    expect(screenText(overview, full, ready, al).headline).toBe('Alabama was split: 6 spoke for and 14 against data centers.')
+  })
+  it('keeps the neutral count below the national minimum of speakers', () => {
+    const t = screenText(overview, withSpeakers(0, 9), ready, al)
+    expect(t.headline).toBe('A data center came up in 3 meetings in Alabama.')
+    expect(t.context).toBe('First, where are they?')
+    expect(overviewLean(withSpeakers(0, 9).positions as never, 'Alabama')).toBeNull()
+    expect(overviewLean(positions({}, false), 'Alabama')).toBeNull()
+  })
+  it('keeps the neutral count nationally', () => {
+    expect(screenText(overview, withSpeakers(1, 11), ready, nat).headline).toBe('A data center came up in 3 meetings nationally.')
   })
 })

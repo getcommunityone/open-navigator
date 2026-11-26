@@ -2,7 +2,7 @@
 # For Intel Core Ultra 7 with Arc Graphics + NPU + 64GB RAM
 
 # Core ML Libraries
-torch>=2.1.0
+torch>=2.13.0
 intel-extension-for-pytorch>=2.1.0
 transformers>=5.10.2
 accelerate>=0.24.0

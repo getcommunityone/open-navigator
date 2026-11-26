@@ -49,12 +49,19 @@ export interface PositionQuote {
   match_basis?: 'data_center_decision' | 'data_center_item' | 'own_words' | 'same_item' | null
 }
 
+/** One state's speaker sums for the home box map (#1087); national, never narrowed by the scope. Generated type. */
+export type PositionStateCount = Schemas['PositionStateCount']
+
 export interface DataCenterPositionsResponse {
   scope: Schemas['JobClaimScope']
   /** False when the table is not in the database yet: every total is null, not zero. */
   available: boolean
   totals: PositionTotals
   quotes: { for: PositionQuote[]; against: PositionQuote[]; question: PositionQuote[] }
+  /** Speakers per state across the country (#1087); empty when the table isn't loaded. Optional for older servers. */
+  by_state?: PositionStateCount[]
+  /** National totals of Jev's meeting readings for the home hero (#1122); null when the lean table isn't loaded. */
+  lean_totals?: Schemas['LeanTotals'] | null
 }
 
 /** Public speakers for and against a data center item, questions asked and recorded votes, for the scope (#930). */

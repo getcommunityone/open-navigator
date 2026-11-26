@@ -607,73 +607,6 @@
   padding-left: 1.1rem;
 }
 
-/* Progress rail */
-.stance-rail {
-  position: fixed;
-  right: 6px;
-  top: 50%;
-  z-index: 30;
-  transform: translateY(-50%);
-  width: 24px;
-  height: min(52svh, 340px);
-}
-.stance-rail-line {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--rule);
-}
-.stance-rail-fill {
-  display: block;
-  width: 100%;
-  height: calc(var(--progress, var(--fallback, 0)) * 100%);
-  background: var(--ink);
-}
-.stance-rail ol {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-}
-.stance-rail-stop {
-  display: block;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  margin: -6px 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  position: relative;
-}
-.stance-rail-stop::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 11px;
-  height: 11px;
-  margin: -5.5px 0 0 -5.5px;
-  background: var(--paper);
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-  transition: transform var(--d-2) var(--ease-out), background-color var(--d-2) var(--ease-std);
-}
-.stance-rail-stop.is-answered::before {
-  background: var(--violet-ink);
-}
-.stance-rail-stop.is-active::before {
-  transform: scale(1.5);
-  background: var(--ink);
-}
 
 @media (min-width: 768px) {
   .stance-game[data-mode='stacked'] .stance-grid {
@@ -750,8 +683,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .stance-answer,
-  .stance-rail-stop::before {
+  .stance-answer {
     transition: none !important;
   }
   .stance-answer:hover:not(:disabled) {
@@ -1020,8 +952,7 @@ a.stance-dot {
 .stance-link-card:focus-visible,
 .stance-next:focus-visible,
 .stance-back:focus-visible,
-.stance-dot:focus-visible,
-.stance-rail-stop:focus-visible {
+.stance-dot:focus-visible {
   outline: 3px solid var(--violet-ink);
   outline-offset: 2px;
 }
@@ -1137,9 +1068,6 @@ a.stance-dot {
   .stance-link-card,
   .stance-cover .folio-btn {
     min-height: 44px;
-  }
-  .stance-rail {
-    display: none;
   }
   .stance-act {
     padding-right: 16px;
@@ -2658,54 +2586,19 @@ html.stance-snap {
 .stance-map-stage {
   position: relative;
 }
-/* The hovered state's newest meeting passage on the Overview map (#999, #1002); at rest nothing shows. */
+/* The hovered county's newest meeting passage (#999, #1002), as a QuoteCard (#1108); at rest nothing shows. */
 .stance-map-card {
   position: absolute;
   left: 0;
   bottom: 2%;
-  width: min(250px, 36%);
-  margin: 0;
-  padding: 10px 12px;
-  background: #fff;
-  border: 1px solid #e7e5e4;
-  border-radius: 12px;
-  box-shadow: 0 10px 28px rgba(28, 25, 23, 0.12);
-  font-size: 13px;
-  color: var(--ink-2);
+  z-index: 2;
+  width: min(300px, 42%);
 }
 .stance-map-card.is-right {
   left: auto;
   right: 0;
   bottom: auto;
   top: 2%;
-}
-.stance-map-card-place {
-  margin: 0 0 4px;
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--ink);
-}
-.stance-map-card blockquote {
-  margin: 0;
-  font-style: italic;
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.stance-map-card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  margin: 8px 0 0;
-  padding-top: 6px;
-  border-top: 1px solid #e7e5e4;
-  font-size: 12px;
-}
-.stance-map-card-meta a {
-  color: var(--brand, #0f766e);
-  font-weight: 600;
 }
 @media (max-width: 640px) {
   .stance-map-card,
@@ -2968,19 +2861,267 @@ html.stance-snap {
   color: var(--ink-2);
 }
 
-/* The passage in the meeting video popup (#1036). */
-.stance-video-quote {
-  margin: 0 0 12px;
-  padding-left: 12px;
-  border-left: 3px solid var(--brand, #0f766e);
-  font-size: 16px;
-  line-height: 1.5;
-  font-style: italic;
-  color: var(--ink);
+/* The quoted moment in the meeting video popup (#1036), as a QuoteCard without the image (#1108). */
+.stance-video-qcard {
+  flex: 1;
+  min-width: 0;
 }
-.stance-video-quote footer {
-  margin-top: 4px;
-  font-size: 13px;
-  font-style: normal;
+
+/* --- Story progress and the next story (#1102) ----------------------------------------------------------------------- */
+/* A thin bar along the top of the story: its width is the share of screens reached. */
+.story-topbar {
+  position: fixed;
+  top: var(--hdr, 0px);
+  left: 0;
+  right: 0;
+  z-index: 45;
+  height: 3px;
+  pointer-events: none;
+  background: color-mix(in srgb, #0f766e 14%, transparent);
+}
+.story-topbar-fill {
+  display: block;
+  height: 100%;
+  background: #0f766e;
+  transform-origin: left center;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Numbered dots down the left edge, one per screen (wide screens). */
+.story-dots {
+  position: fixed;
+  left: 12px;
+  top: calc(50% + (var(--hdr, 0px) + var(--top-h, 96px)) / 2);
+  z-index: 30;
+  transform: translateY(-50%);
+}
+.story-dots ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.story-dot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
   color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, transform 200ms ease;
+}
+.story-dot.is-past {
+  border-color: color-mix(in srgb, #0f766e 55%, var(--paper));
+  color: #0f766e;
+}
+.story-dot.is-now {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #fff;
+  transform: scale(1.12);
+}
+.story-dot:hover {
+  border-color: #0f766e;
+}
+.story-dot:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+@media (min-width: 768px) {
+  /* Room for the dots at the left of every screen. */
+  .stance-game.stance-story[data-mode] .stance-act,
+  .stance-game.stance-story[data-mode] .stance-cover {
+    padding-left: 56px;
+  }
+}
+@media (max-width: 767px) {
+  .story-dots,
+  .story-topbar {
+    display: none;
+  }
+}
+
+/* The end of the story: a full-width card that fades in after the last screen and leads to the next story. */
+.story-next-card {
+  display: flex;
+  align-items: center;
+  min-height: 34svh;
+  padding: 40px 16px;
+  border-top: 1px solid var(--ink);
+  background: color-mix(in srgb, #0f766e 8%, var(--paper));
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 600ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.story-next-card.is-shown {
+  opacity: 1;
+  transform: none;
+}
+.folio .story-next-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 24px;
+  color: #fff;
+  background: #0f766e;
+  text-decoration: none;
+  border: 1px solid #0f766e;
+}
+.folio .story-next-link:hover {
+  color: #fff;
+  background: #115e59;
+}
+.story-next-link:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 3px;
+}
+.story-next-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.story-next-title {
+  font-size: clamp(24px, 3.4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.stance-story[data-mode='snap'] .story-next-card {
+  scroll-snap-align: end;
+}
+@media (min-width: 768px) {
+  .story-next-card {
+    padding: 56px 56px;
+  }
+}
+
+/* Phones: a bar fixed to the bottom with compact dots and one prominent Next. */
+.story-bottombar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .stance-story[data-sbar] {
+    --sbar-h: 64px;
+    padding-bottom: calc(var(--sbar-h) + env(safe-area-inset-bottom));
+  }
+  /* Each screen is one frame less the bar, so the bar never covers a screen's own controls. */
+  .stance-game.stance-story[data-sbar][data-mode='snap'] .stance-act,
+  .stance-game.stance-story[data-sbar][data-mode='snap'] .stance-cover {
+    height: calc(100svh - var(--hdr) - var(--top-h) - var(--sbar-h) - env(safe-area-inset-bottom));
+  }
+  /* The bar's Next stands in for each screen's own Next (Back and the answers stay in the screen). */
+  .stance-story[data-sbar] .stance-nav .stance-next-end {
+    display: none;
+  }
+  .story-bottombar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: var(--sbar-h, 64px);
+    box-sizing: border-box;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: var(--paper);
+    border-top: 1px solid var(--ink);
+    box-shadow: 0 -6px 18px color-mix(in srgb, var(--ink) 12%, transparent);
+  }
+  .story-bottombar-progress {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .story-bottombar-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .story-bottombar-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--rule);
+    transition: width 300ms ease, background-color 300ms ease;
+  }
+  .story-bottombar-dot.is-past {
+    background: color-mix(in srgb, #0f766e 55%, var(--paper));
+  }
+  .story-bottombar-dot.is-now {
+    width: 18px;
+    background: #0f766e;
+  }
+  .story-bottombar-left {
+    font-family: var(--font-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .folio .story-bottombar-next {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    margin: 0;
+    padding: 0 22px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    background: #0f766e;
+    border: 1px solid #0f766e;
+    text-decoration: none;
+  }
+}
+
+/* `.folio *` squares every corner; dots are round and the bar's Next is the primary action's pill. */
+.folio .story-dot,
+.folio .story-bottombar-dot {
+  border-radius: 999px !important;
+}
+.folio .story-bottombar-next {
+  border-radius: 999px !important;
+}
+.folio .story-bottombar-next:hover:not(:disabled) {
+  color: #fff;
+  background: #115e59;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-topbar-fill,
+  .story-dot,
+  .story-bottombar-dot {
+    transition: none;
+  }
+  /* The card still fades in, but nothing rises. */
+  .story-next-card {
+    transform: none;
+    transition: opacity 400ms ease;
+  }
+}
+.story-dots {
+  transition: opacity 250ms ease;
+}
+.story-dots.is-away {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }

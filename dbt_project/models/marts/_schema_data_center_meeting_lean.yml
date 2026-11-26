@@ -1,0 +1,96 @@
+version: 2
+
+# #1117: Jev's reading of each data center meeting (public lean, official lean) and the two flags the #1113 hand
+# checks found reliable. Built into gold and published to public (publish_public_serving's served list).
+
+models:
+  - name: data_center_meeting_lean
+    description: >
+      One row per data center meeting video (in data_center_meeting_mention) with a Jev screen under the current
+      question version. public_lean / official_lean are Jev's (a classifier's) reading of the transcript, not counted
+      speakers. public_against = the public mostly opposed with P >= 0.7. officials_sided_against_public = the public
+      mostly opposed, officials mostly supportive, the outcome not a moratorium or denial, and not an approval of
+      rules (dc_outcome approved with project_approved_p < 0.3). Supported and mixed public leans are kept for audit
+      only; they are not shown on maps.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['data_centers', 'serving']
+      post_hook:
+        - "create index if not exists data_center_meeting_lean_state_idx on {{ this }} (state_code)"
+        - "create index if not exists data_center_meeting_lean_jurisdiction_idx on {{ this }} (jurisdiction_id)"
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: video_id
+        description: "Primary key: YouTube video id of the meeting recording."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      - name: state_code
+        description: "2-letter state code of the meeting's government."
+        data_type: text
+      - name: jurisdiction_id
+        description: "The government whose meeting it is (FK to jurisdictions); null when the video's place isn't in jurisdictions."
+        data_type: text
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
+      - name: jurisdiction_name
+        description: "Jurisdiction name as resolved for the video."
+        data_type: text
+      - name: meeting_date
+        description: "Meeting date (null when the source date is in the future, #472)."
+        data_type: date
+      - name: public_lean
+        description: "Jev's top answer for members of the public on a data center: mostly_opposed, mostly_supported, mixed or no_public_comment_on_data_center."
+        data_type: text
+      - name: public_lean_p
+        description: "Jev's probability for public_lean."
+        data_type: numeric
+      - name: official_lean
+        description: "Jev's top answer for elected officials: mostly_supportive, mostly_opposed, divided or no_official_position."
+        data_type: text
+      - name: official_lean_p
+        description: "Jev's probability for official_lean."
+        data_type: numeric
+      - name: dc_outcome
+        description: "Jev's reading of what happened to the data center item (approved, denied, moratorium, tabled_or_deferred, discussed_no_action, no_data_center_item)."
+        data_type: text
+      - name: project_approved_p
+        description: "Jev's P(the approved item was a specific data center project, not rules limiting data centers); null until screened."
+        data_type: numeric
+      - name: public_against
+        description: "public_lean = mostly_opposed and public_lean_p >= 0.7."
+        data_type: boolean
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: officials_sided_against_public
+        description: "The refined disagreement rule (#1113): public mostly opposed, officials mostly supportive, outcome not moratorium/denied, and not approving rules (approved with project_approved_p < 0.3)."
+        data_type: boolean
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: question_version
+        description: "The Jev question version the row was screened under (the current one)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: screened_at
+        description: "When Jev screened the meeting."
+        data_type: timestamptz
+        constraints:
+          - type: not_null

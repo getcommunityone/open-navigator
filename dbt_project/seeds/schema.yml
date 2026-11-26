@@ -454,6 +454,54 @@ seeds:
               config:
                 where: "source_kind = 'meeting_passage'"
 
+  - name: company_foundation
+    config:
+      column_types:
+        company_key: text
+        company_name: text
+        foundation_ein: text
+        foundation_name: text
+        relationship: text
+        source_url: text
+        source_excerpt: text
+        verified_on: date
+    description: >
+      Companies we track and the nonprofit foundations tied to them (#1073), so the foundation's IRS 990 Schedule I
+      grants (the grant mart) can be shown on the company's page. One row per (company_key, foundation_ein). A row is
+      added only when the foundation's EIN is a grantor in the grant mart AND a public source ties it to the company;
+      source_url / source_excerpt quote that source verbatim. relationship says how: founded_by_company (the company
+      started it; it is a separate 501(c)(3)), governed_by_company (its board is the company's executives), or
+      controls_company (the nonprofit controls the company, e.g. the OpenAI Foundation). The grant mart holds 990
+      public-charity filers only, so private foundations that file a 990-PF (Google Foundation, Motorola Solutions
+      Foundation, ...) cannot be linked yet. company_key matches topic_company.company_key; the company's
+      master_org_id is resolved from there in company_grant, not stored here. Never a guessed EIN.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [company_key, foundation_ein]
+    columns:
+      - name: company_key
+        description: "The company's slug in topic_company (data center, short-term rental or topic company)."
+        tests: [not_null]
+      - name: company_name
+        tests: [not_null]
+      - name: foundation_ein
+        description: "9-digit EIN, no dash, as grant.grantor_ein holds it. Unique: one company per foundation, so a grant has one company (company_grant's PK is grant_id)."
+        tests: [unique, not_null]
+      - name: foundation_name
+        tests: [not_null]
+      - name: relationship
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['founded_by_company', 'governed_by_company', 'controls_company']
+      - name: source_url
+        tests: [not_null]
+      - name: source_excerpt
+        description: "Verbatim sentence from source_url that ties the foundation to the company."
+        tests: [not_null]
+      - name: verified_on
+        description: "Date the source was read."
+        tests: [not_null]
   - name: short_term_rental_companies
     config:
       column_types:

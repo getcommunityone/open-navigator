@@ -259,11 +259,15 @@ CIVIC_SERVING = frozenset(
         # the companies each topic names and where they are named (#1052); small
         "topic_company",
         "topic_company_mention",
+        # grants from the foundations tied to tracked companies, 990 amounts as filed (#1073); ~0.2 MB
+        "company_grant",
         # businesses the meetings and decisions name, and where (#1089); small: only named businesses
         "business",
         "business_mention",
         # office terms: who held which seat, when, and why they left (#1068); small
         "person_government_term",
+        # Jev's reading of each data center meeting: public lean, official lean, the two map flags (#1117); small
+        "data_center_meeting_lean",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

@@ -445,8 +445,28 @@ outputPorts:
   contractId: open-navigator-public-topic_company_mention
   type: table
   description: Where a topic's companies are named (#1052).
+- name: company_grant
+  version: 1.0.0
+  contractId: open-navigator-public-company_grant
+  type: table
+  description: Grants from the foundations tied to the companies we track (#1073).
+- name: business
+  version: 1.0.0
+  contractId: open-navigator-public-business
+  type: table
+  description: 'The businesses that meetings and decisions name (#1089, #1088).'
+- name: business_mention
+  version: 1.0.0
+  contractId: open-navigator-public-business_mention
+  type: table
+  description: Where a meeting or decision names a business (#1089).
 - name: person_government_term
   version: 1.0.0
   contractId: open-navigator-public-person_government_term
   type: table
   description: 'Office terms (#1068): one row per (official, role, district, source, term).'
+- name: data_center_meeting_lean
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_meeting_lean
+  type: table
+  description: One row per data center meeting video (in data_center_meeting_mention) with a Jev screen under the current question version.

@@ -1071,6 +1071,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/people/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Claim
+         * @description The signed-in user's claim on this official, or null.
+         */
+        get: operations["get_my_claim_api_people_claim_get"];
+        put?: never;
+        /**
+         * Claim Profile
+         * @description Claim an official's profile as the signed-in user.
+         */
+        post: operations["claim_profile_api_people_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/people/claim/{person_claim_id}/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Edit
+         * @description Store a proposed edit (or feedback) as pending, for the owner to approve.
+         */
+        post: operations["propose_edit_api_people_claim__person_claim_id__edits_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/school-districts": {
         parameters: {
             query?: never;
@@ -1318,6 +1362,11 @@ export interface components {
             is_dominant: boolean;
             /** Jurisdiction Name */
             jurisdiction_name?: string | null;
+            /**
+             * Jurisdictions
+             * @description Towns whose meeting records raised this concern, sorted (state and city scopes). Empty for national rows.
+             */
+            jurisdictions: string[];
             /** Last Meeting On */
             last_meeting_on?: string | null;
             /** Mention Count */
@@ -1535,6 +1584,29 @@ export interface components {
             jurisdictions?: components["schemas"]["JurisdictionRunModel"][];
             /** State Code */
             state_code: string;
+        };
+        /** ClaimIn */
+        ClaimIn: {
+            /** Person Id */
+            person_id: string;
+        };
+        /** ClaimOut */
+        ClaimOut: {
+            /** Created At */
+            created_at?: string | null;
+            /** Person Claim Id */
+            person_claim_id: number;
+            /** Person Id */
+            person_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "verified" | "rejected";
+            /** Updated At */
+            updated_at?: string | null;
+            /** Verified Via */
+            verified_via?: string | null;
         };
         /** CohortsResponse */
         CohortsResponse: {
@@ -1889,8 +1961,18 @@ export interface components {
             match_terms?: string[];
             /** Meeting Date */
             meeting_date?: string | null;
+            /**
+             * Meeting Summary
+             * @description The meeting's AI summary from the record (event_meeting.meeting_summary, #1124); null when the meeting has none or isn't in event_meeting.
+             */
+            meeting_summary?: string | null;
             /** Meeting Title */
             meeting_title?: string | null;
+            /**
+             * Meeting Url
+             * @description The app route of the meeting page (/meetings/<event_meeting_id>); null when not on record.
+             */
+            meeting_url?: string | null;
             /** Passage Index */
             passage_index: number;
             /** Site Match Basis */
@@ -1900,6 +1982,16 @@ export interface components {
              * @description The tracked site discussed or nearby, if any.
              */
             site_name?: string | null;
+            /**
+             * Speaker Display Name
+             * @description "First L." of the person the record attributes the quoted words to (#1124): a counted public comment from the meeting's analysis whose verbatim quote is inside this excerpt. Null when no attribution exists (never guessed), or when two different speakers match.
+             */
+            speaker_display_name?: string | null;
+            /**
+             * Speaker Role
+             * @description That speaker's role as recorded; null with no speaker.
+             */
+            speaker_role?: string | null;
             /**
              * Start Seconds
              * @description Seconds into the recording; null when untimed.
@@ -1921,7 +2013,7 @@ export interface components {
         DataCenterMeetingMentionCounts: {
             /**
              * By Place
-             * @description Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map. Governments with none are left out.
+             * @description Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map, and the real speaker sums for its meetings (#1106; 0 when none). Governments with none are left out.
              */
             by_place?: components["schemas"]["DataCenterMeetingMentionPlaceCount"][];
             /**
@@ -1950,6 +2042,12 @@ export interface components {
          * @description Meetings for one government in the scoped state (#1039), placed on the county map by geoid or coordinates.
          */
         DataCenterMeetingMentionPlaceCount: {
+            /**
+             * Disagreement Meetings
+             * @description Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.
+             * @default 0
+             */
+            disagreement_meetings: number;
             /** Geoid */
             geoid?: string | null;
             /** Jurisdiction Id */
@@ -1964,6 +2062,32 @@ export interface components {
             longitude?: number | null;
             /** Meetings */
             meetings: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.
+             * @default 0
+             */
+            public_against_meetings: number;
+            /**
+             * Speakers Against
+             * @default 0
+             */
+            speakers_against: number;
+            /**
+             * Speakers For
+             * @default 0
+             */
+            speakers_for: number;
+            /**
+             * Speakers Neutral
+             * @default 0
+             */
+            speakers_neutral: number;
+            /**
+             * Speakers Question
+             * @default 0
+             */
+            speakers_question: number;
         };
         /**
          * DataCenterMeetingMentionStateCount
@@ -1992,6 +2116,13 @@ export interface components {
              * @default true
              */
             available: boolean;
+            /**
+             * By State
+             * @description Speakers per state across the whole country (never narrowed by the scope), for the home map (#1087). Only states with at least one meeting in the mart; empty when the mart isn't loaded.
+             */
+            by_state?: components["schemas"]["PositionStateCount"][];
+            /** @description National totals of Jev's meeting readings for the home hero (#1122), never narrowed by the scope; null when data_center_meeting_lean (or a column) isn't in this database. */
+            lean_totals?: components["schemas"]["LeanTotals"] | null;
             quotes?: components["schemas"]["PositionQuotes"];
             scope: components["schemas"]["JobClaimScope"];
             totals?: components["schemas"]["PositionTotals"];
@@ -2308,6 +2439,37 @@ export interface components {
             enabled: boolean;
             /** Jobs */
             jobs?: components["schemas"]["DeploymentJobModel"][];
+        };
+        /** EditIn */
+        EditIn: {
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "title" | "biography" | "photo_url" | "feedback";
+            /** New Value */
+            new_value: string;
+        };
+        /** EditOut */
+        EditOut: {
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "title" | "biography" | "photo_url" | "feedback";
+            /** New Value */
+            new_value: string;
+            /** Person Claim Id */
+            person_claim_id: number;
+            /** Person Profile Edit Id */
+            person_profile_edit_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected";
         };
         /** FailedVideoRowModel */
         FailedVideoRowModel: {
@@ -2940,6 +3102,43 @@ export interface components {
              */
             warning: string;
         };
+        /**
+         * LeanTotals
+         * @description National totals of Jev's meeting readings (#1122), from ``data_center_meeting_lean``. AI readings of the
+         *     transcripts, never counted speakers; never narrowed by the scope.
+         */
+        LeanTotals: {
+            /**
+             * Disagreement Meetings
+             * @description Meetings where officials sided against the public (#1113 rule).
+             * @default 0
+             */
+            disagreement_meetings: number;
+            /**
+             * Disagreement States
+             * @description States with at least one such meeting.
+             * @default 0
+             */
+            disagreement_states: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed.
+             * @default 0
+             */
+            public_against_meetings: number;
+            /**
+             * Public Against States
+             * @description States with at least one such meeting.
+             * @default 0
+             */
+            public_against_states: number;
+            /**
+             * Stopped Meetings
+             * @description Meetings whose data center outcome Jev read as tabled/deferred, denied or a moratorium.
+             * @default 0
+             */
+            stopped_meetings: number;
+        };
         /** MeetingKindOverrideIn */
         MeetingKindOverrideIn: {
             /** Note */
@@ -3091,6 +3290,52 @@ export interface components {
             for?: components["schemas"]["PositionQuote"][];
             /** Question */
             question?: components["schemas"]["PositionQuote"][];
+        };
+        /**
+         * PositionStateCount
+         * @description One state's sums from ``data_center_meeting_position`` (#1087).
+         */
+        PositionStateCount: {
+            /**
+             * Disagreement Meetings
+             * @description Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.
+             * @default 0
+             */
+            disagreement_meetings: number;
+            /**
+             * Meetings
+             * @description Meetings in the mart for the state (analysed, a data center came up).
+             * @default 0
+             */
+            meetings: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.
+             * @default 0
+             */
+            public_against_meetings: number;
+            /**
+             * Speakers Against
+             * @default 0
+             */
+            speakers_against: number;
+            /**
+             * Speakers For
+             * @default 0
+             */
+            speakers_for: number;
+            /**
+             * Speakers Neutral
+             * @default 0
+             */
+            speakers_neutral: number;
+            /**
+             * Speakers Question
+             * @default 0
+             */
+            speakers_question: number;
+            /** State Code */
+            state_code: string;
         };
         /**
          * PositionTotals
@@ -5249,6 +5494,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_claim_api_people_claim_get: {
+        parameters: {
+            query: {
+                person_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_profile_api_people_claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    propose_edit_api_people_claim__person_claim_id__edits_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_claim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditOut"];
                 };
             };
             /** @description Validation Error */

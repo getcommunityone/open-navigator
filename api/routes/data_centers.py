@@ -20,6 +20,7 @@ new), the route returns the scope with an empty ``items`` list instead of a 500.
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Any, Literal
 
@@ -686,6 +687,13 @@ class AreaConcern(BaseModel):
     is_dominant: bool
     jurisdiction_name: str | None = None
     last_meeting_on: date | None = None
+    jurisdictions: list[str] = Field(
+        ...,
+        description=(
+            "Towns whose meeting records raised this concern, sorted (state and city scopes). "
+            "Empty for national rows."
+        ),
+    )
 
 
 class AreaConcernsResponse(BaseModel):
@@ -695,13 +703,19 @@ class AreaConcernsResponse(BaseModel):
 
 
 def build_concerns_queries(scope: JobClaimScope) -> tuple[str | None, list[Any], str]:
-    """(area SQL or None when national, params, national SQL)."""
-    columns = (
-        "concern, mention_count, objection_count, share, concern_rank, is_dominant, "
-        "jurisdiction_name, last_meeting_on"
-    )
+    """(area SQL or None when national, params, national SQL).
+
+    The mart has only ``jurisdiction`` and ``national`` rows, so a state or city scope is
+    rolled up here to one row per concern (#1139): mentions summed across the scope's towns,
+    ``share`` recomputed over the scope's total mentions, ``concern_rank`` re-ranked,
+    ``objection_count`` the scope's objections (each town's total counted once),
+    ``is_dominant`` the mart's rule (rank 1 with at least 3 mentions), and the towns listed
+    in ``jurisdictions``. ``jurisdiction_name`` is set only when one town raised it.
+    """
     national_sql = (
-        f"SELECT {columns} FROM area_concern WHERE area_level = 'national' "
+        "SELECT concern, mention_count, objection_count, share, concern_rank, is_dominant, "
+        "jurisdiction_name, last_meeting_on, ARRAY[]::text[] AS jurisdictions "
+        "FROM area_concern WHERE area_level = 'national' "
         "ORDER BY concern_rank, concern"
     )
     if not scope.state_code and not scope.city:
@@ -715,8 +729,28 @@ def build_concerns_queries(scope: JobClaimScope) -> tuple[str | None, list[Any],
         params.append(f"%{scope.city}%")
         where.append(f"jurisdiction_name ILIKE ${len(params)}")
     area_sql = (
-        f"SELECT {columns} FROM area_concern WHERE {' AND '.join(where)} "
-        "ORDER BY jurisdiction_name, concern_rank, concern"
+        "WITH scoped AS ("
+        "  SELECT state_code, jurisdiction_name, concern, mention_count, objection_count, last_meeting_on"
+        f"  FROM area_concern WHERE {' AND '.join(where)}"
+        "), scope_objections AS ("
+        "  SELECT coalesce(sum(objection_count), 0)::int AS n"
+        "  FROM (SELECT DISTINCT state_code, jurisdiction_name, objection_count FROM scoped) AS towns"
+        "), by_concern AS ("
+        "  SELECT concern, sum(mention_count)::int AS mention_count, max(last_meeting_on) AS last_meeting_on,"
+        "    coalesce(array_agg(DISTINCT jurisdiction_name ORDER BY jurisdiction_name)"
+        "      FILTER (WHERE jurisdiction_name IS NOT NULL), ARRAY[]::text[]) AS jurisdictions"
+        "  FROM scoped GROUP BY concern"
+        "), ranked AS ("
+        "  SELECT c.*, o.n AS objection_count,"
+        "    (c.mention_count::double precision / nullif(sum(c.mention_count) OVER (), 0)) AS share,"
+        "    rank() OVER (ORDER BY c.mention_count DESC)::int AS concern_rank"
+        "  FROM by_concern AS c CROSS JOIN scope_objections AS o"
+        ") "
+        "SELECT concern, mention_count, objection_count, share, concern_rank, "
+        "(concern_rank = 1 AND mention_count >= 3) AS is_dominant, "
+        "CASE WHEN cardinality(jurisdictions) = 1 THEN jurisdictions[1] END AS jurisdiction_name, "
+        "last_meeting_on, jurisdictions "
+        "FROM ranked ORDER BY concern_rank, concern"
     )
     return area_sql, params, national_sql
 
@@ -792,6 +826,21 @@ class DataCenterMeetingMention(BaseModel):
     data_center_site_id: str | None = None
     site_name: str | None = Field(None, description="The tracked site discussed or nearby, if any.")
     site_match_basis: Literal["named_in_passage", "nearby_site"] | None = None
+    meeting_summary: str | None = Field(
+        None,
+        description="The meeting's AI summary from the record (event_meeting.meeting_summary, #1124); null when the "
+        "meeting has none or isn't in event_meeting.",
+    )
+    meeting_url: str | None = Field(
+        None, description="The app route of the meeting page (/meetings/<event_meeting_id>); null when not on record."
+    )
+    speaker_display_name: str | None = Field(
+        None,
+        description='"First L." of the person the record attributes the quoted words to (#1124): a counted public '
+        "comment from the meeting's analysis whose verbatim quote is inside this excerpt. Null when no attribution "
+        "exists (never guessed), or when two different speakers match.",
+    )
+    speaker_role: str | None = Field(None, description="That speaker's role as recorded; null with no speaker.")
 
 
 class DataCenterMeetingMentionStateCount(BaseModel):
@@ -812,6 +861,20 @@ class DataCenterMeetingMentionPlaceCount(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     meetings: int
+    speakers_for: int = 0
+    speakers_against: int = 0
+    speakers_question: int = 0
+    speakers_neutral: int = 0
+    public_against_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI "
+        "reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.",
+    )
+    disagreement_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the "
+        "outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.",
+    )
 
 
 class DataCenterMeetingMentionCounts(BaseModel):
@@ -826,7 +889,7 @@ class DataCenterMeetingMentionCounts(BaseModel):
     )
     by_place: list[DataCenterMeetingMentionPlaceCount] = Field(
         default_factory=list,
-        description="Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map. Governments with none are left out.",
+        description="Only when a state is in scope (#1039): meetings per government in that state (not narrowed by city), largest first, with its geoid and coordinates for the county map, and the real speaker sums for its meetings (#1106; 0 when none). Governments with none are left out.",
     )
 
 
@@ -903,19 +966,169 @@ def build_mention_by_place_query(state_code: str, site_id: str | None, strength:
     """Distinct meetings per government in one state (#1039), with the same site and strength filters.
 
     Never narrowed to the city: the state's county map shades every county and highlights the scope.
+    Each government also carries the real speaker sums from ``data_center_meeting_position`` (#1106) for
+    its distinct meetings: positions are summed per ``video_id`` first, then joined to the distinct
+    (government, meeting) set, so a meeting with many passages is never counted more than once. 0 when none.
     """
     where_sql, params = _mention_where(state_code, None, site_id, strength)
     sql = (
+        "WITH pos AS ("
+        "SELECT p.video_id, sum(p.speakers_for)::int AS speakers_for, "
+        "sum(p.speakers_against)::int AS speakers_against, "
+        "sum(p.speakers_question)::int AS speakers_question, "
+        "sum(p.speakers_neutral)::int AS speakers_neutral "
+        "FROM data_center_meeting_position p WHERE p.video_id IS NOT NULL GROUP BY p.video_id"
+        "), mv AS ("
+        "SELECT DISTINCT m.jurisdiction_id, m.video_id FROM data_center_meeting_mention m "
+        f"WHERE ({where_sql}) AND m.jurisdiction_id IS NOT NULL"
+        "), sp AS ("
+        "SELECT mv.jurisdiction_id, sum(pos.speakers_for)::int AS speakers_for, "
+        "sum(pos.speakers_against)::int AS speakers_against, "
+        "sum(pos.speakers_question)::int AS speakers_question, "
+        "sum(pos.speakers_neutral)::int AS speakers_neutral "
+        "FROM mv JOIN pos ON pos.video_id = mv.video_id GROUP BY mv.jurisdiction_id"
+        ") "
         "SELECT m.jurisdiction_id, max(m.jurisdiction_name) AS jurisdiction_name, "
         "max(j.jurisdiction_type) AS jurisdiction_type, max(j.geoid) AS geoid, "
         "max(j.latitude)::float8 AS latitude, max(j.longitude)::float8 AS longitude, "
-        "count(DISTINCT m.video_id)::int AS meetings "
+        "count(DISTINCT m.video_id)::int AS meetings, "
+        "coalesce(max(sp.speakers_for), 0)::int AS speakers_for, "
+        "coalesce(max(sp.speakers_against), 0)::int AS speakers_against, "
+        "coalesce(max(sp.speakers_question), 0)::int AS speakers_question, "
+        "coalesce(max(sp.speakers_neutral), 0)::int AS speakers_neutral "
         "FROM data_center_meeting_mention m "
         "LEFT JOIN jurisdictions j ON j.jurisdiction_id::text = m.jurisdiction_id "
+        "LEFT JOIN sp ON sp.jurisdiction_id = m.jurisdiction_id "
         f"WHERE ({where_sql}) AND m.jurisdiction_id IS NOT NULL "
         "GROUP BY m.jurisdiction_id ORDER BY meetings DESC, m.jurisdiction_id"
     )
     return sql, params
+
+
+def build_lean_by_place_query(state_code: str, site_id: str | None, strength: str | None) -> tuple[str, list[Any]]:
+    """Jev's public-against and disagreement meeting counts per government in one state (#1117), over the same
+    distinct (government, meeting) set as ``build_mention_by_place_query`` (same site and strength filters).
+    Only governments with at least one such meeting are returned."""
+    where_sql, params = _mention_where(state_code, None, site_id, strength)
+    sql = (
+        "WITH mv AS (SELECT DISTINCT m.jurisdiction_id, m.video_id FROM data_center_meeting_mention m "
+        f"WHERE ({where_sql}) AND m.jurisdiction_id IS NOT NULL) "
+        "SELECT mv.jurisdiction_id, "
+        "count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
+        "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings "
+        "FROM mv JOIN data_center_meeting_lean l ON l.video_id = mv.video_id "
+        "GROUP BY mv.jurisdiction_id "
+        "HAVING count(*) FILTER (WHERE l.public_against OR l.officials_sided_against_public) > 0"
+    )
+    return sql, params
+
+
+LEAN_BY_STATE_SQL = (
+    "SELECT l.state_code, "
+    "count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
+    "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings "
+    "FROM data_center_meeting_lean l WHERE l.state_code IS NOT NULL "
+    "GROUP BY l.state_code "
+    "HAVING count(*) FILTER (WHERE l.public_against OR l.officials_sided_against_public) > 0 "
+    "ORDER BY l.state_code"
+)
+"""Jev's public-against and disagreement meetings per state for the whole country (#1117): never narrowed by the
+scope, like ``POSITION_BY_STATE_SQL``. Only supported/mixed readings are never served."""
+
+
+async def _fetch_lean(conn: Any, sql: str, *params: Any) -> dict[str, dict[str, int]]:
+    """Lean counts keyed by the first column, or {} when data_center_meeting_lean (or a column) isn't in this
+    database: the maps then show speakers and meetings only, never a failure."""
+    try:
+        rows = await conn.fetch(sql, *params)
+    except asyncpg.exceptions.PostgresError as e:
+        logger.warning("data-centers: data_center_meeting_lean unavailable ({}); lean counts 0", e)
+        return {}
+    out: dict[str, dict[str, int]] = {}
+    for r in rows:
+        row = dict(r)
+        key = row.get("state_code") or row.get("jurisdiction_id")
+        if key:
+            out[str(key)] = {
+                "public_against_meetings": int(row.get("public_against_meetings") or 0),
+                "disagreement_meetings": int(row.get("disagreement_meetings") or 0),
+            }
+    return out
+
+
+MENTION_MEETING_SQL = (
+    "SELECT DISTINCT ON (e.video_id) e.video_id, e.event_meeting_id, "
+    "nullif(btrim(e.meeting_summary), '') AS meeting_summary "
+    "FROM event_meeting e WHERE e.video_id = ANY($1::text[]) "
+    "ORDER BY e.video_id, (nullif(btrim(e.meeting_summary), '') IS NULL), e.event_meeting_id"
+)
+"""The meeting page and AI summary for each passage's recording (#1124). A recording with two event_meeting rows takes
+the one with a summary, then the lowest id."""
+
+_NORM_QUOTE = "lower(regexp_replace(c.quote, '\\s+', ' ', 'g'))"
+_NORM_EVIDENCE = "lower(regexp_replace(regexp_replace(m.evidence, '</?mark>', '', 'g'), '\\s+', ' ', 'g'))"
+MENTION_SPEAKER_SQL = (
+    "SELECT m.data_center_meeting_mention_id, "
+    "min(c.speaker_display_name) AS speaker_display_name, min(c.speaker_role) AS speaker_role, "
+    "count(DISTINCT c.speaker_display_name)::int AS speakers "
+    "FROM data_center_meeting_mention m "
+    "JOIN data_center_public_comment c ON c.video_id = m.video_id "
+    "WHERE m.data_center_meeting_mention_id = ANY($1::text[]) "
+    "AND c.speaker_display_name IS NOT NULL AND length(btrim(c.quote)) >= 20 "
+    f"AND position({_NORM_QUOTE} IN {_NORM_EVIDENCE}) > 0 "
+    "GROUP BY m.data_center_meeting_mention_id"
+)
+"""Who said the quoted words (#1124), only where the record says so: a public comment from the same recording, with a
+name, whose whole verbatim quote (20+ characters) is inside the passage's excerpt. No timing guess, no fuzzy match."""
+
+_FIRST_L = re.compile(r"^\S+( \S\.)?$")
+
+
+def first_l(name: str | None) -> str | None:
+    """A served name as "First L." at most (AGENTS.md, Privacy): "Audra T." and "Audra" pass; "Audra Thompson" → "Audra T."."""
+    n = " ".join((name or "").split())
+    if not n:
+        return None
+    if _FIRST_L.match(n):
+        return n
+    parts = n.split(" ")
+    last = next((ch for ch in parts[-1] if ch.isalpha()), None)
+    return f"{parts[0]} {last.upper()}." if last else parts[0]
+
+
+async def _mention_extras(conn: Any, rows: list[dict[str, Any]]) -> None:
+    """Add meeting_summary, meeting_url, speaker_display_name and speaker_role to each row in place (#1124).
+
+    Each lookup is optional: a serving copy without event_meeting or data_center_public_comment (or a column) leaves
+    the fields null, and the passages are still served."""
+    video_ids = sorted({r["video_id"] for r in rows if r.get("video_id")})
+    mention_ids = [r["data_center_meeting_mention_id"] for r in rows]
+    meetings: dict[str, dict[str, Any]] = {}
+    speakers: dict[str, dict[str, Any]] = {}
+    if video_ids:
+        try:
+            for r in await conn.fetch(MENTION_MEETING_SQL, video_ids):
+                meetings[str(r["video_id"])] = dict(r)
+        except asyncpg.exceptions.PostgresError as e:
+            logger.warning("data-centers: event_meeting unavailable for mention cards ({}); summaries null", e)
+    if mention_ids:
+        try:
+            for r in await conn.fetch(MENTION_SPEAKER_SQL, mention_ids):
+                row = dict(r)
+                if int(row.get("speakers") or 0) == 1:
+                    speakers[str(row["data_center_meeting_mention_id"])] = row
+        except asyncpg.exceptions.PostgresError as e:
+            logger.warning("data-centers: data_center_public_comment unavailable for mention cards ({}); speakers null", e)
+    for r in rows:
+        meeting = meetings.get(str(r.get("video_id")))
+        if meeting:
+            r["meeting_summary"] = meeting.get("meeting_summary") or None
+            emid = meeting.get("event_meeting_id")
+            r["meeting_url"] = f"/meetings/{emid}" if emid is not None else None
+        sp = speakers.get(str(r["data_center_meeting_mention_id"]))
+        if sp:
+            r["speaker_display_name"] = first_l(sp.get("speaker_display_name"))
+            r["speaker_role"] = (sp.get("speaker_role") or None) if r["speaker_display_name"] else None
 
 
 def jump_url(video_url: str, start_seconds: float | None) -> str | None:
@@ -967,6 +1180,7 @@ async def list_data_center_meeting_mentions(
                     count_rows = await conn.fetch(counts_sql, *counts_params)
                     state_rows = await conn.fetch(by_state_sql, *by_state_params)
                     place_rows = []
+                    place_lean: dict[str, dict[str, int]] = {}
                     if applied.state_code:
                         place_sql, place_params = build_mention_by_place_query(
                             applied.state_code, site_clean, strength
@@ -976,6 +1190,12 @@ async def list_data_center_meeting_mentions(
                         except asyncpg.exceptions.PostgresError as e:
                             # A serving copy without jurisdictions: the map falls back to the national view.
                             logger.warning("data-centers: by_place unavailable ({})", e)
+                        if place_rows:
+                            lean_sql, lean_params = build_lean_by_place_query(applied.state_code, site_clean, strength)
+                            place_lean = await _fetch_lean(conn, lean_sql, *lean_params)
+                item_rows = [dict(r) for r in rows]
+                with tracer.start_as_current_span("data-centers.meeting-mentions.card-extras"):
+                    await _mention_extras(conn, item_rows)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("meeting_mentions.relation_missing", True)
             logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)
@@ -988,13 +1208,17 @@ async def list_data_center_meeting_mentions(
             DataCenterMeetingMentionCounts(**dict(count_rows[0])) if count_rows else DataCenterMeetingMentionCounts()
         )
         counts.by_state = [DataCenterMeetingMentionStateCount(**dict(r)) for r in state_rows]
-        counts.by_place = [DataCenterMeetingMentionPlaceCount(**dict(r)) for r in place_rows]
+        counts.by_place = [
+            DataCenterMeetingMentionPlaceCount(**{**dict(r), **place_lean.get(str(dict(r)["jurisdiction_id"]), {})})
+            for r in place_rows
+        ]
         items = []
-        for r in rows:
-            row = dict(r)
+        for row in item_rows:
             row["jump_url"] = jump_url(row["video_url"], row.get("start_seconds"))
             items.append(DataCenterMeetingMention(**row))
         span.set_attribute("meeting_mentions.count", len(items))
+        span.set_attribute("meeting_mentions.with_summary", sum(1 for i in items if i.meeting_summary))
+        span.set_attribute("meeting_mentions.with_speaker", sum(1 for i in items if i.speaker_display_name))
         return DataCenterMeetingMentionsResponse(scope=applied, counts=counts, items=items)
 
 
@@ -1534,6 +1758,40 @@ class PositionQuotes(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class PositionStateCount(BaseModel):
+    """One state's sums from ``data_center_meeting_position`` (#1087)."""
+
+    state_code: str
+    speakers_for: int = 0
+    speakers_against: int = 0
+    speakers_question: int = 0
+    speakers_neutral: int = 0
+    meetings: int = Field(0, description="Meetings in the mart for the state (analysed, a data center came up).")
+    public_against_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly opposed to a data center (P >= 0.7) (#1117): an AI "
+        "reading of the transcript, not counted speakers. 0 when none or when data_center_meeting_lean isn't loaded.",
+    )
+    disagreement_meetings: int = Field(
+        0,
+        description="Meetings where Jev read the public as mostly opposed and officials as mostly supportive, and the "
+        "outcome wasn't a moratorium, a denial or an approval of rules (#1117, the #1113 refined rule). 0 when none.",
+    )
+
+
+class LeanTotals(BaseModel):
+    """National totals of Jev's meeting readings (#1122), from ``data_center_meeting_lean``. AI readings of the
+    transcripts, never counted speakers; never narrowed by the scope."""
+
+    public_against_meetings: int = Field(0, description="Meetings where Jev read the public as mostly opposed.")
+    public_against_states: int = Field(0, description="States with at least one such meeting.")
+    stopped_meetings: int = Field(
+        0, description="Meetings whose data center outcome Jev read as tabled/deferred, denied or a moratorium."
+    )
+    disagreement_meetings: int = Field(0, description="Meetings where officials sided against the public (#1113 rule).")
+    disagreement_states: int = Field(0, description="States with at least one such meeting.")
+
+
 class DataCenterPositionsResponse(BaseModel):
     scope: JobClaimScope
     available: bool = Field(
@@ -1541,6 +1799,16 @@ class DataCenterPositionsResponse(BaseModel):
     )
     totals: PositionTotals = Field(default_factory=PositionTotals)
     quotes: PositionQuotes = Field(default_factory=PositionQuotes)
+    by_state: list[PositionStateCount] = Field(
+        default_factory=list,
+        description="Speakers per state across the whole country (never narrowed by the scope), for the home map "
+        "(#1087). Only states with at least one meeting in the mart; empty when the mart isn't loaded.",
+    )
+    lean_totals: LeanTotals | None = Field(
+        None,
+        description="National totals of Jev's meeting readings for the home hero (#1122), never narrowed by the "
+        "scope; null when data_center_meeting_lean (or a column) isn't in this database.",
+    )
 
 
 def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[Any], str, list[Any]]:
@@ -1590,6 +1858,58 @@ def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[
     return totals_sql, params, quotes_sql, quote_params
 
 
+POSITION_BY_STATE_SQL = (
+    "SELECT p.state_code, "
+    "coalesce(sum(p.speakers_for), 0)::int AS speakers_for, "
+    "coalesce(sum(p.speakers_against), 0)::int AS speakers_against, "
+    "coalesce(sum(p.speakers_question), 0)::int AS speakers_question, "
+    "coalesce(sum(p.speakers_neutral), 0)::int AS speakers_neutral, "
+    "count(*)::int AS meetings "
+    "FROM data_center_meeting_position p WHERE p.state_code IS NOT NULL "
+    "GROUP BY p.state_code ORDER BY p.state_code"
+)
+"""Per-state speaker sums for the whole country (#1087): no scope parameters, so a state or city page's
+home map still shows every state. States with no row in the mart are simply absent."""
+
+
+LEAN_TOTALS_SQL = (
+    "SELECT count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
+    "count(DISTINCT l.state_code) FILTER (WHERE l.public_against)::int AS public_against_states, "
+    "count(*) FILTER (WHERE l.dc_outcome IN ('tabled_or_deferred', 'denied', 'moratorium'))::int AS stopped_meetings, "
+    "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings, "
+    "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states "
+    "FROM data_center_meeting_lean l"
+)
+"""National totals of Jev's readings for the home hero (#1122): no scope parameters. The mart only holds screens
+under the current Jev question version."""
+
+
+async def _fetch_lean_totals(conn: Any) -> LeanTotals | None:
+    """``LEAN_TOTALS_SQL`` as a model, or None when data_center_meeting_lean (or a column) isn't in this database:
+    the hero then leaves its AI-reading points out, never a failure."""
+    try:
+        rows = await conn.fetch(LEAN_TOTALS_SQL)
+    except asyncpg.exceptions.PostgresError as e:
+        logger.warning("data-centers: data_center_meeting_lean unavailable ({}); lean_totals null", e)
+        return None
+    if not rows:
+        return None
+    return LeanTotals(**{k: int(v or 0) for k, v in dict(rows[0]).items()})
+
+
+def merge_lean_by_state(state_rows: list[Any], lean: dict[str, dict[str, int]]) -> list[PositionStateCount]:
+    """Speaker sums per state plus Jev's lean counts (#1117). A state with lean counts but no speaker rows gets a row
+    with 0 speakers and 0 meetings in the position mart, so the map can tint it; sorted by state code."""
+    out: dict[str, PositionStateCount] = {}
+    for r in state_rows:
+        row = dict(r)
+        out[row["state_code"]] = PositionStateCount(**{**row, **lean.get(row["state_code"], {})})
+    for code, counts in lean.items():
+        if code not in out:
+            out[code] = PositionStateCount(state_code=code, **counts)
+    return [out[k] for k in sorted(out)]
+
+
 @router.get("/positions", response_model=DataCenterPositionsResponse)
 async def data_center_positions(
     state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
@@ -1629,6 +1949,9 @@ async def data_center_positions(
                 with tracer.start_as_current_span("data-centers.positions.query"):
                     total_rows = await conn.fetch(totals_sql, *params)
                     quote_rows = await conn.fetch(quotes_sql, *quote_params)
+                    state_rows = await conn.fetch(POSITION_BY_STATE_SQL)
+                    state_lean = await _fetch_lean(conn, LEAN_BY_STATE_SQL)
+                    lean_totals = await _fetch_lean_totals(conn)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("positions.relation_missing", True)
             logger.warning("data-centers: 'data_center_meeting_position' isn't here yet ({}); unavailable", e)
@@ -1654,6 +1977,8 @@ async def data_center_positions(
             scope=applied,
             totals=totals,
             quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
+            by_state=merge_lean_by_state(state_rows, state_lean),
+            lean_totals=lean_totals,
         )
 
 

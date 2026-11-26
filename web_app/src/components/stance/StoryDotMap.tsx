@@ -4,7 +4,9 @@ import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, to
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
-import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
+import { excerptAroundMark } from '../../lib/highlight'
+import QuoteCard from './QuoteCard'
+import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
 import { isTouchOnly } from '../../utils/touchOnly'
 
 /** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
@@ -17,6 +19,15 @@ export interface MapPassage {
   evidence?: string | null
   jump_url?: string | null
   video_url?: string | null
+  /** The recording's YouTube id and the passage's start, when known (#1108). */
+  video_id?: string | null
+  start_seconds?: number | null
+  /** The meeting's AI summary and its page in the app, when on record (#1124). */
+  meeting_summary?: string | null
+  meeting_url?: string | null
+  /** "First L." and role, only when the record attributes the quoted words to a person (#1124). */
+  speaker_display_name?: string | null
+  speaker_role?: string | null
 }
 
 export interface StateCount {
@@ -43,11 +54,6 @@ interface Props {
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
-const fmtDate = (d?: string | null) => {
-  if (!d) return null
-  const t = new Date(`${d.slice(0, 10)}T12:00:00`)
-  return Number.isNaN(t.getTime()) ? null : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 
 /**
@@ -179,18 +185,20 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
       </svg>
       {passage && (
         // While a state is hovered, on the side away from it.
-        <figure className={cardSide}>
-          <figcaption className="stance-map-card-place">{[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}</figcaption>
-          <blockquote>“{highlightSnippet(excerptAroundMark(passage.evidence ?? ''))}”</blockquote>
-          <p className="stance-map-card-meta">
-            {fmtDate(passage.meeting_date) && <span>{fmtDate(passage.meeting_date)}</span>}
-            {(passage.jump_url ?? passage.video_url) && (
-              <a href={(passage.jump_url ?? passage.video_url)!} target="_blank" rel="noopener noreferrer">
-                Hear it ↗
-              </a>
-            )}
-          </p>
-        </figure>
+        <QuoteCard
+          className={cardSide}
+          place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
+          date={passage.meeting_date}
+          quote={excerptAroundMark(passage.evidence ?? '')}
+          meeting={passage.meeting_title}
+          videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
+          startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
+          url={passage.jump_url ?? passage.video_url}
+          speakerName={passage.speaker_display_name ?? null}
+          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
+          summary={passage.meeting_summary ?? null}
+          analysisUrl={scopedMeetingHref(passage.meeting_url, { state: scopeStateCode, city: scopeCity })}
+        />
       )}
       </div>
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the select and the table. */}

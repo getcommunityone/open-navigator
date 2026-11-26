@@ -45,3 +45,53 @@ def test_aggregate_averages_outcomes_and_maxes_questions() -> None:
     assert out["dc_outcome_probabilities"] == {"approved": 0.6, "discussed_no_action": 0.4}
     assert out["question_probabilities"]["allow_data_centers"] == 0.9
     assert out["str_outcome"] is None
+
+
+def test_public_lean_ignores_chunks_without_public_comment() -> None:
+    """#1113: a long meeting's quiet chunks don't drown out the chunk where residents spoke."""
+    quiet = _Resp({"dc_public_lean": _Ans(probabilities={"no_public_comment_on_data_center": 0.95, "mostly_opposed": 0.05})})
+    spoke = _Resp({"dc_public_lean": _Ans(probabilities={
+        "mostly_opposed": 0.7, "mixed": 0.15, "mostly_supported": 0.05, "no_public_comment_on_data_center": 0.1,
+    })})
+    out = st.public_lean([quiet, quiet, quiet, spoke])
+    assert out["dc_public_lean"] == "mostly_opposed"
+    assert "no_public_comment_on_data_center" not in out["dc_public_lean_probabilities"]
+    assert abs(sum(out["dc_public_lean_probabilities"].values()) - 1.0) < 0.01
+
+
+def test_public_lean_none_when_no_chunk_has_public_comment() -> None:
+    quiet = _Resp({"dc_public_lean": _Ans(probabilities={"no_public_comment_on_data_center": 0.9, "mixed": 0.1})})
+    out = st.public_lean([quiet, quiet])
+    assert out["dc_public_lean"] == "no_public_comment_on_data_center"
+    assert st.public_lean([])["dc_public_lean"] is None
+
+
+def test_public_lean_is_a_question_and_a_column() -> None:
+    assert "dc_public_lean" in st.QUESTIONS
+    assert set(st.DC_PUBLIC_LEAN) == {"mostly_opposed", "mostly_supported", "mixed", "no_public_comment_on_data_center"}
+    assert "dc_public_lean" in st.UPSERT_SQL and "dc_public_lean" in st.ALTER_TOPIC_COLUMNS_SQL
+
+
+def test_official_lean_is_separate_from_the_public() -> None:
+    """#1113: officials and the public are asked separately, so disagreement can be shown."""
+    assert "dc_official_lean" in st.QUESTIONS
+    assert set(st.DC_OFFICIAL_LEAN) == {"mostly_supportive", "mostly_opposed", "divided", "no_official_position"}
+    pub = st.QUESTIONS["dc_public_lean"]["instructions"]
+    assert "not elected officials" in pub and "applicant" in pub and "server room" in pub
+    officials = _Resp({"dc_official_lean": _Ans(probabilities={
+        "mostly_supportive": 0.8, "divided": 0.1, "mostly_opposed": 0.05, "no_official_position": 0.05,
+    })})
+    quiet = _Resp({"dc_official_lean": _Ans(probabilities={"no_official_position": 0.9, "divided": 0.1})})
+    out = st.public_lean([quiet, officials], key="dc_official_lean", none_label=st.DC_OFFICIAL_NONE)
+    assert out["dc_official_lean"] == "mostly_supportive"
+    assert "dc_official_lean" in st.UPSERT_SQL
+
+
+def test_project_approval_is_asked_and_stored() -> None:
+    """#1113: a disagreement needs a project approval, not rules limiting data centers."""
+    q = st.QUESTIONS["dc_project_approved"]["instructions"] if "instructions" in st.QUESTIONS["dc_project_approved"] else str(st.QUESTIONS["dc_project_approved"])
+    assert "moratorium" in q and "rezoning" in q
+    a = _Resp({"dc_project_approved": _Ans(noul=0.2)})
+    b = _Resp({"dc_project_approved": _Ans(noul=0.9)})
+    assert st.aggregate([a, b])["dc_project_approved_p"] == 0.9
+    assert "dc_project_approved_p" in st.UPSERT_SQL and "dc_project_approved_p" in st.ALTER_TOPIC_COLUMNS_SQL

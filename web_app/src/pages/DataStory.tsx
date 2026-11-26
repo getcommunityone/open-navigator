@@ -4,15 +4,14 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import '../styles/folio.css'
 import '../styles/stance.css'
 import { errorStatus, fetchChoiceResults, fetchStancePack, postStanceChoice, type ChoiceMoment, type ChoiceResults } from '../api/stance'
-import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse } from '../api/dataCenters'
 import FloatingNext from '../components/stance/FloatingNext'
 import ProgressPips from '../components/stance/ProgressPips'
-import ProgressRail from '../components/stance/ProgressRail'
 import PlaceControl from '../components/stance/PlaceControl'
 import ScopeBar from '../components/stance/ScopeBar'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
+import { NextStoryCard, StoryBottomBar, StoryDots, StoryTopBar } from '../components/stance/StoryProgress'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
 import { QuestionScreen, ScopeScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
 import { actsMode, useActs, type Hold } from '../components/stance/useActs'
@@ -32,14 +31,16 @@ import {
   storyScreenIndex,
   type StoryScope,
   STORIES,
-  storyTitle,
 } from '../utils/dataStory'
+import { fetchTopicCaptionFacts } from '../api/topics'
+import { pickCaption } from '../utils/storyCaption'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
-import { speakerCounts } from '../utils/stanceGame'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
+import { nextStoryLink } from '../utils/storyNav'
+import { useTopicStories } from '../hooks/useTopicStories'
 
 // The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
 export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value, label: s.topic }))
@@ -75,6 +76,16 @@ export default function DataStory() {
 
   const allScreens = useMemo(() => story?.screens ?? [], [story])
   const { data, status, refetch } = useStoryData(stateCode, city)
+  // The live stories (#1133), so the end of the story leads on to the next one, topic stories included.
+  const { live: liveList } = useTopicStories()
+  // The caption's facts (#1125), keyed on the scope so the label and the numbers move together.
+  const captionQ = useQuery({
+    queryKey: ['caption-facts', storyId, stateCode ?? '', city ?? ''],
+    queryFn: () => fetchTopicCaptionFacts(storyId, stateCode, city),
+    enabled: Boolean(story),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
@@ -142,6 +153,8 @@ export default function DataStory() {
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
   const [placeOpen, setPlaceOpen] = useState(false)
   const [whereOpen, setWhereOpen] = useState(false)
+  // The next-story card in view (#1102): the dots and the floating bar step aside so they don't sit over it or the footer.
+  const [atEnd, setAtEnd] = useState(false)
   const dialogOpen = placeOpen || whereOpen
   // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
   useIdleNudge({
@@ -419,16 +432,16 @@ export default function DataStory() {
   }
 
   const label = storyScopeLabel(scope)
-  // #993: the title states the place's conclusion: the sentiment when its speakers back it, else the fact, else the question.
-  const title = storyTitle(story, scope, {
-    speakers: speakerCounts(data.positions as DataCenterPositionsResponse | null | undefined),
-    meetings: (data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined)?.counts?.meetings,
-  })
+  // #993 / #1125: the title is the strongest statement the place's record supports (utils/storyCaption: disagreement,
+  // sentiment, state differences, volume, then the question), from the caption facts for exactly this scope.
+  const title = pickCaption(storyId, captionQ.data, scope)
   const links = {
     dataCenters: `/data-centers${scopeQuery(scope)}`,
     decisions: `/browse-topics${scopeQuery(scope)}`,
   }
   const labels = screens.map((s, i) => stopLabel(s, texts[i]!))
+  // The end of the story leads on (#1102): the next live story, or every data story, keeping the place.
+  const onward = nextStoryLink(storyId, scopeQuery(scope), liveList)
   const vote: VoteState = {
     question,
     loading: packQ.isLoading,
@@ -453,7 +466,15 @@ export default function DataStory() {
   )
 
   return (
-    <div className="folio stance-game stance-story" style={HOUSE_STYLE} ref={rootRef} data-mode={mode} data-fade={reduced ? '' : undefined}>
+    <div
+      className="folio stance-game stance-story"
+      style={HOUSE_STYLE}
+      ref={rootRef}
+      data-mode={mode}
+      data-fade={reduced ? '' : undefined}
+      data-sbar={wide ? undefined : ''}
+    >
+      {wide && <StoryTopBar active={active} count={n} />}
       <ScopeBar
         backTo={`/stories${scopeQuery(scope)}`}
         backLabel="← Data stories"
@@ -483,7 +504,11 @@ export default function DataStory() {
               },
             ]}
           />
-          {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+          {title.basis && (
+            <p className="stance-title-basis">
+              {title.basis}
+            </p>
+          )}
           </>
         }
         stateCode={stateCode}
@@ -550,9 +575,25 @@ export default function DataStory() {
             )
           })}
         </div>
-        <ProgressRail labels={labels} active={active} onJump={goTo} navLabel="Story screens" />
+        {/* After the last screen, outside the screens ([data-panel]) the scroller counts: the way on to the next story. */}
+        <NextStoryCard href={onward.href} label={onward.label} isStory={onward.next != null} onInView={setAtEnd} />
+        {/* Wide screens: numbered dots down the left edge; they move with goTo, like Next and the keys. */}
+        {wide && <StoryDots labels={labels} active={active} onJump={goTo} away={atEnd} />}
       </div>
-      <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
+      {/* Phones get the bottom bar instead, which always shows Next; the floating bar would sit on top of it. */}
+      {wide ? (
+        !atEnd && <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
+      ) : (
+        <StoryBottomBar
+          active={active}
+          count={n}
+          nextLabel={active < n - 1 ? (screens[active + 1]?.eyebrow ?? null) : null}
+          onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
+          storyHref={onward.href}
+          storyLabel={onward.label}
+          storyIsNext={onward.next != null}
+        />
+      )}
       <p className="stance-keys">Keys: PageDown, Space or ↓ next · PageUp, Shift+Space or ↑ back · Home and End jump to the ends</p>
     </div>
   )
