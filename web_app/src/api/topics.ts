@@ -81,3 +81,45 @@ export async function fetchTopicStates(topicId: number, params: { state?: string
   const res = await api.get<TopicStates>(`/topics/${topicId}/states`, { params })
   return res.data
 }
+
+/** A company's newest mention: verbatim evidence with the matched words in <mark> (render with highlightSnippet). */
+export interface TopicCompanyMention {
+  mention_kind: string
+  title?: string | null
+  /** ISO yyyy-mm-dd or null. */
+  date?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  url?: string | null
+  evidence?: string | null
+}
+
+/** One company a topic names (#1052), with its real meeting and decision counts in scope. */
+export interface TopicCompany {
+  company_key: string
+  company_name: string
+  aliases: string[]
+  website_url?: string | null
+  /** The organization page id, when the company is in MDM. */
+  master_org_id?: string | null
+  meetings: number
+  decisions: number
+  newest?: TopicCompanyMention | null
+}
+
+export interface TopicCompanies {
+  topic_query_id: string
+  scope: { level: string; state_code?: string | null; city?: string | null }
+  companies: TopicCompany[]
+}
+
+/** `GET /api/topics/{queryId}/companies?state=&city=`: each company's meetings and decisions in scope, busiest first. */
+export async function fetchTopicCompanies(queryId: string, state?: string, city?: string | null): Promise<TopicCompanies> {
+  const params: Record<string, string> = {}
+  if (state) params.state = state
+  if (state && city) params.city = city
+  const res = await api.get<TopicCompanies>(`/topics/${encodeURIComponent(queryId)}/companies`, {
+    params: Object.keys(params).length ? params : undefined,
+  })
+  return res.data
+}

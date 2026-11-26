@@ -190,7 +190,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
         </div>
         )}
 
-        <HomeTopicStrip query={q} selected={story} onSelect={selectStory} />
+        <HomeTopicStrip query={q} selected={story} onSelect={selectStory} stateCode={stateCode} city={scope.city} scopeLabel={label} />
       </div>
     </section>
   )
