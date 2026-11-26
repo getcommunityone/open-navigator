@@ -715,8 +715,9 @@ function overviewText(data: StoryData, scope: StoryScope, caption?: ScreenCaptio
   // The opener's headline is always a claim from meeting records; sites and projects never lead it.
   // At a state or city scope with enough speakers on record, the headline says which way they spoke (#1115) and the meeting
   // count becomes the context line. Below the national conclusion's minimum the neutral count stays: nothing is overstated.
-  // The Overview states the same title as the header and the home hero (#1125, #1134) when the record backs a conclusion.
-  if (caption && (caption.kind === 'sentiment' || caption.kind === 'disagreement')) {
+  // The Overview states the same title as the header and the home hero (#1125, #1134) whenever the caption is not the question.
+  // Any caption but the bare question is the title, so the Overview never makes a different (or stronger) claim.
+  if (caption && caption.kind !== 'question' && caption.text) {
     return {
       headline: caption.text,
       context: meetings ? `A data center came up in ${plural(meetings, 'meeting')}${place ? ` in ${place}` : ''}. ${context}` : context,

@@ -95,6 +95,9 @@ class TopicCaptionFacts(BaseModel):
     public_against_meetings: int | None = Field(
         None, description="AI reading: meetings where the public leaned mostly against. Null when not loaded."
     )
+    public_against_states: int | None = Field(
+        None, description="AI reading: states with at least one public-against meeting in scope (#1134). Null when not loaded."
+    )
     public_for_meetings: int | None = Field(
         None, description="AI reading: meetings where the public leaned mostly for. Null when not loaded or not read."
     )
@@ -180,6 +183,7 @@ def build_lean_sql(topic_id: int, state_code: str | None, city_like: str | None)
     sql = (
         "SELECT count(*)::int AS lean_meetings, "
         "count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
+        "count(DISTINCT l.state_code) FILTER (WHERE l.public_against)::int AS public_against_states, "
         "count(*) FILTER (WHERE (to_jsonb(l) ->> 'public_for')::boolean)::int AS public_for_meetings, "
         "bool_or(to_jsonb(l) ? 'public_for') AS has_public_for, "
         "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings, "
@@ -313,6 +317,7 @@ async def topic_caption_facts(
             lean = {
                 "lean_meetings": int(r["lean_meetings"]),
                 "public_against_meetings": int(r["public_against_meetings"] or 0),
+                "public_against_states": int(r.get("public_against_states") or 0),
                 "public_for_meetings": int(r["public_for_meetings"] or 0) if r.get("has_public_for") else None,
                 "disagreement_meetings": int(r["disagreement_meetings"] or 0),
                 "disagreement_states": int(r["disagreement_states"] or 0),

@@ -186,7 +186,7 @@ def dc_conn(**extra) -> _Conn:
             {"for_": 3, "against": 18, "question": 1, "neutral": 7, "meetings_reviewed": 188, "states": 4}
         ],
         "FROM data_center_meeting_lean": [
-            {"lean_meetings": 1828, "public_against_meetings": 283, "public_for_meetings": 0, "has_public_for": False,
+            {"lean_meetings": 1828, "public_against_meetings": 283, "public_against_states": 32, "public_for_meetings": 0, "has_public_for": False,
              "disagreement_meetings": 23, "disagreement_states": 10}
         ],
         "FROM jurisdictions": POPS,
@@ -200,6 +200,7 @@ def test_data_centers_reads_speakers_and_lean(get):
     assert d["meetings"] == 1859
     assert d["speakers"] == {"for": 3, "against": 18, "question": 1, "neutral": 7, "states": 4}
     assert d["public_against_meetings"] == 283
+    assert d["public_against_states"] == 32
     assert d["public_for_meetings"] is None  # the data-center mart has no public_for reading
     assert d["disagreement_meetings"] == 23
     assert d["disagreement_states"] == 10

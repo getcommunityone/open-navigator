@@ -231,8 +231,11 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
     )
     const leanPasses = against >= HATES_MIN_MEETINGS[level]
     if (leanPasses || speakersPass) {
+      // Nationally the basis names how many states the meetings span (#1134): "In 283 meetings across 32 states, …".
+      const leanStates = facts.public_against_states ?? 0
+      const leanWhere = national && leanStates > 1 ? `across ${fmt(leanStates)} states` : where
       const lean = leanPasses
-        ? `In ${meetingsWord(against)} ${where}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading).`
+        ? `In ${meetingsWord(against)} ${leanWhere}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading).`
         : ''
       const counted = speakersPass && sp ? speakerBasis(sp, where, national) : ''
       return {

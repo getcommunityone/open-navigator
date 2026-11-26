@@ -396,7 +396,10 @@ describe('overview headline at a place (#1115)', () => {
     const divided = screenText(overview, full, ready, tus, null, { kind: 'disagreement', text: 'Tuscaloosa, Alabama is divided on data centers.' })
     expect(divided.headline).toBe('Tuscaloosa, Alabama is divided on data centers.')
     const volume = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'volume', text: 'Alabama talked about data centers in 3 meetings.' })
-    expect(volume.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
+    // One title (#1134): a volume or state-gap caption is the Overview headline too, never a stronger speaker claim.
+    expect(volume.headline).toBe('Alabama talked about data centers in 3 meetings.')
+    const question = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'question', text: 'Should Alabama pause data centers?' })
+    expect(question.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
   })
   it('keeps the neutral count below the national minimum of speakers', () => {
     const t = screenText(overview, withSpeakers(0, 9), ready, al)

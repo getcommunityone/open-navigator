@@ -120,9 +120,13 @@ count for the scope; missing data falls through to the next rule. Thresholds and
 ### One title, with a scoped subhead and numbered points (#1134)
 
 The home hero, the story header and the story's Overview screen state the **same** caption for the page's scope, from
-`pickCaption`. On the Overview, a conclusion caption ("hates" or "is divided on") is the headline and the meeting count
-moves to the line under it ("A data center came up in 71 meetings in Alabama. First, where are they?"); otherwise the
-Overview keeps its speaker-lean or meeting-count headline (#1115). Hand counts in a basis always name their scope: "29
+`pickCaption`. On the Overview, any caption but the bare question (hates, divided, state comparison, meeting count) is
+the headline and the meeting count moves to the line under it ("A data center came up in 71 meetings in Alabama. First,
+where are they?"), so the Overview never makes a different or stronger claim than the title. Only when the title is the
+question does the Overview fall back to its speaker-lean or meeting-count headline (#1115). The national "hates" basis
+names the states the meetings span: "In 283 meetings across 32 states, Jev (an AI classifier) read the public as mostly
+against data centers (AI reading)." (`public_against_states` on caption-facts). On the home hero at a state or city
+scope, the numbered points wait for the place's own figures, so national figures never flash first. Hand counts in a basis always name their scope: "29
 speakers counted by hand in 4 states: 18 against and 3 for." (`speakers.states` on caption-facts), never "nationwide".
 
 Under the title, the hero and the story header both show:

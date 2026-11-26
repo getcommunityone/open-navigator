@@ -12,7 +12,7 @@ function nationalCounts(res: Parameters<typeof speakerCounts>[0]) {
 /**
  * A story's conclusion headline, gated on the NATIONAL record (#989): the headline speaks for the country, so it is
  * checked against the country's meeting reading or speaker counts (#1134) whatever place the page is scoped to; a page
- * scoped to a place shows the place's own title instead (storyTitle). Null while loading, when the
+ * scoped to a place shows the place's own title instead (pickCaption). Null while loading, when the
  * record doesn't back it, or for a story without one.
  */
 export function useStoryConclusion(storyId: string) {

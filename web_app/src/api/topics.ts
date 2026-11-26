@@ -177,6 +177,8 @@ export interface TopicCaptionFacts {
   /** AI readings (Jev) of meeting transcripts: never counted speakers. */
   lean_meetings: number | null
   public_against_meetings: number | null
+  /** States with at least one public-against meeting in scope (#1134); absent on older servers. */
+  public_against_states?: number | null
   public_for_meetings: number | null
   disagreement_meetings: number | null
   disagreement_states: number | null

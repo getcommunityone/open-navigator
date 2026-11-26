@@ -138,8 +138,12 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   })
   // The three numbered points (#1122): the place's own figures where it has them, else national ones marked "Nationally:".
   const points = useMemo(
-    () => storyHeroPoints(speakers.data, stateCode ? scopedPositions.data : null, stateCode ? label : null),
-    [speakers.data, scopedPositions.data, stateCode, label],
+    // Held until the place's own figures settle, so a state scope never flashes "Nationally:" points first (#1134).
+    () =>
+      stateCode && scopedPositions.isPending
+        ? []
+        : storyHeroPoints(speakers.data, stateCode ? scopedPositions.data : null, stateCode ? label : null),
+    [speakers.data, scopedPositions.data, scopedPositions.isPending, stateCode, label],
   )
   const nextDc = nextStoryLink('data-centers', q, topicStories.live)
 

@@ -52,14 +52,14 @@ describe('pickCaption (a) hates', () => {
   it('nationally: confident public-against meetings at volume, plus the counted speakers', () => {
     const c = pickCaption(
       'data-centers',
-      facts({ lean_meetings: 1828, public_against_meetings: 283, disagreement_meetings: 23, disagreement_states: 10, speakers: { for: 3, against: 18, question: 1, neutral: 7, states: 4 } }),
+      facts({ lean_meetings: 1828, public_against_meetings: 283, public_against_states: 32, disagreement_meetings: 23, disagreement_states: 10, speakers: { for: 3, against: 18, question: 1, neutral: 7, states: 4 } }),
       nat,
     )
     expect(c.kind).toBe('sentiment')
     expect(captionText(c, 'data centers')).toBe('America hates data centers.')
     expect(c.ai).toBe(true)
     expect(c.basis).toBe(
-      'In 283 meetings nationwide, Jev (an AI classifier) read the public as mostly against data centers (AI reading). 29 speakers counted by hand in 4 states: 18 against and 3 for.',
+      'In 283 meetings across 32 states, Jev (an AI classifier) read the public as mostly against data centers (AI reading). 29 speakers counted by hand in 4 states: 18 against and 3 for.',
     )
   })
 
