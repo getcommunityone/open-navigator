@@ -1525,13 +1525,16 @@ export default function CensusDrilldownMapPage() {
         {showRightAside ? (
           <aside
             className={`flex flex-col gap-3 xl:sticky xl:top-4 ${
-              // Mobile (<xl) has no hover affordance and the aside otherwise
+              // Phones (<md) have no hover affordance and the aside otherwise
               // stacks below a tall map — a tapped county's drill CTAs end up
               // off-screen. When a county is pinned, dock the aside as a bottom
-              // sheet so "Drill down to ZIP" is immediately reachable. Desktop
-              // keeps the sticky sidebar (all sheet styles reset at xl:).
+              // sheet (capped at 45vh) so "Drill down to ZIP" is reachable.
+              // From md up the aside stays in normal flow: below the map until
+              // xl, the sticky sidebar at xl. Desktop windows narrower than
+              // 1280px must not get the sheet: it buried the map and flickered
+              // under the cursor (#1095). All sheet styles reset at md:.
               pinnedCounty
-                ? 'fixed inset-x-0 bottom-0 z-40 max-h-[70vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl backdrop-blur xl:inset-x-auto xl:bottom-auto xl:z-auto xl:max-h-none xl:overflow-visible xl:rounded-none xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none xl:backdrop-blur-none'
+                ? 'fixed inset-x-0 bottom-0 z-40 max-h-[45vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl backdrop-blur md:static md:inset-x-auto md:bottom-auto md:z-auto md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:p-0 md:pb-0 md:shadow-none md:backdrop-blur-none'
                 : ''
             }`}
           >
@@ -1929,9 +1932,11 @@ export default function CensusDrilldownMapPage() {
             })()}
             {/* Pin stays primary; when the cursor visits another region, the
                 comparison chip slides in just below so the user can preview
-                without dismissing. */}
+                without dismissing. Hidden below md, where the aside is a
+                docked bottom sheet: a card appearing with the pointer would
+                change the sheet's height under the cursor (#1095). */}
             {pinnedCounty && hoverInfo && hoverInfo.id !== pinnedCounty.geoid ? (
-              <div className="rounded-md border border-slate-200 border-l-4 border-l-[#52796F] bg-white px-3 py-3 shadow-sm">
+              <div className="hidden rounded-md border border-slate-200 border-l-4 xl:block border-l-[#52796F] bg-white px-3 py-3 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">

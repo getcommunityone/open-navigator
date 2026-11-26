@@ -887,6 +887,41 @@ export default function CensusDrilldownStage({
           </g>
         ) : null}
 
+        {/* County with no place polygons (#1095): label the county itself, in
+            the place-label style, so the view isn't a blank grey shape. Name
+            only — no value is implied. */}
+        {view === 'place' && selectedCountyFeature && !placesInCounty?.length
+          ? (() => {
+              const countyName = (selectedCountyFeature.properties as { name?: string } | null)?.name?.trim()
+              if (!countyName) return null
+              const c = path.centroid(selectedCountyFeature as never)
+              if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
+              const fontSize = 14 / zoomK
+              return (
+                <text
+                  className="county-name-label"
+                  x={c[0]}
+                  y={c[1]}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  pointerEvents="none"
+                  style={{
+                    fontSize,
+                    fontFamily: 'inherit',
+                    fontWeight: 600,
+                    fill: '#0f172a',
+                    stroke: '#ffffff',
+                    strokeWidth: fontSize * 0.32,
+                    strokeLinejoin: 'round',
+                    paintOrder: 'stroke',
+                  }}
+                >
+                  {countyName}
+                </text>
+              )
+            })()
+          : null}
+
         {/* county outline (opt-in) — draw the drilled-from county's boundary
             over the ZCTAs so the user can see which ZIPs fall in/near it.
             County geometry is pre-projected → plain `path`. */}
