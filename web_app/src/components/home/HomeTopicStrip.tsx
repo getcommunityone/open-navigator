@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Bike, Camera, ChevronRight, Crosshair, House, ScanLine, Server, type LucideIcon } from 'lucide-react'
+import { Bike, Camera, ChevronRight, Crosshair, House, ScanLine, Server, Volleyball, type LucideIcon } from 'lucide-react'
 
 /** The live home stories the strip can select (#1025). */
 export type HomeStoryKey = 'data-centers' | 'short-term-rentals'
@@ -23,6 +23,7 @@ const TOPICS: Topic[] = [
   { key: 'flock', title: 'Flock', blurb: 'Flock Safety cameras and the contracts behind them.', Icon: Camera, tint: '#dbeafe', ink: '#1d4ed8' },
   { key: 'guns', title: 'Guns', blurb: 'Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them.', Icon: Crosshair, tint: '#fee2e2', ink: '#b91c1c' },
   { key: 'lpr', title: 'License plate readers', blurb: 'Automated plate readers: who uses them and for what.', Icon: ScanLine, tint: '#ede9fe', ink: '#6d28d9' },
+  { key: 'pickleball', title: 'Pickleball', blurb: 'Courts, noise and new venues, as councils and parks boards weigh them.', Icon: Volleyball, tint: '#ecfccb', ink: '#4d7c0f' },
   { key: 'bike', title: 'Bike lanes', blurb: 'Bike lanes and paths, as councils weigh them.', Icon: Bike, tint: '#ffedd5', ink: '#c2410c' },
 ]
 
