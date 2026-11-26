@@ -62,3 +62,10 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Agent review (Claude Code)
+
+- Jev readings are labelled as a classifier, kept apart from analyzed decisions, and every row carries its verbatim passage (none shown without one). Government meetings and town halls only. PK/FK and contract present.
+- dbt 15 tests, API 27 tests pass. Phone browser check recorded. Scans clean.
+
+Verdict stands: approve.
