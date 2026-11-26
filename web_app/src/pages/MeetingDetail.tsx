@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { expandStateName } from '../utils/formatters'
 import MeetingPlayer from '../components/MeetingPlayer'
+import AnalysisProvenance, { type Provenance } from '../components/AnalysisProvenance'
 import { parseTimestamp } from '../lib/timestamp'
 import { MeetingVideoProvider, EvidenceLink } from '../components/MeetingVideoContext'
 import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
@@ -55,6 +56,8 @@ interface MeetingDetailData {
   documents?: MeetingDocument[]
   decisions: MeetingDecision[]
   financial_items: MeetingFinancialItem[]
+  /** How the meeting's AI summary was made (#1099); facts the run didn't record are absent. */
+  provenance?: Provenance | null
 }
 
 function money(value?: number | null): string {
@@ -333,6 +336,9 @@ function MeetingDetailBody() {
             No decisions or financial items were recorded for this meeting.
           </div>
         )}
+
+        {/* The same "how this summary was made" drill-down as the decision page (#798, #1099). */}
+        <AnalysisProvenance provenance={data.provenance} />
       </div>
     </div>
   )

@@ -5,11 +5,15 @@ sidebar_label: Summary provenance
 
 # How a summary was made (#798)
 
-The bottom of a decision page has a quiet line, "AI-assisted summary · details". It opens a panel of **recorded facts only**:
+The bottom of a decision page, and of a meeting page ([#1099](https://github.com/getcommunityone/open-navigator/issues/1099)), has a quiet line, "AI-assisted summary · details". It opens a panel of **recorded facts only**:
 model, when it was generated, light or full analysis, prompt name and version, the transcript source, and a link to the
 source recording. A fact the run did not record is left out, never filled in. The panel also says the summary is
 machine-generated and should be checked against the recording, and says so when the meeting had several analyses and this
 one was chosen (see [analysis model preference](./analysis-model-preference.md)).
+
+On the meeting page the facts come from `GET /api/meeting/{event_meeting_id}` (`provenance`). It uses the same
+`build_provenance` lookup by `analysis_id` (= the meeting's `event_meeting_id`). If the lookup fails, the meeting page
+still loads, without the footer.
 
 ## Where each fact comes from
 
