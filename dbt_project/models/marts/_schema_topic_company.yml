@@ -1,0 +1,116 @@
+version: 2
+
+models:
+  - name: topic_company
+    description: >
+      The companies each curated topic names (#1052). One row per (topic, company): data centers from the organization
+      master's data center satellite plus the operators seed, short-term rentals from their satellite, and the rest
+      from the topic_companies seed. match_terms are what topic_company_mention looks for.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+    columns:
+      - name: topic_company_id
+        description: 'Primary key: md5(topic_query_id | company_key).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: topic_query_id
+        description: "The topic's query id (data-centers, short-term-rentals, license-plate-readers, guns)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: topic_id
+        description: 'FK to civicsearch_topic.'
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: company_key
+        description: 'Stable slug, unique within a topic.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: company_name
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: aliases
+        description: 'Names and brands shown under the company.'
+        data_type: text[]
+      - name: match_terms
+        description: 'Lowercase words or phrases matched in transcripts and decisions.'
+        data_type: text[]
+      - name: website_url
+        description: "The company's own website, when known."
+        data_type: text
+      - name: master_org_id
+        description: "The organization master row, when the company is in MDM (data centers, short-term rentals); else null."
+        data_type: text
+
+  - name: topic_company_mention
+    description: >
+      Where a topic's companies are named (#1052). One row per (topic company, meeting video) or (topic company,
+      decision), each with a verbatim excerpt of the record with the matched words in <mark>. Data center names count
+      only inside a data-center passage.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [topic_company_id]
+        to: ref('topic_company')
+        to_columns: [topic_company_id]
+    columns:
+      - name: topic_company_mention_id
+        description: 'Primary key: md5(topic_company_id | mention_kind | event_decision_id or video_id).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests: [unique, not_null]
+      - name: topic_company_id
+        description: 'FK to topic_company.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: mention_kind
+        description: 'meeting or decision.'
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['meeting', 'decision']
+      - name: video_id
+        data_type: text
+      - name: event_decision_id
+        data_type: text
+      - name: title
+        data_type: text
+      - name: event_date
+        data_type: date
+      - name: jurisdiction_name
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: state
+        data_type: text
+      - name: url
+        description: 'The recording (at the moment, for data center passages) or the decision page.'
+        data_type: text
+      - name: evidence
+        description: 'Verbatim excerpt with the matched words in <mark>; render with highlightSnippet.'
+        data_type: text
+        constraints:
+          - type: not_null

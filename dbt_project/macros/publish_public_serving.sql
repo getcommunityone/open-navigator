@@ -257,7 +257,8 @@
     'data_center_community_event_recording',
     'mdm_organization_short_term_rental', 'short_term_rental_company_mention',
     'data_center_employment', 'data_center_job_source',
-    'meeting_policy_question_jev'
+    'meeting_policy_question_jev',
+    'topic_company', 'topic_company_mention'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
