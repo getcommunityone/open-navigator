@@ -4,8 +4,8 @@ import { COUNTIES_ALBERS_TOPO, albersPoint, bboxOf, dotsFor, featAt, fetchTopo, 
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
-import { STANCE_ORDER, dotSides, speakersOf, sumStances, type StanceCounts } from '../../utils/boxSplit'
-import { BOX_COLORS, MEETING_GREYS, STANCE_LABEL, stanceLine } from '../home/StoryStatesMap'
+import { dotSides, speakersOf, sumStances, type StanceCounts } from '../../utils/boxSplit'
+import { BOX_COLORS, LEGEND_LABEL, LEGEND_STANCES, MEETING_GREYS, stanceLine } from '../home/StoryStatesMap'
 import { excerptAroundMark, highlightSnippet } from '../../lib/highlight'
 import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly } from '../../utils/touchOnly'
@@ -265,21 +265,16 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         <>
           <div className="stance-map-legend" aria-hidden="true">
             {stances.size > 0 &&
-              STANCE_ORDER.map((k) => (
+              LEGEND_STANCES.map((k) => (
                 <span key={k} className="stance-map-none">
-                  <span style={{ background: BOX_COLORS[k] }} /> {STANCE_LABEL[k]}
+                  <span style={{ background: BOX_COLORS[k] }} /> {LEGEND_LABEL[k]}
                 </span>
               ))}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
               <span className="stance-map-ramp">
-                {MEETING_GREYS.map((c) => (
-                  <span key={c} style={{ background: c }} />
-                ))}
+                <span style={{ background: MEETING_GREYS[2] }} />
               </span>
               Meetings, no stance on record (darker = more meetings)
-            </span>
-            <span className="stance-map-none">
-              <span style={{ background: BOX_COLORS.none }} /> No meetings on record
             </span>
           </div>
           <p className="stance-note">
