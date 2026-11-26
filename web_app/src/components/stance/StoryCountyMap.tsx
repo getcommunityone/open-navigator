@@ -170,6 +170,51 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   const r = grid.step * 0.38
   const pad = 4
   const vb = `${bx0 - pad} ${by0 - pad} ${bx1 - bx0 + pad * 2} ${by1 - by0 + pad * 2}`
+  // Town labels (#1115), in the Data Explorer's label style: each ring's government named beside it, largest meetings first,
+  // skipping any label whose box would overlap one already placed. County governments have no ring; one is named at its
+  // county's centre only when that spot is free. Sizes follow the grid step so the labels scale with the map.
+  const labelSize = grid.step * 1.5
+  const labels = (() => {
+    const x0 = bx0 - pad
+    const x1 = bx1 + pad
+    const boxes: [number, number, number, number][] = []
+    const free = (b: [number, number, number, number]) =>
+      b[0] >= x0 && b[2] <= x1 && !boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])
+    const out: { key: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; text: string; county: string }[] = []
+    const cands = [
+      ...rings.map((g) => ({ place: g.place, x: g.x, y: g.y, county: g.county, ring: true })),
+      ...[...byCounty].flatMap(([county, ps]) => {
+        const ds = grid.dots.filter((d) => d.id === county)
+        if (!ds.length) return []
+        const cx = ds.reduce((a, d) => a + d.x, 0) / ds.length
+        const cy = ds.reduce((a, d) => a + d.y, 0) / ds.length
+        return ps
+          .filter((p) => p.jurisdiction_type === 'county' && p.geoid === county)
+          .map((p) => ({ place: p, x: cx, y: cy, county, ring: false }))
+      }),
+    ].sort((a, b) => b.place.meetings - a.place.meetings || Number(b.ring) - Number(a.ring))
+    for (const c of cands) {
+      // Shown as people say it (#1115): "Casa Grande", not "Casa Grande city" (the Data Explorer's rule).
+      const text = (c.place.jurisdiction_name ?? '').trim().replace(/\s+(city|town|village|borough|CDP)$/i, '')
+      if (!text) continue
+      const w = text.length * labelSize * 0.55
+      const h = labelSize * 1.1
+      const top = c.y - h / 2
+      const gap = grid.step * 0.95
+      const tries: { anchor: 'start' | 'middle' | 'end'; x: number; box: [number, number, number, number] }[] = c.ring
+        ? [
+            { anchor: 'start', x: c.x + gap, box: [c.x + gap, top, c.x + gap + w, top + h] },
+            { anchor: 'end', x: c.x - gap, box: [c.x - gap - w, top, c.x - gap, top + h] },
+          ]
+        : [{ anchor: 'middle', x: c.x, box: [c.x - w / 2, top, c.x + w / 2, top + h] }]
+      const hit = tries.find((t) => free(t.box))
+      if (!hit) continue
+      boxes.push(hit.box)
+      out.push({ key: c.place.jurisdiction_id, x: hit.x, y: c.y, anchor: hit.anchor, text, county: c.county })
+    }
+    return out
+  })()
+
   const listed = [...counts]
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1] || countyLabel(a[0]).localeCompare(countyLabel(b[0])))
@@ -239,6 +284,30 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               <title>{`${g.place.jurisdiction_name ?? g.place.jurisdiction_id}: ${plural(g.place.meetings)}`}</title>
             </circle>
           ))}
+          <g className="stance-map-labels" pointerEvents="none" aria-hidden="true">
+            {labels.map((l) => (
+              <text
+                key={l.key}
+                x={l.x}
+                y={l.y}
+                textAnchor={l.anchor}
+                dominantBaseline="central"
+                opacity={hover && hover !== l.county ? 0.3 : 1}
+                style={{
+                  fontSize: labelSize,
+                  fontFamily: 'inherit',
+                  fontWeight: 600,
+                  fill: '#0f172a',
+                  stroke: '#ffffff',
+                  strokeWidth: labelSize * 0.32,
+                  strokeLinejoin: 'round',
+                  paintOrder: 'stroke',
+                }}
+              >
+                {l.text}
+              </text>
+            ))}
+          </g>
         </svg>
         {passage && (
           <QuoteCard
