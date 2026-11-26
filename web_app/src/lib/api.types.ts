@@ -2096,6 +2096,8 @@ export interface components {
              * @description Speakers per state across the whole country (never narrowed by the scope), for the home map (#1087). Only states with at least one meeting in the mart; empty when the mart isn't loaded.
              */
             by_state?: components["schemas"]["PositionStateCount"][];
+            /** @description National totals of Jev's meeting readings for the home hero (#1122), never narrowed by the scope; null when data_center_meeting_lean (or a column) isn't in this database. */
+            lean_totals?: components["schemas"]["LeanTotals"] | null;
             quotes?: components["schemas"]["PositionQuotes"];
             scope: components["schemas"]["JobClaimScope"];
             totals?: components["schemas"]["PositionTotals"];
@@ -3074,6 +3076,43 @@ export interface components {
              * @default
              */
             warning: string;
+        };
+        /**
+         * LeanTotals
+         * @description National totals of Jev's meeting readings (#1122), from ``data_center_meeting_lean``. AI readings of the
+         *     transcripts, never counted speakers; never narrowed by the scope.
+         */
+        LeanTotals: {
+            /**
+             * Disagreement Meetings
+             * @description Meetings where officials sided against the public (#1113 rule).
+             * @default 0
+             */
+            disagreement_meetings: number;
+            /**
+             * Disagreement States
+             * @description States with at least one such meeting.
+             * @default 0
+             */
+            disagreement_states: number;
+            /**
+             * Public Against Meetings
+             * @description Meetings where Jev read the public as mostly opposed.
+             * @default 0
+             */
+            public_against_meetings: number;
+            /**
+             * Public Against States
+             * @description States with at least one such meeting.
+             * @default 0
+             */
+            public_against_states: number;
+            /**
+             * Stopped Meetings
+             * @description Meetings whose data center outcome Jev read as tabled/deferred, denied or a moratorium.
+             * @default 0
+             */
+            stopped_meetings: number;
         };
         /** MeetingKindOverrideIn */
         MeetingKindOverrideIn: {

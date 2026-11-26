@@ -8,6 +8,11 @@ import { useStoryConclusionState } from '../stance/useStoryConclusion'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import { fetchTopicStates } from '../../api/topics'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
+import { Ban, Landmark, Quote, type LucideIcon } from 'lucide-react'
+import { heroPoints, type HeroPointIcon } from '../../utils/heroPoints'
+import { nextStoryLink } from '../../utils/storyNav'
+
+const POINT_ICONS: Record<HeroPointIcon, LucideIcon> = { quote: Quote, stop: Ban, scale: Landmark }
 
 interface Props {
   /** The home page's place, so the Start button and the topic links carry it (CLAUDE.md, scope label rule). */
@@ -132,6 +137,12 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     }
     return out
   }, [national.data, speakers.data])
+  // The three numbered points (#1122): national figures from the record, a point without data left out.
+  const points = useMemo(
+    () => (speakers.data?.available ? heroPoints(speakers.data.lean_totals, speakers.data.totals) : []),
+    [speakers.data],
+  )
+  const nextDc = nextStoryLink('data-centers', q)
 
   return (
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
@@ -183,9 +194,31 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
                 <p className="home-story-basis">{conclusion.basis}</p>
               </>
             )}
-            <div style={{ marginTop: 18 }}>
+            {points.length > 0 && (
+              <ol className="home-story-points" aria-label="What the record shows, nationally">
+                {points.map((p) => {
+                  const Icon = POINT_ICONS[p.icon]
+                  return (
+                    <li key={p.icon} className="home-story-point">
+                      <span className="home-story-point-icon" aria-hidden="true">
+                        <Icon size={20} strokeWidth={2.2} />
+                      </span>
+                      <div>
+                        <p className="home-story-point-n font-mono-x">{p.n}</p>
+                        <p className="home-story-point-title">“{p.title}”</p>
+                        <p className="home-story-point-line">{p.line}</p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
+            <div className="home-story-actions">
               <Link to={`/stories/data-centers${q}`} className="home-story-start">
                 Start the story{label === 'National' ? '' : ` for ${label}`} <span aria-hidden="true">→</span>
+              </Link>
+              <Link to={nextDc.href} className="home-story-next">
+                {nextDc.label} <span aria-hidden="true">→</span>
               </Link>
             </div>
           </div>

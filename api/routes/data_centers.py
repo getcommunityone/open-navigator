@@ -1651,6 +1651,19 @@ class PositionStateCount(BaseModel):
     )
 
 
+class LeanTotals(BaseModel):
+    """National totals of Jev's meeting readings (#1122), from ``data_center_meeting_lean``. AI readings of the
+    transcripts, never counted speakers; never narrowed by the scope."""
+
+    public_against_meetings: int = Field(0, description="Meetings where Jev read the public as mostly opposed.")
+    public_against_states: int = Field(0, description="States with at least one such meeting.")
+    stopped_meetings: int = Field(
+        0, description="Meetings whose data center outcome Jev read as tabled/deferred, denied or a moratorium."
+    )
+    disagreement_meetings: int = Field(0, description="Meetings where officials sided against the public (#1113 rule).")
+    disagreement_states: int = Field(0, description="States with at least one such meeting.")
+
+
 class DataCenterPositionsResponse(BaseModel):
     scope: JobClaimScope
     available: bool = Field(
@@ -1662,6 +1675,11 @@ class DataCenterPositionsResponse(BaseModel):
         default_factory=list,
         description="Speakers per state across the whole country (never narrowed by the scope), for the home map "
         "(#1087). Only states with at least one meeting in the mart; empty when the mart isn't loaded.",
+    )
+    lean_totals: LeanTotals | None = Field(
+        None,
+        description="National totals of Jev's meeting readings for the home hero (#1122), never narrowed by the "
+        "scope; null when data_center_meeting_lean (or a column) isn't in this database.",
     )
 
 
@@ -1726,6 +1744,31 @@ POSITION_BY_STATE_SQL = (
 home map still shows every state. States with no row in the mart are simply absent."""
 
 
+LEAN_TOTALS_SQL = (
+    "SELECT count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
+    "count(DISTINCT l.state_code) FILTER (WHERE l.public_against)::int AS public_against_states, "
+    "count(*) FILTER (WHERE l.dc_outcome IN ('tabled_or_deferred', 'denied', 'moratorium'))::int AS stopped_meetings, "
+    "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings, "
+    "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states "
+    "FROM data_center_meeting_lean l"
+)
+"""National totals of Jev's readings for the home hero (#1122): no scope parameters. The mart only holds screens
+under the current Jev question version."""
+
+
+async def _fetch_lean_totals(conn: Any) -> LeanTotals | None:
+    """``LEAN_TOTALS_SQL`` as a model, or None when data_center_meeting_lean (or a column) isn't in this database:
+    the hero then leaves its AI-reading points out, never a failure."""
+    try:
+        rows = await conn.fetch(LEAN_TOTALS_SQL)
+    except asyncpg.exceptions.PostgresError as e:
+        logger.warning("data-centers: data_center_meeting_lean unavailable ({}); lean_totals null", e)
+        return None
+    if not rows:
+        return None
+    return LeanTotals(**{k: int(v or 0) for k, v in dict(rows[0]).items()})
+
+
 def merge_lean_by_state(state_rows: list[Any], lean: dict[str, dict[str, int]]) -> list[PositionStateCount]:
     """Speaker sums per state plus Jev's lean counts (#1117). A state with lean counts but no speaker rows gets a row
     with 0 speakers and 0 meetings in the position mart, so the map can tint it; sorted by state code."""
@@ -1780,6 +1823,7 @@ async def data_center_positions(
                     quote_rows = await conn.fetch(quotes_sql, *quote_params)
                     state_rows = await conn.fetch(POSITION_BY_STATE_SQL)
                     state_lean = await _fetch_lean(conn, LEAN_BY_STATE_SQL)
+                    lean_totals = await _fetch_lean_totals(conn)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("positions.relation_missing", True)
             logger.warning("data-centers: 'data_center_meeting_position' isn't here yet ({}); unavailable", e)
@@ -1806,6 +1850,7 @@ async def data_center_positions(
             totals=totals,
             quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
             by_state=merge_lean_by_state(state_rows, state_lean),
+            lean_totals=lean_totals,
         )
 
 
