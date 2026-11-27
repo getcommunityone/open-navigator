@@ -5,7 +5,7 @@ title: "feat(stories): topic stories go screen by screen like the Data Center St
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 013cc20d810184f67e4fadfaecd7e0bdfafca138
+head_sha: c670064877c1191167197ac4e1f9dcafeb43b532
 verdict: approve
 ---
 
@@ -18,7 +18,11 @@ Automated review (#648) for PR #1244 on `feat/1224-topic-story-screens`. Heurist
 
 ## Scope of Change
 
+- `pull_requests/pr-1244-review.md`
 - `web_app/e2e/story-nav.check.mjs`
+- `web_app/e2e/story-next.check.mjs`
+- `web_app/src/components/stance/StoryClose.tsx`
+- `web_app/src/components/stance/StoryNextButton.tsx`
 - `web_app/src/components/stance/StoryScreenFrame.tsx`
 - `web_app/src/components/stance/StoryScreenView.tsx`
 - `web_app/src/components/stance/TopicPositionsBreakdown.tsx`
@@ -36,7 +40,7 @@ Automated review (#648) for PR #1244 on `feat/1224-topic-story-screens`. Heurist
 
 ## CI Status
 
-See the PR checks on `013cc20d8101`.
+See the PR checks on `c670064877c1`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
