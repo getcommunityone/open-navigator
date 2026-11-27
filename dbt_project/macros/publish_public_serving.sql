@@ -279,7 +279,7 @@
     'topic_company', 'topic_company_mention',
     'topic_legislation_bill', 'topic_legislation_category',
     'topic_upcoming', 'meeting_bill_link',
-    'topic_organization', 'organization_event',
+    'topic_organization_serving', 'topic_organization_count', 'organization_event',
     'company_grant',
     'business', 'business_mention',
     'person_government_term',

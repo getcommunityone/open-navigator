@@ -63,6 +63,11 @@ describe('topic organizations words', () => {
     expect(pickDisplay({ items: d.total, categories: methodCounts(d).map((r) => r.count) }).kind).toBe('sentence')
   })
 
+  it('says "at least" when the counts are partial', () => {
+    const d = resp({ total: 3, partial: true, counts: { named_in_meeting: 0, keyword_in_mission: 0, keyword_in_name: 3, ntee_code: 0, cause_tag: 0 } })
+    expect(nonprofitsHeadline(d, 'guns', 'Mobile, Alabama')).toBe('At least 3 nonprofits in Mobile, Alabama on record working on guns.')
+  })
+
   it('says why each is listed', () => {
     expect(whyListed(item({ match_method: 'named_in_meeting', match_place: 'Tuscaloosa', match_date: '2026-03-02' }), 'guns')).toBe(
       'Named in a meeting on guns in Tuscaloosa on Mar 2, 2026:',

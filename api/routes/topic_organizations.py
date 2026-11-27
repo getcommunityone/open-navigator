@@ -2,7 +2,9 @@
 Who's working on a curated topic (#1345): the nonprofits tied to it, for a place, ranked by evidence.
 
 ``GET /api/topics/{topic}/organizations?state=&city=&limit=``
-    Rows from ``public.topic_organization`` (one per topic × organization). Ranked by how strong the tie is
+    Rows from ``public.topic_organization_serving`` (#1382: the 20 strongest per topic and state plus every one named
+    in a meeting; the full mart stays in gold), counted from ``public.topic_organization_count`` (per topic, state and
+    method). A city scope is counted from its served rows; ``partial`` says when its state has more than are served. Ranked by how strong the tie is
     (``evidence_rank``: 1 named in one of the topic's meetings in the same state, 2 its 990 mission names the topic,
     3 its name does, 4 its IRS (NTEE) category is the topic's field), then by latest revenue. Each item carries the
     evidence (``match_text``: the meeting passage or mission with the topic's words in ``<mark>``, or the IRS
@@ -83,6 +85,9 @@ class TopicOrganizations(BaseModel):
     items: list[TopicOrganizationItem] = []
     broader: BroaderOrgScope | None = None
     built_at: str | None = None
+    #: True when the counts may be short: a city scope counted from the served rows of a state that has more
+    #: (a city then showing none means none among its state's strongest, not none at all).
+    partial: bool = False
 
 
 _SCOPE = """
@@ -93,21 +98,37 @@ _SCOPE = """
 
 # $1 topic, $2 state, $3 city, $4 limit.
 _ITEMS_SQL = f"""
-    SELECT o.master_org_id, o.org_name, o.city, o.state_code, o.state, o.match_method, o.match_methods,
-           o.match_text, o.match_source_url, o.match_date, o.match_place, o.mission, o.side, o.ntee_code,
+    SELECT o.master_org_id, o.org_name, o.city, o.state_code, o.match_method,
+           o.match_text, o.match_source_url, o.match_date, o.match_place, o.mission, o.side,
            o.revenue, o.revenue_tax_year, o.website_url
-    FROM topic_organization o
+    FROM topic_organization_serving o
     WHERE {_SCOPE}
     ORDER BY o.evidence_rank, o.revenue DESC NULLS LAST, o.org_name, o.master_org_id
     LIMIT $4
 """
 
-# $1 topic, $2 state, $3 city.
-_COUNTS_SQL = f"""
+# $1 topic, $2 state (or null). The true totals per method.
+_COUNTS_SQL = """
+    SELECT c.match_method, sum(c.n)::int AS n, max(c.topic_id) AS topic_id, max(c.built_at) AS built_at
+    FROM topic_organization_count c
+    WHERE (c.topic_slug = $1::text OR c.topic_id::text = $1::text)
+      AND ($2::text IS NULL OR c.state_code = $2::text)
+    GROUP BY c.match_method
+"""
+
+# $1 topic, $2 state, $3 city: a city's counts from its served rows.
+_CITY_COUNTS_SQL = f"""
     SELECT o.match_method, count(*)::int AS n, max(o.topic_id) AS topic_id, max(o.built_at) AS built_at
-    FROM topic_organization o
+    FROM topic_organization_serving o
     WHERE {_SCOPE}
     GROUP BY o.match_method
+"""
+
+# $1 topic, $2 state: rows served for the state (the strongest 20 plus every named-in-meeting row).
+_SERVED_SQL = """
+    SELECT count(*)::int AS n
+    FROM topic_organization_serving o
+    WHERE (o.topic_slug = $1::text OR o.topic_id::text = $1::text) AND o.state_code = $2::text
 """
 
 
@@ -141,16 +162,15 @@ def shape_items(rows: list[Any]) -> list[TopicOrganizationItem]:
                 org_name=r["org_name"],
                 city=_city_title(r["city"]),
                 state_code=r["state_code"],
-                state=_state_name(r["state"], r["state_code"]),
+                state=_state_name(None, r["state_code"]),
                 match_method=r["match_method"],
-                match_methods=list(r["match_methods"] or []),
+                match_methods=[r["match_method"]],
                 match_text=r["match_text"],
                 match_source_url=r["match_source_url"],
                 match_date=_iso(r["match_date"]),
                 match_place=r["match_place"],
                 mission=r["mission"],
                 side=r["side"],
-                ntee_code=r["ntee_code"],
                 revenue=int(r["revenue"]) if r["revenue"] is not None else None,
                 revenue_tax_year=str(r["revenue_tax_year"]) if r["revenue_tax_year"] is not None else None,
                 website_url=r["website_url"],
@@ -178,13 +198,20 @@ async def topic_organizations(
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
-                count_rows = list(await conn.fetch(_COUNTS_SQL, key, state_code, city_name))
+                partial = False
+                if city_name:
+                    count_rows = list(await conn.fetch(_CITY_COUNTS_SQL, key, state_code, city_name))
+                    state_total = _total(_counts(list(await conn.fetch(_COUNTS_SQL, key, state_code))))
+                    served = await conn.fetchrow(_SERVED_SQL, key, state_code)
+                    partial = state_total > int(served["n"] if served else 0)
+                else:
+                    count_rows = list(await conn.fetch(_COUNTS_SQL, key, state_code))
                 item_rows = list(await conn.fetch(_ITEMS_SQL, key, state_code, city_name, limit))
                 counts = _counts(count_rows)
                 broader: BroaderOrgScope | None = None
                 if _total(counts) == 0 and state_code:
                     up_state = state_code if city_name else None
-                    up_rows = list(await conn.fetch(_COUNTS_SQL, key, up_state, None))
+                    up_rows = list(await conn.fetch(_COUNTS_SQL, key, up_state))
                     broader = BroaderOrgScope(
                         state_code=up_state,
                         label=(_state_name(None, up_state) or up_state) if up_state else "National",
@@ -211,4 +238,5 @@ async def topic_organizations(
             items=shape_items(item_rows),
             broader=broader,
             built_at=_iso(built_at),
+            partial=partial,
         )

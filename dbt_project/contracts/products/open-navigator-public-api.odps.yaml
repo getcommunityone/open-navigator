@@ -470,11 +470,16 @@ outputPorts:
   contractId: open-navigator-public-meeting_bill_link
   type: table
   description: 'The state bills a meeting names (#1314, porting #1072''s draft).'
-- name: topic_organization
+- name: topic_organization_serving
   version: 1.0.0
-  contractId: open-navigator-public-topic_organization
+  contractId: open-navigator-public-topic_organization_serving
   type: table
-  description: The nonprofits tied to each curated topic (#1345).
+  description: 'The served slice of topic_organization (#1382): the 20 strongest nonprofits per topic and state plus every one named in a meeting, with only the columns the Nonprofits screen and API read.'
+- name: topic_organization_count
+  version: 1.0.0
+  contractId: open-navigator-public-topic_organization_count
+  type: table
+  description: 'Nonprofits per topic, state and method (#1382): the true totals behind the Nonprofits screen''s counts.'
 - name: organization_event
   version: 1.0.0
   contractId: open-navigator-public-organization_event

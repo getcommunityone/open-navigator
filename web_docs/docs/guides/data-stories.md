@@ -825,6 +825,8 @@ Owner, 27 Nov 2026: upcoming meetings and legislation are "where we have the gre
 
 - **Nonprofit events (#1347).** Events a nonprofit tied to the topic (by a meeting, its mission or its name) publishes on its own website, read from schema.org Event markup or an iCal feed, show as **Nonprofit event** with "Hosted by &lt;org&gt;" (a link to its page), the host's own evidence, and a link to the host's event page. Sources, terms and counts: [Upcoming events of nonprofits](../development/organization-events.md).
 
+- **Nonprofit events (#1347).** Events a nonprofit tied to the topic (by a meeting, its mission or its name) publishes on its own website, read from schema.org Event markup or an iCal feed, show as **Nonprofit event** with "Hosted by &lt;org&gt;" (a link to its page), the host's own evidence, and a link to the host's event page. Sources, terms and counts: [Upcoming events of nonprofits](../development/organization-events.md).
+
 How items are found, what the warehouse holds and what is left out: [What's coming up on a topic](../development/topic-upcoming.md).
 
 ### Who's working on this: the Nonprofits screen (#1346)

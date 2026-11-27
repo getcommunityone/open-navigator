@@ -1,0 +1,151 @@
+version: 2
+
+models:
+  - name: topic_organization_serving
+    description: >
+      The served slice of topic_organization (#1382): the 20 strongest nonprofits per topic and state plus every
+      one named in a meeting, with only the columns the Nonprofits screen and API read. The full mart stays in gold.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: topic_organization_id
+        description: "Primary key: md5(topic_id | master_org_id), as in topic_organization."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: topic_id
+        description: "FK to civicsearch_topic."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: topic_slug
+        description: "Topic slug."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: master_org_id
+        description: "FK to mdm_organization."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: org_name
+        description: "Name."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: city
+        description: "City (lower case)."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: match_method
+        description: "Strongest tie."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: evidence_rank
+        description: "1 named in a meeting .. 4 IRS category."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: match_text
+        description: "Evidence, at most 280 characters, marks kept whole."
+        data_type: text
+      - name: match_source_url
+        description: "named_in_meeting: the recording."
+        data_type: text
+      - name: match_date
+        description: "named_in_meeting: the meeting date."
+        data_type: date
+      - name: match_place
+        description: "named_in_meeting: the government."
+        data_type: text
+      - name: mission
+        description: "990 mission, at most 100 characters."
+        data_type: text
+      - name: side
+        description: "Stated side only, else null."
+        data_type: text
+      - name: revenue
+        description: "Latest 990 or IRS revenue."
+        data_type: bigint
+      - name: revenue_tax_year
+        description: "Its tax year."
+        data_type: integer
+      - name: website_url
+        description: "Website from the 990 e-file."
+        data_type: text
+      - name: built_at
+        description: "Build time."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+
+  - name: topic_organization_count
+    description: >
+      Nonprofits per topic, state and method (#1382): the true totals behind the Nonprofits screen's counts.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+    columns:
+      - name: topic_organization_count_id
+        description: "Primary key: md5(topic_id | state_code | match_method)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: topic_id
+        description: "FK to civicsearch_topic."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: topic_slug
+        description: "Topic slug."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: match_method
+        description: "Method."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: n
+        description: "Organizations."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: built_at
+        description: "Build time."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
