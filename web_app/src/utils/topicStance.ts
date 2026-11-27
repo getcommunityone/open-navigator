@@ -1,5 +1,5 @@
 // A topic story's four-colour map (#1127): the AI reading of each state's meetings (`topic_meeting_lean`, #1126) in the
-// shape the box map splits by. The counts are meetings, not speakers: public leaned against, leaned for, or mixed. Meetings
+// shape the box map splits by. The counts are meetings, not speakers: the public mostly opposed, mostly supported, or split. Meetings
 // the AI didn't read stay grey. Pure, so the rule is tested without rendering.
 
 import type { TopicStanceMap } from '../api/topics'
