@@ -1,0 +1,33 @@
+/* #1302: what is coming up on a topic. A dated list, no chart (a handful of items reads best as a list). */
+.up-list { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--rule); }
+.up-item { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.up-when { display: flex; flex-direction: column; gap: 2px; }
+.up-date { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--ink); }
+.up-time { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+.up-body { min-width: 0; }
+.up-kind { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-2); }
+.up-tag { display: inline-block; font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 1px 6px; border: 1px solid var(--rule); color: var(--ink); background: var(--paper-raised); }
+.up-tag--hearing { border-color: var(--violet-ink); color: var(--violet-ink); }
+.up-place { font-weight: 600; color: var(--ink); }
+.up-title { margin: 4px 0 0; font-size: 15px; font-weight: 500; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere; }
+.up-meta { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-2); }
+.up-basis { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); }
+.up-quote { margin: 4px 0 0; padding-left: 10px; border-left: 2px solid var(--violet); font-size: 13.5px; line-height: 1.45;
+  color: var(--ink-2); font-style: italic; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical; overflow: hidden; }
+.up-quote mark { background: color-mix(in srgb, var(--violet) 22%, transparent); color: var(--ink); font-style: normal; }
+.up-prior { display: block; margin-top: 2px; font-style: normal; font-size: 12.5px; color: var(--violet-ink); }
+.up-go { display: inline-block; margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--violet-ink); min-height: 24px; }
+.up-empty { padding: 10px 0 4px; }
+.up-empty-line { margin: 0; font-size: 17px; font-weight: 500; color: var(--ink); }
+.up-empty a, .up-bills a { color: var(--violet-ink); font-weight: 600; }
+.up-bills { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.up-billlist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.up-billlist li { display: grid; gap: 1px; }
+.up-bill-id { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+.up-bill-title { font-size: 13.5px; color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; }
+@media (max-width: 479px) {
+  .up-item { grid-template-columns: 1fr; gap: 4px; }
+  .up-when { flex-direction: row; gap: 8px; }
+}

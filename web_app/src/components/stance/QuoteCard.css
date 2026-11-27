@@ -321,16 +321,27 @@ div.qcard-media {
     font-size: 14px;
   }
 }
-/* The home page's slot under Start: the hint until a state is hovered, then the card; its height is kept so nothing jumps. */
+/* The home page's slot under Start: the hint until a state is hovered, then the card. No blank space is reserved for the
+   card (owner, 27 Nov 2026: "too much white space between map and scroller"): on a desktop the card is drawn over what is
+   below the slot, raised with a shadow, so nothing jumps and the sections below stay where they are. */
 .map-card-slot .map-hover-card {
   margin-top: 10px;
 }
 .map-card-slot:has(.map-hover-card) .map-card-slot-hint {
-  display: none;
+  visibility: hidden;
 }
 @media (hover: hover) and (pointer: fine) and (min-width: 861px) {
   .map-card-slot {
-    min-height: 196px;
+    position: relative;
+  }
+  .map-card-slot .map-hover-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin-top: 0;
+    z-index: 20;
+    box-shadow: 0 16px 36px rgba(28, 25, 23, 0.18);
   }
 }
 .qcard--compact .qcard-where,

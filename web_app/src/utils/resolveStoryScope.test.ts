@@ -16,13 +16,19 @@ describe('resolveStoryScope', () => {
     const r = resolveStoryScope({ ...base, city: 'Testville', cityMeetings: 5, stateMeetings: 70 })
     expect(r).toMatchObject({ asked: 'city', level: 'city', city: 'Testville', meetings: 5, reason: null })
   })
+  it("a city whose county can't be found says so, not that the topic has no county counts (#1321)", () => {
+    const r = resolveStoryScope({ ...base, city: 'Testville', cityMeetings: 0, county: 'unplaced', stateMeetings: 70 })
+    expect(r.level).toBe('state')
+    expect(r.reason).toBe("Testville has no meetings on data centers, too few to call. Its county isn't on record, so this shows Alabama (70 meetings).")
+  })
   it('keeps the city while its count is unknown', () => {
     expect(resolveStoryScope({ ...base, city: 'Testville', cityMeetings: null }).level).toBe('city')
   })
   it('city → county when the county has enough', () => {
     const r = resolveStoryScope({ ...base, city: 'Testville', cityMeetings: 2, county: { name: 'Test County', meetings: 7 }, stateMeetings: 70 })
     expect(r).toMatchObject({ level: 'county', county: 'Test County', meetings: 7, city: null, stateCode: 'AL' })
-    expect(r.reason).toBe('Testville has only 2 meetings on data centers, too few to call, so this shows Test County (7 meetings).')
+    // #1321: the county is named with its count, and the reason says what is really drawn (the state), never county data.
+    expect(r.reason).toBe("Testville has only 2 meetings on data centers, too few to call. Test County has 7 meetings, but figures aren't broken out by county yet, so this shows Alabama.")
   })
   it('city → state when the county is short too', () => {
     const r = resolveStoryScope({ ...base, city: 'Testville', cityMeetings: 1, county: { name: 'Test County', meetings: 3 }, stateMeetings: 70 })

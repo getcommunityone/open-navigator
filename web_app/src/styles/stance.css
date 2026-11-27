@@ -1467,37 +1467,6 @@ select.stance-blank {
   }
 }
 
-/* The sound switch in the top bar. */
-.stance-top-actions {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.stance-sound {
-  margin-top: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.stance-sound[aria-pressed='false'] {
-  color: var(--ink-2);
-}
-/* Phones: sound is set in the site menu (#1017). The story's one exit is the "← Data stories" crumb (#1192). */
-@media (max-width: 767px) {
-  .stance-top-actions .stance-sound {
-    display: none;
-  }
-}
-@media (max-width: 767px) {
-  .stance-sound {
-    min-height: 44px;
-    min-width: 44px;
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-}
-
 /* A phone shows the round on one screen: the chart folds away once the question is asked, and the finding is the title. */
 @media (max-width: 767px) {
   .stance-game[data-beats] .stance-act {
@@ -1980,6 +1949,8 @@ html.stance-snap {
   height: 100%;
   max-height: 100%;
   overflow-y: auto;
+  /* A long screen scrolls inside itself; at its ends the gesture is not handed to the page (which would snap to another screen). */
+  overscroll-behavior-y: contain;
   padding-bottom: 14px;
   scrollbar-width: none;
 }
@@ -2144,17 +2115,6 @@ html.stance-snap {
 
 /* On a phone the story keeps its top bar short: the sound switch is its icon (the words stay for a screen reader). */
 @media (max-width: 767px) {
-  .stance-story .stance-sound-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-  .stance-story .stance-sound {
-    justify-content: center;
-  }
 }
 /* A screen is only a starting point for Tab (tabindex -1), never a control: it takes focus without a ring. */
 .folio .stance-act[tabindex='-1']:focus-visible {
@@ -3451,4 +3411,89 @@ html.stance-snap .stance-intro {
   flex: 1 1 100%;
   order: 10;
   margin-bottom: 10px;
+}
+
+/* #1309: the state county map fits the screen. Its height never passes the visible screen below the story bar; its width
+   follows from that and the state's shape (--map-ar = width / height), centred. A wide state stays width-bound. */
+.stance-map-fit {
+  --map-chrome: 230px;
+  width: min(100%, calc((100svh - var(--map-chrome)) * var(--map-ar, 1)));
+  min-width: min(100%, 200px);
+  margin-inline: auto;
+}
+.stance-map-fit .stance-map-svg {
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 767px) {
+  /* Phones: the site header, the story bar and the bottom bar leave less room; the title and picker row get compact. */
+  .stance-map-fit {
+    /* The site header, the story bar and the fixed bottom bar stay on screen: the map fits the space between them. */
+    --map-chrome: 290px;
+  }
+  .stance-map:has(.stance-map-fit) .stance-map-head {
+    font-size: 13.5px;
+    gap: 6px;
+  }
+  .stance-map:has(.stance-map-fit) .stance-map-controls {
+    gap: 8px;
+    font-size: 13.5px;
+  }
+  .stance-map:has(.stance-map-fit) .stance-map-controls .folio-select {
+    min-height: 36px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    font-size: 14px;
+  }
+}
+
+/* #1309 (owner: "reorganize text above and below and zoom so it fits better"): the county figure's layout follows the
+   state's shape. A tall state in a column wide enough puts the title, picker, key and notes beside the map, so the map
+   uses the screen's height; a wide state keeps a one-line title above and the key below. */
+.stance-map--county {
+  container-type: inline-size;
+}
+.stance-map--county .stance-map-title {
+  min-width: 0;
+}
+.stance-map-swatch-focus {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+}
+@container (min-width: 600px) {
+  .stance-map-layout[data-shape='tall'] {
+    display: grid;
+    grid-template-columns: auto minmax(200px, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'stage head'
+      'stage side';
+    column-gap: 28px;
+    align-items: start;
+  }
+  .stance-map-layout[data-shape='tall'] > .stance-map-head {
+    grid-area: head;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .stance-map-layout[data-shape='tall'] > .stance-map-stage {
+    grid-area: stage;
+  }
+  .stance-map-layout[data-shape='tall'] > .stance-map-side {
+    grid-area: side;
+  }
+  /* Beside the map, nothing sits above it: the map takes the screen's height below the bars, up to 60% of the width. */
+  .stance-map-layout[data-shape='tall'] .stance-map-fit {
+    --map-chrome: 200px;
+    width: min(60cqi, calc((100svh - var(--map-chrome)) * var(--map-ar, 1)));
+    margin: 0;
+  }
+  .stance-map-layout[data-shape='tall'] .stance-map-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
 }

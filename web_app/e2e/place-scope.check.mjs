@@ -1,5 +1,5 @@
 // Place scope check (#1285, #1307). With Tuscaloosa, AL chosen the home map is Alabama's county map with Tuscaloosa's ring bold, the subtitle
-// says why the story steps up (too few meetings), and the header's "× National" puts the page back on the US map, on a
+// says why the story steps up (too few meetings), and the header toggle's National half puts the page back on the US map, on a
 // desktop and on a phone. The Data Center Story notes the step up under its bar while the URL keeps the reader's choice.
 //
 //   node e2e/place-scope.check.mjs [--base http://localhost:5173] [--shots <dir>]
@@ -26,8 +26,8 @@ const look = (page) =>
     zoom: document.querySelector('.home-story-map svg[data-map="county"]') ? 'county' : null,
     pin: document.querySelector('.home-story-map [data-scope-city]') ? 'Tuscaloosa' : null,
     sub: document.querySelector('.home-story-subhead, [data-testid=home-story-scope-line]')?.textContent ?? '',
-    // Desktop: "× National"; phone: the header toggle's National side (#1301).
-    national: [...document.querySelectorAll('.sh-national, .sh-ptoggle-btn[data-side="national"][aria-pressed="false"]')].find((e) => e.getClientRects().length > 0) ? true : false,
+    // The header toggle's National half (#1331), same markup on desktop and phone.
+    national: [...document.querySelectorAll('.sh-ptoggle-btn[data-side="national"][aria-pressed="false"]')].find((e) => e.getClientRects().length > 0) ? true : false,
   }))
 
 const { defaultBrowserType: _engine, ...pixel } = devices['Pixel 7']
@@ -45,12 +45,12 @@ for (const [label, opts] of [
   ok(r.zoom === 'county', `the map is Alabama's county map (${r.zoom})`)
   ok(r.pin === 'Tuscaloosa', `Tuscaloosa's ring is bold (${r.pin})`)
   ok(/Tuscaloosa has (only \d+ meetings?|no meetings) on data centers, too few to call/.test(r.sub), `the subtitle says why ("${r.sub.slice(0, 90)}")`)
-  ok(r.national, 'the header shows "× National"')
+  ok(r.national, 'the header toggle offers National')
   if (shots) await page.screenshot({ path: `${shots}/place-${label.replace(/\W+/g, '_')}-tuscaloosa.png` })
-  await page.locator('.sh-national, .sh-ptoggle-btn[data-side="national"][aria-pressed="false"]').locator('visible=true').first().click()
+  await page.locator('.sh-ptoggle-btn[data-side="national"][aria-pressed="false"]').locator('visible=true').first().click()
   await page.waitForTimeout(1500)
   r = await look(page)
-  ok(page.url().includes('scope=national') && r.zoom === null, `× National puts the US map back (${page.url().replace(base, '')})`)
+  ok(page.url().includes('scope=national') && r.zoom === null, `the National half puts the US map back (${page.url().replace(base, '')})`)
   if (shots) await page.screenshot({ path: `${shots}/place-${label.replace(/\W+/g, '_')}-national.png` })
   await page.goto(`${base}/stories/data-centers?state=AL&city=Tuscaloosa`, { waitUntil: 'networkidle', timeout: 120_000 })
   await page.waitForTimeout(2500)

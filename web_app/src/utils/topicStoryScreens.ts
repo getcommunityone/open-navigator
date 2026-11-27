@@ -1,8 +1,8 @@
 // The screens of a topic story (#1224): the same screen-by-screen format as the Data Center Story, built only from the data
 // a topic has. A screen with nothing on record for the place drops out of the story (no segment, not reached by Next), and
-// the cover says which ones and why; the Overview and the closing Recap always stay.
+// the cover says which ones and why; the Overview, Coming up (#1302) and the closing Recap always stay.
 
-export type TopicScreenId = 'overview' | 'timeline' | 'positions' | 'bills' | 'actions' | 'companies' | 'said' | 'decided' | 'recap'
+export type TopicScreenId = 'overview' | 'upcoming' | 'timeline' | 'positions' | 'bills' | 'actions' | 'companies' | 'said' | 'decided' | 'recap'
 
 export interface TopicScreen {
   id: TopicScreenId
@@ -12,6 +12,9 @@ export interface TopicScreen {
 
 export const TOPIC_STORY_SCREENS: TopicScreen[] = [
   { id: 'overview', eyebrow: 'Overview' },
+  // What's coming up (#1302): second, because what a reader can still act on is where the story has most impact. It
+  // always stays: an empty scope says "Nothing upcoming on record for <place>" and offers the next level up.
+  { id: 'upcoming', eyebrow: 'Coming up' },
   { id: 'timeline', eyebrow: 'Over time' },
   { id: 'positions', eyebrow: 'Who spoke' },
   { id: 'bills', eyebrow: 'State bills' },
@@ -31,6 +34,7 @@ export type ScreenAvailability = 'loading' | 'error' | 'ready' | 'empty' | 'abse
 /** Why an empty screen is not in the story, for the cover's note ("Not in this story for Ohio: …"). */
 const EMPTY_WHY: Record<TopicScreenId, string> = {
   overview: '',
+  upcoming: '',
   timeline: 'meetings over time (no meetings on record)',
   positions: "who spoke (the public's position isn't on record yet)",
   bills: 'state bills (none found in our copy of OpenStates)',
@@ -52,7 +56,7 @@ export function planTopicScreens(avail: Partial<Record<TopicScreenId, ScreenAvai
   const screens: TopicScreen[] = []
   const dropped: TopicScreenPlan['dropped'] = []
   for (const s of TOPIC_STORY_SCREENS) {
-    const a = s.id === 'overview' || s.id === 'recap' ? 'ready' : (avail[s.id] ?? 'loading')
+    const a = s.id === 'overview' || s.id === 'recap' || s.id === 'upcoming' ? 'ready' : (avail[s.id] ?? 'loading')
     if (a === 'absent') continue
     if (a === 'empty') {
       dropped.push({ id: s.id, why: EMPTY_WHY[s.id] })

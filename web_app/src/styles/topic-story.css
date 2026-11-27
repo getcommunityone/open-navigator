@@ -228,3 +228,16 @@
   text-transform: uppercase;
   color: var(--ink-3);
 }
+
+/* Who was on each side of a decision (#1320). */
+.topic-story .topic-story-people {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.topic-story .topic-story-people li + li {
+  margin-top: 2px;
+}

@@ -13,6 +13,7 @@ import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import { useStoryScope } from '../../hooks/useStoryScope'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
+import HomeOutcomesScroller from './HomeOutcomesScroller'
 import { storyStartHref } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
@@ -245,6 +246,17 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
           </div>
         </div>
         )}
+
+        {/* Story -> what happens next (#1302): below the story and its map, above Browse topics; Coming up first. It follows
+            the place asked in the URL (each card says when that place has nothing and offers the wider view). */}
+        <HomeOutcomesScroller
+          topic={story}
+          subject={topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : dcTopic}
+          stateCode={stateCode ?? null}
+          city={topicDef ? null : asked.city}
+          label={topicDef ? (stateName ?? 'National') : storyScopeLabel(asked)}
+          dataCenterStory={!topicDef}
+        />
 
         <HomeTopicStrip query={q} selected={story} onSelect={selectStory} stateCode={stateCode} city={asked.city} scopeLabel={storyScopeLabel(asked)} />
       </div>

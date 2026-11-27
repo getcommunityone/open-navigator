@@ -23,6 +23,8 @@ import { resolveVideoId, startFromUrl } from './quoteCardUtils'
 import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { useChartWidth } from './useChartWidth'
+import { MAP_MIN_COUNTY_PX, MAP_MIN_LABEL_PX, TALL_ASPECT, labelUnits, mapAspect } from '../../utils/mapFit'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
 export interface PlaceCount extends LeanCounts {
@@ -76,6 +78,8 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
  */
 export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill }: Props) {
   const [hover, setHover] = useState<string | null>(null)
+  // The map's drawn width (#1309): it is capped by the screen's height, so its labels are sized from what is really drawn.
+  const { ref: fitRef, width: drawnWidth } = useChartWidth<HTMLDivElement>(0)
   // With the card outside the map (#1307), leaving the map hides it after a moment, so the mouse can reach its link.
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const keepCard = () => {
@@ -288,13 +292,17 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
 
   const r = grid.step * 0.38
   const pad = 4
-  const vb = `${bx0 - pad} ${by0 - pad} ${bx1 - bx0 + pad * 2} ${by1 - by0 + pad * 2}`
+  const vbW = bx1 - bx0 + pad * 2
+  const vbH = by1 - by0 + pad * 2
+  const vb = `${bx0 - pad} ${by0 - pad} ${vbW} ${vbH}`
   // Town labels (#1115), in the Data Explorer's label style: each ring's government named beside it, largest meetings first,
   // skipping any label whose box would overlap one already placed. County governments have no ring; one is named at its
   // county's centre only when that spot is free, after every town (#1117), in the cartographic county style: small,
-  // uppercase, letter-spaced, lighter ("MARICOPA COUNTY"). Sizes follow the grid step so the labels scale with the map.
-  const labelSize = grid.step * 1.5
-  const countySize = labelSize * 0.82
+  // uppercase, letter-spaced, lighter ("MARICOPA COUNTY"). Sizes follow the grid step so the labels scale with the map, but
+  // never render under 12px (towns) or 10.5px (counties) however small the map is drawn (#1309); fewer then fit, and the
+  // overlap rule below drops the rest.
+  const labelSize = labelUnits(grid.step * 1.5, vbW, drawnWidth, MAP_MIN_LABEL_PX)
+  const countySize = labelUnits(labelSize * 0.82, vbW, drawnWidth, MAP_MIN_COUNTY_PX)
   const labels = (() => {
     const x0 = bx0 - pad
     const x1 = bx1 + pad
@@ -349,12 +357,21 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
 
   return (
     // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
-    <figure className="stance-map map-fade-in" aria-labelledby={labelledBy} onMouseLeave={leaveMap} onMouseEnter={keepCard} {...keyNav.stageProps}>
-      <figcaption className="stance-map-head">
-        <span>
-          Meetings where a data center came up, by county · {stateName}
-          {scopeCity ? ` (the county containing ${scopeCity} highlighted)` : ''}
-        </span>
+    // The layout follows the state's shape (#1309, owner 27 Nov 2026): a tall state in a wide column puts the title, key and
+    // notes beside the map so the map can use the screen's height; a wide state keeps them above and below.
+    <figure
+      className="stance-map stance-map--county map-fade-in"
+      aria-labelledby={labelledBy}
+      onMouseLeave={leaveMap}
+      onMouseEnter={keepCard}
+      {...keyNav.stageProps}
+    >
+      {/* The figure is the size container; this inner grid is what the container query lays out (a container can't
+          query itself). */}
+      <div className="stance-map-layout" data-shape={mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide'}>
+      <div className="stance-map-head">
+        {/* One short line; the highlighted city is named in the key, not appended here. */}
+        <span className="stance-map-title">Data center meetings by county · {stateName}</span>
         <span className="stance-map-controls">
           <button type="button" className="folio-link-btn" onClick={() => onPickState(null)}>
             United States
@@ -368,9 +385,11 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             ))}
           </select>
         </span>
-      </figcaption>
+      </div>
       <div className="stance-map-stage">
         {keyNav.sr}
+        {/* Fits the screen (#1309): the height is capped by the visible screen and the width follows the state's shape. */}
+        <div className="stance-map-fit" ref={fitRef} style={{ ['--map-ar' as string]: mapAspect(vbW, vbH).toFixed(4) }}>
         <svg
           viewBox={vb}
           className="stance-map-svg"
@@ -473,7 +492,9 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             ))}
           </g>
         </svg>
+        </div>
       </div>
+      <div className="stance-map-side">
       <p className="stance-map-readout">
         {hover
           ? readout(hover)
@@ -484,6 +505,11 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       {max > 0 && (
         <>
           <div className="stance-map-legend" aria-hidden="true">
+            {scopeCity && (
+              <span className="stance-map-none">
+                <span className="stance-map-swatch-focus" /> {scopeCity}&rsquo;s county (others faded)
+              </span>
+            )}
             {stances.size > 0 &&
               LEGEND_STANCES.map((k) => (
                 <span key={k} className="stance-map-none">
@@ -556,6 +582,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           </table>
         )}
       </details>
+      </div>
+      </div>
     </figure>
   )
 }
