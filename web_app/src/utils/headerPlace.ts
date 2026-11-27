@@ -19,6 +19,51 @@ export function headerPlace(
   return { stateCode: st, city: (saved?.city ?? '').trim() || null }
 }
 
+/**
+ * Routes that read `?state=&city=` for their data (#1205). On these the header names the page's actual scope, so a page
+ * showing national data never sits under a town label (CLAUDE.md, scope label rule).
+ */
+export const SCOPED_ROUTE_PREFIXES = [
+  '/stories',
+  '/search',
+  '/jurisdictions',
+  '/browse-topics',
+  '/browse-causes',
+  '/decisions-map',
+  '/policy-questions',
+  '/data-centers',
+  '/advocacy-topics',
+] as const
+
+/** True when `pathname` is one of `SCOPED_ROUTE_PREFIXES` or below it (`/stories/guns`), not a lookalike (`/stories-old`). */
+export function isScopeAwarePath(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, '') || '/'
+  return SCOPED_ROUTE_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`))
+}
+
+export type HeaderPlaceState =
+  /** The page is scoped to this place (it is in the URL): "📍 Tuscaloosa, AL ▾". */
+  | { kind: 'scoped'; place: HeaderPlace }
+  /** The page shows national data and a town is saved: "📍 National · Use Tuscaloosa, AL". */
+  | { kind: 'national-saved'; saved: HeaderPlace }
+  /** The page shows national data and no town is saved: "📍 National · Find your town". */
+  | { kind: 'national' }
+  /** Home (its own level picker) or a page that isn't scope-aware: the reader's town, or none. */
+  | { kind: 'town'; place: HeaderPlace | null }
+
+/** What the header's place control shows on `pathname` (#1205). */
+export function headerPlaceState(
+  pathname: string,
+  search: URLSearchParams,
+  saved: { state?: string | null; city?: string | null } | null | undefined,
+): HeaderPlaceState {
+  if (!isScopeAwarePath(pathname)) return { kind: 'town', place: headerPlace(search, saved) }
+  const fromUrl = headerPlace(search, null)
+  if (fromUrl) return { kind: 'scoped', place: fromUrl }
+  const savedPlace = headerPlace(new URLSearchParams(), saved)
+  return savedPlace ? { kind: 'national-saved', saved: savedPlace } : { kind: 'national' }
+}
+
 /** "Tuscaloosa, AL", or "AL" for a state-only place. */
 export function headerPlaceLabel(p: HeaderPlace | null): string | null {
   return p ? [p.city, p.stateCode].filter(Boolean).join(', ') : null
