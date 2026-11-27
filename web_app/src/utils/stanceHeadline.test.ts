@@ -69,8 +69,13 @@ describe('stance headline: below the minimum (#1289)', () => {
     const c = pickCaption('data-centers', f, al)
     expect(c.kind).toBe('insufficient')
     expect(title(c)).not.toMatch(/oppos|hates|support/)
-    expect(captionText(c, 'data centers')).toBe('Not enough recorded activity to say.')
-    expect(c.basis).toMatch(/^One decision passed 8–1; no public speakers in 24 meetings reviewed\./)
+    // #1313: the topic is an inline control in the sentence, never "( ▾ )" appended in brackets.
+    expect(captionText(c, 'data centers')).toBe('Not enough recorded activity on data centers to say.')
+    expect(c.template).toContainEqual({ blank: 'topic' })
+    expect(c.basis).toMatch(/^One decision passed 8–1; no public speakers in 24 meetings reviewed by hand\./)
+    // #1313: the reading of the transcripts names its own source and scope, so it can't read as contradicting the hand count.
+    expect(c.basis).toContain('A reading of all 71 meeting transcripts found the public speaking on data centers in 8 (6 against and 2 split).')
+    expect(c.basis).not.toMatch(/the public spoke in 8/)
     expect(c.basis).not.toMatch(/%/)
     expect(captionSubhead(c, 'data-centers', al)).not.toMatch(/mostly|hates/)
   })
@@ -89,10 +94,10 @@ describe('stance headline: below the minimum (#1289)', () => {
 
   it('states the facts plainly for zero, one and several decisions', () => {
     expect(evidenceFacts(recordedEvidence(facts(al, { votes: { decisions: 0, for: 0, against: 0 } })))).toBe(
-      'No decision with a recorded vote; no public speakers in 24 meetings reviewed.',
+      'No decision with a recorded vote; no public speakers in 24 meetings reviewed by hand.',
     )
     expect(evidenceFacts(recordedEvidence(facts(al, { votes: { decisions: 2, for: 9, against: 5 }, speakers: { for: 1, against: 2, question: 0, neutral: 0, states: 1, meetings_reviewed: 24 } })))).toBe(
-      '2 decisions with recorded votes, 9 for and 5 against in all; 3 public speakers in 24 meetings reviewed.',
+      '2 decisions with recorded votes, 9 for and 5 against in all; 3 public speakers in 24 meetings reviewed by hand.',
     )
     expect(evidenceFacts(recordedEvidence(facts(al, { votes: { decisions: 1, for: 2, against: 5 } })))).toMatch(/^One decision failed 2–5;/)
   })
@@ -101,6 +106,12 @@ describe('stance headline: below the minimum (#1289)', () => {
     const c = pickCaption('data-centers', facts(al, { speakers: null, votes: null }), al)
     expect(c.kind).toBe('insufficient')
     expect(c.basis).toMatch(/^Recorded votes are not available yet; public speakers are not available yet\./)
+  })
+
+  it('a reading where the public never spoke, and meetings not read yet, are said plainly (#1313)', () => {
+    const c = pickCaption('data-centers', facts(al, { meetings: 10, public_against_meetings: 0, public_split_meetings: 0, public_for_meetings: 0, public_silent_meetings: 9, lean_meetings: 9 }), al)
+    // No stance from the reading here, so the title is not a stance: the check only replaces stance titles.
+    expect(c.kind).not.toBe('position')
   })
 
   it('a topic with no hand counts or votes on record is not held to the minimum (nothing to count yet)', () => {

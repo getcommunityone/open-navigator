@@ -254,6 +254,32 @@ The Data Center Story's Decisions screen uses the same rules on `data_center_dec
 `GET /api/data-centers/decisions`), a square opens the decision page, else the meeting page, else the recording, and the
 screen's line says how many are on a data center.
 
+### Who supported and opposed each decision (#1320)
+
+Owner, 27 Nov 2026, on the Guns Decisions screen: "still can't see who is saying this." Each decision card now lists the
+people the decision record names, then the recorded vote:
+
+- **Supported by: John Faile (City Councilor), Joseph Eatmon, Sr. (City Councilor), … +5** from
+  `event_decision.competing_views.dominant_view.held_by`; **Opposed by: …** from `counter_views[].held_by`. When the record
+  names supporters and lists no counter view, the card says **No opposition recorded**; a counter view with no names says
+  **Opposition recorded; no names on record**. Others the record says spoke on the item (`decision_speakers`) follow as
+  **Also spoke: …**. **Vote: 7–0** comes from `vote_tally` when it has a yes count.
+- The names come from speaker slugs such as `john_faile_councilor_tuscaloosa` (`api/routes/decision_people.py`).
+  Officials are public: a slug with an official title (councilor, mayor, commissioner, chair, chief, clerk, ...) or a name
+  matching exactly one current official of the decision's own government (`person_government`, "[place] Government", same
+  state) is shown by full name, with the official record's title, else the slug's title. A title heard only as a form of
+  address stays in the name with no role ("Chief Sky"). Everyone else is "First L." with no role, and only when a first and
+  last name are on record. Students and minors are never shown, residents are never shown for a school-board decision, and
+  a slug whose name can't be told from a description or a place is left out.
+- `GET /api/topics/{topic_id}/decisions` and `GET /api/data-centers/decisions` return `supported_by[]`, `opposed_by[]`,
+  `spoke_on_it[]` (each `{name, role, kind: official | resident}`), `supported_view`, `opposition_recorded` and
+  `vote_yes` / `vote_no`. On the Data Center Story the lines sit under each decision in the list.
+
+Local warehouse, 27 Nov 2026: of 599 decisions behind the 19 topic stories, 306 (51%) name at least one person (248 a
+supporter, 64 an opponent, 59 another speaker; 248 name at least one official), 157 say no opposition was recorded
+and 231 (39%) show a vote. Of 49 data-center decisions, 16 name someone; Alabama's 10 name no one, because their records
+carry no `held_by`.
+
 ## The heading is a sentence
 
 The story is headed by the longer "What did local meetings in [place] say about [topic]?". The two blanks are the controls: the place blank opens a dialog with one search box for a city, county or ZIP code (pick a suggestion and it applies and closes), one-click **The United States** and **All of [state]**, **Use my location**, and an "Or pick a state" list. It has a close button, and Escape or a click outside closes it too; on a phone it is a bottom sheet. A county has no city grain here, so picking one applies its state and the dialog says "Stories are told by city or state; showing all of [state]". The lookup uses the same geocoder helpers as the home page location search (`web_app/src/utils/resolvePlace.ts`), picks carry the geocoder's own city name so nothing has to be typed exactly, and the choice is kept only in the address (`state` and `city`), never in the saved site-wide location, the topic blank lists the topics that have a story (today only data centers). They are underlined inline controls you can reach with the keyboard, named "Place" and "Topic", and at least 44 pixels tall on a phone. Because the story is built from meeting records, the screens that are things said in meetings (concerns, job claims, passages, agendas, decisions, company-hosted meetings) carry the sentence; sites and projects are marked "For context". The component is `web_app/src/components/stance/SentenceHeading.tsx`; it has the same props as the shared story component being built elsewhere, and the two should be merged.
@@ -694,6 +720,17 @@ Every topic story (`/stories/<topic>`) has two screens after **Who spoke**, and 
 
 There is no ballot-measure chart: we have no ballot-measure data on these topics yet ([#1275](https://github.com/getcommunityone/open-navigator/issues/1275)). Rules, colours and counts: [Topic legislation map, positions and local actions](../development/topic-legislation-map.md).
 
+### Coming up, and the home page's What happens next strip (#1302)
+
+Owner, 27 Nov 2026: upcoming meetings and legislation are "where we have the greatest impact". Every story (the topic stories and the Data Center Story) has a **Coming up** screen second, right after Overview, and it always stays in the story:
+
+- **What, when, where, how to take part.** Each scheduled meeting or public hearing shows its date, the place, the title, why it is listed (the agenda names the topic; an official notice lists it; or "Agenda not posted yet. Gwinnett County discussed data centers on Jun 15, 2026:"), the quoted evidence with the topic's words marked, and a link: the agenda, the meeting page, the livestream or the official notice.
+- **State bills still open**, dated by their last action and linked to OpenStates, furthest along first.
+- **Nothing upcoming.** The screen says "Nothing upcoming on record for Georgia." and links one level up (a city to its state, a state to national) with that level's count. No stand-in items.
+- **Home page.** Under the story card and its map, above Browse topics, a strip of three cards for the story and place in the URL (`?story=`, `?state=`, `?city=`): **Coming up** first and highlighted, then **Meetings** and **State bills**. Each is one real number and one line and opens that screen of the story at the same place. It scrolls sideways on a phone.
+
+How items are found, what the warehouse holds and what is left out: [What's coming up on a topic](../development/topic-upcoming.md).
+
 ## Add a story
 
 1. Add the screens to `web_app/src/utils/dataStory.ts` (a list like `DATA_CENTER_STORY`: an `id`, a short word, the dataset key and the kind; start with a `question` and a `scope` screen and end with a `verdict` screen) and a function per record screen that returns its headline and context from the endpoint's response. Add them to `screenText` and cover them in `dataStory.test.ts`, including the empty and failed cases and the banned wording.
@@ -712,7 +749,7 @@ When you stop on a screen that has a next step, the page draws your eye to it. A
 - It is never shown on a group of answers: no answer is pushed.
 - Focus does not move, nothing is announced to a screen reader, no control is added and nothing shifts.
 - With reduced motion nothing moves: an outline inside the button shows and goes, once per cue.
-- The hub cue is visual only. On the story, with **Sound on**, the first idle nudge also plays one soft page-turn cue, and advancing to a new screen plays the same soft cue (after your first click or key unlocks Web Audio). Answering still plays the lock cue. The challenge is louder: its arrow hops twice and the light is brighter, and its first idle cue plays a soft sound when sound is on (#966).
+- The hub cue is visual only. On the story, with **Play sound in stories** on (Settings, Site tab, or the site menu; off by default, #1319), the first idle nudge also plays one soft page-turn cue, and advancing to a new screen plays the same soft cue (after your first click or key unlocks Web Audio). Answering still plays the lock cue. The challenge is louder: its arrow hops twice and the light is brighter, and its first idle cue plays a soft sound when sound is on (#966).
 
 | Timing | Value | Constant |
 | --- | --- | --- |

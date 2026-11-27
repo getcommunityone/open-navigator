@@ -1,0 +1,149 @@
+version: 2
+
+models:
+  - name: topic_upcoming
+    description: >
+      What is coming up on each curated topic (#1302): scheduled meetings and public hearings with a real date,
+      each tied to the topic by evidence (an agenda that names it, a verified official hearing notice, or a
+      scheduled meeting of a government whose recorded meeting discussed it in the two years before). One row per
+      (topic_id, item_key). Rule and coverage: web_docs/docs/development/topic-upcoming.md.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+      - type: foreign_key
+        columns: [platform_meeting_id]
+        to: ref('platform_meeting')
+        to_columns: [platform_meeting_id]
+      - type: foreign_key
+        columns: [event_meeting_document_id]
+        to: ref('event_meeting_document')
+        to_columns: [event_meeting_document_id]
+      - type: foreign_key
+        columns: [data_center_hearing_id]
+        to: ref('data_center_hearing')
+        to_columns: [data_center_hearing_id]
+    columns:
+      - name: topic_upcoming_id
+        description: 'Primary key: md5(topic_id | item_key).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: topic_id
+        description: 'FK to civicsearch_topic.'
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: topic_slug
+        description: "The topic's slug (civicsearch_topic.query_id), e.g. 'data-centers'."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: item_key
+        description: "The item's source and id: 'agenda:<event_meeting_document_id>', 'hearing:<data_center_hearing_id>', 'legistar:<platform_meeting_id>' or 'youtube:<video_id>'."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: kind
+        description: 'meeting | hearing | deadline | bill_action.'
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['meeting', 'hearing', 'deadline', 'bill_action']
+      - name: match_basis
+        description: 'Why the item is about the topic: agenda_text (the agenda names it), official_notice (a verified official hearing notice) or place_discussed_before (a scheduled meeting of a government whose recorded meeting discussed the topic in the two years before; prior_* name that meeting).'
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['agenda_text', 'official_notice', 'place_discussed_before']
+      - name: item_date
+        description: 'The day it happens. Only rows on or after the build date are kept; the API shows item_date >= today.'
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: item_time
+        description: 'Start time as the source wrote it, when it gives one.'
+        data_type: text
+      - name: jurisdiction_id
+        description: 'The government holding the meeting (jurisdictions id), when known.'
+        data_type: text
+      - name: jurisdiction_name
+        description: "The government's name."
+        data_type: text
+      - name: state_code
+        description: '2-letter state code.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state
+        description: 'Full state name.'
+        data_type: text
+      - name: body_name
+        description: 'The board or council, when the source names it.'
+        data_type: text
+      - name: title
+        description: 'The meeting or hearing title as the source wrote it.'
+        data_type: text
+      - name: location
+        description: 'Where it is held, when the source says.'
+        data_type: text
+      - name: source_url
+        description: 'Where to take part or read more: the agenda, the meeting page, the livestream or the official notice.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_label
+        description: 'What source_url is: Agenda, Meeting page, Livestream or Official notice.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: matched_text
+        description: "Verbatim evidence with the topic's words in <mark>: the agenda's or notice's own passage, or for place_discussed_before the earlier meeting's transcript passage."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: prior_video_id
+        description: 'place_discussed_before only: the earlier recorded meeting that discussed the topic.'
+        data_type: text
+      - name: prior_meeting_date
+        description: "place_discussed_before only: that meeting's date."
+        data_type: date
+      - name: prior_url
+        description: "place_discussed_before only: that meeting's recording."
+        data_type: text
+      - name: tentative
+        description: 'True when the official source calls the date tentative.'
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: platform_meeting_id
+        description: 'FK to platform_meeting for a Legistar calendar row.'
+        data_type: text
+      - name: event_meeting_document_id
+        description: 'FK to event_meeting_document for an agenda match.'
+        data_type: text
+      - name: data_center_hearing_id
+        description: 'FK to data_center_hearing for a verified hearing.'
+        data_type: text
+      - name: source_updated_at
+        description: 'When the source row was last fetched (freshness).'
+        data_type: timestamp with time zone
+      - name: built_at
+        description: 'When this mart was built (freshness).'
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { commentersLine, decisionsSummary, positionChips, saidSummary, speakerLine } from './saidCards'
+import { commentersLine, decisionPeopleLines, decisionsSummary, peopleList, positionChips, saidSummary, speakerLine } from './saidCards'
 
 // Test stand-ins, not warehouse figures.
 const counts = {
@@ -60,5 +60,35 @@ describe('decisionsSummary', () => {
     expect(decisionsSummary(3, 6, 'gun control', 'guns')).toBe('3 decisions on gun control; 6 more mention guns in passing.')
     expect(decisionsSummary(0, 1, 'gun control', 'guns')).toBe('No decision on gun control itself; 1 decision mentions guns in passing.')
     expect(decisionsSummary(1, 0, 'gun control', 'guns')).toBe('1 decision on gun control.')
+  })
+})
+
+describe('decision people (#1320)', () => {
+  const faile = { name: 'John Faile', role: 'City Councilor', kind: 'official' as const }
+  const busby = { name: 'Lee Busby', role: 'City Councilor', kind: 'official' as const }
+  const sky = { name: 'Chief Sky', role: null, kind: 'official' as const }
+  const scott = { name: 'Scott H.', role: null, kind: 'resident' as const }
+  it('lists names with roles only where given, and counts the rest', () => {
+    expect(peopleList([faile, busby, sky, scott, scott])).toBe('John Faile (City Councilor), Lee Busby (City Councilor), Chief Sky +2')
+    expect(peopleList([])).toBeNull()
+  })
+  it('says no opposition only when supporters are named and no counter view is on record', () => {
+    expect(decisionPeopleLines({ supported_by: [faile], opposed_by: [], opposition_recorded: false, vote_yes: 7, vote_no: 0 })).toEqual([
+      'Supported by: John Faile (City Councilor)',
+      'No opposition recorded',
+      'Vote: 7–0',
+    ])
+    expect(decisionPeopleLines({ supported_by: [], opposition_recorded: false })).toEqual([])
+    expect(decisionPeopleLines({ opposition_recorded: true })).toEqual(['Opposition recorded; no names on record'])
+  })
+  it('names opponents and other speakers', () => {
+    expect(decisionPeopleLines({ supported_by: [faile], opposed_by: [scott], spoke_on_it: [sky], opposition_recorded: true })).toEqual([
+      'Supported by: John Faile (City Councilor)',
+      'Opposed by: Scott H.',
+      'Also spoke: Chief Sky',
+    ])
+  })
+  it('claims nothing for an older server', () => {
+    expect(decisionPeopleLines({})).toEqual([])
   })
 })

@@ -4,7 +4,7 @@
 // commenters whose own words matched the topic (meeting_comment), the meeting's public position in the AI reading
 // (topic_meeting_lean, the map's thresholds) and what the council or board did (its outcome_group, the Votes screen's
 // source). A meeting-level position is always labelled as the meeting's, never as the speaker's. No source, no chip.
-import type { TopicMeeting, TopicSaidCounts } from '../api/topics'
+import type { DecisionPeople, DecisionPerson, TopicMeeting, TopicSaidCounts } from '../api/topics'
 import { actionLabels, FIVE_POSITION_STYLE } from './topicPolicy'
 import { topicPositions } from './topicPositions'
 
@@ -108,4 +108,31 @@ export function decisionsSummary(onTotal: number, passingTotal: number, topicWor
   if (passingTotal <= 0) return `${on}.`
   const verb = passingTotal === 1 ? 'mentions' : 'mention'
   return `${on}; ${onTotal > 0 ? `${fmt(passingTotal)} more` : dec(passingTotal)} ${verb} ${mentionWord} in passing.`
+}
+
+/** "John Faile (City Councilor), Lee Busby (Councilor) +3": names as served, a role only where the API gives one. */
+export function peopleList(people: DecisionPerson[] | null | undefined, max = 3): string | null {
+  const list = people ?? []
+  if (list.length === 0) return null
+  const shown = list.slice(0, max).map((p) => (p.role ? `${p.name} (${p.role})` : p.name))
+  return `${shown.join(', ')}${list.length > max ? ` +${fmt(list.length - max)}` : ''}`
+}
+
+/**
+ * The lines a decision card shows about its people and vote (#1320): "Supported by: …", "Opposed by: …" or "No opposition
+ * recorded" (only when the record names supporters and lists no counter view), "Also spoke: …" and "Vote: 7–0". Nothing
+ * when the record has none of it.
+ */
+export function decisionPeopleLines(d: DecisionPeople): string[] {
+  const out: string[] = []
+  const sup = peopleList(d.supported_by)
+  const opp = peopleList(d.opposed_by)
+  if (sup) out.push(`Supported by: ${sup}`)
+  if (opp) out.push(`Opposed by: ${opp}`)
+  else if (d.opposition_recorded === true) out.push('Opposition recorded; no names on record')
+  else if (d.opposition_recorded === false && sup) out.push('No opposition recorded')
+  const also = peopleList(d.spoke_on_it)
+  if (also) out.push(`${sup || opp ? 'Also spoke' : 'Spoke on it'}: ${also}`)
+  if (d.vote_yes != null) out.push(`Vote: ${fmt(d.vote_yes)}–${d.vote_no != null ? fmt(d.vote_no) : '?'}`)
+  return out
 }

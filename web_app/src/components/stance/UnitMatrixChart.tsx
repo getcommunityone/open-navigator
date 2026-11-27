@@ -159,7 +159,8 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
             const b = bind({
               cat: g ? g.label : r.group,
               val: r.d.title,
-              sub,
+              // Who supported and opposed a decision, and its vote (#1320), after where and when.
+              sub: [sub, ...(r.d.detail ?? [])].filter(Boolean).join(' · ') || undefined,
               thumb: r.d.video ? youtubeThumbnail(r.d.video.videoId, 'mqdefault') ?? undefined : undefined,
             })
             const label = `${r.d.title}${sub ? `, ${sub}` : ''}${g && active !== 'all' ? `, ${g.label}` : ''}${r.d.video ? ' (plays the recording)' : r.d.url ? ' (opens the source)' : ''}`

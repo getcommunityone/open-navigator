@@ -60,11 +60,13 @@ function fakeWindow(store: Record<string, string> | 'throws', extra: Record<stri
 describe('the sound board', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('defaults to on and remembers the choice', () => {
+  it('defaults to off and remembers the choice', () => {
     const store: Record<string, string> = {}
     fakeWindow(store)
-    expect(readSoundSetting()).toBe(true)
+    expect(readSoundSetting()).toBe(false)
     const b = createSoundBoard()
+    b.setEnabled(true)
+    expect(store[SOUND_KEY]).toBe('on')
     b.setEnabled(false)
     expect(store[SOUND_KEY]).toBe('off')
     expect(b.enabled).toBe(false)
@@ -74,7 +76,7 @@ describe('the sound board', () => {
   })
   it('does not throw when storage throws', () => {
     fakeWindow('throws')
-    expect(readSoundSetting()).toBe(true)
+    expect(readSoundSetting()).toBe(false)
     const b = createSoundBoard()
     expect(() => b.setEnabled(false)).not.toThrow()
   })
@@ -97,7 +99,7 @@ describe('the sound board', () => {
         return Promise.resolve()
       }
     }
-    const w = fakeWindow({}, { AudioContext: Ctx })
+    const w = fakeWindow({ [SOUND_KEY]: 'on' }, { AudioContext: Ctx })
     const b = createSoundBoard()
     b.play('open')
     expect(made).not.toHaveBeenCalled()
@@ -107,7 +109,7 @@ describe('the sound board', () => {
     b.play('finish')
     expect(made).toHaveBeenCalledTimes(1)
 
-    fakeWindow({})
+    fakeWindow({ [SOUND_KEY]: 'on' })
     const c = createSoundBoard()
     c.play('open')
     const d = createSoundBoard()
@@ -136,7 +138,7 @@ describe('the sound board', () => {
         })
       }
     }
-    const w = fakeWindow({}, { AudioContext: Ctx })
+    const w = fakeWindow({ [SOUND_KEY]: 'on' }, { AudioContext: Ctx })
     const b = createSoundBoard()
     w.fire('pointerdown')
     b.play('lock')

@@ -30,6 +30,7 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
+from api.routes.decision_people import DecisionPeople, DecisionPerson
 from api.routes.search_postgres import (
     STATE_NAME_TO_CODE,
     get_db_pool,
@@ -2179,7 +2180,7 @@ DECISIONS_DEFAULT = 200
 DECISIONS_MAX = 500
 
 
-class DataCenterDecision(BaseModel):
+class DataCenterDecision(DecisionPeople):
     """One decision a local meeting took on a data center item, debated or not."""
 
     data_center_decision_id: str
@@ -2269,6 +2270,34 @@ def decision_headlines_sql(scope: JobClaimScope) -> tuple[str, list[Any]]:
     return f"SELECT d.headline FROM data_center_decision d WHERE {' AND '.join(where) or 'TRUE'}", params
 
 
+async def _decision_people(items: list["DataCenterDecision"]) -> None:
+    """Fill supported_by / opposed_by for decisions with a page (#1320), from event_decision.competing_views. Optional: a
+    serving copy without event_decision or person_government leaves them empty."""
+    from api.routes.decision_people import DECISION_PEOPLE_SQL, load_officials, people_fields
+
+    ids = {it.decision_url.rsplit("/", 1)[-1]: it for it in items if it.decision_url and it.decision_url.startswith("/decisions/")}
+    if not ids:
+        return
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = [dict(r) for r in await conn.fetch(DECISION_PEOPLE_SQL, list(ids))]
+            officials = await load_officials(conn, {(r.get("state_code"), r.get("jurisdiction_name")) for r in rows})
+    except asyncpg.exceptions.PostgresError as e:
+        logger.warning("data-centers: decision people unavailable ({})", e)
+        return
+    for r in rows:
+        it = ids.get(str(r.get("event_decision_id")))
+        if it is None:
+            continue
+        f = people_fields(r, officials)
+        it.supported_by = [DecisionPerson(**p) for p in f["supported_by"]]
+        it.opposed_by = [DecisionPerson(**p) for p in f["opposed_by"]]
+        it.spoke_on_it = [DecisionPerson(**p) for p in f["spoke_on_it"]]
+        it.supported_view = f["supported_view"]
+        it.opposition_recorded = f["opposition_recorded"]
+
+
 def mark_decision_relevance(counts: "DataCenterDecisionCounts", items: list["DataCenterDecision"], headlines: list[str | None]) -> None:
     """Stamp each listed decision on-topic or in passing and count the whole scope (#1293). No reading is joined: the
     data-center decisions carry only a headline, so an unsure one is in passing."""
@@ -2330,6 +2359,7 @@ async def data_center_decisions(
         counts = DataCenterDecisionCounts(**dict(count_rows[0])) if count_rows else DataCenterDecisionCounts()
         items = [DataCenterDecision(**dict(r)) for r in item_rows]
         mark_decision_relevance(counts, items, headlines)
+        await _decision_people(items)
         span.set_attribute("decisions.items", len(items))
         span.set_attribute("decisions.on_topic", counts.on_topic or 0)
         return DataCenterDecisionsResponse(scope=applied, counts=counts, items=items)
