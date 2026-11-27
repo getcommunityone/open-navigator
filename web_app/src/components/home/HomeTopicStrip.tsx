@@ -157,7 +157,7 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
         <p id="home-topics-h" className="font-mono-x">
           Browse topics
         </p>
-        <Link to={`/stories${query}`} aria-label="All data stories" className="home-topics-all">
+        <Link to={`/stories${query}`} aria-label="All data stories" title="All data stories" className="home-topics-all">
           <ChevronRight size={18} aria-hidden="true" />
         </Link>
       </div>
