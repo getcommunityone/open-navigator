@@ -138,6 +138,54 @@ Up to eleven screens, in this order (a chart screen with nothing on record for t
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
+### Start, short titles, swipe and the phone Back (#1234, 26 Nov 2026)
+
+- **Start opens the story, not its cover.** Every link that already means "start" (home's **Start the data center
+  story**, the home topic cards' Start, the **Start** on each `/stories` card) goes to `/stories/<topic>?…&screen=overview`
+  (`storyStartHref` in `utils/storyNav.ts`), so the reader lands on the Overview and does not press Start twice. A plain
+  link (a shared URL, the topic picker, **Next story**) still opens the cover. The home map's drill-down keeps its
+  navigation state (#1213). `?screen=<id>` deep links open that screen, and a progress segment pressed while the place's
+  data is still arriving re-aims at the screen it names once the page settles (#1208).
+- **Titles are the short conclusion only** ("America hates data centers."), with no counts and no "AI reading" text;
+  at a place whose own reading is too thin, the title is the broader conclusion and the line under it starts with the
+  place, which is the place control. The Overview never repeats the title. Details, wording and before/after:
+  [Story captions](../development/story-captions.md#decision-26-nov-2026-1234-the-title-is-the-short-conclusion-only-no-ai-reading-text).
+  This replaces the title examples in the rules below (they keep their order and thresholds).
+- **Swipe between screens on a touch screen** (owner: "It should swipe left to toggle"): swipe left = next screen (on
+  the cover, start), swipe right = previous. It needs a mostly sideways move (50px or more, 1.5 times more sideways than
+  vertical, within 0.8s), so scrolling up and down never turns a screen, and it is off inside maps, charts, the place
+  dialog and form fields (`useSwipeNav` in `web_app/src/hooks/useSwipeNav.ts`, shared with the topic stories). The git
+  history shows no earlier sideways swipe in the story (the phone has moved by vertical scroll snap since #921), so this
+  is new behaviour, not a restored handler.
+- **The phone bottom bar has Back** (owner: "On phone back button is missing"): a round 48px ← left of the progress,
+  named "Back: [previous screen]", hidden on the cover and the first screen. Desktop keeps the inline Back.
+- **Close top right, Next bottom right, nothing else** (decision 27 Nov 2026; owner: "I think a right Next green button at
+  bottom right always visible. The two buttons is confusing." and "This is confusing. We should have consistent Close in
+  top right, probably move change state elsewhere, have Next in bottom right and move Next story somewhere super subtle
+  so it doesn't cause this. Just make Close go back to home and pick next story."). This reverses #1199's removal of the
+  × and replaces its Start-only cover:
+  - **Close (×)** sits in the top-right corner of the story's sticky bar on every screen, 44px, named "Close story"
+    (`StoryClose.tsx`, through `ScopeBar`'s `close` prop; shared with the topic stories). It goes to the home page with
+    the place kept and the same story card shown (`/?state=&city=[&story=]#data-stories`, `storyCloseHref`). Escape
+    closes too, unless a dialog is open.
+  - The bar drops **← Data stories** and the **Showing: [place] · National only** row. The title's place control
+    ("[Texas ▾] hates data centers.", or the subhead's when the title names a broader place) is the page's one place
+    switcher.
+  - **One green Next →** is fixed at the bottom right of the window on every screen, desktop and phone (inside the
+    safe-area insets, 48px tall; `StoryNextButton.tsx`, shared). On the cover it starts the story (landing on the
+    Overview); on a screen it goes to the next screen. On the last screen it is a quiet outlined **Done** in the same
+    place, which closes the story: the story ends there. The cover's **Start / Next story** pair is gone, the screens'
+    inline Next buttons give way to it (Back, Skip and **See every data center record** stay) and the floating bar
+    (`FloatingNext`) no longer shows on the story. The page leaves 96px under its last content on a wide screen (the
+    phone bar's height on a phone), so it never covers anything; on a phone it sits at the right end of the bottom bar,
+    which keeps Back and the progress dots.
+  - **Next story** is gone from the cover and the screens; after the last screen there is at most a small plain-text
+    link, "Another story: Guns". The home page is where readers pick the next story: the home story cards keep one
+    primary **Start the [topic] story →** and no Next story link.
+  - `e2e/story-nav.check.mjs` (1440x900) and `e2e/story-flow.check.mjs` (Pixel 7, iPhone 13, 1440x900) check Close at the
+    same top-right box and Next at the same bottom-right box on the cover and every screen, Done on the last screen, and
+    that Close and Escape go home with the place kept.
+
 ### The title states the place's strongest statement (#993, #1125)
 
 The story's title, and the caption on each **Browse topics** tile on the home page, is the strongest statement the record
@@ -238,6 +286,8 @@ count for the scope; missing data falls through to the next rule. Thresholds and
 [Story captions](../development/story-captions.md).
 
 ### One title, with a scoped subhead and numbered points (#1134)
+
+*(Since #1234, 26 Nov 2026: the Overview no longer repeats the title; it leads with its own count of the record. See above.)*
 
 The home hero, the story header and the story's Overview screen state the **same** caption for the page's scope, from
 `pickCaption`. On the Overview, any caption but the bare question (hates, divided, state comparison, meeting count) is
@@ -349,9 +399,11 @@ It is drawn on a canvas over the map (`MapDrill.tsx`); the map stays in the page
 
 A strip of segments along the lower edge of the top bar has one segment per screen. The one in view fills, the ones behind it stay filled, and the words beside it say what is left ("Seven to go", "One to go", "Last one").
 
-Every screen has one primary action: the three answers on the question and the last screen (then **See every data center record** once you have answered), and **Next →** everywhere else. On a wide screen, when that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
+*(Data Center Story since #1234, 27 Nov 2026: the fixed bottom-right Next and the top-right Close replace this bar; see above.)* Every screen has one primary action: the three answers on the question and the last screen (then **See every data center record** once you have answered), and **Next →** everywhere else. On a wide screen, when that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
 
 ### Story navigation: one exit, one progress indicator, the next story (#1102, #1192)
+
+*(Superseded in part by #1234, 27 Nov 2026: Close (×) is back top right as the one exit, "← Data stories" and the cover's Start / Next story pair are gone, and one fixed Next sits bottom right. See "Close top right, Next bottom right, nothing else" above.)*
 
 **Simplified 26 Nov 2026 ([#1192](https://github.com/getcommunityone/open-navigator/issues/1192)).** A live-site audit
 counted six navigation devices on the Data Center Story's opening screen (Start, a floating Next, a numbered 1–11 rail,

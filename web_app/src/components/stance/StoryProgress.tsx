@@ -72,6 +72,12 @@ interface BarProps {
   storyLabel: string
   /** True when the last screen leads to another story (not the list of stories). */
   storyIsNext: boolean
+  /** The previous screen's word (#1222), for Back's accessible name; null on the first screen (no Back). */
+  prevLabel?: string | null
+  /** Back one screen (#1222): the phone bar's Back, the same move as a swipe right. */
+  onPrev?: () => void
+  /** False: the bar shows no Next (the story's fixed `StoryNextButton` is the way forward, #1234). */
+  withNext?: boolean
   /** True while the story's cover is in view (#1192): its Start button is the way forward there, so the bar shows progress only. */
   hideNext?: boolean
 }
@@ -82,10 +88,17 @@ interface BarProps {
  * the next screen; on the last screen it becomes the way to the next story. The page leaves room for it (stance.css), so it
  * never covers the story's own controls.
  */
-export function StoryBottomBar({ active, count, nextLabel, onNext, storyHref, storyLabel, storyIsNext, hideNext = false }: BarProps) {
+export function StoryBottomBar({ active, count, nextLabel, onNext, prevLabel = null, onPrev, storyHref, storyLabel, storyIsNext, hideNext = false, withNext = true }: BarProps) {
   const last = isLastScreen(active, count)
+  // Back (#1222, owner: "On phone back button is missing"): from the second screen on, never on the cover.
+  const showBack = !hideNext && active > 0 && Boolean(onPrev) && Boolean(prevLabel)
   return (
     <div className="story-bottombar" data-testid="story-bottombar">
+      {showBack && (
+        <button type="button" className="folio-btn story-bottombar-back" onClick={onPrev} aria-label={`Back: ${prevLabel}`}>
+          <span aria-hidden="true">←</span>
+        </button>
+      )}
       <span className="story-bottombar-progress">
         <span className="story-bottombar-dots" aria-hidden="true">
           {Array.from({ length: count }, (_, i) => (
@@ -94,7 +107,10 @@ export function StoryBottomBar({ active, count, nextLabel, onNext, storyHref, st
         </span>
         <span className="story-bottombar-left">{toGoLabel(count - 1 - active)}</span>
       </span>
-      {hideNext ? null : last ? (
+      {hideNext || !withNext ? (
+        // Room for the fixed Next at the bar's right end (#1234).
+        withNext ? null : <span className="story-bottombar-nextspace" aria-hidden="true" />
+      ) : last ? (
         <Link to={storyHref} className="folio-btn story-bottombar-next" aria-label={storyLabel}>
           {storyIsNext ? 'Next story' : 'All stories'} <span aria-hidden="true">→</span>
         </Link>

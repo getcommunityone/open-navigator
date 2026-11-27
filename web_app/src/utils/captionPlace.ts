@@ -15,34 +15,45 @@ export interface CaptionPlaceSplit {
 
 /** How a national caption names the country in its place blank. */
 const NATIONAL_PLACES = ['America', 'the United States']
-const NATIONAL_LEAD = 'the United States'
 
 function fill(parts: Caption['template'], caption: Caption, topic: string): string {
   return parts.map((p) => (typeof p === 'string' ? p : p.blank === 'place' ? caption.place : topic)).join('')
 }
 
 /**
- * The caption split around the place in `scope`.
+ * The caption split around the place in `scope`, or null when the title doesn't name that place.
  * - The caption's place blank names the scope (a city or state's label, or "America" / "the United States" nationally):
- *   the split is at that blank. In a wider-scope title ("America hates data centers; [Tuscaloosa, Alabama] brought them
- *   up in 2 meetings.") that is the place the reader chose, the second place.
- * - Otherwise (a national title naming the leading state, or one with no place blank): "In [the United States], " leads
- *   the caption, so the title still names the scope in effect and stays one sentence.
+ *   the split is at that blank ("[America ▾] hates data centers.").
+ * - Otherwise the title is a broader scope's conclusion ("America hates data centers." at Tuscaloosa, #1222) or names
+ *   another place (a national title naming the leading state): null, and the page puts the scope's place control in the
+ *   line under the title instead (`splitTextAtPlace` over the subhead, or "Showing [place ▾]"). No "In the United States,"
+ *   lead is added to the title (owner, 2026-11-26).
  */
-export function splitCaptionAtPlace(caption: Caption, topic: string, scope: StoryScope): CaptionPlaceSplit {
+export function splitCaptionAtPlace(caption: Caption, topic: string, scope: StoryScope): CaptionPlaceSplit | null {
   const national = !scope.stateName
   const scopePlace = national ? null : storyScopeLabel(scope)
   const namesScope = national ? NATIONAL_PLACES.includes(caption.place) : caption.place === scopePlace
   const at = caption.template.findIndex((p) => typeof p !== 'string' && p.blank === 'place')
-  if (namesScope && at >= 0) {
-    return {
-      before: fill(caption.template.slice(0, at), caption, topic),
-      place: caption.place,
-      after: fill(caption.template.slice(at + 1), caption, topic),
-    }
+  if (!namesScope || at < 0) return null
+  return {
+    before: fill(caption.template.slice(0, at), caption, topic),
+    place: caption.place,
+    after: fill(caption.template.slice(at + 1), caption, topic),
   }
-  const text = fill(caption.template, caption, topic)
-  // "In 81 meetings, …" reads "In the United States, in 81 meetings, …"; a sentence led by a name keeps its capital.
-  const rest = /^(In|Across) /.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text
-  return { before: 'In ', place: scopePlace ?? NATIONAL_LEAD, after: `, ${rest}` }
+}
+
+/** How the line under the title names the scope when it has to carry the place control. */
+export function scopePlaceName(scope: StoryScope): string {
+  return scope.stateName ? storyScopeLabel(scope) : 'the United States'
+}
+
+/**
+ * A line of text split at the first mention of `place` (#1222), for the place control in the subhead when the title
+ * names a broader place; null when the line doesn't mention it.
+ */
+export function splitTextAtPlace(text: string | null | undefined, place: string): CaptionPlaceSplit | null {
+  if (!text || !place) return null
+  const i = text.indexOf(place)
+  if (i < 0) return null
+  return { before: text.slice(0, i), place, after: text.slice(i + place.length) }
 }

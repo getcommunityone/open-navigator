@@ -5,11 +5,12 @@ import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '.
 import { topicStanceForMap } from '../../utils/topicStance'
 import { quoteStanceNote, topicPositions } from '../../utils/topicPositions'
 import type { StoryScope } from '../../utils/dataStory'
-import { CAPTION_COPY, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
+import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
 import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
-import HomeStoryTitle from './HomeStoryTitle'
+import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
+import { storyStartHref } from '../../utils/storyNav'
 
 /** A state's map passages, newest first, at most this many. */
 const QUOTES_PER_STATE = 12
@@ -20,8 +21,6 @@ interface Props {
   /** "?state=AL&city=…" (or empty): carried by every link. */
   query: string
   label: string
-  /** The next live story (#1176), from `nextStoryLink`, so the reader can move on without scrolling. */
-  next: { href: string; label: string }
   /** A place picked in the title's place control (#1206); see `HomeDataStories`. */
   onPlaceApply?: (stateCode: string | null, city: string | null) => void
 }
@@ -30,7 +29,7 @@ interface Props {
  * The home card for one topic story (#1013, #1133): its caption for the page's scope (#1125), its lede, Start the story,
  * and the map of meetings per state with each state's newest verbatim passage. Every figure is a real count.
  */
-export default function HomeTopicStoryCard({ def, scope, query, label, next, onPlaceApply }: Props) {
+export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceApply }: Props) {
   const states = useQuery({
     queryKey: ['topic-story', def.topicId, 'states'],
     queryFn: () => fetchTopicStates(def.topicId),
@@ -76,7 +75,8 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next, onP
   const caption = pickCaption(def.slug, facts.data, scope)
   const topicNoun = CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase()
   const title = captionText(caption, topicNoun)
-  const href = `/stories/${encodeURIComponent(def.slug)}${query}`
+  // Start opens the story past its cover (#1222).
+  const href = storyStartHref(def.slug, query)
 
   return (
     <div className="home-story-card">
@@ -90,16 +90,20 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next, onP
         >
           <HomeStoryTitle caption={caption} topic={topicNoun} scope={scope} onPlaceApply={onPlaceApply} />
         </h1>
-        <p className="home-story-subhead">{def.lede}</p>
+        {/* A broader scope's title (#1222): the line under it names the place in scope (as its control); else the lede. */}
+        <HomeStorySubhead
+          caption={caption}
+          topic={topicNoun}
+          scope={scope}
+          onPlaceApply={onPlaceApply}
+          subhead={caption.kind === 'wider_position' || caption.kind === 'wider_sentiment' ? captionSubhead(caption, def.slug, scope) : def.lede}
+        />
         <p className="home-story-basis">
           {caption.basis ?? 'Counted from local meeting recordings and transcripts that mention the topic.'}
         </p>
         <div className="home-story-actions">
           <Link to={href} className="home-story-start">
             {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
-          </Link>
-          <Link to={next.href} className="home-story-next">
-            {next.label} <span aria-hidden="true">→</span>
           </Link>
         </div>
         <HomeStoryDrill />
