@@ -7,7 +7,8 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { dotSides, speakersOf, sumStances, type StanceCounts } from '../../utils/boxSplit'
-import { BOX_COLORS, LEGEND_LABEL, LEGEND_STANCES, MEETING_GREYS, featPath, stanceLine } from '../home/StoryStatesMap'
+import { BOX_COLORS, LEGEND_LABEL, LEGEND_STANCES, MEETING_GREYS, featPath, positionLine, stanceLine } from '../home/StoryStatesMap'
+import type { TopicPositions } from '../../utils/topicPositions'
 import {
   PUBLIC_AGAINST_COLOR,
   PUBLIC_AGAINST_LABEL,
@@ -40,6 +41,8 @@ export interface PlaceCount extends LeanCounts {
   speakers_against?: number
   speakers_question?: number
   speakers_neutral?: number
+  /** Topic stories (#1349): meetings the AI read where the public didn't speak on the topic (missing, never split). */
+  silent_meetings?: number
 }
 
 interface Props {
@@ -61,6 +64,15 @@ interface Props {
    * ring's town, or the county's town with the most meetings on record, or null for the state. None → a click selects.
    */
   onDrill?: (city: string | null) => void
+  /** What came up, for the title and captions ("water fluoridation", #1349); the data center story by default. */
+  subject?: string
+  /**
+   * A topic story's own position words (#1349, utils/topicPositions): the `speakers_*` counts are then MEETINGS as the AI
+   * read them, and the legend, hover line and note say so in the topic's words. None: speakers on record (data centers).
+   */
+  positions?: TopicPositions
+  /** Meetings in the state the server couldn't place on any government (#1349): added to the "couldn't be placed" note. */
+  unplacedMeetings?: number
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -76,7 +88,9 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
  * city, town or school district is placed in the county its coordinates fall in, and drawn as a ring. United States broadens
  * back to the national map.
  */
-export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill }: Props) {
+export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill, subject, positions, unplacedMeetings = 0 }: Props) {
+  const what = subject ?? 'a data center'
+  const titleNoun = subject ? subject.charAt(0).toUpperCase() + subject.slice(1) : 'Data center'
   const [hover, setHover] = useState<string | null>(null)
   // The map's drawn width (#1309): it is capped by the screen's height, so its labels are sized from what is really drawn.
   const { ref: fitRef, width: drawnWidth } = useChartWidth<HTMLDivElement>(0)
@@ -227,7 +241,10 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     const n = counts.get(id) ?? 0
     if (!n) return `${countyLabel(id)}: no meetings on record`
     const parts = (byCounty.get(id) ?? []).map((p) => `${p.jurisdiction_name ?? p.jurisdiction_id} ${fmt(p.meetings)}`)
-    const st = stanceLine(stances.get(id))
+    const ps = byCounty.get(id) ?? []
+    const st = positions
+      ? positionLine({ state_code: id, ...sumStances(ps), silent_meetings: ps.reduce((a, p) => a + Math.max(0, p.silent_meetings ?? 0), 0) }, positions)
+      : stanceLine(stances.get(id))
     const lean = leanLine(leans.get(id))
     return `${countyLabel(id)}: ${plural(n)} (${parts.join(', ')})${st ? `; ${st}` : '; no stance on record'}.${lean ? ` ${lean}` : ''}`
   }
@@ -353,7 +370,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   const states = Object.entries(STATE_CODE_TO_NAME)
     .filter(([c]) => FIPS_OF_CODE[c] && FIPS_OF_CODE[c] !== '72')
     .sort((a, b) => a[1].localeCompare(b[1]))
-  const unplacedMeetings = unplaced.reduce((a, p) => a + p.meetings, 0)
+  const unplacedHere = unplaced.reduce((a, p) => a + p.meetings, 0)
+  const unplacedAll = unplacedHere + Math.max(0, unplacedMeetings)
 
   return (
     // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
@@ -371,7 +389,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       <div className="stance-map-layout" data-shape={mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide'}>
       <div className="stance-map-head">
         {/* One short line; the highlighted city is named in the key, not appended here. */}
-        <span className="stance-map-title">Data center meetings by county · {stateName}</span>
+        <span className="stance-map-title">{titleNoun} meetings by county · {stateName}</span>
         <span className="stance-map-controls">
           <button type="button" className="folio-link-btn" onClick={() => onPickState(null)}>
             United States
@@ -394,7 +412,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           viewBox={vb}
           className="stance-map-svg"
           data-map="county"
-          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where a reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where a reading of the meetings found officials sided against the public (see the data table).` : ''}`}
+          aria-label={`Dot map of ${stateName}'s counties, split by ${positions ? 'a reading of its meetings' : "speakers' stance"} where any are on record and otherwise shaded by meetings where ${what} came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where a reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where a reading of the meetings found officials sided against the public (see the data table).` : ''}`}
           {...keyNav.svgProps}
         >
           {grid.dots.map((d, i) => {
@@ -513,7 +531,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             {stances.size > 0 &&
               LEGEND_STANCES.map((k) => (
                 <span key={k} className="stance-map-none">
-                  <span style={{ background: BOX_COLORS[k] }} /> {LEGEND_LABEL[k]}
+                  <span style={{ background: BOX_COLORS[k] }} /> {positions ? (k === 'neutral' ? positions.split : positions[k]) : LEGEND_LABEL[k]}
                 </span>
               ))}
             {leanCounties > 0 && (
@@ -529,19 +547,24 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             </span>
           </div>
           <p className="stance-note">
-            {stances.size > 0
-              ? `Split by ${fmt(speakersTotal)} ${speakersTotal === 1 ? 'speaker' : 'speakers'} on record in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only.`
-              : `No speaker positions on record in ${stateName} yet; counties show meetings only.`}
+            {positions
+              ? stances.size > 0
+                ? `Split by a reading of ${plural(speakersTotal)} where the public spoke, in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only. Each meeting is read by a classifier from its transcript; these are not counted speakers.${positions.forMeans ? ` ${positions.forMeans}.` : ''}`
+                : `No reading of ${stateName}'s meetings found the public taking a side yet; counties show meetings only.`
+              : stances.size > 0
+                ? `Split by ${fmt(speakersTotal)} ${speakersTotal === 1 ? 'speaker' : 'speakers'} on record in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only.`
+                : `No speaker positions on record in ${stateName} yet; counties show meetings only.`}
             {leans.size > 0
               ? ' Each meeting is read by a classifier from its transcript; these are not counted speakers. Only “the public mostly opposed” and “officials sided against the public” are shown.'
               : ''}
           </p>
         </>
       )}
-      {unplacedMeetings > 0 && (
-        <p className="stance-note">
-          {plural(unplacedMeetings)} from {unplaced.map((p) => p.jurisdiction_name ?? p.jurisdiction_id).join(', ')} could not be placed in a
-          county and {unplacedMeetings === 1 ? 'is' : 'are'} not shaded.
+      {unplacedAll > 0 && (
+        <p className="stance-note" data-unplaced={unplacedAll}>
+          {unplacedHere > 0 && unplacedAll === unplacedHere
+            ? `${plural(unplacedHere)} from ${unplaced.map((p) => p.jurisdiction_name ?? p.jurisdiction_id).join(', ')} could not be placed in a county and ${unplacedHere === 1 ? 'is' : 'are'} not shaded.`
+            : `${plural(unplacedAll)} couldn't be placed on the map${unplacedHere > 0 ? ` (including ${unplaced.map((p) => p.jurisdiction_name ?? p.jurisdiction_id).join(', ')})` : ''} and ${unplacedAll === 1 ? 'is' : 'are'} not shaded.`}
         </p>
       )}
       {cardSlot ? (cardShown ? createPortal(cardShown, cardSlot) : null) : cardShown}
