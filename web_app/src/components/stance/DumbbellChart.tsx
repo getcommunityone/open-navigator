@@ -55,8 +55,44 @@ export default function DumbbellChart({ topic, stateCode, scopeLabel, subject, i
     return () => io.disconnect()
   }, [reduced, rows.length, q.isLoading])
 
-  if (q.isLoading || q.isError || !q.data) return null
+  // The section never disappears silently (#1192): loading, a failed request and a scope with nothing to compare each say so.
+  const heading = (years: string) => (
+    <p className="sc-h">
+      Share of recorded meetings that discussed {subject}, {years} · {scopeLabel}
+    </p>
+  )
+  if (q.isLoading) {
+    return (
+      <div className="sc-block">
+        {heading('last year and this year')}
+        <p className="sc-note" role="status">
+          Loading the comparison…
+        </p>
+      </div>
+    )
+  }
+  if (q.isError || !q.data) {
+    return (
+      <div className="sc-block">
+        {heading('last year and this year')}
+        <p className="sc-note">The year-over-year comparison could not be loaded right now.</p>
+      </div>
+    )
+  }
   const d = q.data
+  if (rows.length === 0 && d.hidden_rows === 0) {
+    // No per-year counts of recorded meetings for the scope (recorded_meeting_year not loaded, #1194), or no meetings on
+    // the topic in either year: there is no share to compare, and the chart says so instead of drawing nothing.
+    return (
+      <div className="sc-block">
+        {heading(`${d.from_year} and ${d.to_year}`)}
+        <p className="sc-note">
+          No comparison to draw for {scopeLabel} yet: either no meetings on the topic are on record for {d.from_year} or{' '}
+          {d.to_year}, or the yearly counts of recorded meetings per {d.grain === 'state' ? 'state' : 'town'} have not been loaded.
+        </p>
+      </div>
+    )
+  }
   if (rows.length === 0) {
     // Nothing clears the thresholds (often at state scope, where towns record few meetings a year): say so, never a blank.
     return d.hidden_rows > 0 ? (
