@@ -102,7 +102,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   // At state scope (#1349) the hero draws the story Overview's county map: a county or a town ring opens the story there.
   const drill = (city: string | null) => {
     if (!scope.stateCode) return
-    const p = new URLSearchParams({ state: scope.stateCode })
+    const p = new URLSearchParams({ state: scope.stateCode, screen: 'overview' })
     if (city) p.set('city', city)
     navigate(`/stories/${encodeURIComponent(def.slug)}?${p.toString()}`)
   }
@@ -121,7 +121,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
             }
           : null
       }
-      href={(code) => `/stories/${encodeURIComponent(def.slug)}?state=${encodeURIComponent(code)}`}
+      href={(code) => `/stories/${encodeURIComponent(def.slug)}?state=${encodeURIComponent(code)}&screen=overview`}
       subject={topicNoun.toLowerCase()}
       stance={stance && stance.length > 0 ? stance : undefined}
       stanceUnit="meetings"

@@ -166,6 +166,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           if (code) n.set('state', code)
           else n.delete('state')
           n.delete('city')
+          // A place change always restarts on Overview (#1367); never keep the old place's ?screen=.
+          n.set('screen', 'overview')
           return n
         },
         { replace: true },
