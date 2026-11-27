@@ -5,7 +5,7 @@ title: "fix(stories): story map cards open and close on a tap, never on hover (#
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: b7039d2da65376a9479807ed7b97a406ea69da0e
+head_sha: af612b4a0f9c45d5df4d47dd0e10aa25c7aebb17
 verdict: approve
 ---
 
@@ -18,6 +18,7 @@ Automated review (#648) for PR #1250 on `fix/1229-map-taps-check`. Heuristic rub
 
 ## Scope of Change
 
+- `pull_requests/pr-1250-review.md`
 - `web_app/e2e/map-taps.check.mjs`
 - `web_app/src/components/home/StoryStatesMap.tsx`
 - `web_app/src/components/stance/StoryCountyMap.tsx`
@@ -28,7 +29,7 @@ Automated review (#648) for PR #1250 on `fix/1229-map-taps-check`. Heuristic rub
 
 ## CI Status
 
-See the PR checks on `b7039d2da653`.
+See the PR checks on `af612b4a0f9c`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
