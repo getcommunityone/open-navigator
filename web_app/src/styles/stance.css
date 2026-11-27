@@ -3456,9 +3456,9 @@ html.stance-snap .stance-intro {
 /* #1309: the state county map fits the screen. Its height never passes the visible screen below the story bar; its width
    follows from that and the state's shape (--map-ar = width / height), centred. A wide state stays width-bound. */
 .stance-map-fit {
-  --map-chrome: 210px;
+  --map-chrome: 230px;
   width: min(100%, calc((100svh - var(--map-chrome)) * var(--map-ar, 1)));
-  min-width: min(100%, 240px);
+  min-width: min(100%, 200px);
   margin-inline: auto;
 }
 .stance-map-fit .stance-map-svg {
@@ -3468,7 +3468,8 @@ html.stance-snap .stance-intro {
 @media (max-width: 767px) {
   /* Phones: the site header, the story bar and the bottom bar leave less room; the title and picker row get compact. */
   .stance-map-fit {
-    --map-chrome: 230px;
+    /* The site header, the story bar and the fixed bottom bar stay on screen: the map fits the space between them. */
+    --map-chrome: 290px;
   }
   .stance-map:has(.stance-map-fit) .stance-map-head {
     font-size: 13.5px;
@@ -3503,7 +3504,7 @@ html.stance-snap .stance-intro {
   border-radius: 2px;
 }
 @container (min-width: 600px) {
-  .stance-map--county[data-shape='tall'] {
+  .stance-map-layout[data-shape='tall'] {
     display: grid;
     grid-template-columns: auto minmax(200px, 1fr);
     grid-template-rows: auto 1fr;
@@ -3513,24 +3514,24 @@ html.stance-snap .stance-intro {
     column-gap: 28px;
     align-items: start;
   }
-  .stance-map--county[data-shape='tall'] > .stance-map-head {
+  .stance-map-layout[data-shape='tall'] > .stance-map-head {
     grid-area: head;
     flex-direction: column;
     align-items: flex-start;
   }
-  .stance-map--county[data-shape='tall'] > .stance-map-stage {
+  .stance-map-layout[data-shape='tall'] > .stance-map-stage {
     grid-area: stage;
   }
-  .stance-map--county[data-shape='tall'] > .stance-map-side {
+  .stance-map-layout[data-shape='tall'] > .stance-map-side {
     grid-area: side;
   }
-  /* Beside the map, the title no longer sits above it: the map takes more of the screen's height, up to 60% of the width. */
-  .stance-map--county[data-shape='tall'] .stance-map-fit {
-    --map-chrome: 150px;
+  /* Beside the map, nothing sits above it: the map takes the screen's height below the bars, up to 60% of the width. */
+  .stance-map-layout[data-shape='tall'] .stance-map-fit {
+    --map-chrome: 200px;
     width: min(60cqi, calc((100svh - var(--map-chrome)) * var(--map-ar, 1)));
     margin: 0;
   }
-  .stance-map--county[data-shape='tall'] .stance-map-legend {
+  .stance-map-layout[data-shape='tall'] .stance-map-legend {
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;

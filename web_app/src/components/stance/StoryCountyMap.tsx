@@ -363,13 +363,15 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     // notes beside the map so the map can use the screen's height; a wide state keeps them above and below.
     <figure
       className="stance-map stance-map--county"
-      data-shape={mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide'}
       aria-labelledby={labelledBy}
       onMouseLeave={leaveMap}
       onMouseEnter={keepCard}
       {...keyNav.stageProps}
     >
-      <figcaption className="stance-map-head">
+      {/* The figure is the size container; this inner grid is what the container query lays out (a container can't
+          query itself). */}
+      <div className="stance-map-layout" data-shape={mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide'}>
+      <div className="stance-map-head">
         {/* One short line; the highlighted city is named in the key, not appended here. */}
         <span className="stance-map-title">Data center meetings by county · {stateName}</span>
         <span className="stance-map-controls">
@@ -385,7 +387,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             ))}
           </select>
         </span>
-      </figcaption>
+      </div>
       <div className="stance-map-stage">
         {keyNav.sr}
         {/* Fits the screen (#1309): the height is capped by the visible screen and the width follows the state's shape. */}
@@ -582,6 +584,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           </table>
         )}
       </details>
+      </div>
       </div>
     </figure>
   )
