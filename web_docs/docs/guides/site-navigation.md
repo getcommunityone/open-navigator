@@ -39,8 +39,12 @@ A pick goes through `usePlacePick()` (`web_app/src/hooks/usePlacePick.ts`):
 1. It saves the place (`LocationContext`, so later visits keep it).
 2. On the home page it clears any carried `?state=&city=`: home's scope is the saved place. On every other page it writes
    the pick into `?state=&city=` (and drops `page`), so the page's scope label, query and results change together.
-3. It fires `open-navigator:place-picked`. `Layout` remounts the routed page on it, because most pages read their scope
-   from the address once, on mount. The home page resets its City / State / National level to the new place's.
+3. When the address changed, its navigation carries a pick marker in history state. `Layout` remounts the routed page
+   once that navigation has committed, because most pages read their scope from the address once, on mount. In-page
+   URL changes carry no marker, so they never remount.
+4. It fires `open-navigator:place-picked`; the home page resets its City / State / National level to the new place's.
+
+The dialog traps Tab and locks the page's scroll while open.
 
 ## Phone menu
 

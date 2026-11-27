@@ -552,9 +552,13 @@ export default function HomeV9() {
   // A pick (here or in the header) saves the place and clears any carried ?state=&city= (usePlacePick); the scope then
   // falls back to the new place's natural level.
   const pickPlace = usePlacePick()
+  // A pick re-derives the level for the new place even when the reader had picked one (pickTick re-runs the effect below
+  // after the reset, whichever order the pick's renders land in).
+  const [pickTick, setPickTick] = useState(0)
   useEffect(() => {
     const onPicked = () => {
       levelPicked.current = false
+      setPickTick((t) => t + 1)
     }
     window.addEventListener(PLACE_PICKED_EVENT, onPicked)
     return () => window.removeEventListener(PLACE_PICKED_EVENT, onPicked)
@@ -564,7 +568,7 @@ export default function HomeV9() {
   useEffect(() => {
     if (levelPicked.current) return
     setLevel(locCity ? 'city' : locState ? 'state' : 'national')
-  }, [locCity, locState])
+  }, [locCity, locState, pickTick])
   useEffect(() => {
     if (!levelOpen) return
     const onDoc = (e: MouseEvent) => {

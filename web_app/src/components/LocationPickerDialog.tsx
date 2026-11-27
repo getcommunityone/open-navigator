@@ -21,14 +21,33 @@ export default function LocationPickerDialog({ open, onClose, current, onPicked 
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Escape closes; focus moves into the dialog on open and back to whatever opened it on close.
+  // Escape closes; Tab is trapped; focus moves into the dialog on open and back to whatever opened it on close.
   useEffect(() => {
     if (!open) return
     const opener = document.activeElement as HTMLElement | null
+    // Modal: the page behind doesn't scroll, and Tab stays inside the dialog.
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
         onClose()
+        return
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return
+      const nodes = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'),
+      )
+      if (nodes.length === 0) return
+      const first = nodes[0]!
+      const last = nodes[nodes.length - 1]!
+      const inside = panelRef.current.contains(document.activeElement)
+      if (e.shiftKey && (document.activeElement === first || !inside)) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+        e.preventDefault()
+        first.focus()
       }
     }
     document.addEventListener('keydown', onKey, true)
@@ -38,6 +57,7 @@ export default function LocationPickerDialog({ open, onClose, current, onPicked 
     })
     return () => {
       document.removeEventListener('keydown', onKey, true)
+      document.body.style.overflow = prevOverflow
       cancelAnimationFrame(raf)
       if (opener && document.contains(opener)) opener.focus()
     }

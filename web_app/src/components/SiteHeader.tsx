@@ -337,6 +337,7 @@ export default function SiteHeader() {
           className="sh-place sh-place-desk"
           aria-haspopup="dialog"
           aria-label={placeLabel ? `Your town: ${placeLabel}. Change` : 'Find your town'}
+          title={placeLabel ? 'Your town: change it' : 'Find your town'}
           onClick={() => openPicker(false)}
         >
           <span aria-hidden="true">📍</span>
