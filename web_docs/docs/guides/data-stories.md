@@ -774,6 +774,18 @@ Owner, 27 Nov 2026: upcoming meetings and legislation are "where we have the gre
 
 How items are found, what the warehouse holds and what is left out: [What's coming up on a topic](../development/topic-upcoming.md).
 
+### Who's working on this: the Nonprofits screen (#1346)
+
+Every topic story and the Data Center Story has a **Nonprofits** screen right after Coming up, and it always stays.
+It lists the nonprofits in the scope tied to the topic by the record, strongest evidence first: named in one of the
+topic's meetings, then a 990 mission that names it, then its name, then its IRS category. Each shows its name (a link to
+its organization page), city, latest revenue with the tax year when we have one, a one-line mission, why it is listed
+and the quoted evidence with the words marked (and "Watch that meeting" for a meeting mention), its website when we have
+one, and a side only when its own name or mission states it. Three are listed first so they fit a phone; "Show all"
+opens the rest. The counts by evidence follow the shared display rule (`pickDisplay`): a sentence for a few, bars for
+more. An empty scope says "No nonprofits on record for Georgia." and links one level up with that level's count. Data
+and rules: [How organizations are tied to topics](../development/topic-organizations.md).
+
 ### What happened next: the chain from meeting to outcome (#1314)
 
 A **What happened** screen follows Coming up on every story. It walks from the meetings where the topic came up to what followed, one step at a time: **Meetings** → **The public** (meetings where the public spoke, mostly opposed / split / mostly supportive) → **Officials** (meetings where the council or board moved it forward, stopped or limited it, put a moratorium on it, or tabled it) → **State bills** (by status) → **Named a bill** (meetings that wrote one of the topic's state bills by number) → **What's next** (meetings and hearings ahead, bills still open). Each step is one count, a line in words and up to three linked examples. **See all** opens that step's screen. An empty step says "No recorded … yet". The flow runs top to bottom on a phone and left to right on a wide screen. The home strip gains a **Votes** card. How meetings are tied to bills: [How meetings are linked to state bills](../development/meeting-bill-links.md).
