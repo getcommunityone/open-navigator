@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { TopicDecision, TopicMeeting } from '../../api/topics'
 import { highlightSnippet } from '../../lib/highlight'
 import { commentersLine, positionChips, speakerLine } from '../../utils/saidCards'
+import { pickDisplay } from '../../utils/displayFit'
 
 const fmtDate = (d?: string | null) => {
   if (!d) return null
@@ -102,5 +103,54 @@ export function TopicDecisionCard({ d }: { d: TopicDecision }) {
         <Link to={d.decision_url}>Decision details</Link>
       </p>
     </li>
+  )
+}
+
+/**
+ * One Decisions panel ("Decisions on <topic>" or "Mentioned in passing", #1293) in the form the shared display rule picks
+ * from its whole-scope count (utils/displayFit `pickDisplay`, #1289): nothing for 0, the cards for a handful, and otherwise
+ * a sentence with the listed cards under a fold. The cards keep their matched passage (CLAUDE.md, match evidence), so a
+ * unit chart, which would drop it, is not drawn here; its count sentence stands in.
+ */
+export function DecisionPanel({
+  heading,
+  total,
+  items,
+  testId,
+  lead,
+}: {
+  heading: string
+  total: number
+  items: TopicDecision[]
+  testId: string
+  /** The count sentence for the folded form ("6 decisions only mention it in passing."). */
+  lead: string
+}) {
+  const display = pickDisplay({ items: total })
+  if (display.kind === 'empty' || items.length === 0) return null
+  const cards = (
+    <ul className="topic-story-list" data-testid={testId}>
+      {items.map((x) => (
+        <TopicDecisionCard key={x.event_decision_id} d={x} />
+      ))}
+    </ul>
+  )
+  return (
+    <section className="topic-story-panel" data-display={display.kind}>
+      <h3 className="topic-story-subhead">{heading}</h3>
+      {display.kind === 'list' ? (
+        cards
+      ) : (
+        <>
+          <p className="stance-fit-lead">{lead}</p>
+          <details className="stance-fit-more">
+            <summary>
+              Show the {items.length < total ? `newest ${items.length.toLocaleString('en-US')}` : items.length.toLocaleString('en-US')}
+            </summary>
+            {cards}
+          </details>
+        </>
+      )}
+    </section>
   )
 }

@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopicCaptionFacts, fetchTopicDecisions, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
 import { decisionsSummary, saidSummary } from '../utils/saidCards'
-import { SaidQuoteCard, TopicDecisionCard } from '../components/stance/TopicRecordCards'
+import { DecisionPanel, SaidQuoteCard } from '../components/stance/TopicRecordCards'
 import { companySearchTerm } from '../utils/companySearchTerm'
 import { topicStanceForMap } from '../utils/topicStance'
 import { positionVerdict, quoteStanceNote, spokeOf, topicPositions } from '../utils/topicPositions'
@@ -536,26 +536,20 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
             : 'Decisions whose record mentions the topic, newest first.',
           right: d ? (
             <>
-              {d.on_topic.length > 0 && (
-                <>
-                  <h3 className="topic-story-subhead">Decisions on {topicWord}</h3>
-                  <ul className="topic-story-list" data-testid="decisions-on-topic">
-                    {d.on_topic.map((x) => (
-                      <TopicDecisionCard key={x.event_decision_id} d={x} />
-                    ))}
-                  </ul>
-                </>
-              )}
-              {d.in_passing.length > 0 && (
-                <>
-                  <h3 className="topic-story-subhead">Mentioned in passing · {fmt(d.in_passing_total)}</h3>
-                  <ul className="topic-story-list" data-testid="decisions-in-passing">
-                    {d.in_passing.map((x) => (
-                      <TopicDecisionCard key={x.event_decision_id} d={x} />
-                    ))}
-                  </ul>
-                </>
-              )}
+              <DecisionPanel
+                heading={`Decisions on ${topicWord}`}
+                total={d.on_topic_total}
+                items={d.on_topic}
+                testId="decisions-on-topic"
+                lead={`${fmt(d.on_topic_total)} ${d.on_topic_total === 1 ? 'decision names' : 'decisions name'} the policy ${where}.`}
+              />
+              <DecisionPanel
+                heading={`Mentioned in passing · ${fmt(d.in_passing_total)}`}
+                total={d.in_passing_total}
+                items={d.in_passing}
+                testId="decisions-in-passing"
+                lead={`${fmt(d.in_passing_total)} ${d.in_passing_total === 1 ? 'decision only mentions' : 'decisions only mention'} it in passing ${where}.`}
+              />
               {d.total > d.on_topic.length + d.in_passing.length && (
                 <Link to={decisionsSearch} className="topic-story-link">
                   See all {fmt(d.total)} decisions →
