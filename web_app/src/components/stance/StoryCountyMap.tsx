@@ -296,6 +296,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         <svg
           viewBox={vb}
           className="stance-map-svg"
+          data-map="county"
           aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where an AI reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where the AI reading found officials sided against the public (see the data table).` : ''}`}
           {...keyNav.svgProps}
         >
@@ -305,6 +306,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             return (
               <circle
                 key={i}
+                data-box=""
                 cx={d.x}
                 cy={d.y}
                 r={n ? r : r * 0.55}

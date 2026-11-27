@@ -12,6 +12,7 @@ import StoryDotMap from './StoryDotMap'
 import DumbbellChart from './DumbbellChart'
 import ConcernsDumbbell from './ConcernsDumbbell'
 import StoryCountyMap from './StoryCountyMap'
+import MapDrill from './MapDrill'
 import StoryStatement from './StoryStatement'
 import type { ScreenStatement } from './useStoryStatements'
 import { speakerCounts } from '../../utils/stanceGame'
@@ -154,58 +155,82 @@ export default function StoryScreenView(p: Props) {
             />
             )
           ) : screen.kind === 'overview' ? (
-            stats.length > 0 ? (
-              <>
-                {stats.some((s) => s.key === 'meetings') && scope.stateCode && byPlace && byPlace.length > 0 ? (
-                  // At state scope, the state's counties (#1039), like the Census map's state drill-down.
-                  <StoryCountyMap
-                    stateCode={scope.stateCode}
-                    scopeCity={scope.city ?? null}
-                    scopeLabel={storyScopeLabel(scope)}
-                    byPlace={byPlace}
-                    onPickState={(code) => p.onBroaden(code, null)}
-                    labelledBy={`story-h-${screen.id}`}
-                    passages={mentions?.items}
-                  />
-                ) : stats.some((s) => s.key === 'meetings') && byState ? (
-                  <StoryDotMap
-                    byState={byState}
-                    scopeStateCode={scope.stateCode ?? null}
-                    scopeCity={scope.city ?? null}
-                    scopeLabel={storyScopeLabel(scope)}
-                    onPickState={(code) => p.onBroaden(code, null)}
-                    labelledBy={`story-h-${screen.id}`}
-                    passages={mentions?.items}
-                  />
-                ) : stats.some((s) => s.key === 'meetings') && (
-                  <ChartPanel
-                    chartKey="meeting-mentions"
-                    view="meetings"
-                    round={p.index}
-                    enabled
-                    stateCode={scope.stateCode}
-                    stateName={scope.stateName}
-                    city={scope.city}
-                    scopeLabel={storyScopeLabel(scope)}
-                  />
-                )}
-                {/* The period dumbbell (#1192, owner: "earlier in every story"): last year against this year, by state, or
-                    by town at state scope, right under the map. It compares places, so at city scope it says where to see it. */}
-                {scope.city ? (
-                  <p className="stance-note">
-                    The year-over-year comparison is drawn by state, or by town within a state; choose All of {scope.stateName} to see it.
-                  </p>
+            // Narrowing to a state, its boxes re-form into the county map; broadening plays it back (#1195). The wrapper stays
+            // mounted while the new scope's counts load, so the transition can wait for the county map.
+            <MapDrill
+              stateCode={scope.stateCode ?? null}
+              byState={byState}
+              county={
+                !scope.stateCode || p.status['meeting-mentions'] === 'error'
+                  ? 'none'
+                  : byPlace == null
+                    ? 'loading'
+                    : byPlace.length > 0
+                      ? 'ready'
+                      : 'none'
+              }
+            >
+              {(beforePick) =>
+                stats.length > 0 ? (
+                  <>
+                    {stats.some((s) => s.key === 'meetings') && scope.stateCode && byPlace && byPlace.length > 0 ? (
+                      // At state scope, the state's counties (#1039), like the Census map's state drill-down.
+                      <StoryCountyMap
+                        stateCode={scope.stateCode}
+                        scopeCity={scope.city ?? null}
+                        scopeLabel={storyScopeLabel(scope)}
+                        byPlace={byPlace}
+                        onPickState={(code) => {
+                          beforePick(code)
+                          p.onBroaden(code, null)
+                        }}
+                        labelledBy={`story-h-${screen.id}`}
+                        passages={mentions?.items}
+                      />
+                    ) : stats.some((s) => s.key === 'meetings') && byState ? (
+                      <StoryDotMap
+                        byState={byState}
+                        scopeStateCode={scope.stateCode ?? null}
+                        scopeCity={scope.city ?? null}
+                        scopeLabel={storyScopeLabel(scope)}
+                        onPickState={(code) => {
+                          beforePick(code)
+                          p.onBroaden(code, null)
+                        }}
+                        labelledBy={`story-h-${screen.id}`}
+                        passages={mentions?.items}
+                      />
+                    ) : stats.some((s) => s.key === 'meetings') && (
+                      <ChartPanel
+                        chartKey="meeting-mentions"
+                        view="meetings"
+                        round={p.index}
+                        enabled
+                        stateCode={scope.stateCode}
+                        stateName={scope.stateName}
+                        city={scope.city}
+                        scopeLabel={storyScopeLabel(scope)}
+                      />
+                    )}
+                    {/* The period dumbbell (#1192, owner: "earlier in every story"): last year against this year, by state, or
+                        by town at state scope, right under the map. It compares places, so at city scope it says where to see it. */}
+                    {scope.city ? (
+                      <p className="stance-note">
+                        The year-over-year comparison is drawn by state, or by town within a state; choose All of {scope.stateName} to see it.
+                      </p>
+                    ) : (
+                      <DumbbellChart topic="data-centers" stateCode={scope.stateCode} scopeLabel={storyScopeLabel(scope)} subject="data centers" idBase={`story-${screen.id}`} />
+                    )}
+                    <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
+                    <p className="stance-note">{statsScopeNote(stats, scope)}</p>
+                  </>
                 ) : (
-                  <DumbbellChart topic="data-centers" stateCode={scope.stateCode} scopeLabel={storyScopeLabel(scope)} subject="data centers" idBase={`story-${screen.id}`} />
-                )}
-                <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
-                <p className="stance-note">{statsScopeNote(stats, scope)}</p>
-              </>
-            ) : (
-              <p className="stance-nodata" role="status">
-                {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}
-              </p>
-            )
+                  <p className="stance-nodata" role="status">
+                    {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}
+                  </p>
+                )
+              }
+            </MapDrill>
           ) : screen.chart === 'concerns' ? (
             // The concerns dumbbell (#1209): the place's share of mentions against the nation's, or one dot each nationally.
             <ConcernsDumbbell
