@@ -6,15 +6,15 @@ import { usePlacePick } from '../hooks/usePlacePick'
 import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
 import { DATA_EXPLORER_MAP_BASE } from '../utils/dataExplorerPaths'
 import { DOCS_INTRO } from '../utils/docsLinks'
-import { headerPlace, headerPlaceLabel } from '../utils/headerPlace'
+import { headerPlaceLabel, headerPlaceState } from '../utils/headerPlace'
 import { activeNavKey, type NavKey } from '../utils/navActive'
 import { SOUND_EVENT, readSoundSetting, writeSoundSetting } from '../utils/stanceSound'
 import LocationPickerDialog from './LocationPickerDialog'
 
 const DATA_EXPLORER_ENTRY = `${DATA_EXPLORER_MAP_BASE}/us/2024/median_household_income`
 const MOBILE_MENU_ID = 'site-mobile-menu'
-/** Below this width the links fold into the menu (the place control + four links + login need ~960px). */
-const MENU_BREAKPOINT = 960
+/** Below this width the links fold into the menu (the widest place control, "National · Use <town>", + four links + login need ~1024px). */
+const MENU_BREAKPOINT = 1024
 
 const menuBtn: CSSProperties = {
   display: 'block',
@@ -64,6 +64,12 @@ const HEADER_CSS = `
 .site-header .sh-place { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(13,148,136,0.3); background: rgba(13,148,136,0.06); color: ${TEAL_DARK}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .site-header .sh-place:hover { background: rgba(13,148,136,0.12); }
 .site-header .sh-place-text { overflow: hidden; text-overflow: ellipsis; }
+.site-header .sh-place-group { max-width: 300px; padding: 3px 4px 3px 12px; cursor: default; }
+.site-header .sh-place-group:hover { background: rgba(13,148,136,0.06); }
+.site-header .sh-place-scope { color: #57534e; font-weight: 600; }
+.site-header .sh-place-use { display: inline-flex; gap: 4px; min-width: 0; padding: 4px 8px; border: none; border-radius: 999px; background: none; color: ${TEAL_DARK}; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; }
+.site-header .sh-place-use:hover, .site-header .sh-place-more:hover { background: rgba(13,148,136,0.14); }
+.site-header .sh-place-more { padding: 4px 8px; border: none; border-left: 1px solid rgba(13,148,136,0.3); border-radius: 0 999px 999px 0; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 11px; cursor: pointer; }
 .site-header button:focus-visible, .site-header a:focus-visible { outline: 2px solid ${TEAL_DARK}; outline-offset: 2px; }
 .site-header .sh-mobile { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -84,6 +90,9 @@ const HEADER_CSS = `
 .site-header .sh-mitem:hover { background: #f5f5f4; }
 .site-header .sh-mitem.active { color: ${TEAL_DARK}; background: rgba(13,148,136,0.08); box-shadow: inset 3px 0 0 ${TEAL}; }
 .site-header .sh-mplace { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(13,148,136,0.3); background: rgba(13,148,136,0.06); color: ${TEAL_DARK}; font: inherit; font-size: 16px; font-weight: 700; text-align: left; cursor: pointer; box-sizing: border-box; margin-bottom: 6px; }
+.site-header .sh-mplace-group { cursor: default; padding: 0 4px 0 14px; }
+.site-header .sh-mplace-use { flex: 1; min-width: 0; min-height: 44px; padding: 0 8px; border: none; border-radius: 10px; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 15px; font-weight: 700; text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-header .sh-mplace-more { min-width: 44px; min-height: 44px; border: none; border-left: 1px solid rgba(13,148,136,0.3); background: none; color: ${TEAL_DARK}; font-size: 13px; cursor: pointer; }
 .site-header .sh-mlabel { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #a8a29e; padding: 12px 12px 4px; }
 .site-header .sh-maccount { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e7e5e4; display: flex; flex-direction: column; gap: 4px; }
 .site-header .sh-mlogin { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; border: none; border-radius: 12px; background: ${INK}; color: #fff; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; text-transform: capitalize; box-sizing: border-box; }
@@ -123,8 +132,19 @@ export default function SiteHeader() {
   const { user, isAuthenticated, login, logout, isLoading: authLoading } = useAuth()
 
   // The place the header names (#1191): the URL's ?state=&city=, else the saved location. Never a hard-coded place.
-  const place = headerPlace(new URLSearchParams(location.search), savedLocation)
-  const placeLabel = headerPlaceLabel(place)
+  // On a scope-aware page it names the page's actual scope (#1205): the URL's place, or National (offering the saved town
+  // in one click). On home and other pages it names the reader's town.
+  const placeState = headerPlaceState(location.pathname, new URLSearchParams(location.search), savedLocation)
+  const placeLabel = headerPlaceLabel(
+    placeState.kind === 'scoped' || placeState.kind === 'town' ? placeState.place : placeState.kind === 'national-saved' ? placeState.saved : null,
+  )
+  const savedLabel = placeState.kind === 'national-saved' ? placeLabel : null
+  /** Apply the saved town to this page: writes ?state=&city= through usePlacePick, so label, URL and data move together. */
+  const applySavedTown = () => {
+    if (!savedLocation) return
+    setMenuOpen(false)
+    pickPlace(savedLocation)
+  }
 
   // ── Phone menu (#1191) ──
   const closeMenu = useCallback((returnFocus: boolean) => {
@@ -331,19 +351,44 @@ export default function SiteHeader() {
           </div>
         </Link>
 
-        {/* Your town (#1191): names the place in the URL or the saved location, and opens the shared picker. */}
-        <button
-          type="button"
-          className="sh-place sh-place-desk"
-          aria-haspopup="dialog"
-          aria-label={placeLabel ? `Your town: ${placeLabel}. Change` : 'Find your town'}
-          title={placeLabel ? 'Your town: change it' : 'Find your town'}
-          onClick={() => openPicker(false)}
-        >
-          <span aria-hidden="true">📍</span>
-          <span className="sh-place-text">{placeLabel ?? 'Find your town'}</span>
-          <span aria-hidden="true" style={{ fontSize: 11 }}>▾</span>
-        </button>
+        {/* Place control (#1191, #1205): the page's scope, or the reader's town on home; opens the shared picker. */}
+        {placeState.kind === 'national-saved' || placeState.kind === 'national' ? (
+          <div className="sh-place sh-place-desk sh-place-group" role="group" aria-label="Place for this page">
+            <span aria-hidden="true">📍</span>
+            <span className="sh-place-scope">National ·</span>
+            {savedLabel ? (
+              <button type="button" className="sh-place-use" onClick={applySavedTown} title={`Show this page for ${savedLabel}`}>
+                Use <span className="sh-place-text">{savedLabel}</span>
+              </button>
+            ) : (
+              <button type="button" className="sh-place-use" aria-haspopup="dialog" onClick={() => openPicker(false)}>
+                Find your town
+              </button>
+            )}
+            <button type="button" className="sh-place-more" aria-haspopup="dialog" aria-label="Pick a town" title="Pick a town" onClick={() => openPicker(false)}>
+              ▾
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="sh-place sh-place-desk"
+            aria-haspopup="dialog"
+            aria-label={
+              placeLabel
+                ? placeState.kind === 'scoped'
+                  ? `Place for this page: ${placeLabel}. Change`
+                  : `Your town: ${placeLabel}. Change`
+                : 'Find your town'
+            }
+            title={placeLabel ? 'Change the place' : 'Find your town'}
+            onClick={() => openPicker(false)}
+          >
+            <span aria-hidden="true">📍</span>
+            <span className="sh-place-text">{placeLabel ?? 'Find your town'}</span>
+            <span aria-hidden="true" style={{ fontSize: 11 }}>▾</span>
+          </button>
+        )}
 
         <button
           ref={toggleRef}
@@ -444,13 +489,32 @@ export default function SiteHeader() {
             aria-label="Site menu"
             style={{ top: menuTop, maxHeight: `calc(100dvh - ${menuTop}px)` }}
           >
-            <button type="button" className="sh-mplace" aria-haspopup="dialog" onClick={() => openPicker(true)}>
-              <span aria-hidden="true">📍</span>
-              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {placeLabel ?? 'Find your town'}
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{placeLabel ? 'Change' : 'Set'}</span>
-            </button>
+            {placeState.kind === 'national-saved' || placeState.kind === 'national' ? (
+              <div className="sh-mplace sh-mplace-group" role="group" aria-label="Place for this page">
+                <span aria-hidden="true">📍</span>
+                <span style={{ flexShrink: 0 }}>National ·</span>
+                {savedLabel ? (
+                  <button type="button" className="sh-mplace-use" onClick={applySavedTown}>
+                    Use {savedLabel}
+                  </button>
+                ) : (
+                  <button type="button" className="sh-mplace-use" aria-haspopup="dialog" onClick={() => openPicker(true)}>
+                    Find your town
+                  </button>
+                )}
+                <button type="button" className="sh-mplace-more" aria-haspopup="dialog" aria-label="Pick a town" onClick={() => openPicker(true)}>
+                  ▾
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="sh-mplace" aria-haspopup="dialog" onClick={() => openPicker(true)}>
+                <span aria-hidden="true">📍</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {placeLabel ?? 'Find your town'}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{placeLabel ? 'Change' : 'Set'}</span>
+              </button>
+            )}
 
             <nav aria-label="Main" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {navItems.map(({ key, label, onClick }) => (
