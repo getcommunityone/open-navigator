@@ -852,8 +852,6 @@ function UnifiedSearchInner() {
       if (query.trim()) params.q = query
       if (selectedState) params.state = selectedState
       if (selectedCity) params.city = selectedCity
-      // Preserve an explicit county-scope OFF (county=0); absent == default ON.
-      if (selectedCity && searchParams.get('county') === '0') params.county = '0'
       if (selectedTypes.length > 0 && selectedTypes.length < 5) {
         params.types = selectedTypes.join(',')
       }
@@ -875,7 +873,6 @@ function UnifiedSearchInner() {
     if (activeQuery) params.q = activeQuery
     if (selectedState) params.state = selectedState
     if (selectedCity) params.city = selectedCity
-    if (selectedCity && searchParams.get('county') === '0') params.county = '0'
     if (selectedTypes.length > 0 && selectedTypes.length < 5) {
       params.types = selectedTypes.join(',')
     }
@@ -916,7 +913,6 @@ function UnifiedSearchInner() {
     const params: any = { q: query }
     if (selectedState) params.state = selectedState
     if (selectedCity) params.city = selectedCity
-    if (selectedCity && searchParams.get('county') === '0') params.county = '0'
     params.types = category
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
@@ -940,7 +936,6 @@ function UnifiedSearchInner() {
     if (activeQuery) params.q = activeQuery
     if (selectedState) params.state = selectedState
     if (selectedCity) params.city = selectedCity
-    if (selectedCity && searchParams.get('county') === '0') params.county = '0'
     if (newTypes.length > 0 && newTypes.length < 5) {
       params.types = newTypes.join(',')
     }
