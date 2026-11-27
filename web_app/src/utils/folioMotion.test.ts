@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countUpValue, easeOutCubic, rowDelayMs, staggerDelayMs } from './folioMotion'
+import { countUpValue, easeOutCubic, revealDelayMs, rowDelayMs, staggerDelayMs } from './folioMotion'
 
 describe('staggerDelayMs', () => {
   it('is 0 at the origin and the full span at the far corner', () => {
@@ -44,5 +44,18 @@ describe('countUpValue', () => {
     expect(countUpValue(100, 0.5)).toBeCloseTo(87.5)
     expect(countUpValue(-40, 0.5)).toBeCloseTo(-35)
     expect(countUpValue(0.25, 0.5)).toBeCloseTo(0.21875)
+  })
+})
+
+describe('revealDelayMs', () => {
+  it('steps 60 ms per row like the reference, from 0', () => {
+    expect(revealDelayMs(0, 5)).toBe(0)
+    expect(revealDelayMs(1, 5)).toBe(60)
+    expect(revealDelayMs(4, 5)).toBe(240)
+  })
+  it('squeezes long lists into the budget and stays whole milliseconds', () => {
+    expect(revealDelayMs(51, 52)).toBe(540)
+    expect(Number.isInteger(revealDelayMs(7, 52))).toBe(true)
+    expect(revealDelayMs(3, 1)).toBe(0)
   })
 })
