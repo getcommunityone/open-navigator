@@ -58,7 +58,10 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
   const scope = { stateCode, stateName: stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null, city: stateCode ? city : null }
   // One query per distinct facts slug (#1170): guide tiles have no slug and several tiles can share one, and duplicate
   // keys in useQueries share observers and trigger TanStack's "Duplicate Queries" warning.
+  // Only live tiles ask (#1191): a "coming soon" tile's topic isn't in the catalog, so the API answers 404 for it (it
+  // showed its blurb anyway); guides have no meeting record behind them.
   const slugOf = (t: (typeof TOPICS)[number]): string | null => {
+    if (t.status !== 'live') return null
     const copy = CAPTION_COPY[t.captionKey]
     return (copy ? copy.facts : t.captionKey) || null
   }
