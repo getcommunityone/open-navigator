@@ -72,17 +72,7 @@ html { scroll-behavior: smooth; }
 .v9 .home-story-headline.is-long { font-size: clamp(24px, 2.5vw, 36px); line-height: 1.12; }
 .v9 .home-story-subhead { margin: 0; font-size: clamp(15px, 1.3vw, 17px); line-height: 1.5; color: #44403c; max-width: 34em; }
 .v9 .home-story-basis { margin: 8px 0 0; font-size: 13px; color: #78716c; }
-.v9 .home-story-points { list-style: none; margin: 18px 0 0; padding: 0; }
-.v9 .home-story-point { display: flex; gap: 14px; align-items: flex-start; padding: 10px 0; border-top: 1px solid #e7e5e4; }
-.v9 .home-story-point:first-child { border-top: none; padding-top: 4px; }
-.v9 .home-story-point-icon { --hero-point-bg: #0f9d84; flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; background: var(--hero-point-bg); color: #fff; }
-/* Phones skip the numbered points (owner, 2026-11-26, #1182): the title, subhead, basis and the two buttons are the first
-   screen; the counts stay in the story itself and on desktop. */
-@media (max-width: 640px) { .v9 .home-story-points { display: none; } }
-.v9 .home-story-point-n { display: inline-block; min-width: 1.4em; margin-right: 6px; font-size: 22px; font-weight: 800; color: #0f9d84; }
-.v9 .home-story-point-title { margin: 2px 0 0; font-size: 17px; font-weight: 800; color: #1c1917; line-height: 1.3; }
-.v9 .home-story-point-line { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: #57534e; }
-/* Always reachable (owner, 2026-11-26): when the points push the buttons below the fold, they stick to the bottom of
+/* Always reachable (owner, 2026-11-26): when the card pushes the buttons below the fold, they stick to the bottom of
    the screen until their own place scrolls into view, then sit there. */
 .v9 .home-story-actions { position: sticky; bottom: 0; z-index: 5; padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(to top, #fff 78%, rgba(255,255,255,0)); }

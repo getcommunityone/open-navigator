@@ -11,7 +11,7 @@ The **Data Stories** item in the header scrolls to the Data stories section of t
 
 The home page opens on the Data stories section, with search second; the line "Every local decision, in one place." now closes the page, under Impact ([#995](https://github.com/getcommunityone/open-navigator/issues/995)). The section's map draws each state as small boxes ([#1087](https://github.com/getcommunityone/open-navigator/issues/1087), described below), and hovering one shows a card quoting that state: a speaker's own words with their recorded side ("Spoke against · Business owner") where one is on record, otherwise the newest meeting passage, verbatim, with the place, date, meeting and a link to the moment in the recording. Under it, **Browse topics** opens the story's screens (who spoke, projects, decisions, environment and resources, jobs) for the page's place. On the home page, the Data stories section leads with the story's conclusion, **America hates data centers.**, with its subtitle and a line giving the real speaker counts behind it. The headline shows only while the national record backs it (see [Story statements and where you sit](../development/story-statements-where-you-sit.md#decision-conclusion-headlines-shown-only-when-the-record-backs-them-989)); otherwise the story's question shows. **Start the story** comes right under it, in view on a laptop and a phone. The hub card does the same ([#989](https://github.com/getcommunityone/open-navigator/issues/989)). The section names the story (**The Data Center Story**). It has a US map with one marker per state where a data center came up in at least one meeting; a marker's size follows that real count and clicking it opens the story for that state. The page's own place is highlighted, with its counts and a **Start the story** button named for that place. Under the box, **All data stories** lists every story there is, and says so plainly while there is only one ([#985](https://github.com/getcommunityone/open-navigator/issues/985)).
 
-Under the headline and its subtitle, the hero's left column lists up to three numbered points, each with a round teal icon, a bold title and a line with the real figure ([#1122](https://github.com/getcommunityone/open-navigator/issues/1122)). The titles are fixed; every figure is national and comes from `GET /api/data-centers/positions`:
+*(Home card: removed 26 Nov 2026, [#1182](https://github.com/getcommunityone/open-navigator/issues/1182); the points remain on the Data Center Story's opening screen.)* Under the headline and its subtitle, the hero's left column lists up to three numbered points, each with a round teal icon, a bold title and a line with the real figure ([#1122](https://github.com/getcommunityone/open-navigator/issues/1122)). The titles are fixed; every figure is national and comes from `GET /api/data-centers/positions`:
 
 1. **"Communities are saying no."** The meetings (and states) where Jev read the public as mostly opposed (`lean_totals.public_against_meetings` / `public_against_states`), then (only when the meeting reading is missing) "29 speakers counted by hand in 4 states: 18 against and 3 for." from the counted speakers in `totals`, with the number of states counted from `by_state` (states with any counted speaker), never hard-coded ([#1134](https://github.com/getcommunityone/open-navigator/issues/1134)).
 2. **"Projects are being stopped."** The meetings whose data center outcome Jev read as tabled or deferred, denied or a moratorium (`lean_totals.stopped_meetings`).
@@ -133,7 +133,7 @@ title is at most about 46px (three or four lines beside the map; a two-clause ti
 (national: no place; `storyStartLabel` in `storyCaption.ts`, [#1182](https://github.com/getcommunityone/open-navigator/issues/1182))
 and **Next story: [title] →** (the same `nextStoryLink` as the end of a story, carrying the place),
 then a line naming the scope in effect, "Showing Tuscaloosa, Alabama. Pick a state on the map to open its story.". Every
-topic card has Next story, not only data centers. On the data-center card the three numbered points follow the buttons.
+topic card has Next story, not only data centers.
 The map is capped at 60% of the screen height so it never pushes the card below the fold. At 1366×768 the buttons and
 the scope line are in view for the national and a city scope, and on a phone the buttons stack full width.
 
@@ -148,10 +148,13 @@ pages the folio house style squares their corners. A topic card on the home page
 of meetings (the topic story's four-colour split) whenever a reading exists, so a lean title and the map beside it agree;
 with no reading yet it stays the plain meetings map.
 
-On phones (640px and narrower) the data-center home card leaves out its three numbered points (owner, 26 Nov 2026,
-[#1182](https://github.com/getcommunityone/open-navigator/issues/1182)): the title, subhead, basis line, the topic-named
-Start button and Next story are the whole first screen. Nothing else on the phone card states the points' counts; they
-stay on desktop and in the story itself.
+The data-center home card no longer shows the three numbered points, on any screen size (owner, 26 Nov 2026: first on
+phones, then "remove the numbered bullets even in desktop too much real estate";
+[#1182](https://github.com/getcommunityone/open-navigator/issues/1182)). The card is the title, subhead, basis line, the
+topic-named Start button and Next story, the scope line and the map, with the top of **Browse topics** in the first
+laptop screen. Nothing else on the card states the points' counts; they stay on the Data Center Story's opening screen
+(`storyHeroPoints` in `heroPoints.ts`). The home-only icon set (`heroPointGlyphs.tsx`) and the card's scoped positions
+query went with them.
 A small line under the title gives the numbers behind it, and says when coverage varies by state. Every number is a real
 count for the scope; missing data falls through to the next rule. Thresholds and the reasons for them:
 [Story captions](../development/story-captions.md).
@@ -168,12 +171,12 @@ against data centers (AI reading)." (`public_against_states` on caption-facts). 
 scope, the numbered points wait for the place's own figures, so national figures never flash first. Hand counts in a basis always name their scope: "29
 speakers counted by hand in 4 states: 18 against and 3 for." (`speakers.states` on caption-facts), never "nationwide".
 
-Under the title, the hero and the story header both show:
+Under the title, the hero and the story's opening both show:
 - **a subhead about the caption's scope only** (`captionSubhead` in `storyCaption.ts`): the story's national line only
   with the national "hates" caption; for a place a sentence about that place (for example "At local meetings in Arizona,
   the public has mostly spoken against data centers."), never a national claim;
 - **the basis line** from the caption;
-- **three numbered points** (`storyHeroPoints` in `heroPoints.ts`, from `GET /api/data-centers/positions`): each uses
+- **three numbered points**, on the story's opening screen only (the home card dropped them, #1182) (`storyHeroPoints` in `heroPoints.ts`, from `GET /api/data-centers/positions`): each uses
   the place's own figure where it is above 0 (`scope_lean_totals`, the AI-reading totals narrowed by `state` and by `city`
   as a substring of the meeting's government name: "6 meetings in Alabama where the public leaned against (AI reading).")
   and otherwise the national one (`lean_totals`), starting **"Nationally:"**. Point 1 is a short form, so it doesn't
