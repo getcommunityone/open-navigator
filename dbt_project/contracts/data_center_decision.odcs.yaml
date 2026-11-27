@@ -87,6 +87,21 @@ schema:
     logicalType: string
     physicalType: text
     description: An uncontested item's vote as said (voice vote, 5-0, unanimous); null for contested decisions and when not stated.
+  - id: vote_side
+    name: vote_side
+    logicalType: string
+    physicalType: text
+    description: '#1290: which way a recorded vote went for the data center (''for'' / ''against''), only when the tally records both a yes and a no count; null otherwise and on a tie. A passed motion to pause, ban or prohibit, or a denial, is ''against''; any other passed motion is ''for''; a failed one is the opposite. Keyword reading of the item''s own words (development/story-stance-evidence.md).'
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - for
+        - against
+      mustBe: 0
+      dimension: conformity
+      severity: error
   - id: meeting_date
     name: meeting_date
     logicalType: date
