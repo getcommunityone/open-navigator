@@ -3496,6 +3496,7 @@ html.stance-snap .stance-intro {
     align-items: flex-start;
     gap: 6px;
   }
+}
 
 /* #1290: a story screen fits one phone viewport above the bottom bar (useScreenFit): what doesn't fit waits behind "More". */
 .stance-panel .fit-hidden { display: none !important; }
