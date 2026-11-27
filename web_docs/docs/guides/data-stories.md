@@ -71,6 +71,16 @@ Owner, 27 Nov 2026, on `/?state=AL&city=Tuscaloosa` after #1285: "The Alabama ma
 - **Topic cards.** Topics have no county or town data, so a state-scoped topic card draws the state's outline only, never a box grid. A line says so: "Alabama: 386 meetings on record. These meetings aren't mapped by county or town yet, so the state is drawn as its outline." The asked city is marked where its record has a coordinate. Hovering the state shows its card, and a click opens its story.
 - `StoryCountyMap` gains two optional props for this, `cardSlot` and `onDrill`. Without them it behaves as before on the story pages.
 
+### How the maps load (#1328)
+
+Owner, 27 Nov 2026, on the Data Center Overview for Georgia: "it might be flashing stats in map before the map shows because of loading time; need this to be more elegant." Before this change the Overview showed the year-over-year chart and the counts in the map's place while the state's county shapes loaded, then pushed them down when the map arrived.
+
+- **One quiet box first.** Every story and home map (the home hero, `StoryStatesMap`, `StoryDotMap`, `StoryCountyMap`) holds its final size while it loads: the national frame, or the state's own shape box from the cached state shapes (`useStateAspect`). It is a soft shimmer with no numbers, caption, legend or card (`MapSkeleton`).
+- **Waiting for both shapes and data.** On the Overview, the map, the year-over-year chart and the counts wait for this scope's place counts and the map's shapes. They then arrive together in one 200 ms fade (none under reduced motion). No other scope's map or counts show first.
+- **Slow or failed.** After 8 seconds, or on an error, the box says "The map is taking longer than usual." (or "could not be loaded") with **Try again**.
+- **Prefetch.** The county shapes are fetched on the first hover of the national maps, so a state's map is ready when it is picked.
+- **Measured.** Playwright with 1.5 s delays on the API and the map shapes, at 1440 and Pixel 7, on `/stories/data-centers?state=GA` and `/?state=GA`. Before, the Overview showed the comparison chart and counts for about 2 s before the map. After, it shows only the skeleton, then the map with its counts.
+
 ### Which meeting a map card quotes (#1230)
 
 **Changed 26 Nov 2026 ([#1230](https://github.com/getcommunityone/open-navigator/issues/1230)).** The owner did not believe
@@ -745,6 +755,10 @@ Owner, 27 Nov 2026: upcoming meetings and legislation are "where we have the gre
 - **Home page.** Under the story card and its map, above Browse topics, a strip of three cards for the story and place in the URL (`?story=`, `?state=`, `?city=`): **Coming up** first and highlighted, then **Meetings** and **State bills**. Each is one real number and one line and opens that screen of the story at the same place. It scrolls sideways on a phone.
 
 How items are found, what the warehouse holds and what is left out: [What's coming up on a topic](../development/topic-upcoming.md).
+
+### What happened next: the chain from meeting to outcome (#1314)
+
+A **What happened** screen follows Coming up on every story. It walks from the meetings where the topic came up to what followed, one step at a time: **Meetings** → **The public** (meetings where the public spoke, mostly opposed / split / mostly supportive) → **Officials** (meetings where the council or board moved it forward, stopped or limited it, put a moratorium on it, or tabled it) → **State bills** (by status) → **Named a bill** (meetings that wrote one of the topic's state bills by number) → **What's next** (meetings and hearings ahead, bills still open). Each step is one count, a line in words and up to three linked examples. **See all** opens that step's screen. An empty step says "No recorded … yet". The flow runs top to bottom on a phone and left to right on a wide screen. The home strip gains a **Votes** card. How meetings are tied to bills: [How meetings are linked to state bills](../development/meeting-bill-links.md).
 
 ## Add a story
 

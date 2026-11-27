@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { NATIONAL_BBOX, STATES_ALBERS_TOPO, fetchTopo, meetingColor } from '../../lib/dotMatrix'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import MapSkeleton, { NATIONAL_MAP_ASPECT } from './MapSkeleton'
+import { COUNTIES_ALBERS_TOPO, NATIONAL_BBOX, STATES_ALBERS_TOPO, fetchTopo, meetingColor } from '../../lib/dotMatrix'
 import { NATIONAL_PAD, RAMP, nationalGrid } from './nationalDots'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
@@ -72,7 +73,8 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null, scopeLabel, onPickState, labelledBy, passages }: Props) {
   const [hover, setHover] = useState<string | null>(null)
   const quoted = useMemo(() => (passages ?? []).filter((m) => m.evidence), [passages])
-  const { data: topo, isError } = useQuery({
+  const qc = useQueryClient()
+  const { data: topo, isError, refetch } = useQuery({
     queryKey: ['us-atlas-states-albers'],
     queryFn: () => fetchTopo(STATES_ALBERS_TOPO),
     staleTime: 1000 * 60 * 60,
@@ -107,20 +109,9 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   // A click, or a tap on a phone (no card there, #1277), tells the state's story at once.
   const onDot = (fips: string) => pick(fips)
 
-  if (isError) {
-    return (
-      <p className="stance-nodata" role="status">
-        The map shapes could not be loaded. The counts below and the data table still show every state.
-      </p>
-    )
-  }
-  if (!grid || byState == null) {
-    return (
-      <p className="stance-note" role="status">
-        Loading the map…
-      </p>
-    )
-  }
+  // Loading (#1328): the map's own box and a quiet shimmer; a failure says so with Try again.
+  if (isError) return <MapSkeleton aspect={NATIONAL_MAP_ASPECT} error onRetry={() => void refetch()} />
+  if (!grid || byState == null) return <MapSkeleton aspect={NATIONAL_MAP_ASPECT} />
 
   const hoverCode = hover ? codeOf(hover) : null
   // Only while a state is hovered, on a desktop: that state's newest passage in scope, if any (no card at rest, #1002; none
@@ -142,7 +133,14 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
 
   return (
     // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
-    <figure className="stance-map" aria-labelledby={labelledBy} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+    <figure
+      className="stance-map map-fade-in"
+      aria-labelledby={labelledBy}
+      onMouseLeave={() => setHover(null)}
+      // The state's county shapes, fetched on the first hover so the drill-down is ready when a state is picked (#1328).
+      onMouseEnter={() => void qc.prefetchQuery({ queryKey: ['us-atlas-counties-albers'], queryFn: () => fetchTopo(COUNTIES_ALBERS_TOPO), staleTime: 1000 * 60 * 60 })}
+      {...keyNav.stageProps}
+    >
       <figcaption className="stance-map-head">
         <span>
           Meetings where a data center came up, by state · National{scopeStateCode ? ` (${stateNameOf(scopeStateCode)} highlighted${scopeCity ? `, which contains ${scopeCity}` : ''})` : ''}

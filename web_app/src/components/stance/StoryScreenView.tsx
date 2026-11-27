@@ -12,6 +12,8 @@ import StatRow from './StatRow'
 import StoryDotMap from './StoryDotMap'
 import DumbbellChart from './DumbbellChart'
 import StoryCountyMap from './StoryCountyMap'
+import MapSkeleton, { NATIONAL_MAP_ASPECT, useStateAspect } from './MapSkeleton'
+import { COUNTIES_ALBERS_TOPO, STATES_ALBERS_TOPO, fetchTopo } from '../../lib/dotMatrix'
 import MapDrill from './MapDrill'
 import StoryStatement from './StoryStatement'
 import type { ScreenStatement } from './useStoryStatements'
@@ -82,6 +84,22 @@ export default function StoryScreenView(p: Props) {
     retry: 1,
   })
   const nationalPassages = mapQuotes.data?.items ?? mentions?.items
+  // The Overview's map and the counts beside it wait for this scope's place counts (#1328): until then one quiet box of
+  // the map's size, so no other scope's map, no stray stats, and nothing jumps when the map arrives.
+  const stateAspect = useStateAspect(screen.kind === 'overview' ? scope.stateCode : null)
+  const mentionsState = p.status['meeting-mentions'] ?? 'loading'
+  // The map's shapes too (the same cached queries the maps use), so the counts below never show before the map does.
+  const isOverview = screen.kind === 'overview'
+  const shapes = useQuery({
+    queryKey: scope.stateCode ? ['us-atlas-counties-albers'] : ['us-atlas-states-albers'],
+    queryFn: () => fetchTopo(scope.stateCode ? COUNTIES_ALBERS_TOPO : STATES_ALBERS_TOPO),
+    enabled: isOverview,
+    staleTime: 1000 * 60 * 60,
+  })
+  const overviewMapLoading =
+    mentionsState === 'loading' ||
+    (mentionsState === 'ready' && (scope.stateCode ? byPlace == null : byState == null)) ||
+    (isOverview && shapes.isPending)
   const jobsData = p.data['job-claims'] as JobClaimsResponse | null | undefined
   const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
@@ -127,8 +145,11 @@ export default function StoryScreenView(p: Props) {
               }
             >
               {(beforePick) =>
-                stats.length > 0 ? (
-                  <>
+                overviewMapLoading ? (
+                  <MapSkeleton aspect={scope.stateCode ? stateAspect : NATIONAL_MAP_ASPECT} label={`Loading the map of ${storyScopeLabel(scope)}`} />
+                ) : stats.length > 0 ? (
+                  // The map, its caption and the counts arrive together, in one short fade (#1328).
+                  <div className="map-fade-in">
                     {stats.some((s) => s.key === 'meetings') && scope.stateCode && byPlace && byPlace.length > 0 ? (
                       // At state scope, the state's counties (#1039), like the Census map's state drill-down.
                       <StoryCountyMap
@@ -179,7 +200,7 @@ export default function StoryScreenView(p: Props) {
                     )}
                     <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
                     <p className="stance-note">{statsScopeNote(stats, scope)}</p>
-                  </>
+                  </div>
                 ) : (
                   <p className="stance-nodata" role="status">
                     {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}

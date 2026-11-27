@@ -87,6 +87,7 @@ describe('story structure', () => {
     expect(DATA_CENTER_STORY.map((s) => s.id)).toEqual([
       'overview',
       'upcoming',
+      'outcomes',
       'voices',
       'sites',
       'projects',
@@ -98,7 +99,7 @@ describe('story structure', () => {
       'gatherings',
       'verdict',
     ])
-    expect(DATA_CENTER_STORY.slice(0, 3).map((s) => s.kind)).toEqual(['overview', 'upcoming', 'chart'])
+    expect(DATA_CENTER_STORY.slice(0, 4).map((s) => s.kind)).toEqual(['overview', 'upcoming', 'outcomes', 'chart'])
     expect(DATA_CENTER_STORY[DATA_CENTER_STORY.length - 1]!.kind).toBe('verdict')
     expect(DATA_CENTER_STORY.some((s) => s.id === 'question')).toBe(false)
     for (const s of DATA_CENTER_STORY) expect(s.eyebrow).toMatch(/^[A-Za-z]/)
@@ -128,7 +129,8 @@ describe('the screens around the record', () => {
     expect(storyScreenIndex(DATA_CENTER_STORY, 'overview')).toBe(0)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'question')).toBe(0) // alias → overview (#950)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'upcoming')).toBe(1)
-    expect(storyScreenIndex(DATA_CENTER_STORY, 'voices')).toBe(2)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'outcomes')).toBe(2)
+    expect(storyScreenIndex(DATA_CENTER_STORY, 'voices')).toBe(3)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'scope')).toBe(0) // the Where screen folded into the Overview (#1134)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'verdict')).toBe(DATA_CENTER_STORY.length - 1)
     expect(storyScreenIndex(DATA_CENTER_STORY, 'turn')).toBe(DATA_CENTER_STORY.length - 1)
@@ -230,8 +232,8 @@ describe('empty, loading and failed screens', () => {
 describe('who spoke up', () => {
   const voices = DATA_CENTER_STORY.find((s) => s.id === 'voices')!
   const value = (res: never, key: string) => positionFigures(res)!.find((f) => f.key === key)!
-  it('comes right after the overview and Coming up (#1302), and reads the positions data', () => {
-    expect(DATA_CENTER_STORY.indexOf(voices)).toBe(2)
+  it('comes right after the overview, Coming up (#1302) and What happened (#1314), and reads the positions data', () => {
+    expect(DATA_CENTER_STORY.indexOf(voices)).toBe(3)
     expect(voices.chart).toBe('positions')
     expect(voices.eyebrow).toBe('Who spoke up')
     expect(STORY_CHARTS).toContain('positions')

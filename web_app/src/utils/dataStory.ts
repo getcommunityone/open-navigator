@@ -55,7 +55,7 @@ export interface StoryScreen {
    * readers answered (#950). `question` remains a kind for tests and any legacy screen helper; the story no longer opens on
    * it. `chart` is one dataset.
    */
-  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict' | 'upcoming'
+  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict' | 'upcoming' | 'outcomes'
   /** "For context": the screen is records about the topic that are not something said in a meeting (sites, projects). */
   kicker?: string
 }
@@ -65,6 +65,8 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'overview', eyebrow: 'Overview', chart: null, kind: 'overview' },
   // What's coming up (#1302): scheduled meetings, hearings and open state bills; second, where a reader can still act.
   { id: 'upcoming', eyebrow: 'Coming up', chart: null, kind: 'upcoming' },
+  // What happened next (#1314): the chain from the meetings to what followed.
+  { id: 'outcomes', eyebrow: 'What happened', chart: null, kind: 'outcomes' },
   { id: 'voices', eyebrow: 'Who spoke up', chart: 'positions', kind: 'chart' },
   { id: 'sites', eyebrow: 'Sites', chart: 'sites', kind: 'chart', kicker: 'For context' },
   { id: 'projects', eyebrow: 'Proposals', chart: 'projects', kind: 'chart', kicker: 'For context' },
@@ -885,6 +887,9 @@ function screenTextRaw(
       empty: false,
       failed: false,
     }
+  }
+  if (screen.kind === 'outcomes') {
+    return { headline: 'What happened after data centers came up', context: '', empty: false, failed: false }
   }
   if (screen.kind === 'upcoming') {
     // The page words this screen from its own query (utils/topicUpcoming.upcomingHeadline); this is the fallback.

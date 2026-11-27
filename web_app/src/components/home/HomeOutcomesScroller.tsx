@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchTopicCaptionFacts } from '../../api/topics'
 import { useTopicUpcoming } from '../../hooks/useTopicUpcoming'
+import { useTopicOutcomes } from '../../hooks/useTopicOutcomes'
+import { stepScreen } from '../../utils/topicOutcomes'
 import { upcomingCardLine } from '../../utils/topicUpcoming'
 import { outcomeCardHref, type OutcomeCard } from '../../utils/homeOutcomes'
 import './HomeOutcomesScroller.css'
@@ -24,7 +26,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 
 /**
  * The home page's strip from the story to what happens next (#1302): Coming up first (where a reader can still act), then
- * meetings on record and the state bills still open. Each card is one real number and one line, and opens that screen of
+ * meetings on record, what local bodies did (#1314) and the state bills still open. Each card is one real number and one line, and opens that screen of
  * the story at the same place (?state=&city= read from the home page, never changed here). Below the hero map, above
  * Browse topics; a sideways scroll on a phone.
  */
@@ -36,6 +38,9 @@ export default function HomeOutcomesScroller({ topic, subject, stateCode, city, 
     staleTime: 5 * 60_000,
     retry: 1,
   })
+  // What local bodies did (#1314), from the chain's counts.
+  const outcomes = useTopicOutcomes(topic, stateCode, city)
+  const acted = outcomes.data?.steps.actions
   const u = upcoming.data
   const meetings = facts.data?.meetings ?? null
   const bills = u?.pending_bills.total ?? null
@@ -62,6 +67,19 @@ export default function HomeOutcomesScroller({ topic, subject, stateCode, city, 
             ? `No recorded meetings on ${subject} yet.`
             : `${meetings === 1 ? 'Meeting' : 'Meetings'} where ${subject} came up.`,
       screen: dataCenterStory ? 'meetings' : 'timeline',
+    },
+    {
+      key: 'votes',
+      eyebrow: 'Votes',
+      value: outcomes.isPending || outcomes.isError || !acted?.available ? null : acted.count,
+      line: outcomes.isPending
+        ? 'Loading…'
+        : outcomes.isError || !acted?.available
+          ? 'Could not be loaded right now.'
+          : acted.count === 0
+            ? 'No recorded votes or delays yet.'
+            : `Meetings where a council or board acted on ${subject}.`,
+      screen: dataCenterStory ? 'outcomes' : (stepScreen('actions', false) ?? 'outcomes'),
     },
     {
       key: 'bills',

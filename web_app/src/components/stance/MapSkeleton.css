@@ -1,0 +1,69 @@
+/* The map's box while it loads (#1328): its final size and a soft shimmer; no text until the data is there. */
+.map-skeleton {
+  position: relative;
+  width: 100%;
+  max-height: min(60vh, 560px);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #efedea;
+}
+.map-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.55) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: map-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+.map-skeleton.is-stuck::after {
+  content: none;
+}
+.map-skeleton-msg {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  color: #57534e;
+  font-size: 14px;
+}
+.map-skeleton-msg p {
+  margin: 0;
+}
+.map-skeleton-retry {
+  justify-self: center;
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 1px solid #0f766e;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f766e;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+@keyframes map-skeleton-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+/* The map arriving (#1328): one short fade with its caption and legend, none under reduced motion. */
+.map-fade-in {
+  animation: map-fade-in 200ms ease-out both;
+}
+@keyframes map-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-skeleton::after,
+  .map-fade-in {
+    animation: none;
+  }
+}

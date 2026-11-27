@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 // The state's story plays its drill-down transition on arrival, from the national layout (#1195).
 import { DRILL_FROM_NATIONAL } from '../stance/drillState'
-import { useQuery } from '@tanstack/react-query'
-import { NATIONAL_BBOX, STATES_ALBERS_TOPO, albersPoint, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import MapSkeleton, { NATIONAL_MAP_ASPECT } from '../stance/MapSkeleton'
+import { COUNTIES_ALBERS_TOPO, NATIONAL_BBOX, STATES_ALBERS_TOPO, albersPoint, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from '../stance/QuoteCard'
 import { resolveVideoId, startFromUrl } from '../stance/quoteCardUtils'
@@ -230,7 +231,11 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   }
   useEffect(() => keepCard, [])
   const touch = isTouchOnly()
-  const { data: topo, isError } = useQuery({
+  const qc = useQueryClient()
+  // The state drill's county shapes, fetched on the first hover so the next map is ready when clicked (#1328).
+  const prefetchCounties = () =>
+    void qc.prefetchQuery({ queryKey: ['us-atlas-counties-albers'], queryFn: () => fetchTopo(COUNTIES_ALBERS_TOPO), staleTime: 1000 * 60 * 60 })
+  const { data: topo, isError, refetch } = useQuery({
     queryKey: ['us-atlas-states-albers'],
     queryFn: () => fetchTopo(STATES_ALBERS_TOPO),
     staleTime: 1000 * 60 * 60,
@@ -301,8 +306,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     },
   })
 
-  if (isError) return <p className="text-sm text-stone-500">The map could not be loaded.</p>
-  if (!grid || !boxes || byState == null) return <p className="text-sm text-stone-500" role="status">Loading the map…</p>
+  // Loading (#1328): the map's own box and a quiet shimmer, no caption or counts; a failure says so with Try again.
+  if (isError) return <MapSkeleton aspect={zoom ? 1 : NATIONAL_MAP_ASPECT} error onRetry={() => void refetch()} />
+  if (!grid || !boxes || byState == null) return <MapSkeleton aspect={zoom ? 1 : NATIONAL_MAP_ASPECT} />
 
   const meetings = new Map(byState.map((s) => [s.state_code, s.meetings]))
   const maxMeetings = Math.max(0, ...byState.map((s) => s.meetings))
@@ -419,7 +425,15 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
 
   return (
     // The map, its lines and its card: leaving all of them (not moving between them) hides the card and stops its recording.
-    <div onMouseLeave={hideSoon} onMouseEnter={keepCard} {...keyNav.stageProps}>
+    <div
+      className="map-fade-in"
+      onMouseLeave={hideSoon}
+      onMouseEnter={() => {
+        keepCard()
+        if (!grid.zoomed) prefetchCounties()
+      }}
+      {...keyNav.stageProps}
+    >
       <div style={{ position: 'relative' }}>
       {keyNav.sr}
       <svg
