@@ -1,4 +1,4 @@
-// Place scope check (#1285). With Tuscaloosa, AL chosen the home map zooms to Alabama with Tuscaloosa marked, the subtitle
+// Place scope check (#1285, #1307). With Tuscaloosa, AL chosen the home map is Alabama's county map with Tuscaloosa's ring bold, the subtitle
 // says why the story steps up (too few meetings), and the header's "× National" puts the page back on the US map, on a
 // desktop and on a phone. The Data Center Story notes the step up under its bar while the URL keeps the reader's choice.
 //
@@ -22,8 +22,9 @@ const ok = (cond, msg) => {
 const browser = await chromium.launch({ args: ['--disable-gpu', '--disable-software-rasterizer', '--use-gl=swiftshader'] })
 const look = (page) =>
   page.evaluate(() => ({
-    zoom: document.querySelector('svg[data-map-keys]')?.getAttribute('data-zoom') ?? null,
-    pin: document.querySelector('[data-pin]')?.getAttribute('data-pin') ?? null,
+    // The state's county map (#1307), the story Overview's own, with the chosen town's ring in bold.
+    zoom: document.querySelector('.home-story-map svg[data-map="county"]') ? 'county' : null,
+    pin: document.querySelector('.home-story-map [data-scope-city]') ? 'Tuscaloosa' : null,
     sub: document.querySelector('.home-story-subhead, [data-testid=home-story-scope-line]')?.textContent ?? '',
     national: [...document.querySelectorAll('.sh-national')].find((e) => e.getClientRects().length > 0) ? true : false,
   }))
@@ -37,11 +38,11 @@ for (const [label, opts] of [
   const page = await ctx.newPage()
   console.log(`\n${label} /?state=AL&city=Tuscaloosa`)
   await page.goto(`${base}/?state=AL&city=Tuscaloosa`, { waitUntil: 'networkidle', timeout: 120_000 })
-  await page.waitForSelector('svg[data-map-keys] rect[data-state]', { timeout: 60_000 })
+  await page.waitForSelector('.home-story-map svg[data-map-keys]', { timeout: 60_000 })
   await page.waitForTimeout(1500)
   let r = await look(page)
-  ok(r.zoom === 'AL', `the map zooms to Alabama (${r.zoom})`)
-  ok(r.pin === 'Tuscaloosa', `Tuscaloosa is marked (${r.pin})`)
+  ok(r.zoom === 'county', `the map is Alabama's county map (${r.zoom})`)
+  ok(r.pin === 'Tuscaloosa', `Tuscaloosa's ring is bold (${r.pin})`)
   ok(/Tuscaloosa has (only \d+ meetings?|no meetings) on data centers, too few to call/.test(r.sub), `the subtitle says why ("${r.sub.slice(0, 90)}")`)
   ok(r.national, 'the header shows "× National"')
   if (shots) await page.screenshot({ path: `${shots}/place-${label.replace(/\W+/g, '_')}-tuscaloosa.png` })

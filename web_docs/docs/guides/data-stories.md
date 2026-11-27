@@ -55,6 +55,15 @@ Owner, 27 Nov 2026: with Tuscaloosa, AL chosen, the Overview said "A data center
 - **No "AI reading" label** on the home topic-strip tiles.
 - `web_app/e2e/place-scope.check.mjs` checks the zoom, the pin, the reason, "× National" and the story note at 1440×900 and Pixel 7.
 
+### The home map at a state or city (#1307)
+
+Owner, 27 Nov 2026, on `/?state=AL&city=Tuscaloosa` after #1285: "The Alabama map should match the drill-down one; I have no clue what this is." The zoomed home map was the national box grid cropped to the state, every box the same colour.
+
+- **Data centers.** With home scoped to a state, or to a city that resolves to its state, the hero map is the story Overview's own state map (`StoryCountyMap`, reused). It shows the state's counties, the meeting towns as labelled rings, and the stance legend, from `GET /api/data-centers/meeting-mentions?state=` (`counts.by_place`, `items`). The chosen city's ring is bold and dark and its label bold teal, and its county stands out. The caption, legend and data table under the map are the state map's.
+- **Hover and click.** On a desktop, hovering a county shows its card in the slot under **Start the … story** (the hint reads "Pick a county or a town on the map to open its story."). Clicking a county, or a town ring, opens the Data Center Story at that state, at the county's town with the most meetings on record, or at the ring's town (`/stories/data-centers?state=AL&city=Auburn`). Enter does the same from the keyboard. On a phone a tap drills.
+- **Topic cards.** Topics have no county or town data, so a state-scoped topic card draws the state's outline only, never a box grid. A line says so: "Alabama: 386 meetings on record. These meetings aren't mapped by county or town yet, so the state is drawn as its outline." The asked city is marked where its record has a coordinate. Hovering the state shows its card, and a click opens its story.
+- `StoryCountyMap` gains two optional props for this, `cardSlot` and `onDrill`. Without them it behaves as before on the story pages.
+
 ### Which meeting a map card quotes (#1230)
 
 **Changed 26 Nov 2026 ([#1230](https://github.com/getcommunityone/open-navigator/issues/1230)).** The owner did not believe
