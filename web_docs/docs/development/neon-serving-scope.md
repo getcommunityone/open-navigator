@@ -54,6 +54,8 @@ allow-list. `job_application_link` is written by the production admin screen, so
 tell a real zero year from a year with no recordings; without it production draws those years as gaps. It was first
 published on November 26, 2026 with `--only recorded_meeting_year` (8,076 rows; Neon 363 MB to 364 MB).
 
+`meeting_video_kind` (one row per video: whether it is a public meeting, from Jev's existing screen) is on the allow-list too ([#1258](https://github.com/getcommunityone/open-navigator/issues/1258)). The story map cards quote only real meetings with it (#1240); without it production falls back to the newest passage, interviews included. First published on November 27, 2026 with `--only meeting_video_kind` (6,264 rows; Neon 367 MB to 368 MB).
+
 ## Decision: production serving stays on Neon (November 15, 2026)
 
 The owner decided to keep production serving on Neon and not move it to Databricks Lakebase
