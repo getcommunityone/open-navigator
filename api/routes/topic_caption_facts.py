@@ -6,7 +6,8 @@ one topic and one scope (national, state or city). This route only gathers the r
 - meetings in scope, and meetings per state for the whole country (never narrowed, so a state can be ranked), each state
   with its population when ``jurisdictions`` has it on record;
 - for a city scope, meetings per place in that state, so the city can be ranked among its neighbours;
-- for data centers, the counted speakers for and against (``data_center_meeting_position``);
+- for data centers, the counted speakers for and against and the recorded votes (``data_center_meeting_position``,
+  #1289), with how many meetings were reviewed;
 - the AI meeting readings: ``data_center_meeting_lean`` for data centers, ``topic_meeting_lean`` (#1126) for any other
   topic. Every optional read is wrapped on its own: a missing table or column gives null, never a 500, and never a 0
   that would read as "none".
@@ -68,6 +69,19 @@ class CaptionSpeakers(BaseModel):
     states: int = Field(
         0, description="States in scope with any hand-counted speaker (#1134), so a basis can say where they were counted."
     )
+    meetings_reviewed: int = Field(
+        0, description="Meetings in scope reviewed by hand (#1289): 0 speakers here means nobody spoke in these meetings."
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class CaptionVotes(BaseModel):
+    """Recorded votes in scope (#1289), so the stance headline is checked against what officials voted."""
+
+    decisions: int = Field(0, description="Decisions with a recorded tally in scope.")
+    for_: int = Field(0, alias="for", description="Votes for, summed over those decisions.")
+    against: int = Field(0, description="Votes against, summed over those decisions.")
 
     model_config = {"populate_by_name": True}
 
@@ -105,6 +119,9 @@ class TopicCaptionFacts(BaseModel):
     )
     speakers: CaptionSpeakers | None = Field(
         None, description="Counted speakers in scope (data centers only); null when not on record."
+    )
+    votes: CaptionVotes | None = Field(
+        None, description="Recorded votes in scope (data centers only, #1289); null when no meeting in scope was reviewed."
     )
     lean_meetings: int | None = Field(None, description="Meetings in scope with an AI reading (Jev); null when none loaded.")
     public_against_meetings: int | None = Field(
@@ -189,7 +206,9 @@ SPEAKERS_SQL = (
     "coalesce(sum(p.speakers_question), 0)::int AS question, coalesce(sum(p.speakers_neutral), 0)::int AS neutral, "
     "count(*)::int AS meetings_reviewed, "
     "count(DISTINCT p.state_code) FILTER (WHERE p.speakers_for + p.speakers_against + p.speakers_question "
-    "+ p.speakers_neutral > 0)::int AS states "
+    "+ p.speakers_neutral > 0)::int AS states, "
+    "coalesce(sum(p.decisions_with_tally), 0)::int AS decisions_with_tally, "
+    "coalesce(sum(p.votes_for), 0)::int AS votes_for, coalesce(sum(p.votes_against), 0)::int AS votes_against "
     "FROM data_center_meeting_position p "
     "WHERE ($1::text IS NULL OR p.state_code = $1::text) AND ($2::text IS NULL OR p.jurisdiction_name ILIKE $2::text)"
 )
@@ -390,6 +409,7 @@ async def topic_caption_facts(
         meetings = int(national_rows[0]["n"] or 0) if national_rows and national_rows[0]["n"] is not None else None
 
     speakers: CaptionSpeakers | None = None
+    votes: CaptionVotes | None = None
     if speaker_rows:
         r = dict(speaker_rows[0])
         if int(r.get("meetings_reviewed") or 0) > 0:
@@ -397,6 +417,12 @@ async def topic_caption_facts(
                 for_=int(r["for_"] or 0), against=int(r["against"] or 0),
                 question=int(r["question"] or 0), neutral=int(r["neutral"] or 0),
                 states=int(r.get("states") or 0),
+                meetings_reviewed=int(r.get("meetings_reviewed") or 0),
+            )
+            votes = CaptionVotes(
+                decisions=int(r.get("decisions_with_tally") or 0),
+                for_=int(r.get("votes_for") or 0),
+                against=int(r.get("votes_against") or 0),
             )
 
     lean: dict[str, Any] = {}
@@ -441,6 +467,7 @@ async def topic_caption_facts(
         place=place,
         places=places,
         speakers=speakers,
+        votes=votes,
         wider=wider,
         **lean,
     )

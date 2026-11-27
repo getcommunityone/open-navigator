@@ -183,7 +183,12 @@ export interface TopicCaptionFacts {
   place: string | null
   places: { name: string; meetings: number }[] | null
   /** Counted speakers (data centers only); `states` is how many states in scope have any (#1134). */
-  speakers: { for: number; against: number; question: number; neutral: number; states?: number } | null
+  speakers: { for: number; against: number; question: number; neutral: number; states?: number; meetings_reviewed?: number } | null
+  /**
+   * Recorded votes in scope (data centers only, #1289): decisions with a tally and their summed votes. Null when no meeting
+   * in scope was reviewed; absent on older servers.
+   */
+  votes?: { decisions: number; for: number; against: number } | null
   /** AI readings (Jev) of meeting transcripts: never counted speakers. */
   lean_meetings: number | null
   public_against_meetings: number | null

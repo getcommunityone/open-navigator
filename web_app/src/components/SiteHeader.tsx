@@ -6,7 +6,7 @@ import { usePlacePick } from '../hooks/usePlacePick'
 import { DATABRICKS_APP_URL, DATABRICKS_WORKSPACE_URL } from '../utils/adminPaths'
 import { DATA_EXPLORER_MAP_BASE } from '../utils/dataExplorerPaths'
 import { DOCS_INTRO } from '../utils/docsLinks'
-import { headerPlaceLabel, headerPlaceState } from '../utils/headerPlace'
+import { headerPlaceLabel, headerPlaceState, searchForNational } from '../utils/headerPlace'
 import { activeNavKey, type NavKey } from '../utils/navActive'
 import { SOUND_EVENT, readSoundSetting, writeSoundSetting } from '../utils/stanceSound'
 import LocationPickerDialog from './LocationPickerDialog'
@@ -64,6 +64,10 @@ const HEADER_CSS = `
 .site-header .sh-place { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(13,148,136,0.3); background: rgba(13,148,136,0.06); color: ${TEAL_DARK}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .site-header .sh-place:hover { background: rgba(13,148,136,0.12); }
 .site-header .sh-place-text { overflow: hidden; text-overflow: ellipsis; }
+.site-header .sh-place-pair { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.site-header .sh-national { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 6px 11px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; color: #44403c; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.site-header .sh-national:hover, .site-header .sh-national:focus-visible { border-color: ${TEAL_DARK}; color: ${TEAL_DARK}; }
+.site-header .sh-mnational { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; margin: 6px 0 4px; padding: 10px 14px; border-radius: 12px; border: 1px solid #d6d3d1; background: #fff; color: #44403c; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
 .site-header .sh-place-group { max-width: 300px; padding: 3px 4px 3px 12px; cursor: default; }
 .site-header .sh-place-group:hover { background: rgba(13,148,136,0.06); }
 .site-header .sh-place-scope { color: #57534e; font-weight: 600; }
@@ -72,12 +76,15 @@ const HEADER_CSS = `
 .site-header .sh-place-more { padding: 4px 8px; border: none; border-left: 1px solid rgba(13,148,136,0.3); border-radius: 0 999px 999px 0; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 11px; cursor: pointer; }
 .site-header button:focus-visible, .site-header a:focus-visible { outline: 2px solid ${TEAL_DARK}; outline-offset: 2px; }
 .site-header .sh-mobile { display: none; }
+.site-header .sh-national-phone { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes sh-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sh-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 @media (max-width: ${MENU_BREAKPOINT - 1}px) {
   .site-header .sh-nav, .site-header .sh-place-desk { display: none; }
   .site-header .sh-burger { display: grid; margin-left: auto; }
+  .site-header .sh-national-phone { display: inline-flex; margin-left: auto; }
+  .site-header .sh-national-phone + .sh-burger { margin-left: 0; }
   .site-header .sh-mobile { display: block; }
   .site-header .sh-inner { padding-left: 16px !important; padding-right: 16px !important; gap: 12px !important; }
 }
@@ -141,9 +148,25 @@ export default function SiteHeader() {
   const savedLabel = placeState.kind === 'national-saved' ? placeLabel : null
   /** Apply the saved town to this page: writes ?state=&city= through usePlacePick, so label, URL and data move together. */
   const applySavedTown = () => {
-    if (!savedLocation) return
     setMenuOpen(false)
+    // Home with National chosen (#1285): the place is still in the URL or saved; dropping scope=national brings it back.
+    const sp = new URLSearchParams(location.search)
+    if (location.pathname === '/' && sp.get('scope') === 'national') {
+      sp.delete('scope')
+      const qs = sp.toString()
+      navigate({ pathname: '/', search: qs ? `?${qs}` : '', hash: location.hash }, { replace: false })
+      return
+    }
+    if (!savedLocation) return
     pickPlace(savedLocation)
+  }
+  /** One click back to National (#1285): resets the scope in the URL, so the label, the map and the data follow. */
+  const nationalSearch = searchForNational(location.pathname, new URLSearchParams(location.search), Boolean(placeLabel))
+  const goNational = () => {
+    if (!nationalSearch) return
+    setMenuOpen(false)
+    const qs = nationalSearch.toString()
+    navigate({ pathname: location.pathname, search: qs ? `?${qs}` : '', hash: location.hash })
   }
 
   // ── Phone menu (#1191) ──
@@ -370,9 +393,10 @@ export default function SiteHeader() {
             </button>
           </div>
         ) : (
+          <span className="sh-place-desk sh-place-pair">
           <button
             type="button"
-            className="sh-place sh-place-desk"
+            className="sh-place"
             aria-haspopup="dialog"
             aria-label={
               placeLabel
@@ -388,8 +412,20 @@ export default function SiteHeader() {
             <span className="sh-place-text">{placeLabel ?? 'Find your town'}</span>
             <span aria-hidden="true" style={{ fontSize: 11 }}>▾</span>
           </button>
+          {nationalSearch && (
+            <button type="button" className="sh-national" onClick={goNational} aria-label="Show National instead" title="Show the whole country">
+              <span aria-hidden="true">×</span> National
+            </button>
+          )}
+          </span>
         )}
 
+        {/* On a phone the one-click National sits in the bar too (#1285), not only in the menu. */}
+        {nationalSearch && (
+          <button type="button" className="sh-national sh-national-phone" onClick={goNational} aria-label="Show National instead">
+            <span aria-hidden="true">×</span> National
+          </button>
+        )}
         <button
           ref={toggleRef}
           type="button"
@@ -513,6 +549,11 @@ export default function SiteHeader() {
                   {placeLabel ?? 'Find your town'}
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{placeLabel ? 'Change' : 'Set'}</span>
+              </button>
+            )}
+            {nationalSearch && (
+              <button type="button" className="sh-mnational" onClick={goNational}>
+                <span aria-hidden="true">×</span> Show National
               </button>
             )}
 

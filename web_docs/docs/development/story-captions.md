@@ -11,6 +11,41 @@ caption for every topic: lead with disagreement where it is high-volume, and oth
 differ. Only the data-center story had a conclusion ("America hates data centers."); the rest said "X talked about Y in N
 meetings." or showed a fixed blurb.
 
+## Decision (27 Nov 2026, #1289): the stance headline agrees with the recorded votes, and needs a minimum
+
+[#1289](https://github.com/getcommunityone/open-navigator/issues/1289). The owner found the Alabama page reading
+"Alabama mostly opposes data centers." while its only recorded decision passed 8 for, 1 against and no public speakers were
+found in 24 meetings reviewed. The title rested on the AI reading of 8 meetings alone (6 against, 2 split; the #1224 lower
+tier).
+
+After the rules below pick a caption, the scope's **recorded** activity checks it (`utils/stanceEvidence.ts`):
+
+- **The minimum.** A stance caption (`position`, `sentiment`, `disagreement` and the `wider_*` kinds) needs at least
+  **3 decisions with a recorded vote** or at least **5 hand-counted public speakers** in the scope. Below both, the title
+  is **"Not enough recorded activity to say."** (kind `insufficient`), and the basis gives the facts first ("One decision
+  passed 8–1; no public speakers in 24 meetings reviewed.") and then the AI reading as it stands. The numbered points under
+  the title, which carry editorial leads such as "Communities are saying no.", are hidden for such a scope. A broader
+  scope's title (`wider_*`) is not shown in its place: the page is about the place the reader chose.
+- **Agreement with the votes.** A caption that claims a side for its own scope (`position` for or against, `sentiment`)
+  must not take the side opposite the scope's recorded votes (votes for against votes against, summed over its decisions).
+  When it would, the title becomes "[Place] is divided on [topic]." and the basis adds "Recorded votes: 79 for and 10
+  against, in 12 decisions." Nationally this turns "America hates data centers." into "America is divided on data
+  centers." (283 AI-read meetings against, 18 of 29 counted speakers against, recorded votes 79–10 for, on 27 Nov 2026).
+  The Overview's speaker line (`overviewLean`) follows the same rule.
+- **Nothing reviewed yet.** For data centers, a scope with no meeting reviewed (the API sends `speakers` and `votes` as
+  null) counts as nothing recorded, so it is below the minimum too. Only an older server, which sends no `votes` field at
+  all, keeps the earlier behaviour.
+- **Topics with no hand counts or votes.** Only data centers keep counted speakers and votes
+  (`data_center_meeting_position`). A topic with neither on record is not held to the minimum, since there is nothing to
+  count for it yet; its title still rests on the AI reading alone.
+
+Caveat, stated so it can be revisited: a vote "for" means the motion passed, and a motion can itself restrict data centers
+(a moratorium or a strict ordinance). Summed votes are the owner's proxy for which way officials went until decisions carry
+a direction of their own.
+
+Contract: `GET /api/topics/{topic}/caption-facts` adds `speakers.meetings_reviewed` and
+`votes: {decisions, for, against} | null` (data centers only; null when no meeting in scope was reviewed).
+
 ## Decision (27 Nov 2026, #1224): the selected place gets its own title from 5 meetings, and the topic is always a control
 
 The owner, on a phone at `/stories/data-centers?state=AL`, where the title read "America hates data centers." while
@@ -62,7 +97,7 @@ What `pickCaption` now returns, for every title (home cards, story header, `/sto
   beside it shows. The place's own facts open the basis line ("Tuscaloosa, Alabama talked about data centers in 2
   meetings. Of its 2 meetings read, the public spoke in 1, under the 3 a conclusion of its own needs. Across America, the
   public was against data centers in 300 of 340 meetings where it spoke. …"), and the subhead starts with the place
-  ("Tuscaloosa, Alabama has too few meetings where the public took a side for a conclusion of its own; the title is
+  ("Tuscaloosa, Alabama hasn't had enough public comment on data centers to call. Showing America.", #1285; before: "Tuscaloosa, Alabama has too few meetings where the public took a side for a conclusion of its own; the title is
   America's."). No "In the United States," lead is added anywhere.
 - **No conclusion anywhere**: the count titles stay ("California and North Carolina took up guns most: 659 and 585
   meetings.").
@@ -86,7 +121,7 @@ Before and after, live data 26 Nov 2026 (data centers):
 | Scope | Before | After |
 |---|---|---|
 | National | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading). | America hates data centers. |
-| `?state=AL` | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading); Alabama brought them up in 71 meetings. | America hates data centers. (subhead: "Alabama has too few meetings where the public took a side …") |
+| `?state=AL` | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading); Alabama brought them up in 71 meetings. | America hates data centers. (subhead: "Alabama hasn't had enough public comment on data centers to call. Showing America.") |
 | `?state=AL&city=Tuscaloosa` | America hates data centers: … (AI reading); Tuscaloosa, Alabama brought them up in 2 meetings. | America hates data centers. (subhead starts "Tuscaloosa, Alabama …", the place control) |
 | `?state=TX` | Texas hates data centers: the public was against them in 17 of 18 meetings where it spoke (AI reading). (header and Overview) | Texas hates data centers. (header only; Overview: "A data center came up in N meetings in Texas.") |
 

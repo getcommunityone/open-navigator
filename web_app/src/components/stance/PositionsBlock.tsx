@@ -1,11 +1,13 @@
 import { useCallback, useId, useMemo, useState } from 'react'
 import type { DataCenterPositionsResponse, PositionQuote } from '../../api/dataCenters'
-import { POSITIONS_NOT_LOADED, positionFigures, positionsCaption, positionsLoaded, storyScopeLabel, type LoadState, type StoryScope } from '../../utils/dataStory'
-import { chartSpec, fmt } from '../../utils/stanceGame'
+import { POSITIONS_NOT_LOADED, figureDisplay, positionFigures, positionsCaption, positionsLoaded, storyScopeLabel, type LoadState, type StoryScope } from '../../utils/dataStory'
+import { chartSpec } from '../../utils/stanceGame'
 import { Dots } from './ChartPanel'
 import { SideColumn, type Passage } from './SidesBlock'
 import CommentMetricsBlock from './CommentMetricsBlock'
 import { DrillValue, KpiDrillSheet, figureDrill, isDrillable } from './KpiDrill'
+import FitDisplay from './FitDisplay'
+import { specDisplay } from '../../utils/displayFit'
 
 interface Props {
   data: DataCenterPositionsResponse | null | undefined
@@ -70,6 +72,7 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
         {figures.map((f) => (
           <div key={f.key} data-figure={f.key} className={f.value == null ? 'is-missing' : undefined}>
             <dt>{f.label}</dt>
+            {/* "—" with "not available yet" for screen readers: no meeting reviewed, never a made-up 0 (#1289). */}
             <dd>
               <DrillValue
                 drillable={isDrillable(f.value)}
@@ -78,7 +81,8 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
                 controls={sheetId}
                 onToggle={() => setDrill(drill === f.key ? null : f.key)}
               >
-                {f.value == null ? 'not recorded' : fmt(f.value)}
+                {f.value == null ? <span aria-hidden="true">{figureDisplay(f.value)}</span> : figureDisplay(f.value)}
+                {f.value == null && <span className="folio-sr-only">not available yet</span>}
               </DrillValue>
             </dd>
           </div>
@@ -100,9 +104,10 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
         </p>
       ))}
       {spec && (
+        // The shared rule picks the form from the count (#1289): dots only for about 20–200 speakers.
         <figure className="stance-voices-fig" aria-label={spec.title}>
-          <Dots spec={spec} />
-          <figcaption className="stance-note">{spec.dotMeans}</figcaption>
+          <FitDisplay spec={spec} scopeLabel={storyScopeLabel(scope)} units={<Dots spec={spec} />} />
+          {specDisplay(spec).display.kind === 'units' && <figcaption className="stance-note">{spec.dotMeans}</figcaption>}
         </figure>
       )}
       <p className="stance-note stance-voices-caption">{positionsCaption(data, scope)}</p>

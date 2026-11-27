@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
-import type { AreaConcernsResponse, DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
+import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
 import { fetchDataCenterMeetingMentions } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
 import PayrollJobsPanel from './PayrollJobsPanel'
@@ -11,7 +11,6 @@ import StoryScreenFrame from './StoryScreenFrame'
 import StatRow from './StatRow'
 import StoryDotMap from './StoryDotMap'
 import DumbbellChart from './DumbbellChart'
-import ConcernsDumbbell from './ConcernsDumbbell'
 import StoryCountyMap from './StoryCountyMap'
 import MapDrill from './MapDrill'
 import StoryStatement from './StoryStatement'
@@ -188,14 +187,6 @@ export default function StoryScreenView(p: Props) {
                 )
               }
             </MapDrill>
-          ) : screen.chart === 'concerns' ? (
-            // The concerns dumbbell (#1209): the place's share of mentions against the nation's, or one dot each nationally.
-            <ConcernsDumbbell
-              data={p.data.concerns as AreaConcernsResponse | null | undefined}
-              status={p.status.concerns ?? 'loading'}
-              place={chartScopeLabel('concerns', scope) === 'National' ? null : chartScopeLabel('concerns', scope)}
-              idBase={`story-${screen.id}`}
-            />
           ) : screen.chart === 'job-claims' && jobsData && noClaims ? (
             // No claims on record: the screen shows actual payroll jobs and where jobs are tracked instead (#1019).
             <PayrollJobsPanel data={jobsData} />

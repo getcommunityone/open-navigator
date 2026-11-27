@@ -59,3 +59,23 @@ describe('headerPlaceState (#1205)', () => {
     expect(isScopeAwarePath('/profile')).toBe(false)
   })
 })
+
+describe('National in one click (#1285)', () => {
+  it('home adds scope=national and keeps the place; the header then says National with the place offered back', async () => {
+    const { searchForNational } = await import('./headerPlace')
+    expect(searchForNational('/', sp('state=AL&city=Tuscaloosa'), true)?.toString()).toBe('state=AL&city=Tuscaloosa&scope=national')
+    expect(searchForNational('/', sp(''), false)).toBeNull()
+    expect(headerPlaceState('/', sp('scope=national'), { state: 'AL', city: 'Tuscaloosa' })).toEqual({
+      kind: 'national-saved',
+      saved: { stateCode: 'AL', city: 'Tuscaloosa' },
+    })
+  })
+  it('a scoped page drops the place', async () => {
+    const { searchForNational } = await import('./headerPlace')
+    expect(searchForNational('/stories/data-centers', sp('state=AL&city=Tuscaloosa&screen=overview'), true)?.toString()).toBe('screen=overview')
+    expect(searchForNational('/stories/data-centers', sp('screen=overview'), true)).toBeNull()
+  })
+  it('a pick clears scope=national', () => {
+    expect(searchAfterPick('/', sp('scope=national'), { state: 'AL', city: 'Tuscaloosa' }).toString()).toBe('')
+  })
+})

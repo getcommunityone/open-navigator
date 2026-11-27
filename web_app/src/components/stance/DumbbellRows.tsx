@@ -49,7 +49,7 @@ const COMPACT_W = 560
  * row is compact: label and change on one line, then a light track with each value printed over its dot, and no axis. Keyboard focus and a
  * tooltip per row. The entrance (#1228) plays when the chart scrolls into view (`useChartReveal`), and a re-sort slides the rows;
  * both are off under prefers-reduced-motion, which draws the final state. Used by the places dumbbell
- * (`DumbbellChart`) and the Concerns screen (`ConcernsDumbbell`).
+ * (`DumbbellChart`) (the Concerns screen used `ConcernsDumbbell`, removed in #1289).
  */
 export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows = 12, unitPlural, replayKey }: Props) {
   const { ref: revealRef, revealed, reduced } = useChartReveal<SVGSVGElement>(replayKey)

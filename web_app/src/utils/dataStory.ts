@@ -406,14 +406,30 @@ export function positionFigures(
   ]
 }
 
-/** The line under the figures: what they count, where, and how many meetings and decisions they come from. */
+/** A figure as it reads: the count, or "—" when it is not available yet (never a made-up 0, #1289). */
+export function figureDisplay(v: number | null | undefined): string {
+  return v == null ? '—' : fmt(v)
+}
+
+/**
+ * The line under the figures: what they count, where, and how many meetings and decisions they come from. With nobody
+ * speaking it says so (#1289): never "From 1 meeting", which counted the meeting with the vote and read as if someone spoke.
+ */
 export function positionsCaption(res: DataCenterPositionsResponse | null | undefined, scope: StoryScope): string | null {
   if (!positionsLoaded(res)) return null
   const t = res.totals
-  const place = scope.stateName ? `in ${storyScopeLabel(scope)}` : 'across the country'
+  const label = scope.stateName ? storyScopeLabel(scope) : null
+  const place = label ? `in ${label}` : 'across the country'
+  const tallies = t.decisions_with_tally ?? 0
+  const reviewed = t.meetings_reviewed ?? 0
+  if (!speakerCounts(res)) {
+    const votes = tallies > 0 ? ` Votes from ${plural(tallies, 'decision')} with a recorded vote.` : ''
+    if (reviewed > 0) return `No public speakers in the ${plural(reviewed, 'meeting')} reviewed ${place}.${votes}`
+    return `Public speakers are not available yet for ${label ?? 'the country'}: no meeting here has been reviewed.${votes}`
+  }
   const from: string[] = []
   if ((t.meetings ?? 0) > 0) from.push(plural(t.meetings!, 'meeting'))
-  if ((t.decisions_with_tally ?? 0) > 0) from.push(`${plural(t.decisions_with_tally!, 'decision')} with a recorded vote`)
+  if (tallies > 0) from.push(`${plural(tallies, 'decision')} with a recorded vote`)
   return `Speakers at local meetings ${place} where a data center item was discussed.${from.length ? ` From ${from.join(' and ')}.` : ''}`
 }
 
@@ -709,6 +725,16 @@ export function overviewLean(res: DataCenterPositionsResponse | null | undefined
   const c = speakerCounts(res)
   const min = STORIES['data-centers']!.conclusion!.minSpeakers
   if (!c || c.total < min) return null
+  // #1289: a lean opposite the recorded votes is not stated as a lean.
+  const t = res?.available ? res.totals : null
+  const tallies = t?.decisions_with_tally ?? 0
+  const vf = t?.votes_for ?? 0
+  const va = t?.votes_against ?? 0
+  const votes = tallies > 0 && vf !== va ? (vf > va ? 'for' : 'against') : null
+  const lean = c.against / c.total >= OVERVIEW_LEAN_SHARE ? 'against' : c.for / c.total >= OVERVIEW_LEAN_SHARE ? 'for' : null
+  if (lean && votes && lean !== votes) {
+    return `${place} was divided: ${fmt(c[lean])} of ${plural(c.total, 'speaker')} spoke ${lean} data centers, while recorded votes went ${fmt(vf)} for and ${fmt(va)} against.`
+  }
   if (c.against / c.total >= OVERVIEW_LEAN_SHARE) {
     return `${place} pushed back: ${fmt(c.against)} of ${plural(c.total, 'speaker')} spoke against data centers.`
   }

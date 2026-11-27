@@ -11,6 +11,7 @@ import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
 import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
+import { useStoryScope } from '../../hooks/useStoryScope'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import HomeOutcomesScroller from './HomeOutcomesScroller'
 import { storyStartHref } from '../../utils/storyNav'
@@ -51,19 +52,23 @@ function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) 
  */
 export default function HomeDataStories({ stateCode, city = null, onPlaceApply }: Props) {
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
-  const scope = { stateCode, stateName, city: stateCode ? city : null }
+  // The place asked (the URL keeps it) and the place the story speaks for (#1285): a city with fewer than 5 meetings steps
+  // up to its state, a state with fewer to the country, and the subtitle says why. Title, counts, quotes and map follow it.
+  const asked = { stateCode, stateName, city: stateCode ? city : null }
+  const q = scopeQuery(asked)
+  const placeScope = useStoryScope('data-centers', CAPTION_COPY['data-centers']!.topic, stateCode, asked.city)
+  const scope = { ...placeScope.effective, stateCode: placeScope.effective.stateCode }
   const label = storyScopeLabel(scope)
-  const q = scopeQuery(scope)
-  // The title (#1125): the caption picker over the caption facts for this scope, shared with the story header.
+  // The title (#1125): the caption picker over the caption facts for the scope used, shared with the story header.
   const dcFacts = useQuery({
-    queryKey: ['caption-facts', 'data-centers', stateCode ?? '', scope.city ?? ''],
-    queryFn: () => fetchTopicCaptionFacts('data-centers', stateCode, scope.city),
+    queryKey: ['caption-facts', 'data-centers', scope.stateCode ?? '', scope.city ?? ''],
+    queryFn: () => fetchTopicCaptionFacts('data-centers', scope.stateCode, scope.city),
     staleTime: 5 * 60_000,
     retry: 1,
   })
   const pending = dcFacts.isPending
   const dcCaption = pickCaption('data-centers', dcFacts.data, scope)
-  const dcSubhead = captionSubhead(dcCaption, 'data-centers', scope)
+  const dcSubhead = placeScope.resolved.reason ?? captionSubhead(dcCaption, 'data-centers', scope)
   const dcTopic = CAPTION_COPY['data-centers']!.topic
   const dcTitle = captionText(dcCaption, dcTopic)
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
@@ -73,9 +78,9 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   // Any live topic story can be shown (#1133); an unknown or not-yet-loaded ?story= shows data centers.
   const topicStories = useTopicStories()
-  const asked = sp.get('story') ?? ''
-  const topicDef = asked ? topicStories.stories[asked] : undefined
-  const story: HomeStoryKey = topicDef ? asked : 'data-centers'
+  const askedStory = sp.get('story') ?? ''
+  const topicDef = askedStory ? topicStories.stories[askedStory] : undefined
+  const story: HomeStoryKey = topicDef ? askedStory : 'data-centers'
   const selectStory = (next: HomeStoryKey) =>
     setSp(
       (prev) => {
@@ -140,14 +145,27 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
         analysisUrl: scopedMeetingHref(m.meeting_url, { state: stateCode ?? null, city: scope.city }),
       })
     }
+    // At city level (#1285) the city's state shows only that city's passages: label and quotes move together.
+    if (scope.city && scope.stateCode) {
+      const c = scope.city.toLowerCase()
+      out.set(scope.stateCode, (out.get(scope.stateCode) ?? []).filter((x) => x.place.toLowerCase().startsWith(c)))
+    }
     return out
-  }, [national.data, speakers.data, stateCode, scope.city])
+  }, [national.data, speakers.data, stateCode, scope.city, scope.stateCode])
+  // The map zooms to the state the story speaks for, the asked city marked where its record has a coordinate (#1285).
+  const zoom = scope.stateCode
+    ? {
+        stateCode: scope.stateCode,
+        pin: placeScope.pin,
+        note: asked.city && placeScope.pinKnown && !placeScope.pin ? `No map location on record for ${asked.city}.` : null,
+      }
+    : null
 
   return (
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
         {topicDef ? (
-          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} onPlaceApply={onPlaceApply} />
+          <HomeTopicStoryCard def={topicDef} scope={asked} query={q} onPlaceApply={onPlaceApply} />
         ) : (
         <div className="home-story-card">
           <div className="home-story-text">
@@ -181,7 +199,8 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                 byState={national.data?.counts?.by_state}
                 quotes={quotes}
                 stance={speakers.data?.available ? (speakers.data.by_state ?? []) : undefined}
-                highlight={stateCode ?? null}
+                highlight={scope.stateCode ?? null}
+                zoom={zoom}
                 href={(code) => `/stories/data-centers?state=${encodeURIComponent(code)}`}
                 cardSlot={cardSlot}
               />
@@ -190,17 +209,18 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
         </div>
         )}
 
-        {/* Story -> what happens next (#1302): below the story and its map, above Browse topics; Coming up first. */}
+        {/* Story -> what happens next (#1302): below the story and its map, above Browse topics; Coming up first. It follows
+            the place asked in the URL (each card says when that place has nothing and offers the wider view). */}
         <HomeOutcomesScroller
           topic={story}
           subject={topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : dcTopic}
           stateCode={stateCode ?? null}
-          city={topicDef ? null : scope.city}
-          label={topicDef ? (stateName ?? 'National') : label}
+          city={topicDef ? null : asked.city}
+          label={topicDef ? (stateName ?? 'National') : storyScopeLabel(asked)}
           dataCenterStory={!topicDef}
         />
 
-        <HomeTopicStrip query={q} selected={story} onSelect={selectStory} stateCode={stateCode} city={scope.city} scopeLabel={label} />
+        <HomeTopicStrip query={q} selected={story} onSelect={selectStory} stateCode={stateCode} city={asked.city} scopeLabel={storyScopeLabel(asked)} />
       </div>
     </section>
   )
