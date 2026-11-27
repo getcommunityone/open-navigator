@@ -105,13 +105,13 @@ class TopicCaptionFacts(BaseModel):
     )
     lean_meetings: int | None = Field(None, description="Meetings in scope with an AI reading (Jev); null when none loaded.")
     public_against_meetings: int | None = Field(
-        None, description="AI reading: meetings where the public leaned mostly against. Null when not loaded."
+        None, description="AI reading: meetings where the public mostly opposed. Null when not loaded."
     )
     public_against_states: int | None = Field(
         None, description="AI reading: states with at least one public-against meeting in scope (#1134). Null when not loaded."
     )
     public_for_meetings: int | None = Field(
-        None, description="AI reading: meetings where the public leaned mostly for. Null when not loaded or not read."
+        None, description="AI reading: meetings where the public mostly supported. Null when not loaded or not read."
     )
     disagreement_meetings: int | None = Field(
         None, description="AI reading: meetings where officials sided against the public. Null when not loaded."

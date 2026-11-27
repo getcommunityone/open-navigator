@@ -3,8 +3,9 @@
 //
 // Rules, in order; each needs its own real counts and otherwise falls through to the next (CLAUDE.md, No Fabricated Data).
 // Thresholds and the reasons for them: web_docs/docs/development/story-captions.md.
-//   a. sentiment ("[Place] hates [topic]." or, for a topic without "hates", "[Place] leaned against [topic]."): confident
-//      public-against meetings at volume (AI reading), or the story's counted-speaker gate. The AI's "for" and "mixed"
+//   a. sentiment ("[Place] hates [topic]." or, for a topic without "hates", "In 81 meetings, the public mostly opposed
+//      [topic]." (#1190)): confident public-against meetings at volume (AI reading), or (for "hates") the story's
+//      counted-speaker gate. The AI's "for" and "mixed"
 //      labels are unreliable and never used, in a count or a ratio.
 //   a2. wider_sentiment (#1182): the place's own reading is too thin, but the broader scope the map colours (its state,
 //      then the country) passes (a): the title names that scope ("America hates data centers; Tuscaloosa, Alabama brought
@@ -58,10 +59,11 @@ export interface CaptionCopy {
    */
   hates?: string
   /**
-   * The (a) verb for a topic without "hates": "leaned against", or for guns, where "for" means for the proposal before the
-   * body (#1126), "leaned against what was proposed on". Absent: (a) is skipped.
+   * For a topic without "hates" (#1190): what "the public mostly opposed" takes in its (a) title and basis lines, usually
+   * the topic ([T]); for guns, where opposing could mean opposing guns or opposing gun limits (#1126), "the gun measures
+   * proposed". Absent (and no `hates`): (a) is skipped.
    */
-  against?: string
+  opposed?: StoryTitlePart[]
   /** (b) basis wording after "officials", when officials sided against the public, around the topic. */
   officials: { before: string; after: string }
   /** The question (e), with the place and topic blanks. */
@@ -88,7 +90,7 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     topic: 'short-term rentals',
     story: 'short-term rentals',
     pronoun: 'them',
-    against: 'leaned against',
+    opposed: [T],
     facts: 'short-term-rentals',
     verb: 'took up',
     officials: sidedAgainst,
@@ -118,7 +120,7 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     topic: 'guns',
     story: 'guns',
     pronoun: 'them',
-    against: 'leaned against what was proposed on',
+    opposed: ['the gun measures proposed'],
     facts: 'guns',
     verb: 'took up',
     officials: sidedAgainst,
@@ -138,7 +140,7 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     topic: 'bike lanes',
     story: 'bike lanes',
     pronoun: 'them',
-    against: 'leaned against',
+    opposed: [T],
     facts: 'bike-lanes',
     verb: 'took up',
     officials: sidedAgainst,
@@ -148,7 +150,7 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     topic: 'water fluoridation',
     story: 'water fluoridation',
     pronoun: 'it',
-    against: 'leaned against',
+    opposed: [T],
     facts: 'water-fluoridation',
     verb: 'took up',
     officials: sidedAgainst,
@@ -194,6 +196,15 @@ export interface Caption {
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 const meetingsWord = (n: number) => `${fmt(n)} ${n === 1 ? 'meeting' : 'meetings'}`
+/** The plain words for the AI meeting reading (#1190): what Jev read in each meeting's transcript. */
+const PUBLIC_OPPOSED = 'the public mostly opposed'
+/** What "the public mostly opposed" takes for a topic: its own phrase, else the topic itself. */
+const opposedObject = (copy: CaptionCopy): StoryTitlePart[] => copy.opposed ?? [T]
+const fillTopic = (parts: StoryTitlePart[], topic: string) =>
+  parts.map((p) => (typeof p === 'string' ? p : p.blank === 'topic' ? topic : '')).join('')
+/** "In 283 meetings across 32 states, the public mostly opposed data centers (AI reading of each meeting's transcript)." */
+const opposedBasis = (against: number, where: string, object: string) =>
+  `In ${meetingsWord(against)} ${where}, ${PUBLIC_OPPOSED} ${object} (AI reading of each meeting's transcript).`
 const ORDINALS = ['', '', '2nd', '3rd', '4th', '5th']
 /** "twice" / "three times" for a whole-number multiple of at least 2, else null. */
 function timesWord(ratio: number): string | null {
@@ -262,8 +273,9 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
   const sp = facts.speakers
   const dis = facts.disagreement_meetings ?? 0
 
-  // (a) "[Place] hates [topic]." / "[Place] leaned against [topic]."
-  const stanceVerb = copy.hates ?? copy.against
+  // (a) "[Place] hates [topic]." / "In 81 meetings, the public mostly opposed [topic]." (#1190)
+  const object = opposedObject(copy)
+  const stanceVerb = copy.hates ?? (copy.opposed ? 'opposed' : undefined)
   // A topic without "hates" leads with "is divided" (b) when that passes too: its "against" points one way only by the
   // question's wording (#1126), while officials and the public disagreeing needs no direction.
   const dividedFirst = !copy.hates && dis >= DISAGREEMENT_MIN_MEETINGS
@@ -276,17 +288,20 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
       gate && sp && gate.side === 'against' && total >= gate.minSpeakers && sp.against > 0 && sp.against >= gate.minRatio * sp.for,
     )
     const leanPasses = against >= HATES_MIN_MEETINGS[level]
-    if (leanPasses || speakersPass) {
+    // The plain title states the AI count, so it needs the meeting reading itself; "hates" may also rest on counted speakers.
+    if (copy.hates ? leanPasses || speakersPass : leanPasses) {
       // Nationally the basis names how many states the meetings span (#1134): "In 283 meetings across 32 states, …".
       const leanStates = facts.public_against_states ?? 0
       const leanWhere = national && leanStates > 1 ? `across ${fmt(leanStates)} states` : where
-      const lean = leanPasses
-        ? `In ${meetingsWord(against)} ${leanWhere}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading).`
-        : ''
+      const lean = leanPasses ? opposedBasis(against, leanWhere, fillTopic(object, copy.topic)) : ''
       const counted = speakersPass && sp ? speakerBasis(sp, where, national) : ''
       return {
         kind: 'sentiment',
-        template: [P, ` ${stanceVerb} `, T, '.'],
+        template: copy.hates
+          ? [P, ` ${copy.hates} `, T, '.']
+          : national
+            ? [`In ${meetingsWord(against)}, ${PUBLIC_OPPOSED} `, ...object, '.']
+            : [`In ${meetingsWord(against)} in `, P, `, ${PUBLIC_OPPOSED} `, ...object, '.'],
         place,
         basis: [lean, counted].filter(Boolean).join(' '),
         ai: leanPasses,
@@ -315,7 +330,7 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
   }
 
   // (a2) The place's own reading is too thin: the nearest broader scope whose reading passes (a), named (#1182).
-  const wider = widerSentiment(copy, stanceVerb, facts, label, level, scope.stateName ?? null)
+  const wider = stanceVerb ? widerSentiment(copy, facts, label, level, scope.stateName ?? null) : null
   if (wider) return wider
 
   // (c) Volume with state differences.
@@ -344,13 +359,12 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
  */
 function widerSentiment(
   copy: CaptionCopy,
-  verb: string | undefined,
   facts: TopicCaptionFacts,
   label: string,
   level: keyof typeof HATES_MIN_MEETINGS,
   stateName: string | null,
 ): Caption | null {
-  if (!verb) return null
+  const object = opposedObject(copy)
   // What the place's own reading is, stated truly (never "too few" for a place with many readings that aren't against).
   const ownRead = facts.lean_meetings ?? 0
   const ownAgainst = facts.public_against_meetings ?? 0
@@ -358,8 +372,8 @@ function widerSentiment(
     ownRead === 0
       ? `${label} has no AI reading of its own yet.`
       : ownAgainst === 0
-        ? `None of ${label}'s ${meetingsWord(ownRead)} with an AI reading read as mostly against.`
-        : `${fmt(ownAgainst)} of ${label}'s ${meetingsWord(ownRead)} with an AI reading read as mostly against, under the ${fmt(HATES_MIN_MEETINGS[level])} a reading of its own needs.`
+        ? `Of ${label}'s ${meetingsWord(ownRead)} with an AI reading, none had a public mostly opposed.`
+        : `Of ${label}'s ${meetingsWord(ownRead)} with an AI reading, ${fmt(ownAgainst)} had a public mostly opposed, under the ${fmt(HATES_MIN_MEETINGS[level])} a title of its own needs.`
   for (const w of facts.wider ?? []) {
     const against = w.public_against_meetings ?? 0
     if (against < HATES_MIN_MEETINGS[w.level]) continue
@@ -369,13 +383,15 @@ function widerSentiment(
     const leanWhere = w.level === 'national' ? (states > 1 ? `across ${fmt(states)} states` : 'nationwide') : `in ${name}`
     const m = facts.meetings ?? 0
     const tail = m > 0 ? ` brought ${copy.pronoun} up in ${meetingsWord(m)}.` : ' has none on record yet.'
+    const claim: StoryTitlePart[] = copy.hates
+      ? [`${name} ${copy.hates} `, T]
+      : [`Across ${name} ${PUBLIC_OPPOSED} `, ...object]
     return {
       kind: 'wider_sentiment',
-      template: [`${name} ${verb} `, T, '; ', P, tail],
+      template: [...claim, '; ', P, tail],
       place: label,
       widerPlace: name,
-      basis:
-        `In ${meetingsWord(against)} ${leanWhere}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading). ${own}`,
+      basis: `${opposedBasis(against, leanWhere, fillTopic(object, copy.topic))} ${own}`,
       ai: true,
     }
   }
@@ -485,7 +501,7 @@ export function captionSubhead(caption: Caption, topicKey: string, scope: StoryS
         ? (STORIES[topicKey]?.conclusion?.subhead ?? null)
         : `At local meetings${where}, the public has mostly spoken against ${topic}.`
     case 'wider_sentiment':
-      // The basis says the place has too few readings of its own; the subhead only names the broader scope's lean.
+      // The basis says the place has too few readings of its own; the subhead only names what the broader scope's public mostly opposed.
       return `Across ${caption.widerPlace ?? 'the country'}, the public has mostly spoken against ${topic} at local meetings.`
     case 'disagreement':
       return `At local meetings${where || ' across the country'}, the public and officials don't always land on the same side of ${topic}.`

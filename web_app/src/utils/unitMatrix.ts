@@ -18,7 +18,7 @@ export interface DotFacets {
   town?: string | null
   /** What officials did, from the AI reading of the meeting. */
   outcome?: OutcomeKey | null
-  /** How the public leaned, from the AI reading of the meeting. */
+  /** Whether the public mostly opposed, mostly supported or split, from the AI reading of the meeting. */
   side?: SideKey | null
 }
 
@@ -50,9 +50,9 @@ export const OUTCOME_LABELS: Record<OutcomeKey, string> = {
   no_action: 'No action',
 }
 export const SIDE_LABELS: Record<SideKey, string> = {
-  against: 'Public against',
-  for: 'Public for',
-  mixed: 'Public mixed',
+  against: 'Public mostly opposed',
+  for: 'Public mostly supported',
+  mixed: 'Public split',
   no_side: 'No side taken',
 }
 const OUTCOME_ORDER: OutcomeKey[] = ['approved', 'denied', 'tabled', 'moratorium', 'no_action']

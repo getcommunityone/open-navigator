@@ -75,5 +75,5 @@ cd dbt_project && dbt build --select stg_jev__transcript_topic_lean+            
 ## Hand check
 
 To do after the first run: 10 meetings per topic, read against the recording, the same way as the data-center check.
-Until it is written here, treat the colours as unverified, and in particular "public leaned for" and "mixed", which
+Until it is written here, treat the colours as unverified, and in particular "public mostly supported" and "public split" (labelled so since #1190), which
 were about 2 of 4 right for data centers.

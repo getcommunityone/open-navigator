@@ -178,7 +178,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   const colorFor = (i: number, n: number | undefined): string => {
     const side = sides[i]
     if (side) return BOX_COLORS[side]
-    // #1117: no speakers on record but the AI reading found the public leaned against: the lighter red.
+    // #1117: no speakers on record but the AI reading found the public mostly opposed: the lighter red.
     return n && n > 0 ? leanFill(leans.get(grid.dots[i]!.id), meetingColor(n, max, MEETING_GREYS, BOX_COLORS.meetings)) : HOUSE_THEME.neutral
   }
   const leanCounties = [...leans].filter(([id, l]) => l.public_against_meetings > 0 && !stances.has(id)).length
@@ -296,7 +296,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         <svg
           viewBox={vb}
           className="stance-map-svg"
-          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where an AI reading of the meetings found the public leaned against.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where the AI reading found officials sided against the public (see the data table).` : ''}`}
+          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where an AI reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where the AI reading found officials sided against the public (see the data table).` : ''}`}
           {...keyNav.svgProps}
         >
           {grid.dots.map((d, i) => {
@@ -423,7 +423,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               ? `Split by ${fmt(speakersTotal)} ${speakersTotal === 1 ? 'speaker' : 'speakers'} on record in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only.`
               : `No speaker positions on record in ${stateName} yet; counties show meetings only.`}
             {leans.size > 0
-              ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers; only “the public leaned against” and “officials sided against the public” are shown.'
+              ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers; only “the public mostly opposed” and “officials sided against the public” are shown.'
               : ''}
           </p>
         </>
@@ -447,7 +447,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 <th scope="col">Governments</th>
                 {leans.size > 0 && (
                   <>
-                    <th scope="col">AI: public leaned against</th>
+                    <th scope="col">AI: public mostly opposed</th>
                     <th scope="col">AI: officials sided against the public</th>
                   </>
                 )}
