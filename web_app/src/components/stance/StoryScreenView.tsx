@@ -159,7 +159,15 @@ export default function StoryScreenView(p: Props) {
             <MapDrill
               stateCode={scope.stateCode ?? null}
               byState={byState}
-              county={!scope.stateCode ? 'none' : byPlace == null ? 'loading' : byPlace.length > 0 ? 'ready' : 'none'}
+              county={
+                !scope.stateCode || p.status['meeting-mentions'] === 'error'
+                  ? 'none'
+                  : byPlace == null
+                    ? 'loading'
+                    : byPlace.length > 0
+                      ? 'ready'
+                      : 'none'
+              }
             >
               {(beforePick) =>
                 stats.length > 0 ? (

@@ -105,7 +105,8 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
 
   const [job, setJob] = useState<Job | null>(null)
   const nextId = useRef(1)
-  const pending = useRef<Pick<Job, 'national' | 'county'> | null>(null)
+  // What the reader's pick saw, used only by the scope change that follows it right away (not a later one from elsewhere).
+  const pending = useRef<(Pick<Job, 'national' | 'county'> & { at: number }) | null>(null)
   const prevState = useRef<string | null | undefined>(undefined)
 
   // The arrival flag is used once: cleared from the history entry so a refresh or Back doesn't replay it.
@@ -115,6 +116,9 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
     const l = where.current
     navigate({ pathname: l.pathname, search: l.search, hash: l.hash }, { replace: true, state: null })
   }, [navigate])
+  // Read through a ref, so a new navigate identity never restarts a running transition.
+  const clearRef = useRef(clearArrival)
+  clearRef.current = clearArrival
 
   // The county shapes are fetched once the reader reaches for the national map, so the county map can draw as soon as its
   // counts arrive and the national map isn't replaced by a loading line meanwhile.
@@ -140,9 +144,9 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
     if (!wrap || reduced) return
     if (!cur && code) {
       const svg = svgIn(wrap, 'national')
-      pending.current = { national: svg ? frameOf(wrap, svg) : null }
+      pending.current = { national: svg ? frameOf(wrap, svg) : null, at: performance.now() }
     } else if (cur && !code) {
-      pending.current = { county: readCounty(wrap) }
+      pending.current = { county: readCounty(wrap), at: performance.now() }
     }
   }, [reduced])
 
@@ -151,19 +155,20 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
     const prev = prevState.current
     if (prev === stateCode) return
     prevState.current = stateCode
-    const snap = pending.current
+    const fresh = pending.current && performance.now() - pending.current.at < 2000 ? pending.current : null
     pending.current = null
+    const snap = fresh ? { national: fresh.national, county: fresh.county } : null
     let dir: Dir | null = null
     if (prev === undefined) dir = stateCode && arrival.current ? 'in' : null
     else if (!prev && stateCode) dir = 'in'
     else if (prev && !stateCode && snap?.county) dir = 'out'
     if (!dir || reduced) {
       setJob(null)
-      if (prev === undefined || reduced) clearArrival()
+      if (prev === undefined || reduced) clearRef.current()
       return
     }
     setJob({ id: nextId.current++, dir, stateCode: (stateCode ?? prev)!, ...snap })
-  }, [stateCode, reduced, clearArrival])
+  }, [stateCode, reduced])
 
   // Run the transition.
   useEffect(() => {
@@ -187,13 +192,16 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
       dead = true
       cancelAnimationFrame(raf)
       setJob(null)
-      clearArrival()
+      clearRef.current()
     }
 
+    // The canvas covers the boxes only (not the counts and charts under the map), and only ever grows during a run.
+    let canvasH = 0
     const size = (h: number) => {
       const dpr = window.devicePixelRatio || 1
       const w = wrap.clientWidth
-      const hh = Math.max(wrap.clientHeight, h)
+      canvasH = Math.max(canvasH, Math.ceil(h))
+      const hh = canvasH
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(hh * dpr)) {
         canvas.width = Math.round(w * dpr)
         canvas.height = Math.round(hh * dpr)
@@ -302,7 +310,7 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
       wrap.removeEventListener('pointerdown', finish, true)
       wrap.removeEventListener('keydown', finish, true)
     }
-  }, [job, clearArrival])
+  }, [job])
 
   return (
     <div ref={wrapRef} className={`stance-map-morph${job ? ' is-morphing' : ''}`}>
