@@ -16,7 +16,8 @@
 
     PK  topic_upcoming_id = md5(topic_id | item_key).
     FK  topic_id -> civicsearch_topic; platform_meeting_id -> platform_meeting; event_meeting_document_id ->
-        event_meeting_document; data_center_hearing_id -> data_center_hearing (each nullable but the first).
+        event_meeting_document; data_center_hearing_id -> data_center_hearing; organization_event_id ->
+        organization_event (each nullable but the first).
 
     Three ways an item is tied to a topic, never by guess (match_basis):
 
@@ -111,6 +112,9 @@ agenda_items as (
         null::text                                                                  as platform_meeting_id,
         a.event_meeting_document_id,
         null::text                                                                  as data_center_hearing_id,
+        null::text                                                                  as organization_event_id,
+        null::text                                                                  as host_org_name,
+        null::text                                                                  as host_master_org_id,
         a.created_at::timestamptz                                                   as source_updated_at
     from agenda_match as a
     where a.passage like '%<mark>%'
@@ -144,6 +148,9 @@ hearing_items as (
         null::text                                                                  as platform_meeting_id,
         null::text                                                                  as event_meeting_document_id,
         h.data_center_hearing_id,
+        null::text                                                                  as organization_event_id,
+        null::text                                                                  as host_org_name,
+        null::text                                                                  as host_master_org_id,
         h.checked_at                                                                as source_updated_at
     from {{ ref('data_center_hearing') }} as h
     inner join curated_topic as t
@@ -281,6 +288,9 @@ place_items as (
         s.platform_meeting_id,
         null::text                                                                  as event_meeting_document_id,
         null::text                                                                  as data_center_hearing_id,
+        null::text                                                                  as organization_event_id,
+        null::text                                                                  as host_org_name,
+        null::text                                                                  as host_master_org_id,
         s.source_updated_at
     from scheduled as s
     inner join prior_meeting as pm
@@ -289,12 +299,54 @@ place_items as (
         on t.topic_id = pm.topic_id
 ),
 
+-- 4. Events a topic's nonprofits publish on their own websites (#1347): hosts tied to the topic by a meeting, their
+--    990 mission or their name (not by IRS category alone). The evidence is the host's own tie to the topic.
+org_event_items as (
+    select
+        o.topic_id,
+        o.topic_slug,
+        'org_event:' || e.organization_event_id                                     as item_key,
+        'event'                                                                     as kind,
+        'hosted_by_org'                                                             as match_basis,
+        e.event_date                                                                as item_date,
+        e.event_time                                                                as item_time,
+        null::text                                                                  as jurisdiction_id,
+        initcap(e.city)                                                             as jurisdiction_name,
+        e.state_code,
+        e.state,
+        null::text                                                                  as body_name,
+        e.title,
+        e.location,
+        e.event_url                                                                 as source_url,
+        'Event page'                                                                as source_label,
+        o.match_text                                                                as matched_text,
+        null::text                                                                  as prior_video_id,
+        null::date                                                                  as prior_meeting_date,
+        null::text                                                                  as prior_url,
+        false                                                                       as tentative,
+        null::text                                                                  as platform_meeting_id,
+        null::text                                                                  as event_meeting_document_id,
+        null::text                                                                  as data_center_hearing_id,
+        e.organization_event_id,
+        e.org_name                                                                  as host_org_name,
+        e.master_org_id                                                             as host_master_org_id,
+        e.fetched_at                                                                as source_updated_at
+    from {{ ref('organization_event') }} as e
+    inner join {{ ref('topic_organization') }} as o
+        on o.master_org_id = e.master_org_id
+    where e.event_date >= current_date
+      and o.evidence_rank <= 3
+      and o.match_text like '%<mark>%'
+),
+
 unioned as (
     select *, 1 as basis_rank from agenda_items
     union all
     select *, 2 from hearing_items
     union all
     select *, 3 from place_items
+    union all
+    select *, 4 from org_event_items
 ),
 
 -- One row per (topic, item): an agenda match beats the same meeting found by place.
@@ -338,6 +390,9 @@ select
     d.platform_meeting_id::text                                                      as platform_meeting_id,
     d.event_meeting_document_id::text                                                as event_meeting_document_id,
     d.data_center_hearing_id::text                                                   as data_center_hearing_id,
+    d.organization_event_id::text                                                    as organization_event_id,
+    d.host_org_name::text                                                            as host_org_name,
+    d.host_master_org_id::text                                                       as host_master_org_id,
     d.source_updated_at::timestamptz                                                 as source_updated_at,
     now()::timestamptz                                                               as built_at
 from deduped as d

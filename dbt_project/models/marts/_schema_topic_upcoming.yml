@@ -29,6 +29,10 @@ models:
         columns: [data_center_hearing_id]
         to: ref('data_center_hearing')
         to_columns: [data_center_hearing_id]
+      - type: foreign_key
+        columns: [organization_event_id]
+        to: ref('organization_event')
+        to_columns: [organization_event_id]
     columns:
       - name: topic_upcoming_id
         description: 'Primary key: md5(topic_id | item_key).'
@@ -53,23 +57,23 @@ models:
         constraints:
           - type: not_null
       - name: kind
-        description: 'meeting | hearing | deadline | bill_action.'
+        description: 'meeting | hearing | deadline | bill_action | event (a nonprofit event, #1347).'
         data_type: text
         constraints:
           - type: not_null
         data_tests:
           - accepted_values:
               arguments:
-                values: ['meeting', 'hearing', 'deadline', 'bill_action']
+                values: ['meeting', 'hearing', 'deadline', 'bill_action', 'event']
       - name: match_basis
-        description: 'Why the item is about the topic: agenda_text (the agenda names it), official_notice (a verified official hearing notice) or place_discussed_before (a scheduled meeting of a government whose recorded meeting discussed the topic in the two years before; prior_* name that meeting).'
+        description: 'Why the item is about the topic: agenda_text (the agenda names it), official_notice (a verified official hearing notice) or place_discussed_before (a scheduled meeting of a government whose recorded meeting discussed the topic in the two years before; prior_* name that meeting), or hosted_by_org (an event a nonprofit tied to the topic publishes on its own website, #1347).'
         data_type: text
         constraints:
           - type: not_null
         data_tests:
           - accepted_values:
               arguments:
-                values: ['agenda_text', 'official_notice', 'place_discussed_before']
+                values: ['agenda_text', 'official_notice', 'place_discussed_before', 'hosted_by_org']
       - name: item_date
         description: 'The day it happens. Only rows on or after the build date are kept; the API shows item_date >= today.'
         data_type: date
@@ -138,6 +142,15 @@ models:
         data_type: text
       - name: data_center_hearing_id
         description: 'FK to data_center_hearing for a verified hearing.'
+        data_type: text
+      - name: organization_event_id
+        description: 'FK to organization_event for an event a topic nonprofit publishes (hosted_by_org).'
+        data_type: text
+      - name: host_org_name
+        description: 'hosted_by_org: the nonprofit hosting the event.'
+        data_type: text
+      - name: host_master_org_id
+        description: 'hosted_by_org: the host (mdm_organization.master_org_id).'
         data_type: text
       - name: source_updated_at
         description: 'When the source row was last fetched (freshness).'

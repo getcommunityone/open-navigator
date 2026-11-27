@@ -1,9 +1,9 @@
 // What is coming up on a topic (#1302): GET /api/topics/{topic}/upcoming.
 import api from '../lib/api'
 
-export type UpcomingKind = 'meeting' | 'hearing' | 'deadline' | 'bill_action'
+export type UpcomingKind = 'meeting' | 'hearing' | 'deadline' | 'bill_action' | 'event'
 /** Why the item is about the topic: the agenda names it, an official hearing notice, or the place discussed it before. */
-export type UpcomingBasis = 'agenda_text' | 'official_notice' | 'place_discussed_before'
+export type UpcomingBasis = 'agenda_text' | 'official_notice' | 'place_discussed_before' | 'hosted_by_org'
 
 export interface UpcomingItem {
   upcoming_id: string
@@ -27,6 +27,9 @@ export interface UpcomingItem {
   prior_meeting_date: string | null
   prior_url: string | null
   tentative: boolean
+  /** hosted_by_org (#1347): the nonprofit hosting the event, which links to its page. */
+  host_org_name?: string | null
+  host_master_org_id?: string | null
 }
 
 export interface PendingBill {

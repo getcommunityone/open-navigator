@@ -14,7 +14,7 @@ const item = (over: Partial<UpcomingItem> = {}): UpcomingItem => ({
 const resp = (over: Partial<TopicUpcomingResponse> = {}): TopicUpcomingResponse => ({
   topic: 'data-centers', topic_id: 100001, state_code: 'GA', state: 'Georgia', city: null, available: true,
   as_of: '2026-11-27', last_updated: null, built_at: null, total: 0,
-  counts: { meeting: 0, hearing: 0, deadline: 0, bill_action: 0 }, items: [],
+  counts: { meeting: 0, hearing: 0, deadline: 0, bill_action: 0, event: 0 }, items: [],
   pending_bills: { total: 0, latest_action_seen: null, items: [] }, broader: null, ...over,
 })
 
