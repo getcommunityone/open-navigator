@@ -9,7 +9,6 @@ import ProgressPips from '../components/stance/ProgressPips'
 import PlaceControl from '../components/stance/PlaceControl'
 import ScopeBar from '../components/stance/ScopeBar'
 import SentenceHeading from '../components/stance/SentenceHeading'
-import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
 import StoryClose from '../components/stance/StoryClose'
@@ -146,24 +145,15 @@ export default function DataStory() {
     board.attach()
     return () => board.dispose()
   }, [board])
-  const [soundOn, setSoundOn] = useState(board.enabled)
-  // The site menu can switch sound too (on phones the header has no sound button, #1017).
+  // Sound is set in Settings or the site menu (#1319); follow it live.
   useEffect(() => {
     const on = (e: Event) => {
       const next = Boolean((e as CustomEvent<boolean>).detail)
       if (next !== board.enabled) board.setEnabled(next)
-      setSoundOn(next)
     }
     window.addEventListener(SOUND_EVENT, on)
     return () => window.removeEventListener(SOUND_EVENT, on)
   }, [board])
-  const toggleSound = () => {
-    const next = !soundOn
-    board.setEnabled(next)
-    setSoundOn(next)
-    // Preview so Sound on is audible immediately (Web Audio unlocks on this click).
-    if (next) board.play('lock')
-  }
 
 
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
@@ -420,11 +410,6 @@ export default function DataStory() {
         stateName={stateName}
         city={city}
         current={screens[active]?.eyebrow ?? ''}
-        extra={
-          <span className="stance-top-actions">
-            <SoundToggle on={soundOn} onToggle={toggleSound} />
-          </span>
-        }
         // One progress indicator per device (#1192): wide screens, these segments (a button per screen); phones, the bottom bar.
         progress={wide ? <ProgressPips count={n} active={active} labels={labels} onJump={goTo} /> : undefined}
         placeOpen={placeOpen}
