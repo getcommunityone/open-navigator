@@ -37,7 +37,7 @@ export function nonprofitsHeadline(d: TopicOrganizationsResponse | undefined, to
   const where = label === 'National' ? '' : ` in ${label}`
   const named = d.counts?.named_in_meeting ?? 0
   const n = d.total
-  const lead = `${fmt(n)} ${n === 1 ? 'nonprofit' : 'nonprofits'}${where} on record working on ${topic}`
+  const lead = `${d.partial ? 'At least ' : ''}${fmt(n)} ${n === 1 ? 'nonprofit' : 'nonprofits'}${where} on record working on ${topic}`
   return named > 0 ? `${lead}; ${fmt(named)} named in a meeting on it.` : `${lead}.`
 }
 

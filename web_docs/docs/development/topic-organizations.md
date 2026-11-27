@@ -119,3 +119,19 @@ Named in a meeting, all 19 read: 17 are the organization named in the topic pass
 short name ("Love Inc Anchorage", "Heart of Ellsworth"); "Seattle Neighborhood Greenways" and "Atrium Health" are
 named in a passage about gun violence without being gun-policy groups, which the screen states as it is ("Named in a
 meeting on guns"), not as a position.
+
+## What is published (#1382)
+
+Owner, 27 Nov 2026: Neon prod is at 426 of its 480 MB budget, so only what the screen reads is published. Gold keeps
+the full `topic_organization`. `public` gets two small tables instead:
+
+| Relation | Rows | Data size | Grain |
+|---|---:|---:|---|
+| `gold.topic_organization` (full, not published) | 147,267 | 69 MB with indexes | topic × organization |
+| `public.topic_organization_serving` | 13,813 | 4.4 MB (5.8 MB with indexes) | topic × organization: the 20 strongest per topic and state (evidence, then revenue) plus every one named in a meeting |
+| `public.topic_organization_count` | 1,397 | 0.15 MB (0.4 MB with indexes) | topic × state × method: the true totals |
+
+The serving table keeps only the columns the API returns. Evidence is cut to 280 characters at a word, with an open
+`<mark>` closed, and the mission to 100 characters (the screen shows one line). The screen lists at most 20 a scope
+anyway. A city scope is counted from its served rows; the API says `partial: true` when its state has more than are
+served, and the headline then says "At least N". A city grain for the counts was 68k rows (8 MB) and was dropped.

@@ -41,6 +41,8 @@ export interface TopicOrganizationsResponse {
   items: TopicOrganizationItem[]
   broader: { state_code: string | null; label: string; total: number } | null
   built_at: string | null
+  /** True when the counts may be short (a city counted from the served rows of a state that has more, #1382). */
+  partial?: boolean
 }
 
 export async function fetchTopicOrganizations(

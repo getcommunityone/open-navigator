@@ -15,8 +15,9 @@ from api.routes import topic_organizations as mod
 
 
 class _Conn:
-    def __init__(self, counts=None, items=None, up_counts=None, missing=False):
+    def __init__(self, counts=None, items=None, up_counts=None, missing=False, city_counts=None):
         self.counts = counts or []
+        self.city_counts = city_counts or []
         self.items = items or []
         self.up_counts = up_counts or []
         self.missing = missing
@@ -26,6 +27,8 @@ class _Conn:
         self.calls.append((sql, params))
         if self.missing:
             raise asyncpg.exceptions.UndefinedTableError("missing")
+        if sql is mod._CITY_COUNTS_SQL:
+            return self.city_counts
         if sql is mod._COUNTS_SQL:
             n = sum(1 for s, _ in self.calls if s is mod._COUNTS_SQL)
             return self.counts if n == 1 else self.up_counts
@@ -114,7 +117,8 @@ def test_items_ranked_with_evidence(monkeypatch) -> None:
     assert first["revenue"] == 125000 and first["revenue_tax_year"] == "2023"  # years on the wire as strings
     assert first["side"] == "gun rights"
     assert body["items"][1]["side"] is None and body["items"][1]["revenue_tax_year"] is None
-    assert body["broader"] is None
+    assert first["match_methods"] == ["named_in_meeting"]
+    assert body["broader"] is None and body["partial"] is False
     _, params = next(c for c in conn.calls if c[0] is mod._ITEMS_SQL)
     assert params == ("guns", "AL", None, 12)
 
@@ -133,11 +137,17 @@ def test_empty_state_offers_national(monkeypatch) -> None:
 
 
 def test_empty_city_offers_its_state(monkeypatch) -> None:
-    conn = _Conn(counts=[], up_counts=[_count("ntee_code", 2)])
+    conn = _Conn(counts=[_count("ntee_code", 2)], up_counts=[_count("ntee_code", 2)], city_counts=[])
     body = _get(monkeypatch, conn, "/api/topics/guns/organizations", {"state": "AL", "city": "Tuscaloosa"}).json()
     assert body["broader"] == {"state_code": "AL", "label": "Alabama", "total": 2}
-    scoped = [p for s, p in conn.calls if s is mod._COUNTS_SQL]
-    assert scoped == [("guns", "AL", "Tuscaloosa"), ("guns", "AL", None)]
+    assert [p for s, p in conn.calls if s is mod._CITY_COUNTS_SQL] == [("guns", "AL", "Tuscaloosa")]
+    assert body["partial"] is False
+
+
+def test_city_counts_are_partial_when_the_state_has_more(monkeypatch) -> None:
+    conn = _Conn(counts=[_count("keyword_in_name", 60)], city_counts=[_count("keyword_in_name", 3)], items=[_item()])
+    body = _get(monkeypatch, conn, "/api/topics/guns/organizations", {"state": "AL", "city": "Mobile"}).json()
+    assert body["total"] == 3 and body["partial"] is True
 
 
 def test_missing_relation_is_empty(monkeypatch) -> None:
@@ -171,7 +181,7 @@ def test_live_counts_match_mart(monkeypatch, topic: str, state: str) -> None:
             async with pool.acquire() as c:
                 try:
                     want = await c.fetchval(
-                        "SELECT count(*) FROM public.topic_organization WHERE topic_slug = $1 AND state_code = $2",
+                        "SELECT coalesce(sum(n), 0) FROM public.topic_organization_count WHERE topic_slug = $1 AND state_code = $2",
                         topic, state)
                 except asyncpg.exceptions.UndefinedTableError:
                     return None
