@@ -25,6 +25,7 @@ import { HOUSE_STYLE } from '../utils/houseTheme'
 import { storyStartLabel } from '../utils/storyCaption'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import type { ChartKey } from '../utils/stanceGame'
+import { useDocumentTitle } from '../utils/useDocumentTitle'
 
 // Only topics built from meeting recordings or transcripts are listed here (figure-only data such as census measures is under Explore).
 /** The datasets behind the hub's volume counts. */
@@ -46,6 +47,7 @@ export default function DataStories() {
   const city = stateCode ? (sp.get('city') ?? '').trim() || null : null
   const scope = { stateCode, stateName, city }
   const label = storyScopeLabel(scope)
+  useDocumentTitle(stateCode ? `Data stories · ${city ? `${city}, ${stateCode}` : stateName}` : 'Data stories')
   const [placeOpen, setPlaceOpen] = useState(false)
   const [topic, setTopic] = useState('data-centers')
   const { data, status, refetch } = useStoryData(stateCode, city, HUB_CHARTS)

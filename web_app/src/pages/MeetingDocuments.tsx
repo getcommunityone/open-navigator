@@ -13,6 +13,7 @@ import {
   DocumentViewerProvider,
   useDocumentViewer,
 } from '../components/DocumentViewerContext'
+import { useDocumentTitle } from '../utils/useDocumentTitle'
 
 /**
  * Jurisdiction-scoped "Meeting Documents" browser.
@@ -194,6 +195,7 @@ function MeetingDocumentsInner({ jurisdictionId }: { jurisdictionId: string }) {
     },
     enabled: Boolean(jurisdictionId),
   })
+  useDocumentTitle(data?.jurisdiction_name ? `${data.jurisdiction_name} — Meetings` : 'Meetings')
 
   // Group meetings by year (API already sorts newest-first). Preserve that order
   // both for the year headings and the meetings within each year.

@@ -17,7 +17,7 @@
 //
 // Editorial UI copy (signal descriptions, topic labels, "why people use it") is
 // kept verbatim from the prototype — that's interface text, not data figures.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -25,7 +25,9 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import MoneyGameModal from '../components/MoneyGameModal'
 import MoneyMovesTeaser from '../components/MoneyMovesTeaser'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
-import AddressLookup from '../components/AddressLookup'
+import LocationPickerDialog from '../components/LocationPickerDialog'
+import { PLACE_PICKED_EVENT, usePlacePick } from '../hooks/usePlacePick'
+import { useDocumentTitle } from '../utils/useDocumentTitle'
 import SiteHeader from '../components/SiteHeader'
 import SiteFooter from '../components/SiteFooter'
 import { LensCarousel, type ApiCard } from '../components/StoryLenses'
@@ -53,12 +55,7 @@ const FONTS = `
 .v9 .v9-search { display: flex; min-width: 0; }
 .v9 .v9-search:focus-within { outline: 2px solid #0f766e; outline-offset: 2px; }
 .v9 .v9-money-hook-text { flex: 1; min-width: 0; }
-.v9 .v9-burger { display: none; }
 html { scroll-behavior: smooth; }
-.v9 .v9-navlink { position: relative; background: none; border: none; padding: 4px 0; font-size: 14.5px; font-weight: 600; color: #44403c; cursor: pointer; font-family: inherit; transition: color .2s ease; }
-.v9 .v9-navlink::after { content: ''; position: absolute; left: 0; bottom: -3px; height: 2px; width: 0; background: ${TEAL}; transition: width .25s ease; }
-.v9 .v9-navlink:hover { color: ${TEAL_DARK}; }
-.v9 .v9-navlink:hover::after { width: 100%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .v9 .home-stories { background: #fff; border-bottom: 1px solid #e7e5e4; padding: 28px 24px 30px; }
@@ -147,10 +144,6 @@ html { scroll-behavior: smooth; }
   .v9 .home-story-actions a { display: block; width: 100%; box-sizing: border-box; }
 }
 @media (max-width: 760px) {
-  .v9 .v9-nav { display: none; }
-  .v9 .v9-nav.open { display: flex; flex-direction: column; align-items: stretch; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; padding: 10px 16px 16px; gap: 4px; box-shadow: 0 16px 32px rgba(28,25,23,0.1); }
-  .v9 .v9-burger { display: grid; margin-left: auto; }
-  .v9 .v9-brand-sub { display: none; }
   .v9 .v9-main { padding-left: 16px !important; padding-right: 16px !important; }
   .v9 .v9-money-hook-text { min-width: 0 !important; }
   .v9 .v9-section-full { padding-left: 16px !important; padding-right: 16px !important; }
@@ -532,10 +525,10 @@ export default function HomeV9() {
   // Phones get a shorter search placeholder that fits beside the button (#1030).
   const narrow = useMediaQuery('(max-width: 760px)')
   const navigate = useNavigate()
-  const { location, setLocation } = useLocationContext()
+  const { location } = useLocationContext()
   // A place carried in the address (?state=&city=, e.g. from a header tab on a scoped page) sets the whole page's
   // scope, ahead of the saved location, without overwriting it (#975; CLAUDE.md: filters carry over via the URL).
-  const [urlParams, setUrlParams] = useSearchParams()
+  const [urlParams] = useSearchParams()
   const urlState = (urlParams.get('state') ?? '').trim().toUpperCase()
   const urlHasPlace = STATE_CODES.includes(urlState)
   const locState = urlHasPlace ? urlState : location?.state || undefined
@@ -555,11 +548,27 @@ export default function HomeV9() {
   // to switch to a different city/place, not just City/State/National scope).
   const [changingLoc, setChangingLoc] = useState(false)
   const levelRef = useRef<HTMLButtonElement>(null)
+  const closePicker = useCallback(() => setChangingLoc(false), [])
+  // A pick (here or in the header) saves the place and clears any carried ?state=&city= (usePlacePick); the scope then
+  // falls back to the new place's natural level.
+  const pickPlace = usePlacePick()
+  // A pick re-derives the level for the new place even when the reader had picked one (pickTick re-runs the effect below
+  // after the reset, whichever order the pick's renders land in).
+  const [pickTick, setPickTick] = useState(0)
+  useEffect(() => {
+    const onPicked = () => {
+      levelPicked.current = false
+      setPickTick((t) => t + 1)
+    }
+    window.addEventListener(PLACE_PICKED_EVENT, onPicked)
+    return () => window.removeEventListener(PLACE_PICKED_EVENT, onPicked)
+  }, [])
+  useDocumentTitle(null)
   const levelMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (levelPicked.current) return
     setLevel(locCity ? 'city' : locState ? 'state' : 'national')
-  }, [locCity, locState])
+  }, [locCity, locState, pickTick])
   useEffect(() => {
     if (!levelOpen) return
     const onDoc = (e: MouseEvent) => {
@@ -1209,67 +1218,13 @@ export default function HomeV9() {
               </div>
             )}
 
-            {/* Change-location popup — the centered modal the home page used to
-                use. Wraps the real geocoder (AddressLookup → api/routes/geocode.py
-                → Nominatim). On a hit we swap the saved location and let `level`
-                recompute to its natural scope for the new place. */}
-            {changingLoc && (
-              <div
-                className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
-                onClick={() => {
-                  setChangingLoc(false)
-                }}
-                style={{ animation: 'fadeIn 150ms ease' }}
-              >
-                <div
-                  className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl font-bold" style={{ color: TEAL_DARK, fontFamily: 'Playfair Display, Georgia, serif' }}>
-                      {locState ? 'Change your location' : 'Find your community'}
-                    </h2>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChangingLoc(false)
-                      }}
-                      aria-label="Close"
-                      style={{ padding: 8, borderRadius: 10, border: 'none', background: 'none', color: '#78716c', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f4')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <p className="text-gray-600 mb-6">
-                    {locState
-                      ? `Currently set to ${[locCity, locState].filter(Boolean).join(', ')}. Enter a new address to change your location.`
-                      : 'Enter your address to see the meetings, votes, spending, and debates near you.'}
-                  </p>
-
-                  <AddressLookup
-                    onLocationFound={(loc) => {
-                      setLocation(loc)
-                      // A place picked here replaces any place carried in the address.
-                      if (urlHasPlace) {
-                        setUrlParams(
-                          (prev) => {
-                            const next = new URLSearchParams(prev)
-                            next.delete('state')
-                            next.delete('city')
-                            return next
-                          },
-                          { replace: true },
-                        )
-                      }
-                      levelPicked.current = false
-                      setChangingLoc(false)
-                    }}
-                  />
-                </div>
-              </div>
-            )}
+            {/* Change-location popup: the shared picker (#1191), also opened from the header's place control. */}
+            <LocationPickerDialog
+              open={changingLoc}
+              onClose={closePicker}
+              current={locState ? [locCity, locState].filter(Boolean).join(', ') : null}
+              onPicked={pickPlace}
+            />
 
             {/* Live typeahead dropdown — real /api/search results, scoped to the
                 active place. mouseDown-preventDefault keeps focus so onClick wins

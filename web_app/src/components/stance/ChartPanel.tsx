@@ -11,7 +11,6 @@ import { youtubeThumbnail } from '../../lib/youtubeThumbnail'
 import MeetingVideoModal, { type MeetingVideo } from './MeetingVideoModal'
 import UnitMatrixChart from './UnitMatrixChart'
 import TimelineChart from './TimelineChart'
-import DumbbellChart from './DumbbellChart'
 
 interface Props {
   chartKey: string
@@ -180,12 +179,10 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
 
   return (
     <figure className="stance-figure" aria-label={spec?.title ?? 'Chart'}>
-      {/* The Meetings screen (#1140): the trend line with its milestone track, and the period dumbbell, above the squares. */}
+      {/* The Meetings screen (#1140): the trend line with its milestone track, above the squares. The period dumbbell moved
+          to the Overview, the first screen after the cover (#1192), so it is not drawn here again. */}
       {chartKey === 'meeting-mentions' && !view && enabled && (
-        <>
-          <TimelineChart topic={topic} stateCode={stateCode} city={city} scopeLabel={scope} subject="data centers" idBase={`stance-${round}`} />
-          {!city && <DumbbellChart topic={topic} stateCode={stateCode} scopeLabel={scope} subject="data centers" idBase={`stance-${round}`} />}
-        </>
+        <TimelineChart topic={topic} stateCode={stateCode} city={city} scopeLabel={scope} subject="data centers" idBase={`stance-${round}`} />
       )}
       {q.isLoading && enabled ? (
         <p className="folio-muted" role="status">

@@ -14,6 +14,7 @@ import JurisdictionDiscovery from '../components/JurisdictionDiscovery'
 import PlaceClusterMap from '../components/PlaceClusterMap'
 import StateSelect from '../components/StateSelect'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
+import { useDocumentTitle } from '../utils/useDocumentTitle'
 
 /** A single state group of real indexed places for the browse list. */
 interface PlaceGroup {
@@ -82,6 +83,7 @@ const JURISDICTION_LEVELS = [
 
 export default function JurisdictionsSearch() {
   const [searchParams, setSearchParams] = useSearchParams()
+  useDocumentTitle('Places')
   const navigate = useNavigate()
 
   // "Find a state" filter for the browse chip list (client-side only).

@@ -51,6 +51,7 @@ interface DecisionResult {
 }
 
 const PAGE = 8
+const COUNTED_FROM = /Counted from local meeting recordings/
 
 export default function TopicStory({ slug: slugProp }: { slug?: string }) {
   const params = useParams<{ storyId?: string }>()
@@ -194,17 +195,15 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6">
-      <div className="flex items-start justify-between gap-4">
-        <p className="font-mono text-xs uppercase tracking-widest text-teal-700">Data story · {def.title}</p>
-        {/* Close (#1017): back to the home page's stories, keeping the place. */}
+      {/* The story's one exit (#1192), the same crumb as the Data Center Story's, keeping the place; a 44px target on phones. */}
+      <div className="flex flex-wrap items-center gap-x-3">
         <Link
-          to={`/${stateCode ? `?state=${stateCode}` : ''}#data-stories`}
-          aria-label="Close story"
-          title="Close"
-          className="-mt-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-stone-300 bg-white text-2xl leading-none text-stone-800 hover:bg-stone-50"
+          to={`/stories${scopeQ}`}
+          className="-my-3 inline-flex min-h-11 items-center text-sm font-semibold text-teal-700 hover:text-teal-900 sm:my-0 sm:min-h-0"
         >
-          <span aria-hidden="true">×</span>
+          <span aria-hidden="true">←</span>&nbsp;Data stories
         </Link>
+        <p className="font-mono text-xs uppercase tracking-widest text-teal-700">Data story · {def.title}</p>
       </div>
       {/* Restrained like the home title (#1182): about 36px on a laptop, so the buttons stay in the first screen. */}
       <h1 className="mt-2 max-w-4xl font-serif text-[26px] font-bold leading-tight text-stone-900 sm:text-4xl" aria-busy={captionQ.isPending || undefined}>
@@ -224,7 +223,10 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
           {next.label} <span aria-hidden="true">→</span>
         </Link>
       </div>
-      <p className="mt-3 text-sm text-stone-500">Counted from local meeting recordings and transcripts that mention the topic.</p>
+      {/* Said once in the first screen (#1192): the basis line already carries it when the caption is a state comparison. */}
+      {!captionQ.isPending && !COUNTED_FROM.test(caption.basis ?? '') && (
+        <p className="mt-3 text-sm text-stone-500">Counted from local meeting recordings and transcripts that mention the topic.</p>
+      )}
 
       {/* Scope label = the applied filter (CLAUDE.md), with a one-click broaden and a picker. */}
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
