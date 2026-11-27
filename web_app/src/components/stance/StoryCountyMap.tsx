@@ -21,6 +21,8 @@ import { resolveVideoId, startFromUrl } from './quoteCardUtils'
 import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { useChartWidth } from './useChartWidth'
+import { MAP_MIN_COUNTY_PX, MAP_MIN_LABEL_PX, labelUnits, mapAspect } from '../../utils/mapFit'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
 export interface PlaceCount extends LeanCounts {
@@ -67,6 +69,8 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
  */
 export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages }: Props) {
   const [hover, setHover] = useState<string | null>(null)
+  // The map's drawn width (#1309): it is capped by the screen's height, so its labels are sized from what is really drawn.
+  const { ref: fitRef, width: drawnWidth } = useChartWidth<HTMLDivElement>(0)
   const stateFips = FIPS_OF_CODE[stateCode] ?? null
   const stateName = STATE_CODE_TO_NAME[stateCode] ?? stateCode
   const { data: topo, isError } = useQuery({
@@ -220,13 +224,17 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
 
   const r = grid.step * 0.38
   const pad = 4
-  const vb = `${bx0 - pad} ${by0 - pad} ${bx1 - bx0 + pad * 2} ${by1 - by0 + pad * 2}`
+  const vbW = bx1 - bx0 + pad * 2
+  const vbH = by1 - by0 + pad * 2
+  const vb = `${bx0 - pad} ${by0 - pad} ${vbW} ${vbH}`
   // Town labels (#1115), in the Data Explorer's label style: each ring's government named beside it, largest meetings first,
   // skipping any label whose box would overlap one already placed. County governments have no ring; one is named at its
   // county's centre only when that spot is free, after every town (#1117), in the cartographic county style: small,
-  // uppercase, letter-spaced, lighter ("MARICOPA COUNTY"). Sizes follow the grid step so the labels scale with the map.
-  const labelSize = grid.step * 1.5
-  const countySize = labelSize * 0.82
+  // uppercase, letter-spaced, lighter ("MARICOPA COUNTY"). Sizes follow the grid step so the labels scale with the map, but
+  // never render under 12px (towns) or 10.5px (counties) however small the map is drawn (#1309); fewer then fit, and the
+  // overlap rule below drops the rest.
+  const labelSize = labelUnits(grid.step * 1.5, vbW, drawnWidth, MAP_MIN_LABEL_PX)
+  const countySize = labelUnits(labelSize * 0.82, vbW, drawnWidth, MAP_MIN_COUNTY_PX)
   const labels = (() => {
     const x0 = bx0 - pad
     const x1 = bx1 + pad
@@ -303,6 +311,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       </figcaption>
       <div className="stance-map-stage">
         {keyNav.sr}
+        {/* Fits the screen (#1309): the height is capped by the visible screen and the width follows the state's shape. */}
+        <div className="stance-map-fit" ref={fitRef} style={{ ['--map-ar' as string]: mapAspect(vbW, vbH).toFixed(4) }}>
         <svg
           viewBox={vb}
           className="stance-map-svg"
@@ -403,6 +413,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             ))}
           </g>
         </svg>
+        </div>
       </div>
       <p className="stance-map-readout">
         {hover ? readout(hover) : `${touch ? 'Tap' : 'Hover'} a county to see its count${touch ? '' : ' and hear what was said'}. Rings mark the cities, towns and school districts on record.`}
