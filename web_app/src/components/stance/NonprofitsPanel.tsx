@@ -32,7 +32,8 @@ interface Props {
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
-const FIRST_ITEMS = 5
+/** Listed before "Show all": three fit a phone screen above the bottom bar. */
+const FIRST_ITEMS = 3
 
 /**
  * Who's working on this (#1345): the nonprofits tied to the topic in the scope, strongest evidence first (named in one of
@@ -95,11 +96,6 @@ export default function NonprofitsPanel({ topic, stateCode, city, scopeLabel, su
   return (
     <div className="sc-block np">
       {title}
-      {display.kind === 'bars' || display.kind === 'top-bars' ? (
-        <CountBars rows={rows} label={`Nonprofits by how they are tied to ${subject}`} />
-      ) : display.kind !== 'list' ? (
-        <p className="np-counts">{countsSentence(rows)}</p>
-      ) : null}
       <ol className="np-list">
         {items.map((o) => {
           const mission = oneLine(sentenceCase(o.mission))
@@ -139,6 +135,12 @@ export default function NonprofitsPanel({ topic, stateCode, city, scopeLabel, su
           {showAll ? 'Show fewer' : `Show all ${fmt(d.items.length)}`}
         </button>
       )}
+      {/* The counts by evidence after the list: on a phone the list is what fits first (useScreenFit). */}
+      {display.kind === 'bars' || display.kind === 'top-bars' ? (
+        <CountBars rows={rows} label={`Nonprofits by how they are tied to ${subject}`} />
+      ) : display.kind !== 'list' ? (
+        <p className="np-counts">{countsSentence(rows)}</p>
+      ) : null}
       {d.total > d.items.length && <p className="sc-note">Showing the {fmt(d.items.length)} with the strongest evidence of {fmt(d.total)}.</p>}
       <p className="sc-note">
         From IRS and Form 990 records. A nonprofit is listed when it is named in a recorded meeting on {subject} in its state,

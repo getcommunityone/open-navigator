@@ -55,7 +55,7 @@ export interface StoryScreen {
    * readers answered (#950). `question` remains a kind for tests and any legacy screen helper; the story no longer opens on
    * it. `chart` is one dataset.
    */
-  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict' | 'upcoming' | 'outcomes'
+  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict' | 'upcoming' | 'nonprofits' | 'outcomes'
   /** "For context": the screen is records about the topic that are not something said in a meeting (sites, projects). */
   kicker?: string
 }
@@ -65,6 +65,8 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'overview', eyebrow: 'Overview', chart: null, kind: 'overview' },
   // What's coming up (#1302): scheduled meetings, hearings and open state bills; second, where a reader can still act.
   { id: 'upcoming', eyebrow: 'Coming up', chart: null, kind: 'upcoming' },
+  // Who's working on this (#1345): the nonprofits in the place tied to data centers by the record.
+  { id: 'nonprofits', eyebrow: 'Nonprofits', chart: null, kind: 'nonprofits' },
   // What happened next (#1314): the chain from the meetings to what followed.
   { id: 'outcomes', eyebrow: 'What happened', chart: null, kind: 'outcomes' },
   { id: 'voices', eyebrow: 'Who spoke up', chart: 'positions', kind: 'chart' },
@@ -890,6 +892,10 @@ function screenTextRaw(
   }
   if (screen.kind === 'outcomes') {
     return { headline: 'What happened after data centers came up', context: '', empty: false, failed: false }
+  }
+  if (screen.kind === 'nonprofits') {
+    // The page words this screen from its own query (utils/topicOrganizations.nonprofitsHeadline); this is the fallback.
+    return { headline: "Who's working on data centers", context: '', empty: false, failed: false }
   }
   if (screen.kind === 'upcoming') {
     // The page words this screen from its own query (utils/topicUpcoming.upcomingHeadline); this is the fallback.

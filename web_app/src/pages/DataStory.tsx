@@ -12,6 +12,9 @@ import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenView from '../components/stance/StoryScreenView'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
 import UpcomingPanel from '../components/stance/UpcomingPanel'
+import NonprofitsPanel from '../components/stance/NonprofitsPanel'
+import { useTopicOrganizations } from '../hooks/useTopicOrganizations'
+import { nonprofitsHeadline } from '../utils/topicOrganizations'
 import { useTopicUpcoming } from '../hooks/useTopicUpcoming'
 import { upcomingHeadline } from '../utils/topicUpcoming'
 import OutcomesChain from '../components/stance/OutcomesChain'
@@ -101,6 +104,8 @@ export default function DataStory() {
 
   // What's coming up (#1302), for the Coming up screen's headline; the panel reads the same cache entry.
   const upcomingQ = useTopicUpcoming(storyId, stateCode, city)
+  // Who's working on this (#1345): the same query (and cache entry) as the screen's panel.
+  const nonprofitsQ = useTopicOrganizations(storyId, stateCode, city)
   // What happened next (#1314), for the chain screen's headline; the panel reads the same cache entry.
   const outcomesQ = useTopicOutcomes(storyId, stateCode, city)
 
@@ -490,6 +495,38 @@ export default function DataStory() {
                         const at = screens.findIndex((x) => x.id === id)
                         if (at >= 0) goTo(at)
                       }}
+                    />
+                  }
+                />
+              )
+            }
+            if (s.kind === 'nonprofits') {
+              return (
+                <StoryScreenFrame
+                  key={s.id}
+                  id={s.id}
+                  index={i}
+                  active={active === i}
+                  eyebrow={s.eyebrow}
+                  headline={
+                    nonprofitsQ.isPending
+                      ? 'Loading nonprofits…'
+                      : nonprofitsQ.isError
+                        ? 'The nonprofits could not be loaded right now.'
+                        : nonprofitsHeadline(nonprofitsQ.data, story.topic, label)
+                  }
+                  context="Nonprofits tied to data centers by the record: named in a meeting on them, a 990 mission or name that names them, or an IRS category in the field. Strongest evidence first, from IRS and Form 990 filings."
+                  nextLabel={common.nextLabel}
+                  onNext={common.onNext}
+                  onPrev={common.onPrev}
+                  right={
+                    <NonprofitsPanel
+                      topic={storyId}
+                      stateCode={stateCode}
+                      city={city}
+                      scopeLabel={label}
+                      subject={story.topic}
+                      basePath={`/stories/${storyId}`}
                     />
                   }
                 />
