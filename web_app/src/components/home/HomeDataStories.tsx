@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
@@ -68,6 +68,8 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
+  // The map's hover card goes in the text column, under Start (#1277), never over the map.
+  const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   // Any live topic story can be shown (#1133); an unknown or not-yet-loaded ?story= shows data centers.
   const topicStories = useTopicStories()
   const asked = sp.get('story') ?? ''
@@ -167,7 +169,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                 {storyStartLabel('data-centers', label)} <span aria-hidden="true">→</span>
               </Link>
             </div>
-            <HomeStoryDrill />
+            <HomeStoryDrill slotRef={setCardSlot} />
           </div>
 
           <div className="home-story-map">
@@ -180,6 +182,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                 stance={speakers.data?.available ? (speakers.data.by_state ?? []) : undefined}
                 highlight={stateCode ?? null}
                 href={(code) => `/stories/data-centers?state=${encodeURIComponent(code)}`}
+                cardSlot={cardSlot}
               />
             )}
           </div>

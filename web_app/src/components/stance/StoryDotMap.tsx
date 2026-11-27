@@ -141,7 +141,8 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     .sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <figure className="stance-map" aria-labelledby={labelledBy}>
+    // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
+    <figure className="stance-map" aria-labelledby={labelledBy} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
       <figcaption className="stance-map-head">
         <span>
           Meetings where a data center came up, by state · National{scopeStateCode ? ` (${stateNameOf(scopeStateCode)} highlighted${scopeCity ? `, which contains ${scopeCity}` : ''})` : ''}
@@ -167,8 +168,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           </select>
         </span>
       </figcaption>
-      {/* Leaving the map and its card (not just the dots) hides the card, so its link can be reached. */}
-      <div className="stance-map-stage" onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+      <div className="stance-map-stage">
       {keyNav.sr}
       <svg
         viewBox={vb}
@@ -209,27 +209,6 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           <path d={featPath(hoverFeat)} fill="none" stroke="#1c1917" strokeWidth={2.4} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
         )}
       </svg>
-      {passage && hover && hoverCode && (
-        // Desktop only (#1277): fixed at the map's bottom-left, never beside the cursor; one recording at a time.
-        <QuoteCard
-          className="map-hover-card"
-          compact
-          inlineVideo={inlineVideo}
-          place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
-          date={passage.meeting_date}
-          quote={excerptAroundMark(passage.evidence ?? '')}
-          meeting={passage.meeting_title}
-          stanceNote={dataCenterQuoteNote(passage.ai_public_lean)}
-          videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
-          startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
-          url={passage.jump_url ?? passage.video_url}
-          speakerName={passage.speaker_display_name ?? null}
-          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
-        >
-          {/* A label, not a button (#1277): the card lets the mouse through, and the state itself is what to click. */}
-          <p className="map-hover-open">{keyNav.keyed ? 'Press Enter to show it →' : `${pickLabel(hoverCode)} →`}</p>
-        </QuoteCard>
-      )}
       </div>
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the select and the table. */}
       <p className="stance-map-readout">
@@ -265,6 +244,29 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
             <span style={{ background: HOUSE_THEME.neutral }} /> none on record
           </span>
         </div>
+      )}
+      {passage && hover && hoverCode && (
+        // Desktop only (#1277): under the legend, never over the map; one recording at a time.
+        <QuoteCard
+          className="map-hover-card"
+          compact
+          inlineVideo={inlineVideo}
+          place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
+          date={passage.meeting_date}
+          quote={excerptAroundMark(passage.evidence ?? '')}
+          meeting={passage.meeting_title}
+          stanceNote={dataCenterQuoteNote(passage.ai_public_lean)}
+          videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
+          startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
+          url={passage.jump_url ?? passage.video_url}
+          speakerName={passage.speaker_display_name ?? null}
+          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
+        >
+          {/* The same action as a click on the state (#1277). */}
+          <button type="button" className="map-hover-open" onClick={() => pick(hover)}>
+            {keyNav.keyed ? 'Press Enter to show it' : pickLabel(hoverCode)} <span aria-hidden="true">→</span>
+          </button>
+        </QuoteCard>
       )}
       <details className="stance-map-table">
         <summary>Show data table</summary>

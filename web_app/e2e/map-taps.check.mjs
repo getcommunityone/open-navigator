@@ -4,7 +4,8 @@
 //
 //   Phones (Pixel 7, iPhone 13): no card ever; the hint "Tap a state to open its story" shows under the map; a tap on a
 //   state opens its story (the Overview narrows); on the county map a tap only lights that county.
-//   Desktop (1440x900): hovering a state outlines it and shows ONE card at the map's bottom-left, its recording an iframe
+//   Desktop (1440x900): hovering a state outlines it and shows ONE card beside the map (never over it: the home page's
+//   text column, else under the legend), its recording an iframe
 //   whose src has autoplay=1&mute=1; another state swaps it; leaving the map removes it; keyboard focus shows the card with
 //   no autoplay; Enter and a click open the state's story.
 //
@@ -78,7 +79,7 @@ function mapState(page, sel, readoutSel) {
       const scope = svg?.closest('figure') ?? stage?.parentElement ?? document
       const cards = [...document.querySelectorAll('.map-hover-card')].filter((c) => c.getClientRects().length > 0)
       const card = cards[0] ?? null
-      const sb = stage?.getBoundingClientRect()
+      const svgBox = svg?.getBoundingClientRect()
       const cb = card?.getBoundingClientRect()
       const lit = [...(svg?.querySelectorAll('[data-active]') ?? [])]
       return {
@@ -88,7 +89,8 @@ function mapState(page, sel, readoutSel) {
         src: card?.querySelector('iframe')?.getAttribute('src') ?? null,
         playBtn: !!card?.querySelector('.qcard-play-btn'),
         open: card?.querySelector('.map-hover-open, .map-hover-here')?.textContent ?? null,
-        bottomLeft: cb && sb ? Math.abs(cb.left - sb.left) < 2 && Math.abs(cb.bottom - sb.bottom) < 2 : null,
+        // The card never covers the map (#1277): its box and the map's do not overlap.
+        offMap: cb && svgBox ? cb.bottom <= svgBox.top + 1 || cb.top >= svgBox.bottom - 1 || cb.right <= svgBox.left + 1 || cb.left >= svgBox.right - 1 : null,
         lit: [...new Set(lit.map((e) => e.getAttribute('data-state')).filter(Boolean))],
         litCount: lit.length,
         outline: !!svg?.querySelector('[data-active-outline]'),
@@ -210,7 +212,7 @@ async function hoverChecks(page, sel, readoutSel, a, b, name) {
   let r = await mapState(page, sel, readoutSel)
   ok(r.lit.length === 1 && r.lit[0] === a && r.litCount > 1 && r.outline, `hover ${a}: the whole state is lit and outlined (${r.litCount} shapes)`)
   ok(r.cards === 1, `hover ${a}: one card (${r.cards}) · ${r.place}`)
-  ok(r.bottomLeft === true, '  the card sits at the map’s bottom-left')
+  ok(r.offMap === true, '  the card is beside the map, not over it')
   if (r.src) {
     ok(r.src.includes('youtube-nocookie.com') && r.src.includes('autoplay=1&mute=1') && !r.playBtn, `  its recording autoplays muted, no play button (${r.src.slice(0, 90)})`)
   } else ok(!r.playBtn, '  this passage has no video id: quote only, no play button')
@@ -225,7 +227,8 @@ async function hoverChecks(page, sel, readoutSel, a, b, name) {
   if (firstSrc && r.src) ok(r.src !== firstSrc, '  the video swapped')
   await shot(page, `desktop-${name}-hover-${b}`)
   await page.mouse.move(5, 5)
-  await page.waitForTimeout(400)
+  // The card stays a moment so the mouse can reach its link, then goes.
+  await page.waitForTimeout(900)
   r = await mapState(page, sel, readoutSel)
   ok(r.cards === 0 && r.iframes === 0, 'leaving the map removes the card and its player')
 }
@@ -268,6 +271,28 @@ async function desktop(ctx) {
   await home.waitForSelector(`${sel} rect[data-state]`, { timeout: 60_000 })
   console.log('\nDesktop 1440x900 / (home)')
   await hoverChecks(home, sel, 'p.mt-1', 'TX', 'VA', 'home')
+  // A click on Alabama opens the Alabama story (the owner's report: it didn't).
+  let hp = await statePoints(home, sel)
+  await home.mouse.move(hp.AL.x - 40, hp.AL.y, { steps: 4 })
+  await home.mouse.move(hp.AL.x, hp.AL.y, { steps: 4 })
+  await home.waitForTimeout(600)
+  await home.mouse.click(hp.AL.x, hp.AL.y)
+  await home.waitForTimeout(1200)
+  ok(here(home).startsWith('/stories/data-centers?state=AL'), `a click on Alabama on / opens its story (${here(home)})`)
+  // The card's link (in the text column) reaches the same story: hover Texas, cross to the card, click its link.
+  await home.goto(base + '/', { waitUntil: 'networkidle', timeout: 120_000 })
+  await home.waitForSelector(`${sel} rect[data-state]`, { timeout: 60_000 })
+  hp = await statePoints(home, sel)
+  await home.mouse.move(hp.TX.x, hp.TX.y)
+  await home.waitForTimeout(600)
+  const link = home.locator('.map-hover-card a.map-hover-open')
+  if (await link.count()) {
+    const lb = await link.boundingBox()
+    await home.mouse.move(lb.x + 10, lb.y + lb.height / 2, { steps: 8 })
+    await home.mouse.click(lb.x + 10, lb.y + lb.height / 2)
+    await home.waitForTimeout(1200)
+    ok(here(home).startsWith('/stories/data-centers?state=TX'), `the card's "Click Texas" link opens its story (${here(home)})`)
+  } else ok(false, 'the card has a "Click Texas to open its story" link')
   await home.close()
 
   const dc = await ctx.newPage()
@@ -311,4 +336,4 @@ if (failures) {
   console.error(`\n${failures} check(s) failed.`)
   process.exit(1)
 }
-console.log('\nPhones drill on a tap with no card; desktop hover shows the bottom-left card playing the recording.')
+console.log('\nPhones drill on a tap with no card; desktop hover shows the card beside the map playing the recording.')

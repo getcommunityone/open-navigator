@@ -39,7 +39,7 @@ export interface TopicPositions {
 
 const SPLIT = 'Split'
 const SILENT = "Public didn't speak on it"
-const UNREAD = 'No AI reading yet'
+const UNREAD = 'Not read yet'
 
 export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
   // Data centers' own screen (screen_transcripts): "against" is against the data center.

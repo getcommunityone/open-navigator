@@ -75,7 +75,9 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
   const onKeyDown = (e: KeyboardEvent<Element>) => {
     if (e.key === 'Escape') {
       if (active != null) {
+        // Hides the card only: the story's own Escape (close the story, #1234) must not also fire.
         e.preventDefault()
+        e.stopPropagation()
         move(null)
       }
       return
@@ -113,16 +115,18 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
     'aria-roledescription': 'map',
     'aria-describedby': hintId,
     'data-map-keys': '',
+    // A shown area: Escape hides its card first, and the story's Escape (StoryClose) leaves it alone.
+    'data-map-active': active != null ? '' : undefined,
     onKeyDown,
     onFocus,
     onPointerDown,
   }
-  const stageRef = useRef<HTMLDivElement>(null)
   // Leaving the map and its card (not moving between them) hides the card, as leaving with the mouse does.
   const stageProps = {
-    ref: stageRef,
     onBlur: (e: FocusEvent<HTMLElement>) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      const to = e.relatedTarget as Element | null
+      // The hover card may sit outside the stage (the home page's text column, #1277): moving into it is not leaving.
+      if (!e.currentTarget.contains(to) && !to?.closest?.('.map-hover-card')) {
         setKeyed(false)
         setActive(null)
       }

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 // The state's story plays its drill-down transition on arrival, from the national layout (#1195).
 import { DRILL_FROM_NATIONAL } from '../stance/drillState'
@@ -94,6 +95,9 @@ interface Props {
   /** The topic's own position words (#1200, utils/topicPositions) for an AI-read meeting split: legend, hover line and
    *  table headers say "Want limits on short-term rentals" instead of "Public mostly opposed". */
   positions?: TopicPositions
+  /** Where the desktop hover card goes (#1277): an element outside the map (the home page's text column, under Start).
+   *  None → under the legend. The card never covers the map. */
+  cardSlot?: HTMLElement | null
 }
 
 export type StanceUnit = 'speakers' | 'meetings'
@@ -153,7 +157,7 @@ export function stanceLine(s: StanceCounts | undefined, unit: StanceUnit = 'spea
   if (unit === 'meetings') {
     const total = speakersOf(s)
     const parts = keys.map((k) => `${fmt(stanceCount(s, k))} ${AI_LINE_WORD[k]}`)
-    return `AI reading of ${plural(total, 'meeting', 'meetings')}: ${parts.join(' · ')}`
+    return `${plural(total, 'meeting', 'meetings')} read: ${parts.join(' · ')}`
   }
   return keys.map((k) => `${fmt(stanceCount(s, k))} ${STANCE_LABEL[k].toLowerCase()}`).join(' · ')
 }
@@ -168,13 +172,13 @@ export function positionLine(s: StateStance | undefined, words: TopicPositions):
   if (spoke === 0 && silent === 0) return null
   const label: Record<Stance, string> = { against: words.against, for: words.for, question: words.split, neutral: words.split }
   const parts = STANCE_ORDER.filter((k) => k !== 'question' && stanceCount(s!, k) > 0).map((k) => `${fmt(stanceCount(s!, k))} ${label[k].toLowerCase()}`)
-  const head = spoke > 0 ? `AI reading of ${plural(spoke, 'meeting', 'meetings')} where the public spoke: ${parts.join(' · ')}` : ''
+  const head = spoke > 0 ? `${plural(spoke, 'meeting', 'meetings')} where the public spoke: ${parts.join(' · ')}` : ''
   const silentMeetings = silent === 1 ? 'meeting' : 'meetings'
   const tail =
     silent > 0
       ? spoke > 0
         ? `in ${fmt(silent)} more ${silentMeetings} the public didn't speak on it`
-        : `AI reading: in ${fmt(silent)} ${silentMeetings} the public didn't speak on it`
+        : `In ${fmt(silent)} ${silentMeetings} the public didn't speak on it`
       : ''
   return [head, tail].filter(Boolean).join('; ')
 }
@@ -194,11 +198,11 @@ interface Box {
  * The home page's story map (#985, #995, #1087): the country as a grid of small square boxes in each state's shape (the
  * Explore map's geometry). Where speakers are on record, a state's boxes are split in bands by the real counts of those who
  * spoke against, for, asked a question or took no side; a state with meetings but no speaker on record is one grey; a state
- * with none is the empty tint. On a desktop, hovering a state outlines it and shows one of its real passages in a card at the
- * map's bottom-left, with the recording playing muted at the quoted moment (#1277); clicking opens that state's story. On a
+ * with none is the empty tint. On a desktop, hovering a state outlines it and shows one of its real passages in a card beside
+ * the map (never over it), with the recording playing muted at the quoted moment (#1277); clicking opens that state's story. On a
  * phone there is no card: a tap opens the state's story at once. Nothing is drawn from a guess: no counts, no split.
  */
-export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions }: Props) {
+export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions, cardSlot = null }: Props) {
   const byMeetings = stanceUnit === 'meetings'
   // Topic words (#1200) only for an AI-read meeting split; the speaker map keeps its own words.
   const words = byMeetings ? positions : undefined
@@ -206,6 +210,18 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const navigate = useNavigate()
   const location = useLocation()
   const [hover, setHover] = useState<number | null>(null)
+  // Leaving the map hides the card after a moment, so the mouse can cross to the card (in the home page's text column,
+  // #1277) and click its link; entering the map or the card again keeps it.
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const keepCard = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    hideTimer.current = null
+  }
+  const hideSoon = () => {
+    keepCard()
+    hideTimer.current = setTimeout(() => setHover(null), 400)
+  }
+  useEffect(() => keepCard, [])
   const touch = isTouchOnly()
   const { data: topo, isError } = useQuery({
     queryKey: ['us-atlas-states-albers'],
@@ -319,7 +335,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   // The card's state is the page the reader is on: no button to it, and the caption says so.
   const shownIsHere = shownCode ? isCurrentPage(href(shownCode), location.pathname, location.search) : false
   // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200; guns: "No reading yet", #1237).
-  const noReading = words ? words.unread.charAt(0).toLowerCase() + words.unread.slice(1) : 'no AI reading yet'
+  const noReading = words ? words.unread.charAt(0).toLowerCase() + words.unread.slice(1) : 'not read yet'
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
   const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
   const size = grid.step * 0.8
@@ -328,17 +344,54 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const summary =
     `Map of the United States drawn as small boxes in each state's shape. ${plural(withMeetings, 'state has', 'states have')} at least one meeting where ${subject} came up.` +
     (hasStance && split.length
-      ? ` In ${plural(split.length, 'state', 'states')} the boxes are split by ${byMeetings ? `an AI reading of ${plural(speakersTotal, 'meeting', 'meetings')}` : `${plural(speakersTotal, 'speaker', 'speakers')} on record`}: ` +
+      ? ` In ${plural(split.length, 'state', 'states')} the boxes are split by ${byMeetings ? `a reading of ${plural(speakersTotal, 'meeting', 'meetings')}` : `${plural(speakersTotal, 'speaker', 'speakers')} on record`}: ` +
         split.map((s) => `${stateName(s.state_code)}, ${lineOf(s)}`).join('; ') +
         '.'
       : '') +
     (leanStates.length
-      ? ` In ${plural(leanStates.length, 'other state', 'other states')} an AI reading of the meetings found the public mostly opposed: ${leanStates.map((s) => stateName(s.state_code)).join(', ')}.`
+      ? ` In ${plural(leanStates.length, 'other state', 'other states')} a reading of the meetings found the public mostly opposed: ${leanStates.map((s) => stateName(s.state_code)).join(', ')}.`
       : '') +
     (disagreeStates.length
-      ? ` In ${plural(disagreeStates.length, 'state', 'states')} the AI reading found officials sided against the public (see the data table): ${disagreeStates.map((s) => stateName(s.state_code)).join(', ')}.`
+      ? ` In ${plural(disagreeStates.length, 'state', 'states')} a reading of the meetings found officials sided against the public (see the data table): ${disagreeStates.map((s) => stateName(s.state_code)).join(', ')}.`
       : '') +
     ' The data table below lists every state; its links open each state’s story.'
+
+  // The desktop hover card (#1277): never over the map. On the home page it fills the slot in the text column under Start
+  // (`cardSlot`); elsewhere it sits under the legend. One recording at a time; none on a phone.
+  const card =
+    shown && shownCode && quote ? (
+      <QuoteCard
+        className="map-hover-card"
+        compact
+        inlineVideo={inlineVideo}
+        place={quote.place}
+        date={quote.date}
+        quote={excerptAroundMark(quote.text)}
+        side={quote.side}
+        speakerName={quote.speakerName}
+        role={quote.role}
+        item={quote.item}
+        meeting={quote.meeting}
+        stanceNote={quote.stanceNote ?? null}
+        videoId={resolveVideoId(quote.videoId, quote.url)}
+        startSeconds={quote.startSeconds ?? startFromUrl(quote.url)}
+        url={quote.url}
+      >
+        {shownIsHere ? (
+          <p className="map-hover-here">You’re reading the {stateName(shownCode)} story</p>
+        ) : (
+          // A real link, the same target as a click on the state (#1277).
+          <Link to={href(shownCode)} state={DRILL_FROM_NATIONAL} className="map-hover-open">
+            {keyNav.keyed ? `Press Enter to open the ${stateName(shownCode)} story` : `Click ${stateName(shownCode)} to open its story`} <span aria-hidden="true">→</span>
+          </Link>
+        )}
+      </QuoteCard>
+    ) : null
+  const cardShown = card && (
+    <div className="map-hover-wrap" onMouseEnter={keepCard} onMouseLeave={hideSoon}>
+      {card}
+    </div>
+  )
 
   // A click (desktop) or a tap (phone, #1277: no card there) opens the state's story at once.
   const onBox = (i: number) => {
@@ -350,9 +403,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   }
 
   return (
-    <div>
-      {/* The map and its card: leaving both (not moving between them) hides the card and stops its recording. */}
-      <div style={{ position: 'relative' }} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+    // The map, its lines and its card: leaving all of them (not moving between them) hides the card and stops its recording.
+    <div onMouseLeave={hideSoon} onMouseEnter={keepCard} {...keyNav.stageProps}>
+      <div style={{ position: 'relative' }}>
       {keyNav.sr}
       <svg viewBox={`${-pad} ${-pad} ${W + pad * 2} ${H + pad * 2}`} className="block h-auto w-full" aria-label={summary} {...keyNav.svgProps}>
         {boxes.map((b, i) => {
@@ -380,6 +433,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                 touch || !b.code
                   ? undefined
                   : () => {
+                      keepCard()
                       keyNav.pointed()
                       setHover(firstBox.get(b.code!) ?? i)
                     }
@@ -400,36 +454,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         )}
       </svg>
 
-      {shown && shownCode && quote && (
-        // Desktop only (#1277): fixed at the map's bottom-left, never beside the cursor; one recording at a time.
-        <QuoteCard
-          className="map-hover-card"
-          compact
-          inlineVideo={inlineVideo}
-          place={quote.place}
-          date={quote.date}
-          quote={excerptAroundMark(quote.text)}
-          side={quote.side}
-          speakerName={quote.speakerName}
-          role={quote.role}
-          item={quote.item}
-          meeting={quote.meeting}
-          stanceNote={quote.stanceNote ?? null}
-          videoId={resolveVideoId(quote.videoId, quote.url)}
-          startSeconds={quote.startSeconds ?? startFromUrl(quote.url)}
-          url={quote.url}
-        >
-          {/* A label, not a link (#1277): the card lets the mouse through, and the state itself is what to click. */}
-          <p className={shownIsHere ? 'map-hover-here' : 'map-hover-open'}>
-            {shownIsHere
-              ? `You’re reading the ${stateName(shownCode)} story`
-              : keyNav.keyed
-                ? `Press Enter to open the ${stateName(shownCode)} story →`
-                : `Click ${stateName(shownCode)} to open its story →`}
-          </p>
-        </QuoteCard>
-      )}
       </div>
+      {cardSlot && cardShown ? createPortal(cardShown, cardSlot) : null}
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
@@ -463,27 +489,28 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             ? words
               ? `${missingLegend(words)} (darker = more meetings)`
               : byMeetings
-              ? 'Meetings, no AI reading yet (darker = more meetings)'
+              ? 'Meetings, not read yet (darker = more meetings)'
               : 'Meetings, no stance on record (darker = more meetings)'
             : `Meetings where ${subject} came up`}
         </li>
       </ul>
+      {!cardSlot && cardShown}
       {/* Compact under the map (#1187) so the first screen keeps room for Browse topics: the method note sits with the
-          data table; the legend above still names the AI reading. */}
+          data table. No "(AI reading)" in visible labels (owner, #1277): the method note below names the classifier. */}
       <details className="mt-1 text-xs text-stone-700">
         <summary className="cursor-pointer text-stone-600">How to read this map · data table</summary>
         {hasStance && (
           <p className="mt-1 text-xs text-stone-500">
           {byMeetings
             ? split.length > 0
-              ? `Split by an AI reading of ${plural(speakersTotal, 'meeting', 'meetings')} in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
+              ? `Split by a reading of ${plural(speakersTotal, 'meeting', 'meetings')} in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : silentTotal > 0
                 ? `In the ${plural(silentTotal, 'meeting', 'meetings')} the AI read, the public didn't speak on it; states show meetings only.`
-                : 'No AI reading of these meetings yet; states show meetings only.'
+                : 'These meetings have not been read yet; states show meetings only.'
             : split.length > 0
               ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : 'No speaker positions on record yet; states show meetings only.'}
-          {hasLean || (byMeetings && split.length > 0) ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
+          {hasLean || (byMeetings && split.length > 0) ? ' Each meeting is read by a classifier from its transcript; these are not counted speakers.' : ''}
           {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${missingLegend(words).charAt(0).toLowerCase()}${missingLegend(words).slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
         </p>
         )}
@@ -506,8 +533,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                   {hasStance && words && <th scope="col" className="py-1 pr-2">{words.silent}</th>}
                   {hasLean && (
                     <>
-                      {!byMeetings && <th scope="col" className="py-1 pr-2">AI: public mostly opposed</th>}
-                      <th scope="col" className="py-1 pr-2">AI: officials sided against the public</th>
+                      {!byMeetings && <th scope="col" className="py-1 pr-2">Public mostly opposed (meetings)</th>}
+                      <th scope="col" className="py-1 pr-2">Officials sided against the public (meetings)</th>
                     </>
                   )}
                 </tr>
