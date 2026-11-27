@@ -3358,3 +3358,9 @@ html.stance-snap .stance-intro {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* The title's topic blank lists every live story (#1224): size it to the topic shown, not the longest name (where the
+   browser can). */
+.stance-story .stance-sentence select.stance-blank {
+  field-sizing: content;
+}

@@ -93,6 +93,22 @@
 .sc-ride { transition: opacity var(--d-2, 240ms) var(--ease-out), transform var(--d-3, 600ms) var(--ease-out); }
 .sc-fade { transition: opacity var(--d-2, 240ms) var(--ease-out); }
 
+.sc-track { stroke: var(--rule); stroke-width: 2; stroke-linecap: round; }
+/* #1264 compact (phone) dumbbell: each value printed over its dot, muted for the earlier one and accent for the later. */
+.sc-dumbbell-compact .sc-bar { stroke-width: 2.5; stroke-linecap: round; }
+.sc-val-b { fill: var(--violet-ink); font-weight: 600; }
+.sc-dumbbell-compact .sc-delta-up, .sc-dumbbell-compact .sc-delta-down { font-size: 13px; font-weight: 600; }
+
+/* Sort buttons on a phone: small pills in one row that scrolls sideways, never wrapping under the title. */
+@media (max-width: 640px) {
+  .sc-controls:has(> .sc-chips) { flex-wrap: nowrap; }
+  .folio-seg.sc-chips { display: flex; flex-wrap: nowrap; gap: 6px; border: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 1px; }
+  .folio-seg.sc-chips::-webkit-scrollbar { display: none; }
+  .folio-seg.sc-chips button { flex: none; white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 11px; }
+  .folio-seg.sc-chips button:last-child { border-right: 1px solid var(--rule); }
+  .folio-seg.sc-chips button[aria-pressed='true'] { border-color: var(--ink); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq, .sc-pop, .sc-ride, .sc-fade, .sc-pt, .sc-ms-pop, .sc-end { transition: none !important; }
   .sc-line.is-drawing { animation: none; }
