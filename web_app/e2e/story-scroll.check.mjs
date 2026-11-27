@@ -67,6 +67,8 @@ async function open(path) {
 // 2. A drill sheet opens and closes without a screen change.
 {
   const { page, screen } = await open(sheetPath)
+  await page.waitForSelector('.kpi-drill-value', { state: 'attached', timeout: 60_000 })
+  await page.waitForTimeout(2000)
   const want = screen()
   const value = page.locator('.kpi-drill-value').first()
   await value.scrollIntoViewIfNeeded()
@@ -90,6 +92,32 @@ async function open(path) {
   if (screen() !== want) fail(`closing the sheet changed ?screen= to "${screen()}"`)
   else console.log(`ok   opened, scrolled and closed a sheet on "${want}"; ?screen= unchanged`)
   await page.close()
+}
+
+// 3. Drilling into a place lands on Overview (#1325), from the map and from another screen, on a laptop.
+{
+  const desk = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await desk.newPage()
+  const screen = () => new URL(page.url()).searchParams.get('screen')
+  const label = () => page.evaluate(() => document.querySelector('.stance-top [aria-current]')?.getAttribute('aria-label') ?? '')
+  await page.goto(base + '/stories/data-centers', { waitUntil: 'networkidle', timeout: 120_000 })
+  await page.waitForTimeout(5000)
+  await page.locator('select[aria-label="Show one state"]').first().selectOption('AL')
+  await page.waitForTimeout(4000)
+  if (screen() !== 'overview' || !/Overview/.test(await label())) fail(`picking Alabama on the map landed on "${screen()}" / "${await label()}", not Overview`)
+  else console.log('ok   picking Alabama on the map lands on Overview')
+  // From another screen (a stale ?screen=), "National" in the header returns to Overview too.
+  await page.goto(base + '/stories/data-centers?state=AL&screen=sites', { waitUntil: 'networkidle', timeout: 120_000 })
+  await page.waitForTimeout(5000)
+  if (!/Sites/.test(await label())) fail(`?screen=sites did not open on Sites ("${await label()}")`)
+  const national = page.getByRole('button', { name: /National/ }).first()
+  if (await national.count()) {
+    await national.click()
+    await page.waitForTimeout(4000)
+    if (screen() !== 'overview' || !/Overview/.test(await label())) fail(`broadening to National landed on "${screen()}" / "${await label()}", not Overview`)
+    else console.log('ok   broadening to National from Sites lands on Overview')
+  } else console.log('skip no National button found')
+  await desk.close()
 }
 
 await browser.close()
