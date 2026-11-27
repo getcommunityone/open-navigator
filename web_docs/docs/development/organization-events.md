@@ -67,10 +67,11 @@ Run for the three test states (Georgia, Virginia, Alabama), nonprofits tied by a
 | Unreachable or malformed | 5 |
 | No event markup or feed | 288 |
 | **Sites with upcoming events** | **16** |
-| **Upcoming events** (`organization_event`) | **162** |
+| Upcoming events read | 162 |
+| **Upcoming events** (`organization_event`, the same event from JSON-LD and iCal kept once) | **157** |
 
-In `topic_upcoming` as `hosted_by_org`: animal shelters 116 (Virginia 79, Georgia 36, Alabama 1), homelessness and
-shelters 36 (Virginia 34, Georgia 2), domestic violence 5 (Georgia), traffic safety 5 (Virginia). **None for water
+In `topic_upcoming` as `hosted_by_org`: animal shelters 113 (Virginia 76, Georgia 36, Alabama 1), homelessness and
+shelters 36 (Virginia 34, Georgia 2), domestic violence 3 (Georgia), traffic safety 5 (Virginia). **None for water
 fluoridation in Georgia, data centers in Virginia or guns in Alabama**: none of those nonprofits with a website publishes
 event markup or a feed. The four topics with events are the crime and safety topics of #1128, so on `main` they show once
 those topics are merged. Most events come from WordPress sites running The Events Calendar (iCal feed and JSON-LD).

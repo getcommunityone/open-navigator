@@ -18,7 +18,7 @@
     Options, costs and terms: web_docs/docs/development/organization-events.md.
 */
 
-select
+select distinct on (n.master_org_id, e.start_date, regexp_replace(lower(e.title), '[^a-z0-9]+', '', 'g'))
     e.event_key::text                                                   as organization_event_id,
     n.master_org_id::text                                               as master_org_id,
     e.ein::text                                                         as ein,
@@ -40,3 +40,5 @@ inner join {{ ref('mdm_organization_nonprofit') }} as n on n.ein = e.ein
 inner join {{ ref('mdm_organization') }} as o on o.master_org_id = n.master_org_id
 where e.start_date >= current_date
   and o.state_code is not null
+-- The same event read from both a page's JSON-LD and its iCal feed (titles differing only in punctuation) is kept once.
+order by n.master_org_id, e.start_date, regexp_replace(lower(e.title), '[^a-z0-9]+', '', 'g'), (e.start_at is null), e.event_key
