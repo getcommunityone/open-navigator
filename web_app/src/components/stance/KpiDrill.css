@@ -1,0 +1,161 @@
+/* The records behind a story KPI (#1288): inline under the tiles on a wide screen, a bottom sheet on a phone. */
+.kpi-drill-value {
+  all: unset;
+  cursor: pointer;
+  border-bottom: 2px dotted currentColor;
+  line-height: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  font-variant-numeric: inherit;
+}
+.kpi-drill-value:hover,
+.kpi-drill-value[data-drill-open='true'] {
+  border-bottom-style: solid;
+}
+.kpi-drill-value:focus-visible {
+  outline: 2px solid var(--ink, #121116);
+  outline-offset: 3px;
+}
+.kpi-drill-value-text {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  font: inherit;
+}
+.kpi-drill-value-text:focus-visible {
+  outline: 2px solid var(--ink, #121116);
+  outline-offset: 2px;
+}
+
+.kpi-drill-sheet {
+  margin: 10px 0 4px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--ink, #121116);
+  background: var(--paper, #fff);
+  color: var(--ink, #121116);
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  text-align: left;
+}
+.kpi-drill-sheet:focus {
+  outline: none;
+}
+.kpi-drill-head {
+  position: sticky;
+  top: -12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0 0 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--rule, #b8b4c4);
+  background: var(--paper, #fff);
+}
+.kpi-drill-h {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.kpi-drill-close,
+.kpi-drill-more {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 12px;
+  min-height: 36px;
+  border: 1px solid var(--ink, #121116);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  flex: none;
+}
+.kpi-drill-close:focus-visible,
+.kpi-drill-more:focus-visible {
+  outline: 2px solid var(--ink, #121116);
+  outline-offset: 2px;
+}
+.kpi-drill-more {
+  margin-top: 10px;
+}
+.kpi-drill-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.kpi-drill-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule, #b8b4c4);
+}
+.kpi-drill-row:last-child {
+  border-bottom: 0;
+}
+.kpi-drill-quote {
+  margin: 0 0 4px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.kpi-drill-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.kpi-drill-title a,
+.kpi-drill-meta a {
+  color: inherit;
+  text-decoration: underline;
+}
+.kpi-drill-meta {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2, #4a4656);
+}
+.kpi-drill-basis {
+  font-style: italic;
+}
+.kpi-drill-note {
+  margin-bottom: 4px;
+}
+.kpi-drill-end {
+  margin-top: 8px;
+}
+.is-withheld {
+  opacity: 0.85;
+}
+
+/* A phone: a bottom sheet over the story (the component portals it to <body> below 640px). */
+.kpi-drill-scrim {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.45);
+}
+.kpi-drill-sheet.is-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 501;
+  margin: 0;
+  max-height: 88vh;
+  max-height: 88dvh;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+  background: var(--paper, #fff);
+  color: var(--ink, #121116);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.kpi-drill-sheet.is-sheet .kpi-drill-head {
+  top: -14px;
+}
+.kpi-drill-sheet.is-sheet .kpi-drill-close {
+  min-height: 44px;
+  min-width: 72px;
+}

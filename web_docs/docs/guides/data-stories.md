@@ -201,6 +201,26 @@ A figure with no data behind it is never shown as zero:
 
 The figures come from `GET /api/data-centers/positions?state=&city=&limit=`, which sums the dbt mart `data_center_meeting_position` for the place and returns a few of the speakers' own words on each side from `data_center_public_comment`. The block is `web_app/src/components/stance/PositionsBlock.tsx`; its figures, caption and "not recorded" rules are `positionFigures` and `positionsCaption` in `web_app/src/utils/dataStory.ts`, with tests.
 
+### Tap a number to see the records behind it (#1288)
+
+Every figure on the **Who spoke up** screen that has records behind it is a button: tap it (or press Enter on it) and the list of those records opens. On a wide screen the list opens inline under the figures; on a phone it is a bottom sheet over the screen, with a **Close** button, a tap on the dimmed page or Escape to close it. The list is for the place in the URL (`?state=&city=`), the same scope as the figure, and its header says that scope. It loads 25 rows at a time ("Show more (25 of 60)") and ends with "All 60 shown."
+
+| Number | The list | Endpoint |
+| --- | --- | --- |
+| spoke for / spoke against / asked a question | Each counted speaker: their words verbatim, with the data center words marked; "First L." when the name was heard; the place and date; **Watch this moment** at the timestamp; and why the comment counts ("Counted because the decision it was on names a data center: …") | `GET /api/data-centers/speakers?side=for\|against\|question&state=&city=&limit=&offset=` |
+| votes for / votes against | Each data center decision with a recorded tally and at least one vote on that side: its headline (linking to `/decisions/:id`), the tally, the outcome, the place and date | `GET /api/data-centers/vote-decisions?side=for\|against&state=&city=&limit=&offset=` |
+| the public comments line ("60 public comments at 10 local governments…"), **Mention AI**, **Name &lt;company&gt;** | Each public comment segmented from our captions that the count includes: speaker "First L." when known, the place and date, **Watch this comment** at its start, and the keywords it matched | `GET /api/data-centers/comments?year=&state=&city=&ai=&company=&limit=&offset=` |
+
+The rule: **the list adds up to the number on the tile.** Each endpoint counts with the filter the figure's own endpoint uses (`/positions` scopes on `data_center_meeting_position`; `/comment-metrics` on `data_center_comment` with its `_where`), and pytest checks the filters are the same. A speaker figure counts rows, so the list has that many rows. A vote figure counts votes, not decisions: "8 votes for" opens "8 votes for in 1 decision", and the tallies listed sum to 8.
+
+What doesn't open:
+
+- A figure that is 0, "not recorded" or "—" is plain text: there is nothing to list.
+- The caption comments have **no quote**. `meeting_comment` stores no comment text, on purpose (privacy by construction, #1233), so the list links to the moment in the recording instead, and says why. A comment the segmenter flagged as a possible minor is still listed, so the count adds up, but with no name, no link and no keywords.
+- The overview's row of large counts (meetings, passages, agendas, jobs claims, sites, projects) and the topic story's position bars don't open yet: their endpoints return a capped list with no paging, so a list could stop short of the number. That is follow-up work, #1292.
+
+The buttons and the list are `web_app/src/components/stance/KpiDrill.tsx` (`DrillValue`, `KpiDrillSheet`), used by `PositionsBlock.tsx` and `CommentMetricsBlock.tsx`; the client is `web_app/src/api/storyDrill.ts`; the routes are `api/routes/data_center_drill.py`.
+
 ## The Data Center Story
 
 Up to eleven screens, in this order (a chart screen with nothing on record for the place is left out, so "N of M" counts only the screens shown). Each has a short word as its header (never a number), and each progress segment in the top bar is named after its screen ("3 of 11: Sites"). The id is what `?screen=` carries. The story opens on the record, not on the question (#950).
