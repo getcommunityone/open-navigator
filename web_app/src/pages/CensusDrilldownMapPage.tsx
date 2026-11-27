@@ -8,6 +8,7 @@ import { feature as topoFeature } from 'topojson-client'
 import { geoCentroid, geoContains } from 'd3-geo'
 import {
   ArrowLeftIcon,
+  MagnifyingGlassIcon,
   MapPinIcon,
   PauseIcon,
   PlayIcon,
@@ -248,6 +249,9 @@ export default function CensusDrilldownMapPage() {
   const touchUi = useMediaQuery(TOUCH_MAP_QUERY)
   const [tapPreview, setTapPreview] = useState<StageTapPreview | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  // Phones (<=640px): map-first layout; controls collapse (#1291).
+  const phone = useMediaQuery('(max-width: 640px)')
+  const [searchOpen, setSearchOpen] = useState(false)
 
   // ── display options (mirror existing page) ────────────────────────────────
   const viz: 'filled' | 'bubble' = searchParams.get('viz') === 'bubble' ? 'bubble' : 'filled'
@@ -1102,6 +1106,27 @@ export default function CensusDrilldownMapPage() {
   const showRightAside = true
   const tapVerb = touchUi ? 'tap' : 'click'
   const localStatus = localPin ? localPin.label : `${touchUi ? 'Tap' : 'Click'} any state to drill in`
+  const statusText = (
+             view === 'local'
+                ? localStatus
+                : view === 'zip'
+                  ? zctaTopo
+                    ? `${stateName} · ${Object.keys(zctaDisplayByZcta).length || 'ZCTA'} polygons · ${tapVerb} a ZIP to pin`
+                    : `${stateName} · ZIP tiles not generated for this state yet — run scripts/frontend/prep_zcta_tiles.sh`
+                  : view === 'place'
+                    ? placesGeoJson
+                      ? `${stateName} · ${(placesGeoJson.features ?? []).length} cities & towns in state · ${tapVerb} any to pin`
+                      : `${stateName} · place tiles not generated for this state yet — run scripts/datasources/census/export_census_map_static.py --place-states ${selectedStateFips ?? '??'}`
+                    : view === 'county'
+                      ? `${countyName ?? selectedCountyGeoid} · ${tapVerb} any county or address to go deeper`
+                      : view === 'state'
+                        ? touchUi
+                          ? `${stateName} · tap a county, tap again to open it`
+                          : `${stateName} · click any county`
+                        : touchUi
+                          ? `${Object.keys(stateDisplayById).length} states · tap one, tap again to open it`
+                          : `${Object.keys(stateDisplayById).length} states · click any to drill in`
+  )
   // Phone bottom sheet: only on touch/narrow screens, only while a county is
   // pinned and outside the street view. Desktop keeps the in-page card (#1095).
   const sheetMode = touchUi && !!pinnedCounty && view !== 'local'
@@ -1229,8 +1254,40 @@ export default function CensusDrilldownMapPage() {
     </nav>
   )
 
+  // Phone: one line - a back-up link to the parent plus the current place.
+  const parentCrumb = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null
+  const currentCrumb = crumbs[crumbs.length - 1]
+  const phoneBreadcrumb = (
+    <nav
+      aria-label="Drill-down breadcrumb"
+      title={crumbs.map((c) => c.label).join(' / ')}
+      className="flex min-w-0 items-center gap-1 whitespace-nowrap text-[13px] leading-tight text-slate-700"
+    >
+      {parentCrumb ? (
+        <button
+          type="button"
+          onClick={parentCrumb.onClick}
+          disabled={!parentCrumb.onClick}
+          title={`Back up to ${parentCrumb.label}`}
+          className="inline-flex min-w-0 max-w-[60%] shrink items-center gap-0.5 rounded px-1 py-0.5 font-medium text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        >
+          <span aria-hidden>&lsaquo;</span>
+          <span className="truncate">{parentCrumb.label}</span>
+        </button>
+      ) : null}
+      {parentCrumb ? (
+        <span aria-hidden className="text-slate-300">
+          ·
+        </span>
+      ) : null}
+      <span aria-current="page" className="min-w-0 truncate rounded bg-amber-100/70 px-1.5 py-0.5 font-semibold text-amber-800">
+        {currentCrumb?.label}
+      </span>
+    </nav>
+  )
+
   return (
-    <div className="mx-auto w-full min-w-0 space-y-2.5">
+    <div className="mx-auto w-full min-w-0 space-y-1.5 sm:space-y-2.5">
       {bundleMissing && (
         <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-semibold">No map data available.</p>
@@ -1268,6 +1325,44 @@ export default function CensusDrilldownMapPage() {
       />
 
       {/* header: breadcrumb + metric selector + address search */}
+      {phone ? (
+        <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 shadow-sm" data-testid="census-phone-header">
+          {phoneBreadcrumb}
+          <div className="mt-1 flex items-center gap-1.5">
+            <div className="min-w-0 flex-1">
+              <MetricPicker
+                compact
+                metrics={selectableMetrics}
+                metricSlug={metricSlug}
+                metricFullHelp={metricFullHelp}
+                onPick={onMetricChange}
+              />
+            </div>
+            <button
+              type="button"
+              aria-label="Search an address, city, or place"
+              aria-expanded={searchOpen}
+              onClick={() => setSearchOpen((v) => !v)}
+              className={`shrink-0 rounded-md border p-1.5 shadow-sm ${
+                searchOpen ? 'border-[#354F52] bg-[#354F52] text-white' : 'border-slate-300 bg-white text-slate-700'
+              }`}
+            >
+              <MagnifyingGlassIcon className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+          {searchOpen ? (
+            <div className="mt-1.5">
+              <MapAddressSearch
+                onPick={(r) => {
+                  setSearchOpen(false)
+                  onPickAddress(r)
+                }}
+                onClear={() => setPinnedAddress(null)}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : (
       <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">{breadcrumb}</div>
         {/* Desktop (xl+) selects metrics in the persistent sidebar browser; the
@@ -1284,6 +1379,7 @@ export default function CensusDrilldownMapPage() {
           <MapAddressSearch onPick={onPickAddress} onClear={() => setPinnedAddress(null)} />
         </div>
       </div>
+      )}
 
       <div
         className={`grid gap-3 ${
@@ -1329,13 +1425,23 @@ export default function CensusDrilldownMapPage() {
 
         {/* center: stage + legend */}
         <div className="flex min-w-0 flex-col gap-2">
-          <div ref={mapCardRef} className="relative scroll-mt-20 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+          <div
+            ref={mapCardRef}
+            className={`relative scroll-mt-20 rounded-lg border border-slate-200 bg-white shadow-sm ${
+              phone && view !== 'local'
+                ? `overflow-hidden p-0 ${view === 'nation' ? 'h-80' : 'h-[max(20rem,calc(100dvh-19rem))]'}`
+                : 'p-2'
+            }`}
+            data-testid="census-map-card"
+          >
             {/* ZIP / places views: opt-in boundary overlays. Both off by default. */}
             {view === 'zip' || view === 'place' ? (
               <div
                 className={
                   // Touch: a small control row above the map, never over it (#1238).
-                  touchUi
+                  phone
+                    ? 'absolute left-2 top-2 z-10 flex flex-wrap items-center gap-1'
+                    : touchUi
                     ? 'mb-2 flex flex-wrap items-center gap-1.5'
                     : 'absolute left-3 top-3 z-10 flex flex-col gap-1'
                 }
@@ -1495,6 +1601,7 @@ export default function CensusDrilldownMapPage() {
                 onHoverInfo={setHoverInfo}
                 onTapPreview={touchUi ? setTapPreview : undefined}
                 tapPreviewId={tapPreview?.info.id ?? null}
+                compact={phone}
               />
             )}
           </div>
@@ -1537,31 +1644,20 @@ export default function CensusDrilldownMapPage() {
             </div>
           ) : null}
 
-          {/* status strip */}
+          {/* status strip: phones get a slim hint line (or the sheet) instead */}
+          {phone ? (
+            !sheetMode ? (
+              <p data-testid="census-map-hint" className="px-1 text-[11px] leading-snug text-slate-600">
+                {statusText}
+              </p>
+            ) : null
+          ) : (
           <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-sm">
             <span className="font-mono text-[10px] uppercase tracking-widest text-amber-200">
               {view.toUpperCase()}
             </span>
             <span className="min-w-0 flex-1 truncate text-slate-100">
-              {view === 'local'
-                ? localStatus
-                : view === 'zip'
-                  ? zctaTopo
-                    ? `${stateName} · ${Object.keys(zctaDisplayByZcta).length || 'ZCTA'} polygons · ${tapVerb} a ZIP to pin`
-                    : `${stateName} · ZIP tiles not generated for this state yet — run scripts/frontend/prep_zcta_tiles.sh`
-                  : view === 'place'
-                    ? placesGeoJson
-                      ? `${stateName} · ${(placesGeoJson.features ?? []).length} cities & towns in state · ${tapVerb} any to pin`
-                      : `${stateName} · place tiles not generated for this state yet — run scripts/datasources/census/export_census_map_static.py --place-states ${selectedStateFips ?? '??'}`
-                    : view === 'county'
-                      ? `${countyName ?? selectedCountyGeoid} · ${tapVerb} any county or address to go deeper`
-                      : view === 'state'
-                        ? touchUi
-                          ? `${stateName} · tap a county, tap again to open it`
-                          : `${stateName} · click any county`
-                        : touchUi
-                          ? `${Object.keys(stateDisplayById).length} states · tap one, tap again to open it`
-                          : `${Object.keys(stateDisplayById).length} states · click any to drill in`}
+              {statusText}
             </span>
             {view !== 'nation' ? (
               <button
@@ -1574,6 +1670,7 @@ export default function CensusDrilldownMapPage() {
               </button>
             ) : null}
           </div>
+          )}
 
           {/* legends — same shading semantics as the existing page */}
           {view !== 'local' ? (
@@ -1602,6 +1699,7 @@ export default function CensusDrilldownMapPage() {
                 valueMode={valueMode}
                 metricHelp={metricFullHelp}
                 semantics={choroSemantics}
+                compact={phone}
               />
             ) : (
               <BubbleLegend
@@ -1915,6 +2013,11 @@ export default function CensusDrilldownMapPage() {
                 ) : null}
                 {sheetMode && !sheetOpen ? null : (
                 <div className={`rounded-lg border bg-white p-3 shadow-sm transition-colors ${accent}`}>
+                  {sheetMode && phone ? (
+                    <p className="mb-2 border-b border-slate-100 pb-2 text-[11px] leading-snug text-slate-600">
+                      {statusText}
+                    </p>
+                  ) : null}
                   {idle ? (
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
@@ -2214,12 +2317,31 @@ function MetricPicker({
   metricSlug,
   metricFullHelp,
   onPick,
+  compact = false,
 }: {
   metrics: CensusMetric[]
   metricSlug: string
   metricFullHelp: string
   onPick: (slug: string) => void
+  compact?: boolean
 }) {
+  if (compact) {
+    // Phone: just the dropdown (the label is its accessible name).
+    return (
+      <select
+        aria-label="Topic to show on the map"
+        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[13px] font-medium text-slate-900 shadow-sm"
+        value={metricSlug}
+        onChange={(e) => onPick(e.target.value)}
+      >
+        {metrics.map((m) => (
+          <option key={m.slug} value={m.slug}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+    )
+  }
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <span className="inline-flex items-center gap-1">
