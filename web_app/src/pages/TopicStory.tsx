@@ -49,6 +49,9 @@ import { fetchTopicLegislation, fetchTopicLocalActions } from '../api/topicPolic
 import UpcomingPanel from '../components/stance/UpcomingPanel'
 import { useTopicUpcoming } from '../hooks/useTopicUpcoming'
 import { upcomingHeadline } from '../utils/topicUpcoming'
+import OutcomesChain from '../components/stance/OutcomesChain'
+import { useTopicOutcomes } from '../hooks/useTopicOutcomes'
+import { outcomesHeadline } from '../utils/topicOutcomes'
 import { actionLabels, shadeStates, STATUS_LABEL, yearSpan } from '../utils/topicPolicy'
 import '../styles/folio.css'
 import '../styles/stance.css'
@@ -245,6 +248,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
 
   // What's coming up (#1302): the same query (and cache entry) as the screen's panel.
   const upcoming = useTopicUpcoming(def.slug, stateCode, null)
+  // What happened next (#1314): the chain's counts, shared with the screen's panel.
+  const outcomes = useTopicOutcomes(def.slug, stateCode, null)
 
   // --- which screens the place has ---------------------------------------------------------------------------------------
   const facts = captionQ.data
@@ -371,6 +376,28 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
             />
           ),
         }
+      case 'outcomes': {
+        const w = actionLabels(def.slug)
+        return {
+          headline: loadingOr(outcomes, 'outcomes', () => outcomesHeadline(outcomes.data, topicWord, label)),
+          context:
+            'From the meetings where it came up to what the public said, what local bodies did, the state bills and what is next. Tap a step to see its records.',
+          right: (
+            <OutcomesChain
+              topic={def.slug}
+              stateCode={stateCode}
+              scopeLabel={label}
+              subject={subject}
+              actionWords={{ advanced: w.advanced, blocked: w.blocked }}
+              dataCenterStory={false}
+              onOpenScreen={(id) => {
+                const i = screens.findIndex((x) => x.id === id)
+                if (i >= 0) goTo(i)
+              }}
+            />
+          ),
+        }
+      }
       case 'timeline':
         return {
           headline: `How often ${topicWord} came up ${stateName ? `in ${stateName}` : 'across America'}, year by year.`,

@@ -1,0 +1,33 @@
+/* #1314: the chain from meeting to outcome. A vertical flow on phones; left to right on a wide screen, scrolling
+   sideways when the steps don't fit. Counts and words only: no chart for a handful of records (#1289). */
+.oc-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 0; counter-reset: oc; }
+.oc-step { position: relative; padding: 10px 0 12px 22px; border-left: 2px solid var(--violet); margin-left: 6px; min-width: 0; }
+.oc-step::before { content: ''; position: absolute; left: -7px; top: 14px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--violet); }
+.oc-step.is-empty::before { background: var(--paper-raised); border: 2px solid var(--ink-3); width: 8px; height: 8px; left: -7px; }
+.oc-step:last-child { border-left-color: transparent; }
+.oc-head { display: flex; align-items: baseline; gap: 10px; }
+.oc-label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--violet-ink); font-weight: 600; }
+.oc-num { font-size: 24px; font-weight: 600; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.oc-step.is-empty .oc-num { color: var(--ink-3); }
+.oc-line { margin: 4px 0 0; font-size: 13.5px; line-height: 1.4; color: var(--ink-2); }
+.oc-examples { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.oc-examples li { display: grid; gap: 1px; min-width: 0; }
+.oc-ex-meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.oc-ex-title { font-size: 13.5px; font-weight: 500; color: var(--violet-ink); overflow-wrap: anywhere; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.oc-quote { font-size: 12.5px; font-style: italic; color: var(--ink-2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.oc-quote mark { background: color-mix(in srgb, var(--violet) 22%, transparent); color: var(--ink); font-style: normal; }
+.oc-tag { font-size: 12px; color: var(--ink-2); }
+.oc-more { appearance: none; background: none; border: 0; padding: 4px 0 0; font: inherit; font-size: 13px; font-weight: 600;
+  color: var(--violet-ink); cursor: pointer; min-height: 24px; }
+.oc-more:focus-visible { outline: 2px solid var(--violet-ink); outline-offset: 2px; }
+@media (min-width: 900px) {
+  .oc-list { flex-direction: row; overflow-x: auto; gap: 0; padding-bottom: 6px; scroll-snap-type: x proximity; }
+  .oc-step { flex: 0 0 210px; border-left: 0; border-top: 2px solid var(--violet); margin: 8px 12px 0 0; padding: 14px 4px 4px 0;
+    scroll-snap-align: start; }
+  .oc-step::before { left: 0; top: -7px; }
+  .oc-step.is-empty::before { left: 0; top: -6px; }
+  .oc-step:last-child { border-top-color: var(--rule); }
+}
