@@ -26,6 +26,12 @@ export interface TopicPositions {
   /** The headline's predicate after "most meetings that took up [topic]": "wanted limits on short-term rentals". */
   againstVerb: string
   forVerb: string
+  /**
+   * The short title's predicate after the place (#1222): "[California] mostly wants limits on short-term rentals." Absent:
+   * the title says "mostly opposes / mostly supports [topic]".
+   */
+  againstTitle?: string
+  forTitle?: string
   /** What "for" means, from topic_lean's stance, for the map's "How to read this map" note: "For = allowing short-term
    * rentals". A topic with named sides (guns) defines both sides and what isn't counted. No closing period. */
   forMeans: string
@@ -45,6 +51,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'were against data centers',
     forVerb: 'were for data centers',
+    againstTitle: 'mostly opposes data centers',
+    forTitle: 'mostly wants data centers',
     forMeans: 'For = for the data center',
   },
   // topic_lean: "for" = allowing short-term rentals (permits, fewer limits); against = banning or restricting them.
@@ -56,6 +64,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'wanted limits on short-term rentals',
     forVerb: 'wanted to allow short-term rentals',
+    againstTitle: 'mostly wants limits on short-term rentals',
+    forTitle: 'mostly wants to allow short-term rentals',
     forMeans: 'For = allowing short-term rentals; against = banning or restricting them',
   },
   // topic_lean: "for" = buying, keeping or expanding license plate reader cameras; against = rejecting or removing them.
@@ -67,6 +77,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'were against the plate reader cameras',
     forVerb: 'wanted the plate reader cameras',
+    againstTitle: 'mostly opposes the plate reader cameras',
+    forTitle: 'mostly wants the plate reader cameras',
     forMeans: 'For = buying, keeping or expanding the cameras; against = rejecting or removing them',
   },
   // Gun control (#1237), read by the gun-control question that wrote the stored readings (question_version 48468cc5296e):
@@ -81,6 +93,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: 'No reading yet',
     againstVerb: 'favored gun rights',
     forVerb: 'favored gun limits',
+    againstTitle: 'mostly favors gun rights',
+    forTitle: 'mostly favors gun limits',
     forMeans:
       'Gun limits = a local measure restricting firearms (where they may be carried or fired, sales, ranges or shops near homes, storage). ' +
       'Gun rights = opposing such limits or backing a Second Amendment sanctuary or rights-expansion resolution. ' +
@@ -95,6 +109,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'were against the pickleball courts',
     forVerb: 'wanted the pickleball courts',
+    againstTitle: 'mostly opposes the pickleball courts',
+    forTitle: 'mostly wants the pickleball courts',
     forMeans: 'For = building, keeping or expanding the courts or venue',
   },
   // topic_lean: "for" = keeping or adding fluoride in the water; against = ending or opposing fluoridation.
@@ -106,6 +122,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'wanted fluoridation ended',
     forVerb: 'wanted fluoride kept in the water',
+    againstTitle: 'mostly wants fluoridation ended',
+    forTitle: 'mostly wants fluoride kept in the water',
     forMeans: 'For = keeping or adding fluoride; against = ending or opposing fluoridation',
   },
   // topic_lean: "for" = building or keeping the bike lanes or paths; against = opposing or removing them.
@@ -117,6 +135,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'were against the bike lanes',
     forVerb: 'wanted the bike lanes',
+    againstTitle: 'mostly opposes the bike lanes',
+    forTitle: 'mostly wants the bike lanes',
     forMeans: 'For = building or keeping the lanes or paths',
   },
 }

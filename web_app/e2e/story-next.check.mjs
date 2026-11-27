@@ -22,7 +22,7 @@ const CORNER = 40
 const DEVICES = { 'pixel-7': devices['Pixel 7'], 'iphone-13': devices['iPhone 13'], desktop: { viewport: { width: 1440, height: 900 } } }
 
 // Software-only rendering: some headless hosts never produce a frame with the GPU path (rAF stalls).
-const browser = await chromium.launch({ args: ['--disable-gpu', '--disable-software-rasterizer'] })
+const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--disable-gpu', '--disable-software-rasterizer'] })
 let failures = 0
 const fail = (msg) => {
   failures += 1

@@ -24,7 +24,7 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { isTouchOnly } from '../../utils/touchOnly'
 import { isCurrentPage } from '../../utils/currentPage'
-import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
 import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
@@ -366,6 +366,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           return (
             <rect
               key={i}
+              data-state={b.code ?? undefined}
               x={b.x - s / 2}
               y={b.y - s / 2}
               width={s}
@@ -445,13 +446,15 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               Open the {stateName(shownCode)} story <span aria-hidden="true">→</span>
             </Link>
           )}
+          {/* On a phone nothing depends on hover (#1229): the card a tap opened closes here, or on a tap outside the map. */}
+          {touch && <MapCardClose onClose={keyNav.close} what={stateName(shownCode)} />}
         </QuoteCard>
       )}
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? (quote ? 'Tap the button to open its story.' : 'Tap to open its story.') : 'Click to open its story.'}`
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? (quote ? 'Tap the button, or tap the state again, to open its story; tap outside the map to close.' : 'Tap to open its story.') : 'Click to open its story.'}`
           : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to read what was said, then open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
 

@@ -5,6 +5,7 @@ import { storyScreenIndex } from '../../utils/dataStory'
 import { actsMode, useActs, type ActsApi, type ActsMode, type Hold } from './useActs'
 import { useRecentWrites } from './useRecentWrites'
 import { useScreenKeys } from './useScreenKeys'
+import { useSwipeNav } from '../../hooks/useSwipeNav'
 
 interface Options {
   /** The screens in the story, in order (only their ids are read). */
@@ -25,13 +26,14 @@ interface Options {
 
 export interface StoryScreensApi {
   rootRef: React.RefObject<HTMLDivElement>
-  /** The cover's Start button: while it is in view `onCover` is true. */
-  startRef: React.RefObject<HTMLButtonElement>
+  /** A mark in the cover (#1234: the cover has no buttons of its own): while it is in view `onCover` is true. */
+  startRef: React.RefObject<HTMLSpanElement>
   wide: boolean
   mode: ActsMode
   active: number
   activeRef: React.MutableRefObject<number>
   onCover: boolean
+  onCoverRef: React.MutableRefObject<boolean>
   goTo: (round: number) => void
   next: () => void
   prev: () => void
@@ -42,7 +44,8 @@ export interface StoryScreensApi {
  * The screen machine of a data story (#1224), shared by the Data Center Story and the topic stories: one screen at a time
  * (`useActs`: pinned on a wide screen, snapped on a phone), the screen in view written to `?screen=` and a `?screen=` link
  * landing on its screen, the cover (`[data-cover]`) and whether it is in view, keyboard paging (`useScreenKeys`), and focus
- * on the settled screen's heading after a keyboard move (#1146). Moved out of DataStory.tsx unchanged.
+ * on the settled screen's heading after a keyboard move (#1146), re-aiming a jump the growing page threw off (#1208) and the
+ * sideways swipe (#1222). Moved out of DataStory.tsx unchanged.
  */
 export function useStoryScreens(opts: Options): StoryScreensApi {
   const { screens, screenParam, setSp, scopeKey, resetKey, dialogOpen, reduced } = opts
@@ -54,15 +57,14 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   const mode = reduced ? 'snap' : actsMode(false, wide)
   const rootRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
-  // The cover in view (#1192): its Start button is the way forward, so neither the floating Next nor the phone bar's Next
-  // shows beside it (the phone bar's Next would also skip the Overview, moving on from screen 0 before it is seen).
+  // The cover in view (#1192): the fixed Next starts the story there (#1234), and the phone bar shows no Back.
   const [onCover, setOnCover] = useState(true)
-  const startRef = useRef<HTMLButtonElement>(null)
+  const onCoverRef = useRef(true)
+  onCoverRef.current = onCover
+  const startRef = useRef<HTMLSpanElement>(null)
   const shownIds = useRef<string[]>([])
   useEffect(() => {
-    // The cover's Start button when it has one (the Data Center Story), else the cover itself (the topic stories, whose one
-    // Next is fixed at the bottom right, #1224).
-    const el = startRef.current ?? rootRef.current?.querySelector<HTMLElement>('[data-cover]')
+    const el = startRef.current
     if (!el || typeof IntersectionObserver === 'undefined') return
     // What sits under the sticky site header and the story's own bar does not count as visible.
     const header = document.querySelector<HTMLElement>('.site-header')
@@ -100,6 +102,11 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   }, [resetKey])
 
   const activeRef = useRef(0)
+  /** The screen the reader last asked for (a segment, Next, Back, a key, a swipe), until the page settles on it (#1208). */
+  const intent = useRef<{ id: string; tries: number } | null>(null)
+  const screensRef = useRef(screens)
+  screensRef.current = screens
+  const goToRef = useRef<(i: number) => void>(() => {})
   const ready = useRef(false)
   const lastWritten = useRef<string | null>(null)
   const recent = useRecentWrites()
@@ -107,14 +114,20 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   const viaKeyboard = useRef(false)
   useEffect(() => {
     const k = () => (viaKeyboard.current = true)
-    const m = () => (viaKeyboard.current = false)
+    const m = () => {
+      viaKeyboard.current = false
+      // The reader moving by hand drops a pending jump (#1208); a button or swipe sets a new one after this.
+      intent.current = null
+    }
     window.addEventListener('keydown', k)
     window.addEventListener('pointerdown', m)
     window.addEventListener('wheel', m, { passive: true })
+    window.addEventListener('touchstart', m, { passive: true })
     return () => {
       window.removeEventListener('keydown', k)
       window.removeEventListener('pointerdown', m)
       window.removeEventListener('wheel', m)
+      window.removeEventListener('touchstart', m)
     }
   }, [])
 
@@ -156,6 +169,18 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   /** After a keyboard move, focus lands on the settled screen's heading (#1146): a screen reader reads where it is, Tab goes on
    *  to the screen's controls (Back, then Next), and the arrow keys still page because a heading isn't a control. */
   const onSettled = useCallback((h: Hold) => {
+    // A jump made while the page was still growing (a progress segment pressed as the place's data arrived, #1208) can land
+    // on another screen: the pixels it aimed for moved. Re-aim at the screen asked for, by id, a few times at most.
+    const want = intent.current
+    if (want) {
+      const at = screensRef.current.findIndex((x) => x.id === want.id)
+      if (at >= 0 && (h.kind === 'cover' || h.round !== at) && want.tries < 3) {
+        want.tries += 1
+        goToRef.current(at)
+        return
+      }
+      intent.current = null
+    }
     if (dialogOpenRef.current) return
     // Resting on the opening (#1182): its Start and Next story buttons stay the first Tab stops; no screen takes focus.
     if (h.kind === 'cover') return
@@ -192,7 +217,9 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     // The story opens on its first screen's hold (overview), not on the empty start of its timeline.
     // When the screens change (a new place, or empty screens dropping out as data arrives), the reader stays on the
     // screen they were on, found by its id.
-    const fromUrl = storyScreenIndex(screens, screenParam)
+    // The screen the reader asked for wins over the URL and the old position when the screens rebuild under a jump (#1208).
+    const fromIntent = intent.current ? screens.findIndex((x) => x.id === intent.current!.id) : -1
+    const fromUrl = fromIntent >= 0 ? fromIntent : storyScreenIndex(screens, screenParam)
     const wasOn = shownIds.current[activeRef.current]
     shownIds.current = screens.map((x) => x.id)
     const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1
@@ -251,7 +278,30 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     if (at >= 0 && at !== activeRef.current) acts.goToRound(at)
   }, [screenParam, screens, acts, recent])
 
-  const goTo = acts.goToRound
+  goToRef.current = acts.goToRound
+  /** Every move the reader makes goes through here, so the intended screen is known when the page settles (#1208). */
+  const goTo = useCallback(
+    (i: number) => {
+      const at = Math.max(0, Math.min(i, screensRef.current.length - 1))
+      const id = screensRef.current[at]?.id
+      // A move to the screen already shown sets no pending jump (it may never settle again to clear it).
+      intent.current = id && at !== activeRef.current ? { id, tries: 0 } : null
+      acts.goToRound(i)
+    },
+    [acts],
+  )
+  // Swipe between screens on a touch screen (#1222): left = next (on the cover, Start), right = back.
+  useSwipeNav({
+    rootRef,
+    enabled: !dialogOpen,
+    onNext: () => {
+      if (onCoverRef.current) goTo(0)
+      else if (activeRef.current < n - 1) goTo(activeRef.current + 1)
+    },
+    onPrev: () => {
+      if (!onCoverRef.current && activeRef.current > 0) goTo(activeRef.current - 1)
+    },
+  })
   useEffect(() => acts.lock(dialogOpen), [dialogOpen, acts])
   dialogOpenRef.current = dialogOpen
 
@@ -265,5 +315,5 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     enabled: !dialogOpen,
   })
 
-  return { rootRef, startRef, wide, mode, active, activeRef, onCover, goTo, next, prev, acts }
+  return { rootRef, startRef, wide, mode, active, activeRef, onCover, onCoverRef, goTo, next, prev, acts }
 }

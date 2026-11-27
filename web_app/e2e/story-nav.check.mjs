@@ -1,7 +1,8 @@
-// Story nav check (#1138): on a 1440x900 desktop, step through every screen of a data story and confirm the inline Next and
-// Back buttons sit in the same place, at the same size, on every screen (within 2px). The first screen has no Back but its
-// Next keeps the spot; the last screen's primary action takes Next's spot (same right edge, top and height; its label is longer). No floating Next is shown while the inline one is.
-// The cover (#1182) is checked first (#1192): no floating Next beside Start, one progress indicator, no Close (×); then Start.
+// Story nav check (#1138, #1234): on a 1440x900 desktop, step through every screen of a data story and confirm the one
+// fixed Next (bottom right, `data-testid="story-next"`, owner 2026-11-27) sits in the same place, at the same size, on every
+// screen and on the cover (within 2px; on the last screen it is a quiet "Done" with the same right edge and bottom), and
+// that the inline Back sits in the same place from the second screen on. No inline Next button shows beside the fixed one.
+// The cover (#1182) is checked first: no Start/Next story button pair, one progress indicator, a Close (×); then Next.
 //
 // Topic stories (#1224) have one fixed Next instead of the inline one: e2e/story-next.check.mjs checks them.
 //
@@ -22,7 +23,9 @@ const paths = (arg('path', '/stories/data-centers,/stories/data-centers?state=AL
 const shots = arg('shots', null)
 const TOL = 2
 
-const browser = await chromium.launch()
+// Software GL: on some machines (WSL after a restart) headless Chromium produces no frames with the default GPU path,
+// so screenshots and clicks wait forever.
+const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--disable-gpu', '--disable-software-rasterizer'] })
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
 let failures = 0
 
@@ -47,23 +50,33 @@ for (const path of paths) {
   await page.waitForTimeout(1500)
   // The story opens on its cover (#1182): Start is the way forward there, so no floating Next; one progress indicator (the
   // top bar's segments, no rail of numbered dots) and no Close (×) (#1192). Then Start lands on the first screen.
+  const box = (sel) =>
+    page.evaluate((sel) => {
+      const el = document.querySelector(sel)
+      if (!el || el.getClientRects().length === 0) return null
+      const b = el.getBoundingClientRect()
+      return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height), r: Math.round(innerWidth - b.right), b: Math.round(innerHeight - b.bottom), text: el.textContent.trim() }
+    }, sel)
   const cover = await page.evaluate(() => {
     const shown = (sel) => [...document.querySelectorAll(sel)].some((el) => el.getClientRects().length > 0)
     return {
-      start: shown('[data-cover] .home-story-start'),
-      floating: shown('[data-testid="floating-next"]'),
+      pair: shown('[data-cover] .home-story-start') || shown('[data-cover] .home-story-next'),
       progress: ['[data-testid="stance-pips"]', '.story-dots', '[data-testid="story-topbar"]', '.story-bottombar-progress'].filter(shown).length,
       close: shown('[aria-label="Close story"]'),
     }
   })
+  const coverNext = await box('[data-testid="story-next"]')
   const coverProblems = []
-  if (cover.start && cover.floating) coverProblems.push('floating Next on the cover')
+  if (cover.pair) coverProblems.push('the Start / Next story button pair is back on the cover')
+  if (!coverNext) coverProblems.push('no fixed Next on the cover')
+  else if (coverNext.r > 40 || coverNext.b > 40 || coverNext.h < 44) coverProblems.push(`Next not at the bottom right: ${JSON.stringify(coverNext)}`)
   if (cover.progress !== 1) coverProblems.push(`${cover.progress} progress indicators`)
-  if (cover.close) coverProblems.push('a Close (×) button')
+  // Close (×) is back, top right (owner 2026-11-27, reversing #1199's removal).
+  if (!cover.close) coverProblems.push('no Close (×) button')
   failures += coverProblems.length ? 1 : 0
-  console.log(`\n${path}: cover ${coverProblems.length ? 'FAIL  <- ' + coverProblems.join('; ') : 'ok'}`)
-  if (cover.start) {
-    await page.locator('[data-cover] .home-story-start').click()
+  console.log(`\n${path}: cover ${coverProblems.length ? 'FAIL  <- ' + coverProblems.join('; ') : 'ok'} next=${JSON.stringify(coverNext)}`)
+  if (coverNext) {
+    await page.locator('[data-testid="story-next"]').click()
     await page.waitForTimeout(1500)
   }
   const count = await page.locator('section[data-panel]').count()
@@ -86,12 +99,12 @@ for (const path of paths) {
       const box = (el) => {
         if (!el || el.getClientRects().length === 0) return null
         const b = el.getBoundingClientRect()
-        return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) }
+        return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height), r: Math.round(innerWidth - b.right), b: Math.round(innerHeight - b.bottom) }
       }
-      const next = panel?.querySelector('.stance-nav [data-nav="next"]') ?? panel?.querySelector('.stance-nav .stance-next')
+      const fixed = document.querySelector('[data-testid="story-next"]')
+      const inline = panel?.querySelector('.stance-nav button.stance-next[data-nav="next"]')
       const back = panel?.querySelector('.stance-nav [data-nav="back"]') ?? panel?.querySelector('.stance-nav .stance-back')
-      const float = document.querySelector('[data-testid="floating-next"]')
-      return { id: panel?.getAttribute('data-screen'), next: box(next), back: box(back), floating: Boolean(float && float.getClientRects().length) }
+      return { id: panel?.getAttribute('data-screen'), next: box(fixed), label: fixed?.textContent?.trim() ?? '', inline: Boolean(box(inline)), back: box(back) }
     }, i)
     rows.push(r)
     if (shots) await page.screenshot({ path: `${shots}-${path.replace(/[^a-z0-9]+/gi, '_')}-${String(i + 1).padStart(2, '0')}-${r.id}.png` })
@@ -99,23 +112,25 @@ for (const path of paths) {
       await page.keyboard.press('ArrowRight')
     }
   }
-  const ref = rows.find((r) => r.next)?.next
+  const ref = rows[0]?.next
   const refBack = rows.find((r) => r.back)?.back
   const near = (a, b) => a && b && Math.abs(a.x - b.x) <= TOL && Math.abs(a.y - b.y) <= TOL && Math.abs(a.w - b.w) <= TOL && Math.abs(a.h - b.h) <= TOL
-  // The last screen's action reads longer than "Next", so it takes Next's spot by its right edge, top and height.
-  const endsLike = (a, b) => a && b && Math.abs(a.x + a.w - (b.x + b.w)) <= TOL && Math.abs(a.y - b.y) <= TOL && Math.abs(a.h - b.h) <= TOL
+  // The last screen's Next is a quiet "Done" (owner 2026-11-27), so it keeps Next's right edge, bottom and height.
+  const endsLike = (a, b) => a && b && Math.abs(a.r - b.r) <= TOL && Math.abs(a.b - b.b) <= TOL && Math.abs(a.h - b.h) <= TOL
   console.log(`\n${path}: ${rows.length} screens`)
   rows.forEach((r, i) => {
     const problems = []
     const last = i === rows.length - 1
-    if (!r.next) problems.push('no Next')
+    if (!r.next) problems.push('no fixed Next')
     else if (last ? !endsLike(r.next, ref) : !near(r.next, ref)) problems.push(`Next ${JSON.stringify(r.next)} != ${JSON.stringify(ref)}`)
+    if (r.next && (r.next.r > 40 || r.next.b > 40 || r.next.h < 44)) problems.push('Next not at the bottom right or under 44px')
+    if (last && !/^Done/.test(r.label)) problems.push(`last screen's Next reads "${r.label}", not a quiet Done`)
+    if (r.inline) problems.push('an inline Next beside the fixed one')
     if (i === 0 && r.back) problems.push('Back on the first screen')
     if (i > 0 && !r.back) problems.push('no Back')
     else if (i > 0 && !near(r.back, refBack)) problems.push(`Back ${JSON.stringify(r.back)} != ${JSON.stringify(refBack)}`)
-    if (r.floating && r.next) problems.push('floating Next shown beside the inline one')
     failures += problems.length ? 1 : 0
-    console.log(`  ${problems.length ? 'FAIL' : 'ok  '} ${String(i + 1).padStart(2)} ${r.id}: next=${JSON.stringify(r.next)} back=${JSON.stringify(r.back)}${problems.length ? '  <- ' + problems.join('; ') : ''}`)
+    console.log(`  ${problems.length ? 'FAIL' : 'ok  '} ${String(i + 1).padStart(2)} ${r.id}: next=${JSON.stringify(r.next)} "${r.label}" back=${JSON.stringify(r.back)}${problems.length ? '  <- ' + problems.join('; ') : ''}`)
   })
   await page.close()
 }

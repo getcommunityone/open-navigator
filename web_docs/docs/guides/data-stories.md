@@ -25,6 +25,13 @@ The home map is now drawn like the Explore map: each state is a grid of small sq
 
 Beyond counted speakers, both maps show an **AI reading** of each data center meeting ([#1117](https://github.com/getcommunityone/open-navigator/issues/1117)). Jev, a classifier, read every meeting's transcript and judged whether the members of the public who spoke, and the elected officials, were mostly against, mostly for or split (`data_center_meeting_lean`, served as `public_against_meetings` and `disagreement_meetings` on positions `by_state` and meeting-mentions `by_place`). A state or county with no counted speakers but at least one meeting where the public mostly opposed a data center (probability at least 0.7) is a lighter red, labelled **Public mostly opposed (AI reading of meetings)**; counted speakers keep their own colours. Where Jev read the public as opposed and officials as supportive, and the meeting wasn't a moratorium, a denial or an approval of rules (**officials sided against the public**), the map draws nothing extra (the owner preferred no dark outlines); it is stated in the hover card, the readout and the data table. The hover card and readout add a line such as "AI reading: the public mostly opposed in 2 meetings; officials sided against the public in 2 meetings." only when a count is above 0, and the data tables add both columns. "Supported" and "mixed" readings are never shown, because hand checks found them unreliable. The state drill-down also draws each county's border as a thin line over its dots, and it tells towns from counties the way printed maps do: towns and cities stay dark and bold beside their ring, while county governments are small, uppercase, letter-spaced grey text at the county's centre ("FAYETTE COUNTY"), placed after the towns. Method and limits: [Data center meeting lean](../development/data-center-meeting-lean.md). On a phone, one tap on a state opens its story ([#1120](https://github.com/getcommunityone/open-navigator/issues/1120)); there is no hover there, so the quote card is a desktop affordance. **Changed 26 Nov 2026 ([#1222](https://github.com/getcommunityone/open-navigator/issues/1222)):** on a phone, the first tap on a state that has a quote card now shows **that state's** card, and its **Open the [State] story →** button opens the story. The page's scope label, map highlight, state select and charts then change to that state. A tap on a state with no card, or a second tap on the state already shown, still opens its story directly. When the card's state is the page the reader is already on, the card says **You're reading the [State] story** instead of offering a button that would do nothing. Before this change a tap focused the map, the keyboard's starting state (the page's own) took the card, and the button always led back to the current page. Keyboard focus still starts on the page's state.
 
+**Changed 26 Nov 2026 ([#1229](https://github.com/getcommunityone/open-navigator/issues/1229)):** on a phone nothing on the story maps depends on hover. The owner reported "Once I click on one dot I can't click on a different one" on the live topic story (Android Chrome): in that build the first tap focused the map, the keyboard's starting state (the page's own, Alabama) took the card, and every later tap opened another state's story in place while the Alabama card stayed pinned. #1222 fixed the pinned card; this change finishes the touch rules for all three story maps (the home and topic state box map, the Data Center Overview's national dot map and its county map):
+
+- A tap on a state (or county) shows its card, and a tap on another switches the card, any number of times in any order. A second tap on the state already shown opens its story (narrows the Overview to it); a state with no card opens at once.
+- The Overview's national dot map now works the same way on a phone: the first tap on a state with a passage shows its card with a **Show [State] →** button instead of narrowing at once with the card hidden behind the change.
+- A card a tap opened closes on its **Close** button (44px tall, named "Close the [State] card" for screen readers, focus returns to the map) or on a tap anywhere outside the map and its card. Scrolling the page does not close it (a touch that turns into a scroll is not a tap). On a device that reports hover but is used with a finger, a tap still acts like a mouse; that is [#1252](https://github.com/getcommunityone/open-navigator/issues/1252). On a desktop the card still follows the mouse and has no Close button; the keyboard (#1146) is unchanged: Tab starts on the page's state, the arrows move, Enter opens and Escape hides.
+- Each state's boxes carry `data-state` (the two-letter code). `web_app/e2e/map-taps.check.mjs` taps states A, B, C, B, A, D at Pixel 7 and iPhone 13, checks the card and outline follow each tap, that Close and a tap outside close it, that a second tap opens the story and later taps still switch, does the same on the Overview dot map and the county map after the drill, and checks the keyboard and mouse at 1440×900. Run it against a running app: `node e2e/map-taps.check.mjs --base http://localhost:5173`.
+
 ### Which meeting a map card quotes (#1230)
 
 **Changed 26 Nov 2026 ([#1230](https://github.com/getcommunityone/open-navigator/issues/1230)).** The owner did not believe
@@ -194,6 +201,54 @@ Up to eleven screens, in this order (a chart screen with nothing on record for t
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
+### Start, short titles, swipe and the phone Back (#1234, 26 Nov 2026)
+
+- **Start opens the story, not its cover.** Every link that already means "start" (home's **Start the data center
+  story**, the home topic cards' Start, the **Start** on each `/stories` card) goes to `/stories/<topic>?…&screen=overview`
+  (`storyStartHref` in `utils/storyNav.ts`), so the reader lands on the Overview and does not press Start twice. A plain
+  link (a shared URL, the topic picker, **Next story**) still opens the cover. The home map's drill-down keeps its
+  navigation state (#1213). `?screen=<id>` deep links open that screen, and a progress segment pressed while the place's
+  data is still arriving re-aims at the screen it names once the page settles (#1208).
+- **Titles are the short conclusion only** ("America hates data centers."), with no counts and no "AI reading" text;
+  at a place whose own reading is too thin, the title is the broader conclusion and the line under it starts with the
+  place, which is the place control. The Overview never repeats the title. Details, wording and before/after:
+  [Story captions](../development/story-captions.md#decision-26-nov-2026-1234-the-title-is-the-short-conclusion-only-no-ai-reading-text).
+  This replaces the title examples in the rules below (they keep their order and thresholds).
+- **Swipe between screens on a touch screen** (owner: "It should swipe left to toggle"): swipe left = next screen (on
+  the cover, start), swipe right = previous. It needs a mostly sideways move (50px or more, 1.5 times more sideways than
+  vertical, within 0.8s), so scrolling up and down never turns a screen, and it is off inside maps, charts, the place
+  dialog and form fields (`useSwipeNav` in `web_app/src/hooks/useSwipeNav.ts`, shared with the topic stories). The git
+  history shows no earlier sideways swipe in the story (the phone has moved by vertical scroll snap since #921), so this
+  is new behaviour, not a restored handler.
+- **The phone bottom bar has Back** (owner: "On phone back button is missing"): a round 48px ← left of the progress,
+  named "Back: [previous screen]", hidden on the cover and the first screen. Desktop keeps the inline Back.
+- **Close top right, Next bottom right, nothing else** (decision 27 Nov 2026; owner: "I think a right Next green button at
+  bottom right always visible. The two buttons is confusing." and "This is confusing. We should have consistent Close in
+  top right, probably move change state elsewhere, have Next in bottom right and move Next story somewhere super subtle
+  so it doesn't cause this. Just make Close go back to home and pick next story."). This reverses #1199's removal of the
+  × and replaces its Start-only cover:
+  - **Close (×)** sits in the top-right corner of the story's sticky bar on every screen, 44px, named "Close story"
+    (`StoryClose.tsx`, through `ScopeBar`'s `close` prop; shared with the topic stories). It goes to the home page with
+    the place kept and the same story card shown (`/?state=&city=[&story=]#data-stories`, `storyCloseHref`). Escape
+    closes too, unless a dialog is open.
+  - The bar drops **← Data stories** and the **Showing: [place] · National only** row. The title's place control
+    ("[Texas ▾] hates data centers.", or the subhead's when the title names a broader place) is the page's one place
+    switcher.
+  - **One green Next →** is fixed at the bottom right of the window on every screen, desktop and phone (inside the
+    safe-area insets, 48px tall; `StoryNextButton.tsx`, shared). On the cover it starts the story (landing on the
+    Overview); on a screen it goes to the next screen. On the last screen it is a quiet outlined **Done** in the same
+    place, which closes the story: the story ends there. The cover's **Start / Next story** pair is gone, the screens'
+    inline Next buttons give way to it (Back, Skip and **See every data center record** stay) and the floating bar
+    (`FloatingNext`) no longer shows on the story. The page leaves 96px under its last content on a wide screen (the
+    phone bar's height on a phone), so it never covers anything; on a phone it sits at the right end of the bottom bar,
+    which keeps Back and the progress dots.
+  - **Next story** is gone from the cover and the screens; after the last screen there is at most a small plain-text
+    link, "Another story: Guns". The home page is where readers pick the next story: the home story cards keep one
+    primary **Start the [topic] story →** and no Next story link.
+  - `e2e/story-nav.check.mjs` (1440x900) and `e2e/story-flow.check.mjs` (Pixel 7, iPhone 13, 1440x900) check Close at the
+    same top-right box and Next at the same bottom-right box on the cover and every screen, Done on the last screen, and
+    that Close and Escape go home with the place kept.
+
 ### The title states the place's strongest statement (#993, #1125)
 
 The story's title, and the caption on each **Browse topics** tile on the home page, is the strongest statement the record
@@ -293,6 +348,8 @@ count for the scope; missing data falls through to the next rule. Thresholds and
 [Story captions](../development/story-captions.md).
 
 ### One title, with a scoped subhead and numbered points (#1134)
+
+*(Since #1234, 26 Nov 2026: the Overview no longer repeats the title; it leads with its own count of the record. See above.)*
 
 The home hero, the story header and the story's Overview screen state the **same** caption for the page's scope, from
 `pickCaption`. On the Overview, any caption but the bare question (hates, divided, state comparison, meeting count) is
@@ -404,9 +461,11 @@ It is drawn on a canvas over the map (`MapDrill.tsx`); the map stays in the page
 
 A strip of segments along the lower edge of the top bar has one segment per screen. The one in view fills, the ones behind it stay filled, and the words beside it say what is left ("Seven to go", "One to go", "Last one").
 
-Every screen has one primary action: the three answers on the question and the last screen (then **See every data center record** once you have answered), and **Next →** everywhere else. On a wide screen, when that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
+*(Data Center Story since #1234, 27 Nov 2026: the fixed bottom-right Next and the top-right Close replace this bar; see above.)* Every screen has one primary action: the three answers on the question and the last screen (then **See every data center record** once you have answered), and **Next →** everywhere else. On a wide screen, when that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
 
 ### Story navigation: one exit, one progress indicator, the next story (#1102, #1192)
+
+*(Superseded in part by #1234, 27 Nov 2026: Close (×) is back top right as the one exit, "← Data stories" and the cover's Start / Next story pair are gone, and one fixed Next sits bottom right. See "Close top right, Next bottom right, nothing else" above.)*
 
 **Simplified 26 Nov 2026 ([#1192](https://github.com/getcommunityone/open-navigator/issues/1192)).** A live-site audit
 counted six navigation devices on the Data Center Story's opening screen (Start, a floating Next, a numbered 1–11 rail,

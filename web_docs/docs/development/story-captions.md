@@ -11,6 +11,58 @@ caption for every topic: lead with disagreement where it is high-volume, and oth
 differ. Only the data-center story had a conclusion ("America hates data centers."); the rest said "X talked about Y in N
 meetings." or showed a fixed blurb.
 
+## Decision (26 Nov 2026, #1234): the title is the short conclusion only, no "AI reading" text
+
+**This decision overrides the title wording in the older sections below** (#1182 "America hates data centers; Tuscaloosa,
+Alabama brought them up in 2 meetings.", #1200 "…: the public was against them in 283 of 341 meetings where it spoke (AI
+reading)."). The owner, on the live site on a phone, 26 Nov 2026:
+
+> "This title is terrible, we need the simple America hates conclusion we had before."
+> "If you are in Tuscaloosa scope it should not say the United States."
+> "This should not have same title twice and AI reading is garbage text, remove it."
+
+What `pickCaption` now returns, for every title (home cards, story header, `/stories` cards, topic stories):
+
+- **The title is only the conclusion sentence**, about 60 characters at most, nothing appended: "America hates data
+  centers.", "Alabama hates data centers." (only when Alabama's own reading passes its floor), "America hates Flock and
+  license plate readers.", "America is split on short-term rentals.", "California mostly wants limits on short-term
+  rentals." (the predicate is the topic's `againstTitle` / `forTitle` in `utils/topicPositions.ts`; a topic without them
+  says "mostly opposes / mostly supports [topic]"). "hates" stays limited to data centers, Flock / plate readers and
+  pickleball. A topic without "hates" whose (a) passes says "[Place] mostly opposes [topic]." (no count). No counts, no
+  "(AI reading)", no "; [place] brought them up …" clause.
+- **A place whose own reading is under the floor** (`wider_position`, `wider_sentiment`) gets the nearest broader
+  conclusion as that same simple sentence ("America hates data centers." at Tuscaloosa), so the title says what the map
+  beside it shows. The place's own facts open the basis line ("Tuscaloosa, Alabama talked about data centers in 2
+  meetings. Of its 2 meetings read, the public spoke in 1, under the 3 a conclusion of its own needs. Across America, the
+  public was against data centers in 300 of 340 meetings where it spoke. …"), and the subhead starts with the place
+  ("Tuscaloosa, Alabama has too few meetings where the public took a side for a conclusion of its own; the title is
+  America's."). No "In the United States," lead is added anywhere.
+- **No conclusion anywhere**: the count titles stay ("California and North Carolina took up guns most: 659 and 585
+  meetings.").
+- **Counts move to the basis**, which opens with the conclusion's count ("The public was against data centers in 283 of
+  341 meetings where it spoke.") and then the full split.
+- **No "AI reading" sentence text** in any title, subhead or basis line: "(AI reading)", "AI reading of each meeting's
+  transcript: …" and "with an AI reading" are gone ("Of 1,828 meetings read nationwide, …", "Of its 71 meetings read,
+  …", "20 of 700 meetings have a reading so far"). One plain disclosure stays where a reader can find it: the map legend
+  and its **How to read this map** note ("The AI reading is a classifier's reading of each meeting's transcript, not
+  counted speakers."). Compact chips stay ("AI reading" on milestone cards and the home topic tiles).
+- **The title is said once.** The story header states it; the Overview screen never repeats it but leads with its own
+  count of the record ("A data center came up in 17 meetings in Texas.", kicker "First, where are they?"), via
+  `distinctHeadline(title, ...candidates)` in `utils/dataStory.ts`, which a topic story's Overview can reuse.
+- **The home title's place control** (#1212): on the place word when the title names the scope ("[America ▾] hates data
+  centers."). When it names a broader place (or, nationally, the leading state), `splitCaptionAtPlace` returns null and
+  the control goes in the line under the title, on the place where that line names it, else as "Showing [place ▾]"
+  (`HomeStorySubhead`; on the story, the cover's subhead).
+
+Before and after, live data 26 Nov 2026 (data centers):
+
+| Scope | Before | After |
+|---|---|---|
+| National | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading). | America hates data centers. |
+| `?state=AL` | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading); Alabama brought them up in 71 meetings. | America hates data centers. (subhead: "Alabama has too few meetings where the public took a side …") |
+| `?state=AL&city=Tuscaloosa` | America hates data centers: … (AI reading); Tuscaloosa, Alabama brought them up in 2 meetings. | America hates data centers. (subhead starts "Tuscaloosa, Alabama …", the place control) |
+| `?state=TX` | Texas hates data centers: the public was against them in 17 of 18 meetings where it spoke (AI reading). (header and Overview) | Texas hates data centers. (header only; Overview: "A data center came up in N meetings in Texas.") |
+
 ## Decision: one title, five rules, real counts only
 
 `pickCaption(topic, facts, scope)` in `web_app/src/utils/storyCaption.ts` returns `{kind, template, place, basis, ai}`. The

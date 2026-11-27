@@ -15,13 +15,13 @@ import {
   storyStartLabel,
   type Caption,
 } from '../utils/storyCaption'
+import { storyCloseHref } from '../utils/storyNav'
 import { droppedNote, planTopicScreens, type ScreenAvailability, type TopicScreenId } from '../utils/topicStoryScreens'
 import type { TopicStoryDef } from '../utils/topicStories'
 import type { StoryScope } from '../utils/dataStory'
 import { useTopicStories } from '../hooks/useTopicStories'
 import { useIdleNudge } from '../hooks/useIdleNudge'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
-import { useSwipeNav } from '../hooks/useSwipeNav'
 import { highlightSnippet } from '../lib/highlight'
 import { STATE_CODES } from '../lib/usStates'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
@@ -32,6 +32,8 @@ import DumbbellChart from '../components/stance/DumbbellChart'
 import PlaceControl from '../components/stance/PlaceControl'
 import ProgressPips from '../components/stance/ProgressPips'
 import StoryClose from '../components/stance/StoryClose'
+import ScopeBar from '../components/stance/ScopeBar'
+import { StoryBottomBar } from '../components/stance/StoryProgress'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
 import TopicPositionsBreakdown from '../components/stance/TopicPositionsBreakdown'
@@ -240,7 +242,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const n = screens.length
   const keepKey = screens.map((s) => s.id).join()
 
-  const { rootRef, wide, mode, active, activeRef, onCover, goTo, next, prev } = useStoryScreens({
+  // The screen machine shared with the Data Center Story: landing, ?screen=, keys, the sideways swipe and re-aimed jumps.
+  const { rootRef, startRef, wide, mode, active, activeRef, onCover, goTo } = useStoryScreens({
     screens,
     screenParam,
     setSp,
@@ -250,13 +253,6 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
     reduced,
   })
   useIdleNudge({ rootRef, screen: `[data-panel="${active}"]`, resetKey: active, entranceMs: NUDGE_ENTRANCE_MS })
-  // Phone swipe (#1224): left for the next screen, right for the previous; from the cover a swipe opens the first screen.
-  useSwipeNav({
-    rootRef,
-    onNext: () => (onCover ? goTo(0) : next()),
-    onPrev: () => (onCover ? undefined : prev()),
-    enabled: !placeOpen,
-  })
 
   // --- the title --------------------------------------------------------------------------------------------------------
   const caption: Caption = pickCaption(def.slug, facts, scope)
@@ -271,7 +267,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const subhead = noMeetings ? null : captionSubhead(caption, def.slug, scope)
   const basis = caption.basis
   // Close and the last screen's Done go home, keeping the scope (owner 2026-11-27: readers pick the next story there).
-  const homeHref = `/${scopeQ}`
+  const homeHref = storyCloseHref(def.slug, scopeQ)
   const note = droppedNote(plan.dropped, label)
   const labels = screens.map((s) => s.eyebrow)
 
@@ -508,52 +504,58 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       data-fade={reduced ? '' : undefined}
       data-sbar={wide ? undefined : ''}
     >
-      {/* The story's bar (#1224, owner 2026-11-27): the title sentence (its place blank is the only place control), the screen's
-          word, Close (×) at the top right and, on a wide screen, the progress segments. No crumb and no "Showing:" row. */}
-      <header className="stance-top topic-story-top">
-        <div className="stance-top-text">
-          <div className="stance-heading-row">
-              <SentenceHeading
-                template={template}
-                blanks={[
-                  {
-                    id: 'place',
-                    label: 'Place',
-                    value: stateCode ?? '',
-                    display: placeDisplay,
-                    options: [],
-                    onChange: () => {},
-                    control: (
-                      <PlaceControl
-                        variant="blank"
-                        display={placeDisplay}
-                        stateCode={stateCode ?? undefined}
-                        city={null}
-                        open={placeOpen}
-                        onOpenChange={setPlaceOpen}
-                        onApply={applyPlace}
-                      />
-                    ),
-                  },
-                  {
-                    id: 'topic',
-                    label: 'Topic',
-                    value: def.slug,
-                    display: topicWord,
-                    // The current topic reads as the sentence says it; the others by their story names.
-                    options: live.map((s) => ({ value: s.id, label: s.id === def.slug ? topicWord : s.title })),
-                    onChange: (v) => navigate(`/stories/${encodeURIComponent(v)}${scopeQ}`),
-                  },
-                ]}
-              />
-          </div>
-        </div>
-        <p className="stance-counter" data-testid="stance-current">
-          {screens[active]?.eyebrow ?? ''}
-        </p>
-        <StoryClose to={homeHref} escape={!placeOpen} />
-        {wide ? <ProgressPips count={n} active={active} labels={labels} onJump={goTo} /> : null}
-      </header>
+      {/* The story's bar, shared with the Data Center Story (#1234, owner 2026-11-27): the title sentence (its place blank is
+          the only place control), the screen's word, Close (×) at the top right and, on a wide screen, the segments. */}
+      <ScopeBar
+        backTo={homeHref}
+        backLabel="Close"
+        close={<StoryClose to={homeHref} escape={!placeOpen} />}
+        title={def.title}
+        label={label}
+        heading={
+          <SentenceHeading
+            template={template}
+            blanks={[
+              {
+                id: 'place',
+                label: 'Place',
+                value: stateCode ?? '',
+                display: placeDisplay,
+                options: [],
+                onChange: () => {},
+                control: (
+                  <PlaceControl
+                    variant="blank"
+                    display={placeDisplay}
+                    stateCode={stateCode ?? undefined}
+                    city={null}
+                    open={placeOpen}
+                    onOpenChange={setPlaceOpen}
+                    onApply={applyPlace}
+                  />
+                ),
+              },
+              {
+                id: 'topic',
+                label: 'Topic',
+                value: def.slug,
+                display: topicWord,
+                // The current topic reads as the sentence says it; the others by their story names.
+                options: live.map((s) => ({ value: s.id, label: s.id === def.slug ? topicWord : s.title })),
+                onChange: (v) => navigate(`/stories/${encodeURIComponent(v)}${scopeQ}`),
+              },
+            ]}
+          />
+        }
+        stateCode={stateCode ?? undefined}
+        stateName={stateName}
+        city={null}
+        current={screens[active]?.eyebrow ?? ''}
+        progress={wide ? <ProgressPips count={n} active={active} labels={labels} onJump={goTo} /> : undefined}
+        placeOpen={placeOpen}
+        onPlaceOpenChange={setPlaceOpen}
+        onApply={applyPlace}
+      />
       {/* The cover (#1182): subhead, basis and lede, then what the story leaves out. Its way on is the one fixed Next (#1224). */}
       <div className="stance-intro" data-cover>
         {subhead && <p className="stance-title-subhead">{subhead}</p>}
@@ -566,6 +568,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           </p>
         )}
         {note && <p className="stance-note">{note}</p>}
+        {/* Tells when the cover is in view: the fixed Next starts the story there. */}
+        <span ref={startRef} className="stance-cover-mark" aria-hidden="true" />
       </div>
       <p className="folio-sr-only" aria-live="polite">
         {screens[active] ? `${screens[active]!.eyebrow}, ${active + 1} of ${n}.` : ''}
@@ -594,19 +598,31 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           })}
         </div>
       </div>
-      <StoryNextButton
-        active={active}
-        count={n}
-        onCover={onCover}
-        startLabel={storyStartLabel(def.slug, label, def.subject)}
-        onStart={() => goTo(0)}
-        nextLabel={active < n - 1 ? (screens[active + 1]?.eyebrow ?? null) : null}
-        onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
-        prevLabel={active > 0 ? (screens[active - 1]?.eyebrow ?? null) : null}
-        onPrev={() => goTo(Math.max(activeRef.current - 1, 0))}
-        doneHref={homeHref}
-        phone={!wide}
-      />
+      {/* The one way forward (#1234, owner 2026-11-27): a green Next fixed at the bottom right on every screen. Cover: starts
+          the story; a screen: the next screen; the last screen: a quiet Done that closes the story. */}
+      {onCover ? (
+        <StoryNextButton label="Next" ariaLabel={storyStartLabel(def.slug, label, def.subject)} onClick={() => goTo(0)} />
+      ) : active < n - 1 ? (
+        <StoryNextButton label="Next" ariaLabel={`Next: ${screens[active + 1]?.eyebrow ?? ''}`.replace(/: $/, '')} onClick={() => goTo(Math.min(activeRef.current + 1, n - 1))} />
+      ) : (
+        <StoryNextButton label="Done" ariaLabel="Done: close the story" href={homeHref} quiet />
+      )}
+      {/* Phones: the bottom bar keeps Back and the progress dots; Next is the fixed button above, at its right end. */}
+      {!wide && (
+        <StoryBottomBar
+          active={active}
+          count={n}
+          nextLabel={null}
+          onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
+          withNext={false}
+          prevLabel={active > 0 ? (screens[active - 1]?.eyebrow ?? null) : null}
+          onPrev={() => goTo(Math.max(activeRef.current - 1, 0))}
+          storyHref={homeHref}
+          storyLabel="Done"
+          storyIsNext={false}
+          hideNext={onCover}
+        />
+      )}
       <p className="stance-keys">Keys: → or PageDown next · ← or PageUp back · Home and End jump to the ends · on a phone, swipe left or right</p>
     </div>
   )

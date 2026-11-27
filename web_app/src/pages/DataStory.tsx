@@ -4,14 +4,15 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import '../styles/folio.css'
 import '../styles/stance.css'
 import { errorStatus, fetchChoiceResults, fetchStancePack, postStanceChoice, type ChoiceMoment, type ChoiceResults } from '../api/stance'
-import FloatingNext from '../components/stance/FloatingNext'
+import StoryNextButton from '../components/stance/StoryNextButton'
 import ProgressPips from '../components/stance/ProgressPips'
 import PlaceControl from '../components/stance/PlaceControl'
 import ScopeBar from '../components/stance/ScopeBar'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
-import { NextStoryCard, StoryBottomBar } from '../components/stance/StoryProgress'
+import { StoryBottomBar } from '../components/stance/StoryProgress'
+import StoryClose from '../components/stance/StoryClose'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
 import { QuestionScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
 import { useStoryScreens } from '../components/stance/useStoryScreens'
@@ -37,9 +38,10 @@ import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
-import { nextStoryLink } from '../utils/storyNav'
+import { nextStoryLink, storyCloseHref } from '../utils/storyNav'
 import { optionLabel, questionText } from '../utils/storyQuestion'
 import { useTopicStories } from '../hooks/useTopicStories'
+import { scopePlaceName, splitCaptionAtPlace, splitTextAtPlace } from '../utils/captionPlace'
 
 // The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
 export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value, label: s.topic }))
@@ -162,10 +164,9 @@ export default function DataStory() {
 
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
   const [placeOpen, setPlaceOpen] = useState(false)
-  // The next-story card in view (#1102): the floating bar steps aside so it doesn't sit over it or the footer.
-  const [atEnd, setAtEnd] = useState(false)
   const dialogOpen = placeOpen
-  // The screen machine (#1224): landing, ?screen= sync, the cover, keys and focus, shared with the topic stories.
+  // The screen machine (#1224): landing, ?screen= sync, the cover, keys, swipe, re-aimed jumps (#1208) and focus, shared
+  // with the topic stories.
   const { rootRef, startRef, wide, mode, active, activeRef, onCover, goTo } = useStoryScreens({
     screens,
     screenParam,
@@ -281,6 +282,12 @@ export default function DataStory() {
   // numbered points (the place's own figures where it has them, else national ones marked "Nationally:").
   const title = pickCaption(storyId, captionQ.data, scope)
   const subhead = captionSubhead(title, storyId, scope)
+  // The title names another place (a broader scope's conclusion, or nationally the leading state): the scope's place control
+  // goes in this line, on its name, else as a "Showing [place]" lead (#1234, as on the home card).
+  const titleNamesScope = splitCaptionAtPlace(title, story.topic, scope) != null
+  const subheadPlace = titleNamesScope
+    ? null
+    : (splitTextAtPlace(subhead, scopePlaceName(scope)) ?? { before: 'Showing ', place: scopePlaceName(scope), after: subhead ? `. ${subhead}` : '.' })
   const scopedPositions = data.positions as DataCenterPositionsResponse | null | undefined
   const points = storyHeroPoints(scope.stateName ? nationalPositionsQ.data : scopedPositions, scope.stateName ? scopedPositions : null, scope.stateName ? label : null)
   const links = {
@@ -326,12 +333,16 @@ export default function DataStory() {
       <ScopeBar
         backTo={`/stories${scopeQuery(scope)}`}
         backLabel="← Data stories"
+        // The one exit (#1234, owner 2026-11-27): Close (×) top right, back to the home page with the place kept. The bar
+        // drops "← Data stories" and the "Showing:" row; the title's place control is the place switcher.
+        close={<StoryClose to={storyCloseHref(storyId, scopeQuery(scope))} escape={!dialogOpen} />}
         title={story.title}
         label={label}
         heading={
           <>
           <SentenceHeading
-            template={title.template}
+            // A place blank that isn't the scope (nationally, the leading state) is plain text, not the place control (#1234).
+            template={titleNamesScope ? title.template : title.template.map((p) => (typeof p !== 'string' && p.blank === 'place' ? title.place : p))}
             blanks={[
               {
                 id: 'place',
@@ -373,16 +384,25 @@ export default function DataStory() {
           so they scroll away and the sticky bar above stays the title and the progress only. It is the story's cover
           (data-cover): a hold at the top of the page, so snapping and the wheel limit never pull the reader past it. */}
       <div className="stance-intro" data-cover>
-        {subhead && <p className="stance-title-subhead">{subhead}</p>}
+        {(subhead || subheadPlace) && (
+          // A div, not a p: the place control's dialog is a div.
+          <div className="stance-title-subhead">
+            {/* A broader scope's title (#1222): the place in scope is named, as the place control, in this line instead. */}
+            {subheadPlace ? (
+              <>
+                {subheadPlace.before}
+                {placeBlank(placeOpen, setPlaceOpen, subheadPlace.place)}
+                {subheadPlace.after}
+              </>
+            ) : (
+              subhead
+            )}
+          </div>
+        )}
         {title.basis && <p className="stance-title-basis">{title.basis}</p>}
-        <div className="home-story-actions">
-          <button type="button" className="home-story-start" ref={startRef} onClick={() => goTo(0)}>
-            {storyStartLabel(storyId, label)} <span aria-hidden="true">→</span>
-          </button>
-          <Link to={onward.href} className="home-story-next">
-            {onward.label} <span aria-hidden="true">→</span>
-          </Link>
-        </div>
+        {/* The cover's two buttons are gone (#1234, owner 2026-11-27): the fixed Next at the bottom right starts the story.
+            This mark tells when the cover is in view. */}
+        <span ref={startRef} className="stance-cover-mark" aria-hidden="true" />
         {points.length > 0 && (
           <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
             {points.map((pt) => (
@@ -444,17 +464,33 @@ export default function DataStory() {
           })}
         </div>
         {/* After the last screen, outside the screens ([data-panel]) the scroller counts: the way on to the next story. */}
-        <NextStoryCard href={onward.href} label={onward.label} isStory={onward.next != null} onInView={setAtEnd} />
+        {/* The story ends on its last screen (#1234): at most a small plain-text link on to another story, never a button.
+            The home page is where readers pick the next story. */}
+        {onward.next && (
+          <p className="story-another">
+            <Link to={onward.href}>Another story: {onward.next.title}</Link>
+          </p>
+        )}
       </div>
-      {/* Phones get the bottom bar instead, which always shows Next; the floating bar would sit on top of it. */}
-      {wide ? (
-        !atEnd && !onCover && <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
+      {/* The one way forward (#1234, owner 2026-11-27): a green Next fixed at the bottom right on every screen, desktop and
+          phone. Cover: starts the story; a screen: the next screen; the last screen: the next story, keeping the place. */}
+      {onCover ? (
+        <StoryNextButton label="Next" ariaLabel={storyStartLabel(storyId, label)} onClick={() => goTo(0)} />
+      ) : active < n - 1 ? (
+        <StoryNextButton label="Next" ariaLabel={`Next: ${screens[active + 1]?.eyebrow ?? ''}`.replace(/: $/, '')} onClick={() => goTo(Math.min(activeRef.current + 1, n - 1))} />
       ) : (
+        <StoryNextButton label="Done" ariaLabel="Done: close the story" href={storyCloseHref(storyId, scopeQuery(scope))} quiet />
+      )}
+      {/* Phones: the bottom bar keeps Back and the progress dots; Next is the fixed button above, at its right end. */}
+      {!wide && (
         <StoryBottomBar
           active={active}
           count={n}
           nextLabel={active < n - 1 ? (screens[active + 1]?.eyebrow ?? null) : null}
           onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
+          withNext={false}
+          prevLabel={active > 0 ? (screens[active - 1]?.eyebrow ?? null) : null}
+          onPrev={() => goTo(Math.max(activeRef.current - 1, 0))}
           storyHref={onward.href}
           storyLabel={onward.label}
           storyIsNext={onward.next != null}
