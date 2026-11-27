@@ -585,6 +585,20 @@ export default function HomeV9() {
     setLevel(v)
     setLevelOpen(false)
   }
+  // The story title's place control (#1206): The United States sets the level to National (the saved place is kept, as
+  // the level menu's National does); a state or city goes through the header's pick path, so the saved location, the
+  // header label and the level (City / State, from the new place) move together.
+  const applyTitlePlace = (code: string | null, pickedCity: string | null) => {
+    if (!code) {
+      pickLevel('national')
+      return
+    }
+    pickPlace(
+      pickedCity
+        ? { state: code, city: pickedCity, county: '' }
+        : { state: code, city: '', county: '', granularity: 'state' },
+    )
+  }
 
   // The active scope flows from `level` into every place-scoped query below.
   const national = level === 'national' || !locState
@@ -899,7 +913,7 @@ export default function HomeV9() {
 
       {/* ── Data stories first (#995): the conclusion, the quote map and the topics; the header's Data Stories tab. ── */}
       <main id="main-content" tabIndex={-1} style={{ outline: 'none' }}>
-      <HomeDataStories stateCode={stateCode} city={city ?? null} />
+      <HomeDataStories stateCode={stateCode} city={city ?? null} onPlaceApply={applyTitlePlace} />
 
       <div className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
         {/* ── Hero: thesis + search + trending ── */}

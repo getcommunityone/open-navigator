@@ -8,6 +8,7 @@ import { CAPTION_COPY, captionText, isLongTitle, pickCaption, storyStartLabel } 
 import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
+import HomeStoryTitle from './HomeStoryTitle'
 
 /** A state's map passages, newest first, at most this many. */
 const QUOTES_PER_STATE = 12
@@ -20,13 +21,15 @@ interface Props {
   label: string
   /** The next live story (#1176), from `nextStoryLink`, so the reader can move on without scrolling. */
   next: { href: string; label: string }
+  /** A place picked in the title's place control (#1206); see `HomeDataStories`. */
+  onPlaceApply?: (stateCode: string | null, city: string | null) => void
 }
 
 /**
  * The home card for one topic story (#1013, #1133): its caption for the page's scope (#1125), its lede, Start the story,
  * and the map of meetings per state with each state's newest verbatim passage. Every figure is a real count.
  */
-export default function HomeTopicStoryCard({ def, scope, query, label, next }: Props) {
+export default function HomeTopicStoryCard({ def, scope, query, label, next, onPlaceApply }: Props) {
   const states = useQuery({
     queryKey: ['topic-story', def.topicId, 'states'],
     queryFn: () => fetchTopicStates(def.topicId),
@@ -82,7 +85,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
           aria-busy={facts.isPending || undefined}
           style={facts.isPending ? { visibility: 'hidden' } : undefined}
         >
-          {title}
+          <HomeStoryTitle caption={caption} topic={topicNoun} scope={scope} onPlaceApply={onPlaceApply} />
         </h1>
         <p className="home-story-subhead">{def.lede}</p>
         <p className="home-story-basis">
@@ -96,7 +99,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
             {next.label} <span aria-hidden="true">→</span>
           </Link>
         </div>
-        <HomeStoryDrill label={label} />
+        <HomeStoryDrill />
       </div>
       <div className="home-story-map">
         {states.isError ? (
@@ -118,13 +121,10 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
 }
 
 /**
- * The drill-down line under the hero's buttons (#1176): names the scope in effect (CLAUDE.md, scope label rule) and says
- * how to go deeper, so the reader knows the map is the way in.
+ * The drill-down line under the hero's buttons (#1176): says how to go deeper, so the reader knows the map is the way in.
+ * The scope in effect is named by the title's place control (#1206; CLAUDE.md, scope label rule), so this line no longer
+ * repeats it.
  */
-export function HomeStoryDrill({ label }: { label: string }) {
-  return (
-    <p className="home-story-drill">
-      Showing <strong>{label}</strong>. Pick a state on the map to open its story.
-    </p>
-  )
+export function HomeStoryDrill() {
+  return <p className="home-story-drill">Pick a state on the map to open its story.</p>
 }
