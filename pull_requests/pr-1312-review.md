@@ -1,0 +1,77 @@
+---
+pr: 1312
+branch: fix/1309-county-map-fit
+title: "fix(stories): state county dot map fits the screen on phones and laptops"
+author: jcbowyer
+reviewed_at: 2026-11-27
+reviewer: github-actions
+head_sha: 58eb1c0dc0509edb809c37e4eb144866f5f3badb
+verdict: approve
+---
+
+# PR Review: fix(stories): state county dot map fits the screen on phones and laptops
+
+## Summary
+
+Automated review (#648) for PR #1312 on `fix/1309-county-map-fit`. Heuristic rubric scans ran on
+`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+
+## Scope of Change
+
+- `pull_requests/assets/1309/after-TN-laptop1366.png`
+- `pull_requests/assets/1309/after-laptop1366.png`
+- `pull_requests/assets/1309/after-laptop1440.png`
+- `pull_requests/assets/1309/after-phone.png`
+- `pull_requests/assets/1309/before-laptop1366.png`
+- `pull_requests/assets/1309/before-laptop1440.png`
+- `pull_requests/assets/1309/before-phone.png`
+- `pull_requests/assets/1309/layout-AL-1366.png`
+- `pull_requests/assets/1309/layout-AL-1440.png`
+- `pull_requests/assets/1309/layout-AL-phone.png`
+- `pull_requests/assets/1309/layout-CA-1366.png`
+- `pull_requests/assets/1309/layout-CA-1440.png`
+- `pull_requests/assets/1309/layout-CA-phone.png`
+- `pull_requests/assets/1309/layout-FL-1366.png`
+- `pull_requests/assets/1309/layout-FL-1440.png`
+- `pull_requests/assets/1309/layout-FL-phone.png`
+- `pull_requests/assets/1309/layout-TN-1366.png`
+- `pull_requests/assets/1309/layout-TN-1440.png`
+- `pull_requests/assets/1309/layout-TN-phone.png`
+- `pull_requests/assets/1309/measurements.txt`
+- `pull_requests/pr-1312-review.md`
+- `web_app/src/components/stance/StoryCountyMap.tsx`
+- `web_app/src/styles/stance.css`
+- `web_app/src/utils/mapFit.test.ts`
+- `web_app/src/utils/mapFit.ts`
+- `web_docs/docs/development/story-drill-box-transition.md`
+
+## CI Status
+
+See the PR checks on `58eb1c0dc050`.
+
+## Scans (secrets, fabricated data, personal data, destructive data changes)
+
+- Secrets / credentials: clean (heuristic)
+- Fabricated data / personal / destructive: see findings
+
+## Strengths
+
+- Automated scans found no secret/credential patterns in added lines.
+
+## Findings
+
+### 🔴 Blocking (Critical)
+
+None.
+
+### 🟡 Should fix (Important)
+
+None from automated heuristics.
+
+### 🔵 Nit (Minor)
+
+None from automated heuristics.
+
+## Verdict
+
+**approve**
