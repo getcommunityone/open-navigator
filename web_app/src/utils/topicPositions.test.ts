@@ -80,7 +80,7 @@ describe('topic position vocabulary', () => {
     expect(fieldOf('license-plate-readers', 'subject')).toMatch(/automated license plate readers/)
     expect(fieldOf('license-plate-readers', 'advanced')).toMatch(/approved a contract, purchase, installation, renewal or expansion/)
     expect(topicPositions('flock').for).toBe('For the cameras')
-    // Fluoridation's leans are CareQuest's poll positions; the mart rolls support_* up to "for" (keep or start it).
+    // Fluoridation's leans are five positions; the mart rolls support_* up to "for" (keep or start it).
     expect(fieldOf('water-fluoridation', 'advanced')).toMatch(/^The body voted to keep, start, restore or fund fluoridating/)
     expect(topicPositions('water-fluoridation').for).toBe('Keep fluoride in the water')
   })

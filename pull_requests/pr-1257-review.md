@@ -40,7 +40,7 @@ The verdict is approve. The reviewer's one substantive finding (a dry run execut
 ## Strengths
 - Hash equality is pinned in `STORED_QUESTION_VERSIONS`, so a rewording can't silently trigger a paid re-read of a whole topic.
 - A test checks that the writer's columns, the dbt source and the staging model's reads stay in step (the failure in #1201).
-- The `accepted_values` test that was failing (#1204) is replaced by tests on the rolled-up leans and on the raw CareQuest positions, so an out-of-set label still fails.
+- The `accepted_values` test that was failing (#1204) is replaced by tests on the rolled-up leans and on the raw five positions, so an out-of-set label still fails.
 - The PR keeps main's guard that builds an empty relation until the table exists, and main's `distinct on (video_id)`, which prevents a PK fan-out.
 
 ## Findings

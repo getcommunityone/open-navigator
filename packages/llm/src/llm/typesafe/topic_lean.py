@@ -84,7 +84,7 @@ class TopicDef:
     # The outcome that moves the subject forward, and the one that stops or limits it.
     advanced: str
     blocked: str
-    # Optional topic-specific label sets (fluoridation mirrors CareQuest's national poll, #1126). ``None`` uses the
+    # Optional topic-specific label sets (fluoridation asks five positions, #1126). ``None`` uses the
     # shared LEAN_LABELS / OUTCOME_LABELS wording built from ``subject``.
     public_labels: dict[str, str] | None = field(default=None, hash=False)
     official_labels: dict[str, str] | None = field(default=None, hash=False)
@@ -92,10 +92,9 @@ class TopicDef:
     outcome_none: str = "no_item"
 
 
-# CareQuest Institute, "Attitudes about Fluoride: National Survey Results" (Marketing for Change Co., July 7-9, 2025,
-# n=1,114, +/-2.94%), asked "Which of the following comes closest to your position?". The fluoridation leans use the
-# same five answers (plus did_not_speak), read for the group that spoke at the meeting, so the story can chart the
-# meetings beside the poll. dbt rolls support_* up to "for" and oppose_* up to "against" for the four-colour map.
+# The fluoridation leans use five positions (plus did_not_speak): for or against fluoridation, each split by whether
+# every community should be required/banned or each community should decide, plus no opinion. They are read for the
+# group that spoke at the meeting. dbt rolls support_* up to "for" and oppose_* up to "against" for the four-colour map.
 _FLUORIDE_POSITIONS = {
     "support_require_all": (
         "support fluoridation and think all communities should be required to fluoridate (for example backing a state "

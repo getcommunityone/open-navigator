@@ -44,6 +44,16 @@ export function storyStartHref(storyId: string, query = ''): string {
 }
 
 /**
+ * The title's topic control (#1224, owner 2026-11-27: "should be able to change data centers; now only 1 option"): every
+ * live story, the Data Center Story and each topic story, never a coming-soon topic. The current story reads as the title
+ * says it (`currentLabel`); the others by their story names. The same list on every story page.
+ */
+export function storyTopicOptions(stories: LiveStory[], currentId: string, currentLabel: string): { value: string; label: string }[] {
+  const list = stories.some((s) => s.id === currentId) ? stories : [{ id: currentId, title: currentLabel }, ...stories]
+  return list.map((s) => ({ value: s.id, label: s.id === currentId ? currentLabel : s.title }))
+}
+
+/**
  * Where a story's Close (×) goes (#1234, owner 2026-11-27: "Just make Close go back to home and pick next story."): the
  * home page with the scope kept, on the data-stories section, with the same story card shown (`?story=` for a topic story;
  * data centers is the default card).

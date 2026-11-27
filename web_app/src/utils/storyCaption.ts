@@ -32,6 +32,12 @@ import { GENERIC_POSITIONS, hasTopicPositions, positionVerdict, topicPositions, 
 
 /** (a) Confident public-against meetings (AI reading) before "[Place] hates [topic]." leads, by scope level. */
 export const HATES_MIN_MEETINGS = { national: 50, state: 10, city: 3 } as const
+/**
+ * (p, lower tier) Meetings where the public spoke before a place gets its own "mostly opposes / mostly supports / is split"
+ * title, below the floor above (owner 2026-11-27: "If Alabama is selected, it should say Alabama …"). Never "hates": that
+ * keeps the floor above. A scope whose floor is already lower (a city) is unchanged.
+ */
+export const LEAN_MIN_MEETINGS = 5
 /** (b) Meetings where officials sided against the public (AI reading) before "[Place] is divided on [topic]." leads. */
 export const DISAGREEMENT_MIN_MEETINGS = 10
 /** (b) Counted speakers on each side before a for/against split reads as divided. */
@@ -294,8 +300,24 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
 
   // (p) The place's conclusion from the AI reading, in the topic's words (#1200).
   const own = positionCounts(facts, facts.meetings)
+  let lowerTier: Caption | null = null
   if (own) {
     const v = positionVerdict(own, HATES_MIN_MEETINGS[level])
+    // The lower tier (#1224, owner 2026-11-27): from LEAN_MIN_MEETINGS meetings where the public spoke, the place's own
+    // majority ("Alabama mostly opposes data centers.") or "is split", never "hates" (that keeps the floor above).
+    const lower = Math.min(LEAN_MIN_MEETINGS, HATES_MIN_MEETINGS[level])
+    const v2 = v.kind === 'too_few' ? positionVerdict(own, lower) : null
+    if (v2 && v2.kind !== 'too_few') {
+      const plain: CaptionCopy = { ...copy, hates: undefined }
+      lowerTier = {
+        kind: 'position',
+        template: positionTemplate(plain, words, v2, null),
+        place,
+        basis: `${positionClaim(plain, words, v2, null)} ${positionBasis(own, words, where, dis, facts.lean_meetings)}`,
+        ai: true,
+        verdict: v2.kind === 'majority' ? v2.side : 'split',
+      }
+    }
     if (v.kind !== 'too_few') {
       const where2 = national ? 'nationwide' : `in ${label}`
       return {
@@ -320,7 +342,11 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
   const readingNote = hasTopicPositions(topicKey) && hasPositions && facts.lean_meetings != null ? readingSoFar(own, facts.meetings ?? null, copy.topic, where, facts.lean_meetings) : null
   const withNote = (c: Caption): Caption =>
     readingNote && c.kind !== 'question' && !c.ai ? { ...c, basis: [c.basis, readingNote].filter(Boolean).join(' ') } : c
-  return withNote(pickLegacy(copy, topicKey, facts, scope, { national, level, label, place, where, sp, dis, question, widerFn }))
+  const legacy = pickLegacy(copy, topicKey, facts, scope, { national, level, label, place, where, sp, dis, question, widerFn })
+  // "Hates" on the place's own counted speakers (a) still outranks the lower tier; anything else (a broader scope's title,
+  // volume) gives way to the place's own majority or split.
+  if (lowerTier && legacy.kind !== 'sentiment') return lowerTier
+  return withNote(legacy)
 }
 
 interface LegacyCtx {
@@ -696,6 +722,26 @@ function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope
 }
 
 /** The caption as one plain sentence (for a tile, an aria-label or a test): the blanks filled in. */
+/**
+ * The title with the topic as its control (#1224, owner 2026-11-27: "should be able to change data centers"). A title whose
+ * topic is written into its words ("Alabama mostly opposes data centers.") gets the blank on that phrase; one whose words
+ * don't name it ("Ohio mostly favors gun limits.") names it in brackets before the full stop: "… gun limits (gun control).".
+ */
+export function withTopicBlank(template: StoryTitlePart[], topic: string): StoryTitlePart[] {
+  if (template.some((p) => typeof p !== 'string' && p.blank === 'topic')) return template
+  const needle = topic.toLowerCase()
+  const at = template.findIndex((p) => typeof p === 'string' && p.toLowerCase().includes(needle))
+  if (at >= 0 && needle) {
+    const part = template[at] as string
+    const i = part.toLowerCase().indexOf(needle)
+    const pieces: StoryTitlePart[] = [part.slice(0, i), T, part.slice(i + needle.length)].filter((x) => x !== '')
+    return [...template.slice(0, at), ...pieces, ...template.slice(at + 1)]
+  }
+  const last = template[template.length - 1]
+  if (typeof last === 'string' && last.endsWith('.')) return [...template.slice(0, -1), last.slice(0, -1), ' (', T, ').']
+  return [...template, ' (', T, ')']
+}
+
 export function captionText(caption: Caption, topic: string): string {
   return caption.template.map((p) => (typeof p === 'string' ? p : p.blank === 'place' ? caption.place : topic)).join('')
 }

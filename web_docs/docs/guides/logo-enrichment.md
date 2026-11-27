@@ -101,7 +101,7 @@ The script adds these columns to your parquet file:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `logodev_domain` | string | Extracted domain (e.g., 'carequest.org') |
+| `logodev_domain` | string | Extracted domain (e.g., 'example.org') |
 | `logodev_logo_url` | string | Primary logo URL (200px) |
 | `logodev_logo_small` | string | Small logo URL (32px) |
 | `logodev_logo_medium` | string | Medium logo URL (128px) |
@@ -112,14 +112,14 @@ The script adds these columns to your parquet file:
 
 ```json
 {
- "ein": "384016550",
- "name": "CAREQUEST INSTITUTE FOR ORAL HEALTH INC",
- "website": "https://carequest.org",
- "logodev_domain": "carequest.org",
- "logodev_logo_url": "https://img.logo.dev/carequest.org?token=XXX&size=200",
- "logodev_logo_small": "https://img.logo.dev/carequest.org?token=XXX&size=32",
- "logodev_logo_medium": "https://img.logo.dev/carequest.org?token=XXX&size=128",
- "logodev_logo_large": "https://img.logo.dev/carequest.org?token=XXX&size=200",
+ "ein": "<ein>",
+ "name": "EXAMPLE HEALTH FOUNDATION INC",
+ "website": "https://example.org",
+ "logodev_domain": "example.org",
+ "logodev_logo_url": "https://img.logo.dev/example.org?token=XXX&size=200",
+ "logodev_logo_small": "https://img.logo.dev/example.org?token=XXX&size=32",
+ "logodev_logo_medium": "https://img.logo.dev/example.org?token=XXX&size=128",
+ "logodev_logo_large": "https://img.logo.dev/example.org?token=XXX&size=200",
  "logodev_status": "success"
 }
 ```

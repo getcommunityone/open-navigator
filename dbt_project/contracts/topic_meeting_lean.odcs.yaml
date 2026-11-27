@@ -19,7 +19,7 @@ schema:
   name: topic_meeting_lean
   physicalName: public.topic_meeting_lean
   logicalType: object
-  description: 'One row per meeting video and topic (topic_transcript_link) with a Jev screen under the topic''s current question version. Topics: guns, short-term rentals, pickleball, license plate readers, water fluoridation. public_lean / official_lean are Jev''s (a classifier''s) reading of the transcript, not counted speakers: mostly_supportive, mostly_opposed, mixed or did_not_speak (water fluoridation: mostly_supportive, mostly_opposed, no_opinion or did_not_speak, rolled up from CareQuest''s five poll positions, kept in public_position / official_position). public_against / public_for = the public mostly opposed / supportive with p >= 0.7. officials_sided_against_public = the public mostly opposed, officials mostly supportive, and the body did not block the subject (outcome_group <> blocked). The same thresholds as data_center_meeting_lean.'
+  description: 'One row per meeting video and topic (topic_transcript_link) with a Jev screen under the topic''s current question version. Topics: guns, short-term rentals, pickleball, license plate readers, water fluoridation. public_lean / official_lean are Jev''s (a classifier''s) reading of the transcript, not counted speakers: mostly_supportive, mostly_opposed, mixed or did_not_speak (water fluoridation: mostly_supportive, mostly_opposed, no_opinion or did_not_speak, rolled up from five positions, kept in public_position / official_position). public_against / public_for = the public mostly opposed / supportive with p >= 0.7. officials_sided_against_public = the public mostly opposed, officials mostly supportive, and the body did not block the subject (outcome_group <> blocked). The same thresholds as data_center_meeting_lean.'
   dataGranularityDescription: One row per meeting video and topic (topic_transcript_link) with a Jev screen under the topic's current question version.
   properties:
   - id: video_id
@@ -144,7 +144,7 @@ schema:
     name: public_position
     logicalType: string
     physicalType: text
-    description: 'Water fluoridation only: the CareQuest poll position closest to the public who spoke (support_require_all, support_local_choice, no_opinion, oppose_local_choice, oppose_ban_all or did_not_speak). Null for other topics.'
+    description: 'Water fluoridation only: the position closest to the public who spoke (support_require_all, support_local_choice, no_opinion, oppose_local_choice, oppose_ban_all or did_not_speak). Null for other topics.'
     quality:
     - type: library
       metric: invalidValues
@@ -168,7 +168,7 @@ schema:
     name: official_position
     logicalType: string
     physicalType: text
-    description: 'Water fluoridation only: the CareQuest poll position closest to the elected officials. Null for other topics.'
+    description: 'Water fluoridation only: the position closest to the elected officials. Null for other topics.'
     quality:
     - type: library
       metric: invalidValues
