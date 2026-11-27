@@ -403,7 +403,7 @@ function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope
       kind: 'state_gap',
       template: [P, ` ${copy.verb} `, T, ` in ${meetingsWord(mine.meetings)}, more than any other place in ${scope.stateName}.`],
       place: storyScopeLabel(scope),
-      basis: `Next: ${next.name}, ${meetingsWord(next.meetings)}. ${COVERAGE}`,
+      basis: `Then ${next.name}, ${meetingsWord(next.meetings)}. ${COVERAGE}`,
       ai: false,
     }
   }
@@ -416,7 +416,7 @@ function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope
         kind: 'state_gap',
         template: [P, ` ${copy.verb} `, T, ` in ${meetingsWord(top.meetings)}, ${lead(top.meetings, next.meetings)}.`],
         place: name(top),
-        basis: `Next: ${name(next)}, ${meetingsWord(next.meetings)}. Of ${meetingsWord(total)} nationwide. ${COVERAGE}`,
+        basis: `Then ${name(next)}, ${meetingsWord(next.meetings)}. Of ${meetingsWord(total)} nationwide. ${COVERAGE}`,
         ai: false,
       }
     }
@@ -428,7 +428,7 @@ function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope
         kind: 'state_gap',
         template: [P, ` ${copy.verb} `, T, ` most: ${counts}.`],
         place: `${name(top)} and ${name(next)}`,
-        basis: `${third ? `Next: ${name(third)}, ${meetingsWord(third.meetings)}. ` : ''}Of ${meetingsWord(total)} nationwide. ${COVERAGE}`,
+        basis: `${third ? `Then ${name(third)}, ${meetingsWord(third.meetings)}. ` : ''}Of ${meetingsWord(total)} nationwide. ${COVERAGE}`,
         ai: false,
       }
     }
@@ -447,7 +447,7 @@ function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope
         kind: 'state_gap',
         template: [P, ` ${copy.verb} `, T, ` in ${meetingsWord(mine.meetings)}, ${lead(mine.meetings, next.meetings)}.`],
         place: storyScopeLabel(scope),
-        basis: `Next: ${name(next)}, ${meetingsWord(next.meetings)}. ${COVERAGE}`,
+        basis: `Then ${name(next)}, ${meetingsWord(next.meetings)}. ${COVERAGE}`,
         ai: false,
       }
     }

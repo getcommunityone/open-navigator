@@ -80,7 +80,7 @@ The figures come from `GET /api/data-centers/positions?state=&city=&limit=`, whi
 
 ## The Data Center Story
 
-Twelve screens, in this order. Each has a short word as its header (never a number), and each numbered dot down the left edge is named after its screen. The id is what `?screen=` carries. The story opens on the record, not on the question (#950).
+Twelve screens, in this order. Each has a short word as its header (never a number), and each progress segment in the top bar is named after its screen ("3 of 11: Sites"). The id is what `?screen=` carries. The story opens on the record, not on the question (#950).
 
 | Screen | Word | Id | What it shows |
 | --- | --- | --- | --- |
@@ -267,18 +267,47 @@ A strip of segments along the lower edge of the top bar has one segment per scre
 
 Every screen has one primary action: the three answers on the question and the last screen (then **See every data center record** once you have answered), and **Next →** everywhere else. On a wide screen, when that control is not in view, because it is below the fold or inside a block that scrolls, a bar pinned to the bottom of the window shows the same action, with a quieter **Back** beside it from the second screen on. It presses the real control, so there is one behaviour and one name. The bar is left out of the tab order and hidden from screen readers, because the real control is still in the page for them. The bar is `FloatingNext.tsx`; a screen marks its primary action with `data-primary`. On the hub the same bar carries **Start** whenever the card's own button has scrolled out of view, for example when you are reading the counts.
 
-### Story navigation: progress bar, numbered dots, the next story (#1102)
+### Story navigation: one exit, one progress indicator, the next story (#1102, #1192)
+
+**Simplified 26 Nov 2026 ([#1192](https://github.com/getcommunityone/open-navigator/issues/1192)).** A live-site audit
+counted six navigation devices on the Data Center Story's opening screen (Start, a floating Next, a numbered 1–11 rail,
+the segmented progress bar plus a thin fill bar, "← Data stories" and an unlabelled ×), and on a phone the progress
+showed twice (top bar and bottom bar). Now:
+
+- **On the cover, Start is the only forward action.** The floating **Next** (wide screens) and the bottom bar's **Next**
+  (phones) are hidden while the cover's **Start the [topic] story →** button is in view, and appear from the Overview on.
+  (The phone bar's Next on the cover also skipped the Overview, moving on from screen 0 before it was seen.) **Next
+  story: [title] →** stays beside Start, both in the first screen at 1366×768, 1440×900 and on an iPhone 13.
+- **One progress indicator per device.** Wide screens keep the segmented bar under the title and drop the numbered rail
+  and the thin fill bar. The bar was kept rather than the rail because it sits in the sticky title bar the reader already
+  looks at, it says what is left in words ("Ten to go"), and the rail took a 56px gutter from every screen and floated
+  away from the title. Its segments are now buttons: each is named "N of M: [screen word]" ("3 of 11: Sites"), the
+  current one is `aria-current="step"`, and a click goes to that screen (`ProgressPips` with `onJump`, a `nav` named
+  "Story screens"). Phones keep only the bottom bar's dots and "N to go"; the top bar shows no progress there.
+- **One exit.** The × ("Close story") is gone from the Data Center Story and the topic stories. **← Data stories** (to
+  `/stories`, keeping the place) is the single way out, at least 44px tall on a phone; the topic stories gained it.
+- **Topic stories' basis line** names the runner-up as "Then Ohio, 399 meetings." instead of "Next: Ohio, …", which read
+  like a navigation link (`storyCaption.ts`), and "Counted from local meeting recordings and transcripts…" shows once in
+  the first screen (the separate line is left out when the basis already says it).
+- **The numbered points stay on the cover.** They sit under the two buttons, so they never push Start or Next story out
+  of the first screen (Start and Next story end at about 412px of 768 on a 1366×768 laptop and about 435px of 664 on an
+  iPhone 13).
+- **No map beside the cover text.** The Overview screen, one Start away, is that same national map (or the state's county
+  map); a second interactive copy on the cover would repeat the figure and add a second place picker, the opposite of
+  this simplification. The cover keeps its empty right side on wide screens.
+
+`web_app/e2e/story-nav.check.mjs` now checks the cover first (no floating Next beside Start, one progress indicator, no
+×), then presses Start and checks that Next and Back line up on every screen.
 
 The story shows how far you are and where it goes next ([#1102](https://github.com/getcommunityone/open-navigator/issues/1102)). None of this changes a screen or a map: every control below moves with the story's own screen navigation (the same `goTo` as **Next →** and the keys), so landing on a screen from the address (`?screen=`) works as before.
 
 | Where | What | Behaviour |
 | --- | --- | --- |
-| Wide screens (768 pixels or wider) | A thin teal bar fixed along the top of the story | Its width is the share of screens reached: the screen in view counts, so the last screen fills it. Decorative (hidden from screen readers). |
-| Wide screens | A column of small numbered dots on the left edge, one per screen in the story | The screen in view is filled teal (`#0f766e`), those behind it are outlined teal. Clicking a dot goes to that screen. Each dot's accessible name is its number and the screen's name ("3. Where"), and it is a `nav` named "Story screens" (it replaced the unnumbered rail on the right). The dots step aside while the next-story card is in view. |
+| Wide screens (768 pixels or wider) | The segmented bar along the lower edge of the sticky title bar, one segment per screen, with "N to go" | The screen in view and those behind it are filled. Each segment is a button named "N of M: [screen word]"; the current one is `aria-current="step"`; clicking goes to that screen. It is a `nav` named "Story screens" and the story's only progress indicator on a wide screen (#1192 removed the numbered dots on the left edge and the thin fill bar along the top). |
 | After the last screen, every width | A full-width **Next story** card | It fades in as it comes into view (opacity and a short rise; opacity only under reduced motion). It reads "Next story: Short-term rentals →" while there is a following live story, and "All data stories →" (to `/stories`) at the end of the list; the list does not wrap. The link keeps the place (`?state=&city=`). Scrolling on past the last screen reaches it: the scroll no longer pulls back onto the last screen once you are past it. |
-| Phones (narrower than 768 pixels) | A bar fixed to the bottom of the window, above the safe area | Compact progress dots with "N to go", and one prominent **Next**: it goes to the next screen, and on the last screen it becomes **Next story** (or **All stories**). Each screen is shortened by the bar's height and the page has bottom padding of the same height, so the bar never covers a screen's controls. On phones it replaces the floating bar and each screen's own **Next →** (Back and the answers stay in the screen). |
+| Phones (narrower than 768 pixels) | A bar fixed to the bottom of the window, above the safe area | The phone's only progress indicator: compact progress dots with "N to go", and one prominent **Next** (hidden on the cover, where **Start** leads on): it goes to the next screen, and on the last screen it becomes **Next story** (or **All stories**). Each screen is shortened by the bar's height and the page has bottom padding of the same height, so the bar never covers a screen's controls. On phones it replaces the floating bar and each screen's own **Next →** (Back and the answers stay in the screen). |
 
-The order of live stories is the home page's: the stories registry (`STORIES` in `web_app/src/utils/dataStory.ts`), then the topic stories (`/stories/short-term-rentals`). Stories still "coming soon" are never linked. The pure helpers (next live story, the progress share, which dot is current) are in `web_app/src/utils/storyNav.ts`, with tests; the components are in `web_app/src/components/stance/StoryProgress.tsx`.
+The order of live stories is the home page's: the stories registry (`STORIES` in `web_app/src/utils/dataStory.ts`), then the topic stories (`/stories/short-term-rentals`). Stories still "coming soon" are never linked. The pure helpers (next live story, the progress share, which dot is current) are in `web_app/src/utils/storyNav.ts`, with tests; the components are in `web_app/src/components/stance/StoryProgress.tsx` (bottom bar, next-story card) and `ProgressPips.tsx` (the wide-screen segments).
 
 ### Moving between screens
 

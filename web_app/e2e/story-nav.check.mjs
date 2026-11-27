@@ -1,6 +1,7 @@
 // Story nav check (#1138): on a 1440x900 desktop, step through every screen of a data story and confirm the inline Next and
 // Back buttons sit in the same place, at the same size, on every screen (within 2px). The first screen has no Back but its
 // Next keeps the spot; the last screen's primary action takes Next's spot (same right edge, top and height; its label is longer). No floating Next is shown while the inline one is.
+// The cover (#1182) is checked first (#1192): no floating Next beside Start, one progress indicator, no Close (×); then Start.
 //
 //   node e2e/story-nav.check.mjs [--base http://localhost:5173] [--path /stories/data-centers] [--shots <dir>/nav-after]
 //
@@ -42,6 +43,27 @@ for (const path of paths) {
   await page.goto(base + path, { waitUntil: 'networkidle', timeout: 120_000 })
   await page.waitForSelector('[data-panel="0"][data-live]', { timeout: 60_000 })
   await page.waitForTimeout(1500)
+  // The story opens on its cover (#1182): Start is the way forward there, so no floating Next; one progress indicator (the
+  // top bar's segments, no rail of numbered dots) and no Close (×) (#1192). Then Start lands on the first screen.
+  const cover = await page.evaluate(() => {
+    const shown = (sel) => [...document.querySelectorAll(sel)].some((el) => el.getClientRects().length > 0)
+    return {
+      start: shown('[data-cover] .home-story-start'),
+      floating: shown('[data-testid="floating-next"]'),
+      progress: ['[data-testid="stance-pips"]', '.story-dots', '[data-testid="story-topbar"]', '.story-bottombar-progress'].filter(shown).length,
+      close: shown('[aria-label="Close story"]'),
+    }
+  })
+  const coverProblems = []
+  if (cover.start && cover.floating) coverProblems.push('floating Next on the cover')
+  if (cover.progress !== 1) coverProblems.push(`${cover.progress} progress indicators`)
+  if (cover.close) coverProblems.push('a Close (×) button')
+  failures += coverProblems.length ? 1 : 0
+  console.log(`\n${path}: cover ${coverProblems.length ? 'FAIL  <- ' + coverProblems.join('; ') : 'ok'}`)
+  if (cover.start) {
+    await page.locator('[data-cover] .home-story-start').click()
+    await page.waitForTimeout(1500)
+  }
   const count = await page.locator('section[data-panel]').count()
   const rows = []
   for (let i = 0; i < count; i++) {

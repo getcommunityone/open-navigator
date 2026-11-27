@@ -11,7 +11,7 @@ import ScopeBar from '../components/stance/ScopeBar'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
-import { NextStoryCard, StoryBottomBar, StoryDots, StoryTopBar } from '../components/stance/StoryProgress'
+import { NextStoryCard, StoryBottomBar } from '../components/stance/StoryProgress'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
 import { QuestionScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
 import { actsMode, useActs, type Hold } from '../components/stance/useActs'
@@ -25,7 +25,6 @@ import { STATE_CODES } from '../lib/usStates'
 import {
   screenText,
   scopeQuery,
-  stopLabel,
   storyPlaceDisplay,
   storyScopeLabel,
   storyScreenIndex,
@@ -172,8 +171,29 @@ export default function DataStory() {
   const [active, setActive] = useState(0)
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
   const [placeOpen, setPlaceOpen] = useState(false)
-  // The next-story card in view (#1102): the dots and the floating bar step aside so they don't sit over it or the footer.
+  // The next-story card in view (#1102): the floating bar steps aside so it doesn't sit over it or the footer.
   const [atEnd, setAtEnd] = useState(false)
+  // The cover in view (#1192): its Start button is the way forward, so neither the floating Next nor the phone bar's Next
+  // shows beside it (the phone bar's Next would also skip the Overview, moving on from screen 0 before it is seen).
+  const [onCover, setOnCover] = useState(true)
+  const startRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    const el = startRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    // What sits under the sticky site header and the story's own bar does not count as visible.
+    const header = document.querySelector<HTMLElement>('.site-header')
+    const top = rootRef.current?.querySelector<HTMLElement>('.stance-top')
+    const off = (header?.offsetHeight ?? 0) + (top?.offsetHeight ?? 0)
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[entries.length - 1]
+        if (e) setOnCover(e.isIntersecting)
+      },
+      { threshold: 0.5, rootMargin: `-${off}px 0px 0px 0px` },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [story, wide])
   const dialogOpen = placeOpen
   // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
   useIdleNudge({
@@ -470,7 +490,8 @@ export default function DataStory() {
     dataCenters: `/data-centers${scopeQuery(scope)}`,
     decisions: `/browse-topics${scopeQuery(scope)}`,
   }
-  const labels = screens.map((s, i) => stopLabel(s, texts[i]!))
+  // The progress segments' names (#1192): the screen's own word, "3 of 11: Sites", as the top bar shows it.
+  const labels = screens.map((s) => s.eyebrow)
   // The end of the story leads on (#1102): the next live story, or every data story, keeping the place.
   const onward = nextStoryLink(storyId, scopeQuery(scope), liveList)
   const vote: VoteState = {
@@ -505,7 +526,6 @@ export default function DataStory() {
       data-fade={reduced ? '' : undefined}
       data-sbar={wide ? undefined : ''}
     >
-      {wide && <StoryTopBar active={active} count={n} />}
       <ScopeBar
         backTo={`/stories${scopeQuery(scope)}`}
         backLabel="← Data stories"
@@ -544,13 +564,10 @@ export default function DataStory() {
         extra={
           <span className="stance-top-actions">
             <SoundToggle on={soundOn} onToggle={toggleSound} />
-            {/* Close (#1017): back to the home page's stories, keeping the place. */}
-            <Link to={`/${scopeQuery(scope)}#data-stories`} className="folio-btn stance-close" aria-label="Close story" title="Close">
-              <span aria-hidden="true">×</span>
-            </Link>
           </span>
         }
-        progress={<ProgressPips count={n} active={active} />}
+        // One progress indicator per device (#1192): wide screens, these segments (a button per screen); phones, the bottom bar.
+        progress={wide ? <ProgressPips count={n} active={active} labels={labels} onJump={goTo} /> : undefined}
         placeOpen={placeOpen}
         onPlaceOpenChange={setPlaceOpen}
         onApply={applyPlace}
@@ -562,7 +579,7 @@ export default function DataStory() {
         {subhead && <p className="stance-title-subhead">{subhead}</p>}
         {title.basis && <p className="stance-title-basis">{title.basis}</p>}
         <div className="home-story-actions">
-          <button type="button" className="home-story-start" onClick={() => goTo(0)}>
+          <button type="button" className="home-story-start" ref={startRef} onClick={() => goTo(0)}>
             {storyStartLabel(storyId, label)} <span aria-hidden="true">→</span>
           </button>
           <Link to={onward.href} className="home-story-next">
@@ -631,12 +648,10 @@ export default function DataStory() {
         </div>
         {/* After the last screen, outside the screens ([data-panel]) the scroller counts: the way on to the next story. */}
         <NextStoryCard href={onward.href} label={onward.label} isStory={onward.next != null} onInView={setAtEnd} />
-        {/* Wide screens: numbered dots down the left edge; they move with goTo, like Next and the keys. */}
-        {wide && <StoryDots labels={labels} active={active} onJump={goTo} away={atEnd} />}
       </div>
       {/* Phones get the bottom bar instead, which always shows Next; the floating bar would sit on top of it. */}
       {wide ? (
-        !atEnd && <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
+        !atEnd && !onCover && <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
       ) : (
         <StoryBottomBar
           active={active}
@@ -646,6 +661,7 @@ export default function DataStory() {
           storyHref={onward.href}
           storyLabel={onward.label}
           storyIsNext={onward.next != null}
+          hideNext={onCover}
         />
       )}
       <p className="stance-keys">Keys: PageDown, Space or ↓ next · PageUp, Shift+Space or ↑ back · Home and End jump to the ends</p>
