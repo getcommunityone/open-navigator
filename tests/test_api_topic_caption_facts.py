@@ -363,3 +363,30 @@ def test_other_topics_have_no_caption_comments(get):
     conn = _Conn({"FROM civicsearch_topic": [{"topic_id": 100005, "query_id": "guns"}], "FROM jurisdictions": POPS})
     d = get(conn, "guns").json()
     assert d["caption_comments"] is None and d["votes"] is None
+
+
+# --- #1330: officials' positions and meetings with any position --------------------------------------------------------
+
+def test_official_positions_and_position_meetings(get):
+    routes = {
+        "FROM data_center_meeting_lean": [
+            {"lean_meetings": 71, "public_against_meetings": 6, "public_against_states": 1, "public_for_meetings": 0,
+             "public_split_meetings": 2, "public_silent_meetings": 63, "disagreement_meetings": 0, "disagreement_states": 0,
+             "official_against_meetings": 7, "official_for_meetings": 8, "official_divided_meetings": 13,
+             "position_meetings": 31, "both_position_meetings": 5}
+        ]
+    }
+    d = get(dc_conn(routes=routes), "data-centers", {"state": "AL"}).json()
+    assert (d["official_against_meetings"], d["official_for_meetings"], d["official_divided_meetings"]) == (7, 8, 13)
+    assert d["position_meetings"] == 31 and d["both_position_meetings"] == 5
+
+
+def test_lean_sql_counts_official_positions_on_the_p07_rule():
+    sql, _ = tcf.build_lean_sql(tcf.DATA_CENTERS_TOPIC_ID, "AL", None)
+    assert "official_lean = 'mostly_opposed' AND coalesce(l.official_lean_p, 0) >= 0.7" in sql
+    assert "AS position_meetings" in sql and "AS both_position_meetings" in sql
+
+
+def test_older_reading_without_official_counts_leaves_them_null(get):
+    d = get(dc_conn(), "data-centers").json()
+    assert d["position_meetings"] is None and d["official_for_meetings"] is None

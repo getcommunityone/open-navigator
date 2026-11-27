@@ -9,6 +9,11 @@ import type { Caption } from './storyCaption'
 export const STANCE_MIN_DECISIONS = 3
 /** Hand-counted public speakers a stance headline needs, unless it has enough decisions. */
 export const STANCE_MIN_SPEAKERS = 5
+/**
+ * #1330 (owner: "I thought we were counting all speakers and highlighting where they disagree"): meetings with any recorded
+ * position, public or official, a stance headline needs, unless it has enough decisions (or hand-counted speakers).
+ */
+export const STANCE_MIN_POSITION_MEETINGS = 5
 
 export interface RecordedEvidence {
   /** Hand-counted public speakers in scope; null when not on record (no meeting reviewed, or the topic has no counts). */
@@ -26,6 +31,19 @@ export interface RecordedEvidence {
   decisionsAgainst: number | null
   /** #1290: public comments from our captions in scope (side not classified yet); null when not available. */
   captionComments: number | null
+  /** #1330: meetings with any recorded position (public or official), and with both; null when the reading isn't loaded. */
+  positionMeetings: number | null
+  bothPositionMeetings: number | null
+  /** #1330: the public's position, in meetings read (against, for, split). */
+  publicAgainst: number | null
+  publicFor: number | null
+  publicSplit: number | null
+  /** #1330: officials' position, in meetings read (against, for, divided). */
+  officialAgainst: number | null
+  officialFor: number | null
+  officialDivided: number | null
+  /** Meetings where officials sided against the public. */
+  disagreement: number | null
 }
 
 /** The scope's recorded evidence from its caption facts. Nothing is filled in: a missing count stays null. */
@@ -42,6 +60,15 @@ export function recordedEvidence(f: TopicCaptionFacts | null | undefined): Recor
     decisionsFor: v?.decisions_for ?? null,
     decisionsAgainst: v?.decisions_against ?? null,
     captionComments: f?.caption_comments?.comments ?? null,
+    positionMeetings: f?.position_meetings ?? null,
+    bothPositionMeetings: f?.both_position_meetings ?? null,
+    publicAgainst: f?.public_split_meetings != null ? (f.public_against_meetings ?? 0) : null,
+    publicFor: f?.public_split_meetings != null ? (f.public_for_meetings ?? 0) : null,
+    publicSplit: f?.public_split_meetings ?? null,
+    officialAgainst: f?.official_against_meetings ?? null,
+    officialFor: f?.official_for_meetings ?? null,
+    officialDivided: f?.official_divided_meetings ?? null,
+    disagreement: f?.disagreement_meetings ?? null,
   }
 }
 
@@ -49,15 +76,85 @@ export function recordedEvidence(f: TopicCaptionFacts | null | undefined): Recor
 export const RECORDED_TOPICS: ReadonlySet<string> = new Set(['data-centers'])
 
 /**
- * Below the minimum: fewer than 3 decisions with a recorded vote and fewer than 5 speakers. Only a topic that keeps these
- * records is held to it; for such a topic a scope with nothing reviewed yet (both null) counts as none recorded, so it is
- * below the minimum too. A topic that keeps neither is not held to it.
+ * Below the minimum (#1330): fewer than 3 decisions with a recorded vote, fewer than 5 meetings with any recorded position
+ * (public or official), and fewer than 5 hand-counted speakers. Every recorded position counts, officials' included: the
+ * owner asked for all speakers, not the public's alone. A scope whose reading is loaded is held to it whatever the topic;
+ * a data-center scope with nothing reviewed and no reading counts as none recorded. A topic with no record of any kind
+ * isn't held to it.
  */
 export function belowStanceMinimum(e: RecordedEvidence, topicKey?: string): boolean {
-  // An older server (no `votes` field) can't tell "nothing reviewed" from "not sent": only real counts gate it.
-  const keeps = topicKey && e.reported ? RECORDED_TOPICS.has(topicKey) : e.speakers != null || e.decisions != null
+  const keeps =
+    e.positionMeetings != null ||
+    (topicKey && e.reported ? RECORDED_TOPICS.has(topicKey) : e.speakers != null || e.decisions != null)
   if (!keeps) return false
-  return (e.decisions ?? 0) < STANCE_MIN_DECISIONS && (e.speakers ?? 0) < STANCE_MIN_SPEAKERS
+  return (
+    (e.decisions ?? 0) < STANCE_MIN_DECISIONS &&
+    (e.positionMeetings ?? 0) < STANCE_MIN_POSITION_MEETINGS &&
+    (e.speakers ?? 0) < STANCE_MIN_SPEAKERS
+  )
+}
+
+const fmtN = (n: number) => n.toLocaleString('en-US')
+const meetings = (n: number) => `${fmtN(n)} ${n === 1 ? 'meeting' : 'meetings'}`
+
+/**
+ * "In Georgia, officials sided against the public in 11 of 27 meetings where both took a side." (#1330), or null when they
+ * never did or the reading isn't loaded. `where` is "In Georgia" / "Across America".
+ */
+export function disagreementLine(e: RecordedEvidence, where: string): string | null {
+  const p = disagreementParts(e, where)
+  return p ? `${p.before}${p.count}${p.after}` : null
+}
+
+/** The same line in three parts, so the count alone can be the tap target (never a search for the number in the text). */
+export function disagreementParts(e: RecordedEvidence, where: string): { before: string; count: string; after: string } | null {
+  if (!e.disagreement || e.disagreement <= 0) return null
+  const both = e.bothPositionMeetings
+  const of = both != null && both >= e.disagreement ? ` of ${fmtN(both)}` : ''
+  const noun = (of ? both! : e.disagreement) === 1 ? 'meeting' : 'meetings'
+  return {
+    before: `${where}, officials sided against the public in `,
+    count: fmtN(e.disagreement),
+    after: `${of} ${noun}${of ? ` where both took a side` : ''}.`,
+  }
+}
+
+/** "Public: 6 against · 2 split (8 meetings)" (#1330): the public's positions read, no zero side; null with none read. */
+export function publicPositionsLine(e: RecordedEvidence): string | null {
+  if (e.publicSplit == null) return null
+  const parts = [
+    [e.publicAgainst ?? 0, 'against'],
+    [e.publicFor ?? 0, 'for'],
+    [e.publicSplit, 'split'],
+  ].filter(([n]) => (n as number) > 0) as [number, string][]
+  const total = parts.reduce((a, [n]) => a + n, 0)
+  if (total === 0) return 'Public: took no side in the meetings read'
+  return `Public: ${parts.map(([n, w]) => `${fmtN(n)} ${w}`).join(' · ')} (${meetings(total)})`
+}
+
+/**
+ * "Officials: 7 against · 8 for · 13 divided (28 meetings); recorded votes: 1 decision for, 0 against" (#1330): officials' positions read and
+ * the recorded votes by which way they went; null with neither.
+ */
+export function officialPositionsLine(e: RecordedEvidence): string | null {
+  const parts = (
+    [
+      [e.officialAgainst ?? 0, 'against'],
+      [e.officialFor ?? 0, 'for'],
+      [e.officialDivided ?? 0, 'divided'],
+    ] as [number, string][]
+  ).filter(([n]) => n > 0)
+  const total = parts.reduce((a, [n]) => a + n, 0)
+  const read = e.officialDivided != null ? (total > 0 ? `${parts.map(([n, w]) => `${fmtN(n)} ${w}`).join(' · ')} (${meetings(total)})` : 'took no side in the meetings read') : null
+  let votes: string | null = null
+  if (e.decisions) {
+    votes =
+      e.decisionsFor != null && e.decisionsAgainst != null
+        ? `recorded votes: ${fmtN(e.decisionsFor)} ${e.decisionsFor === 1 ? 'decision' : 'decisions'} for, ${fmtN(e.decisionsAgainst)} against`
+        : `recorded votes: ${fmtN(e.votesFor)} yes, ${fmtN(e.votesAgainst)} no`
+  }
+  if (!read && !votes) return null
+  return `Officials: ${[read, votes].filter(Boolean).join('; ')}`
 }
 
 /** The share of tallied decisions one side needs before the votes lean that way (#1290). */
@@ -125,7 +222,14 @@ export function evidenceFacts(e: RecordedEvidence): string {
           : `no public speakers ${where}`
         : `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} ${where}`
   }
-  return `${votes}; ${speakers}.`
+  // #1330: every recorded position counts toward the minimum, so the facts say how many meetings had one.
+  const positions =
+    e.positionMeetings != null
+      ? e.positionMeetings === 0
+        ? 'no meeting read has a public or official position'
+        : `the public or officials took a position in ${meetings(e.positionMeetings)} read`
+      : null
+  return `${[votes, speakers, positions].filter(Boolean).join('; ')}.`
 }
 
 /** "Recorded votes went the other way: 3 of 3 decisions went for data centers." (#1290), or the summed votes without sides. */
@@ -142,4 +246,28 @@ export function voteSideClause(e: RecordedEvidence, topic: string): string {
 export function voteClause(e: RecordedEvidence): string {
   const d = e.decisions ?? 0
   return `Recorded votes: ${fmt(e.votesFor)} for and ${fmt(e.votesAgainst)} against, in ${fmt(d)} ${d === 1 ? 'decision' : 'decisions'}.`
+}
+
+/**
+ * Named people on each side of the scope's decisions (#1330), from #1327's `supported_by` / `opposed_by` (never a second
+ * parse of `held_by`): distinct names, so a councilor who backed three decisions counts once. Null when no decision carries
+ * the fields (an older server, or nothing named).
+ */
+export function namedSides(
+  items: ReadonlyArray<{ supported_by?: { name: string }[]; opposed_by?: { name: string }[] }> | null | undefined,
+): { supporters: number; opposers: number } | null {
+  if (!items || !items.some((d) => d.supported_by !== undefined || d.opposed_by !== undefined)) return null
+  const sup = new Set<string>()
+  const opp = new Set<string>()
+  for (const d of items) {
+    for (const p of d.supported_by ?? []) sup.add(p.name)
+    for (const p of d.opposed_by ?? []) opp.add(p.name)
+  }
+  return { supporters: sup.size, opposers: opp.size }
+}
+
+/** "named supporters 5 · opposers 2" for the officials line (#1330); null when no one is named. */
+export function namedSidesClause(n: { supporters: number; opposers: number } | null): string | null {
+  if (!n || n.supporters + n.opposers === 0) return null
+  return `named supporters ${fmtN(n.supporters)} · opposers ${fmtN(n.opposers)}`
 }

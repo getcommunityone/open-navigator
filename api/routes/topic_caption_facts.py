@@ -167,6 +167,23 @@ class TopicCaptionFacts(BaseModel):
         None, description="AI reading: meetings where officials sided against the public. Null when not loaded."
     )
     disagreement_states: int | None = Field(None, description="States with at least one disagreement meeting in scope.")
+    official_against_meetings: int | None = Field(
+        None, description="#1330 reading: meetings where officials mostly opposed (P >= 0.7). Null when not loaded."
+    )
+    official_for_meetings: int | None = Field(
+        None, description="#1330 reading: meetings where officials mostly supported (P >= 0.7). Null when not loaded."
+    )
+    official_divided_meetings: int | None = Field(
+        None, description="#1330 reading: meetings where officials were divided or mixed, or leaned under P 0.7."
+    )
+    position_meetings: int | None = Field(
+        None,
+        description="#1330: meetings with any recorded position, public (against, for or split) or official. Null when "
+        "not loaded.",
+    )
+    both_position_meetings: int | None = Field(
+        None, description="#1330: meetings where both the public and officials took a position. Null when not loaded."
+    )
     wider: list[CaptionWiderLean] | None = Field(
         None,
         description=(
@@ -276,6 +293,22 @@ PUBLIC_SPLIT_SQL = (
 )
 
 
+# #1330: officials' position in the same reading (``official_lean`` / ``official_lean_p``), on the same P >= 0.7 rule as the
+# public's. against = mostly opposed; for = mostly supportive; divided = divided or mixed, or a lean under P 0.7. "No
+# official position", "no opinion" and "did not speak" are no position. A meeting has a position when the public took one
+# (against, for or split) or the officials did.
+OFFICIAL_AGAINST_SQL = "l.official_lean = 'mostly_opposed' AND coalesce(l.official_lean_p, 0) >= 0.7"
+OFFICIAL_FOR_SQL = (
+    "l.official_lean IN ('mostly_supportive', 'mostly_supported') AND coalesce(l.official_lean_p, 0) >= 0.7"
+)
+OFFICIAL_DIVIDED_SQL = (
+    "(l.official_lean IN ('divided', 'mixed') OR (l.official_lean IN ('mostly_opposed', 'mostly_supportive', "
+    "'mostly_supported') AND coalesce(l.official_lean_p, 0) < 0.7))"
+)
+OFFICIAL_ANY_SQL = f"(({OFFICIAL_AGAINST_SQL}) OR ({OFFICIAL_FOR_SQL}) OR {OFFICIAL_DIVIDED_SQL})"
+PUBLIC_ANY_SQL = f"(l.public_against OR ({PUBLIC_FOR_SQL}) OR {PUBLIC_SPLIT_SQL})"
+
+
 def split_count(row: dict[str, Any]) -> int:
     """Meetings read as split (counted in SQL; 0 when absent)."""
     return int(row.get("public_split_meetings") or 0)
@@ -307,7 +340,12 @@ def build_lean_sql(topic_id: int, state_code: str | None, city_like: str | None)
         f"count(*) FILTER (WHERE {PUBLIC_SILENT_SQL})::int AS public_silent_meetings, "
         f"count(*) FILTER (WHERE {PUBLIC_SPLIT_SQL})::int AS public_split_meetings, "
         "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings, "
-        "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states "
+        "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states, "
+        f"count(*) FILTER (WHERE {OFFICIAL_AGAINST_SQL})::int AS official_against_meetings, "
+        f"count(*) FILTER (WHERE {OFFICIAL_FOR_SQL})::int AS official_for_meetings, "
+        f"count(*) FILTER (WHERE {OFFICIAL_DIVIDED_SQL})::int AS official_divided_meetings, "
+        f"count(*) FILTER (WHERE {PUBLIC_ANY_SQL} OR {OFFICIAL_ANY_SQL})::int AS position_meetings, "
+        f"count(*) FILTER (WHERE {PUBLIC_ANY_SQL} AND {OFFICIAL_ANY_SQL})::int AS both_position_meetings "
         f"FROM {table} l WHERE {' AND '.join(where) or 'TRUE'}"
     )
     return sql, params
@@ -514,6 +552,13 @@ async def topic_caption_facts(
                 "disagreement_meetings": int(r["disagreement_meetings"] or 0),
                 "disagreement_states": int(r["disagreement_states"] or 0),
             }
+            # #1330: officials' position and the meetings with any position, copied when the row has them. Both lean
+            # marts carry official_lean / official_lean_p; a copy without them fails the whole read in _optional, which
+            # leaves every lean field null (never a 0 that would read as "none").
+            for k in ("official_against_meetings", "official_for_meetings", "official_divided_meetings",
+                      "position_meetings", "both_position_meetings"):
+                if r.get(k) is not None:
+                    lean[k] = int(r[k])
 
     wider: list[CaptionWiderLean] | None = None
     if wider_rows:
