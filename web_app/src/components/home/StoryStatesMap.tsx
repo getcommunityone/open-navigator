@@ -265,7 +265,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       const st = lineOf(stanceBy.get(code))
       return `${n?.state ?? STATE_CODE_TO_NAME[code] ?? code}: ${plural(n?.meetings ?? 0, 'meeting', 'meetings')}${st ? `; ${st}` : ''}.`
     },
-    onActivate: (code) => navigate(href(code), { state: DRILL_FROM_NATIONAL }),
+    onActivate: (code) => {
+      if (!isCurrentPage(href(code), location.pathname, location.search)) navigate(href(code), { state: DRILL_FROM_NATIONAL })
+    },
   })
 
   if (isError) return <p className="text-sm text-stone-500">The map could not be loaded.</p>

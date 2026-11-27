@@ -37,6 +37,9 @@ export function westToEast<K>(dots: readonly { x: number; y: number }[], idOf: (
     .map((a) => a.id)
 }
 
+/** A focus this soon after a press on the map came from the press. */
+const POINTER_FOCUS_MS = 800
+
 interface Options<K> {
   /** The areas the arrow keys move between, in order. */
   keys: readonly K[]
@@ -88,13 +91,15 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
   // A tap or click also focuses the map (it is a tab stop). That focus must not pick the starting area: on a phone it
   // showed the page's own state's card over the box the reader tapped, so its "Open the … story" button led back to the
   // page they were on. Only keyboard focus starts on `initial`; a pointer shows what it lands on.
-  const pointerFocus = useRef(false)
+  // A timestamp, not a flag: a press on an already-focused map fires no focus, and a flag left set would skip the next
+  // keyboard focus.
+  const pointerAt = useRef(0)
   const onPointerDown = () => {
-    pointerFocus.current = true
+    pointerAt.current = Date.now()
   }
   const onFocus = () => {
-    const byPointer = pointerFocus.current
-    pointerFocus.current = false
+    const byPointer = Date.now() - pointerAt.current < POINTER_FOCUS_MS
+    pointerAt.current = 0
     if (byPointer) return
     if (active == null && keys.length) move(initial != null && keys.includes(initial) ? initial : keys[0]!)
   }

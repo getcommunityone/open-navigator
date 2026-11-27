@@ -56,4 +56,16 @@ describe('useMapKeyboard focus', () => {
     props.onFocus()
     expect(setActive).toHaveBeenCalledWith('AL')
   })
+  it('a press that focused nothing does not skip a later keyboard focus', () => {
+    vi.useFakeTimers()
+    try {
+      const { setActive, props } = setup()
+      props.onPointerDown()
+      vi.advanceTimersByTime(5000)
+      props.onFocus()
+      expect(setActive).toHaveBeenCalledWith('AL')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
