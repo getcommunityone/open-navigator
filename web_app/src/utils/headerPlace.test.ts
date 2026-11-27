@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { headerPlace, headerPlaceLabel, searchAfterPick } from './headerPlace'
+import { headerPlace, headerPlaceLabel, headerPlaceState, isScopeAwarePath, searchAfterPick } from './headerPlace'
 
 const sp = (s: string) => new URLSearchParams(s)
 
@@ -28,5 +28,34 @@ describe('searchAfterPick', () => {
   })
   it('clears the carried place on home', () => {
     expect(searchAfterPick('/', sp('state=MA&city=Boston'), { state: 'AL', city: 'Tuscaloosa' }).toString()).toBe('')
+  })
+})
+
+describe('headerPlaceState (#1205)', () => {
+  const saved = { state: 'AL', city: 'Tuscaloosa' }
+  it('names the URL place on a scope-aware page', () => {
+    expect(headerPlaceState('/stories/guns', sp('state=AL&city=Tuscaloosa'), { state: 'MA', city: 'Boston' })).toEqual({
+      kind: 'scoped',
+      place: { stateCode: 'AL', city: 'Tuscaloosa' },
+    })
+  })
+  it('says National and offers the saved town when the page has no place', () => {
+    expect(headerPlaceState('/stories/guns', sp(''), saved)).toEqual({ kind: 'national-saved', saved: { stateCode: 'AL', city: 'Tuscaloosa' } })
+    expect(headerPlaceState('/search', sp('q=fluoride'), saved).kind).toBe('national-saved')
+  })
+  it('says National with no saved town', () => {
+    expect(headerPlaceState('/jurisdictions', sp(''), null)).toEqual({ kind: 'national' })
+  })
+  it('keeps the town label on home and on pages that are not scope-aware', () => {
+    expect(headerPlaceState('/', sp(''), saved)).toEqual({ kind: 'town', place: { stateCode: 'AL', city: 'Tuscaloosa' } })
+    expect(headerPlaceState('/settings', sp(''), null)).toEqual({ kind: 'town', place: null })
+    expect(headerPlaceState('/jurisdiction/0177256/meetings', sp(''), saved).kind).toBe('town')
+  })
+  it('matches scope-aware routes exactly', () => {
+    expect(isScopeAwarePath('/stories')).toBe(true)
+    expect(isScopeAwarePath('/stories/')).toBe(true)
+    expect(isScopeAwarePath('/stories-old')).toBe(false)
+    expect(isScopeAwarePath('/browse-topics')).toBe(true)
+    expect(isScopeAwarePath('/profile')).toBe(false)
   })
 })
