@@ -64,6 +64,12 @@ real counts. When the record stops backing it, the story's neutral title shows i
 | --- | --- | --- | --- | --- |
 | Data centers (live) | America hates data centers. | Public comments don't always match America's true sentiment, but our nation is clearly at a fever pitch of data center opposition. | against ≥ 2 × for, ≥ 10 speakers | 18 against, 3 for, of 29 speakers: shown |
 
+Since #1125 the conclusion is one of the caption picker's rules (see [Story captions](story-captions.md)), and since
+[#1182](https://github.com/getcommunityone/open-navigator/issues/1182) a place whose own reading is too thin states the
+broader scope's conclusion by name ("America hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings."),
+so the title matches the red map beside it. Every story opens with a topic-named **Start the [topic] story →** and
+**Next story: [title] →** in its first screen.
+
 ### Drafts for topics without a story yet
 
 These are not on the site. Each would need its own story, and a speaker-position record like data centers'

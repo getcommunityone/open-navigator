@@ -35,7 +35,8 @@ import {
 import { fetchDataCenterPositions, type DataCenterPositionsResponse } from '../api/dataCenters'
 import { storyHeroPoints } from '../utils/heroPoints'
 import { fetchTopicCaptionFacts } from '../api/topics'
-import { captionSubhead, captionText, pickCaption } from '../utils/storyCaption'
+import { captionSubhead, captionText, pickCaption, storyStartLabel } from '../utils/storyCaption'
+import '../styles/story-actions.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
@@ -264,6 +265,8 @@ export default function DataStory() {
    *  to the screen's controls (Back, then Next), and the arrow keys still page because a heading isn't a control. */
   const onSettled = useCallback((h: Hold) => {
     if (dialogOpenRef.current) return
+    // Resting on the opening (#1182): its Start and Next story buttons stay the first Tab stops; no screen takes focus.
+    if (h.kind === 'cover') return
     const ae = document.activeElement as HTMLElement | null
     if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.closest('.stance-place'))) return
     const panel = rootRef.current?.querySelector<HTMLElement>(`[data-panel="${h.round}"]`)
@@ -302,12 +305,15 @@ export default function DataStory() {
     shownIds.current = screens.map((x) => x.id)
     const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1
     const at = Math.max(0, fromUrl >= 0 ? fromUrl : stay)
+    // The opening (#1182) is a cover hold at the top: a fresh visit with no ?screen opens on it, and a reader still above
+    // the first screen stays on it when the screens rebuild; a reader on screen 0 (or a ?screen link) lands on its hold.
+    const onCover = fromUrl < 0 && at === 0
     const land = (behavior: ScrollBehavior) => {
-      const h = acts.holds().find((x) => x.round === at && x.kind !== 'r')
-      // The first screen on the flow layout is the top of the page. The page can arrive scrolled (a previous page's
-      // offset, e.g. home's Data stories section), so the story always moves to its screen; before #991 it stayed put
-      // at screen 0 and opened mid-way, on a screen that wasn't the active one.
-      const target = at > 0 || mode === 'pinned' ? h?.pos : 0
+      const h = acts.holds().find((x) => x.round === at && (x.kind === 'q' || x.kind === 'end'))
+      const keepCover = onCover && (h == null || window.scrollY < h.pos - 2)
+      // The page can arrive scrolled (a previous page's offset, e.g. home's Data stories section), so the story always
+      // moves to its screen; before #991 it stayed put at screen 0 and opened mid-way, on a screen that wasn't the active one.
+      const target = keepCover ? 0 : at > 0 || mode === 'pinned' ? h?.pos : (h?.pos ?? 0)
       if (target != null && Math.abs(target - window.scrollY) > 2) window.scrollTo({ top: target, behavior })
     }
     land('auto')
@@ -529,20 +535,6 @@ export default function DataStory() {
               },
             ]}
           />
-          {subhead && <p className="stance-title-subhead">{subhead}</p>}
-          {title.basis && <p className="stance-title-basis">{title.basis}</p>}
-          {points.length > 0 && (
-            <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
-              {points.map((pt) => (
-                <li key={pt.icon}>
-                  <span className="stance-title-point-n">{pt.n}</span>
-                  <span>
-                    <strong>{pt.title}</strong> {pt.line}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
           </>
         }
         stateCode={stateCode}
@@ -563,6 +555,33 @@ export default function DataStory() {
         onPlaceOpenChange={setPlaceOpen}
         onApply={applyPlace}
       />
+      {/* The opening (#1182): subhead, basis, the two story buttons and the points, in the first screen and in normal flow,
+          so they scroll away and the sticky bar above stays the title and the progress only. It is the story's cover
+          (data-cover): a hold at the top of the page, so snapping and the wheel limit never pull the reader past it. */}
+      <div className="stance-intro" data-cover>
+        {subhead && <p className="stance-title-subhead">{subhead}</p>}
+        {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+        <div className="home-story-actions">
+          <button type="button" className="home-story-start" onClick={() => goTo(0)}>
+            {storyStartLabel(storyId, label)} <span aria-hidden="true">→</span>
+          </button>
+          <Link to={onward.href} className="home-story-next">
+            {onward.label} <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        {points.length > 0 && (
+          <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
+            {points.map((pt) => (
+              <li key={pt.icon}>
+                <span className="stance-title-point-n">{pt.n}</span>
+                <span>
+                  <strong>{pt.title}</strong> {pt.line}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
       <p className="folio-sr-only" aria-live="polite">
         {screens[active] ? `${screens[active]!.eyebrow}. ${texts[active]!.headline}` : ''}
       </p>

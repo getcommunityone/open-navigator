@@ -3,8 +3,13 @@
 //
 // Rules, in order; each needs its own real counts and otherwise falls through to the next (CLAUDE.md, No Fabricated Data).
 // Thresholds and the reasons for them: web_docs/docs/development/story-captions.md.
-//   a. sentiment ("[Place] hates [topic]."): confident public-against meetings at volume (AI reading), or the story's
-//      counted-speaker gate. The AI's "for" and "mixed" labels are unreliable and never used, in a count or a ratio.
+//   a. sentiment ("[Place] hates [topic]." or, for a topic without "hates", "[Place] leaned against [topic]."): confident
+//      public-against meetings at volume (AI reading), or the story's counted-speaker gate. The AI's "for" and "mixed"
+//      labels are unreliable and never used, in a count or a ratio.
+//   a2. wider_sentiment (#1182): the place's own reading is too thin, but the broader scope the map colours (its state,
+//      then the country) passes (a): the title names that scope ("America hates data centers; Tuscaloosa, Alabama brought
+//      them up in 2 meetings."), so the title says what the map beside it shows and never puts a broader claim under a
+//      place's label without naming it.
 //   b. disagreement ("[Place] is divided on [topic]."): officials sided against the public (AI reading) at volume, or
 //      counted speakers split for and against.
 //   c. state_gap: the place leads the other states (or places in its state) by meetings; a near tie names both.
@@ -43,11 +48,20 @@ export interface CaptionCopy {
   facts: string | null
   /** The volume verb: "[California] took up [short-term rentals] in 570 meetings." */
   verb: string
+  /** The topic as a story's name on its Start button: "Start the [data center] story". */
+  story: string
+  /** The pronoun for the topic in a clause after the title ("brought [them] up"). */
+  pronoun: 'them' | 'it'
   /**
-   * The (a) verb ("hates"), or absent when "against" has no clear direction for the topic (guns, short-term rentals,
-   * fluoridation: the public can be against the thing or against limits on it), so (a) is skipped.
+   * The (a) verb "hates", only for data centers, Flock and license plate readers, and pickleball, where a public against
+   * is against the thing. Every other topic says `against` instead (#1182).
    */
   hates?: string
+  /**
+   * The (a) verb for a topic without "hates": "leaned against", or for guns, where "for" means for the proposal before the
+   * body (#1126), "leaned against what was proposed on". Absent: (a) is skipped.
+   */
+  against?: string
   /** (b) basis wording after "officials", when officials sided against the public, around the topic. */
   officials: { before: string; after: string }
   /** The question (e), with the place and topic blanks. */
@@ -62,6 +76,8 @@ const sidedAgainst = { before: 'sided against the public on ', after: '' }
 export const CAPTION_COPY: Record<string, CaptionCopy> = {
   'data-centers': {
     topic: 'data centers',
+    story: 'data center',
+    pronoun: 'them',
     facts: 'data-centers',
     verb: 'talked about',
     hates: 'hates',
@@ -70,6 +86,9 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   },
   'short-term-rentals': {
     topic: 'short-term rentals',
+    story: 'short-term rentals',
+    pronoun: 'them',
+    against: 'leaned against',
     facts: 'short-term-rentals',
     verb: 'took up',
     officials: sidedAgainst,
@@ -77,6 +96,8 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   },
   flock: {
     topic: 'Flock and license plate readers',
+    story: 'Flock and license plate readers',
+    pronoun: 'them',
     facts: 'flock',
     verb: 'weighed',
     hates: 'hates',
@@ -85,6 +106,8 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   },
   'license-plate-readers': {
     topic: 'Flock and license plate readers',
+    story: 'Flock and license plate readers',
+    pronoun: 'them',
     facts: 'license-plate-readers',
     verb: 'weighed',
     hates: 'hates',
@@ -93,6 +116,9 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   },
   guns: {
     topic: 'guns',
+    story: 'guns',
+    pronoun: 'them',
+    against: 'leaned against what was proposed on',
     facts: 'guns',
     verb: 'took up',
     officials: sidedAgainst,
@@ -100,6 +126,8 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   },
   pickleball: {
     topic: 'pickleball',
+    story: 'pickleball',
+    pronoun: 'it',
     facts: 'pickleball',
     verb: 'brought up',
     hates: 'hates',
@@ -108,6 +136,9 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   },
   'bike-lanes': {
     topic: 'bike lanes',
+    story: 'bike lanes',
+    pronoun: 'them',
+    against: 'leaned against',
     facts: 'bike-lanes',
     verb: 'took up',
     officials: sidedAgainst,
@@ -115,6 +146,9 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   },
   'water-fluoridation': {
     topic: 'water fluoridation',
+    story: 'water fluoridation',
+    pronoun: 'it',
+    against: 'leaned against',
     facts: 'water-fluoridation',
     verb: 'took up',
     officials: sidedAgainst,
@@ -123,6 +157,8 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   // Guides (#1078, #1079): no meeting record backs them yet, so they always ask their question.
   'starting-a-nonprofit': {
     topic: 'a nonprofit',
+    story: 'starting a nonprofit',
+    pronoun: 'it',
     facts: null,
     verb: 'talked about',
     officials: sidedAgainst,
@@ -130,6 +166,8 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
   },
   insurance: {
     topic: 'insurance',
+    story: 'insurance',
+    pronoun: 'it',
     facts: null,
     verb: 'talked about',
     officials: sidedAgainst,
@@ -139,7 +177,7 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
 
 // --- the picker ----------------------------------------------------------------------------------------------------
 
-export type CaptionKind = 'disagreement' | 'sentiment' | 'state_gap' | 'volume' | 'question'
+export type CaptionKind = 'disagreement' | 'sentiment' | 'wider_sentiment' | 'state_gap' | 'volume' | 'question'
 
 export interface Caption {
   kind: CaptionKind
@@ -150,6 +188,8 @@ export interface Caption {
   basis: string | null
   /** True when the caption rests on an AI reading of transcripts (Jev), not counted speakers: the UI labels it. */
   ai: boolean
+  /** wider_sentiment only: the broader scope the title's claim is about ("America", "Georgia"). */
+  widerPlace?: string
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -199,6 +239,8 @@ function speakerBasis(sp: Speakers, where: string, national: boolean): string {
 export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | undefined, scope: StoryScope): Caption {
   const copy: CaptionCopy = CAPTION_COPY[topicKey] ?? {
     topic: topicKey.replace(/-/g, ' '),
+    story: topicKey.replace(/-/g, ' '),
+    pronoun: 'them',
     facts: topicKey,
     verb: 'talked about',
     officials: sidedAgainst,
@@ -220,8 +262,12 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
   const sp = facts.speakers
   const dis = facts.disagreement_meetings ?? 0
 
-  // (a) "[Place] hates [topic]."
-  if (copy.hates) {
+  // (a) "[Place] hates [topic]." / "[Place] leaned against [topic]."
+  const stanceVerb = copy.hates ?? copy.against
+  // A topic without "hates" leads with "is divided" (b) when that passes too: its "against" points one way only by the
+  // question's wording (#1126), while officials and the public disagreeing needs no direction.
+  const dividedFirst = !copy.hates && dis >= DISAGREEMENT_MIN_MEETINGS
+  if (stanceVerb && !dividedFirst) {
     const against = facts.public_against_meetings ?? 0
     const story = STORIES[topicKey]
     const gate = story?.conclusion
@@ -240,7 +286,7 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
       const counted = speakersPass && sp ? speakerBasis(sp, where, national) : ''
       return {
         kind: 'sentiment',
-        template: [P, ` ${copy.hates} `, T, '.'],
+        template: [P, ` ${stanceVerb} `, T, '.'],
         place,
         basis: [lean, counted].filter(Boolean).join(' '),
         ai: leanPasses,
@@ -268,6 +314,10 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
     }
   }
 
+  // (a2) The place's own reading is too thin: the nearest broader scope whose reading passes (a), named (#1182).
+  const wider = widerSentiment(copy, stanceVerb, facts, label, level, scope.stateName ?? null)
+  if (wider) return wider
+
   // (c) Volume with state differences.
   const gap = stateGap(copy, facts, scope)
   if (gap) return gap
@@ -285,6 +335,51 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
   }
   // (e) The question.
   return question
+}
+
+/**
+ * (a2): the first of the broader scopes in `facts.wider` (state, then national) whose confident public-against meetings
+ * pass (a) at that scope's threshold. The title names the broader scope as literal text and keeps the place as its blank,
+ * with the place's own meeting count after it.
+ */
+function widerSentiment(
+  copy: CaptionCopy,
+  verb: string | undefined,
+  facts: TopicCaptionFacts,
+  label: string,
+  level: keyof typeof HATES_MIN_MEETINGS,
+  stateName: string | null,
+): Caption | null {
+  if (!verb) return null
+  // What the place's own reading is, stated truly (never "too few" for a place with many readings that aren't against).
+  const ownRead = facts.lean_meetings ?? 0
+  const ownAgainst = facts.public_against_meetings ?? 0
+  const own =
+    ownRead === 0
+      ? `${label} has no AI reading of its own yet.`
+      : ownAgainst === 0
+        ? `None of ${label}'s ${meetingsWord(ownRead)} with an AI reading read as mostly against.`
+        : `${fmt(ownAgainst)} of ${label}'s ${meetingsWord(ownRead)} with an AI reading read as mostly against, under the ${fmt(HATES_MIN_MEETINGS[level])} a reading of its own needs.`
+  for (const w of facts.wider ?? []) {
+    const against = w.public_against_meetings ?? 0
+    if (against < HATES_MIN_MEETINGS[w.level]) continue
+    const name = w.level === 'national' ? 'America' : (w.state ?? stateName ?? w.state_code ?? null)
+    if (!name) continue
+    const states = w.public_against_states ?? 0
+    const leanWhere = w.level === 'national' ? (states > 1 ? `across ${fmt(states)} states` : 'nationwide') : `in ${name}`
+    const m = facts.meetings ?? 0
+    const tail = m > 0 ? ` brought ${copy.pronoun} up in ${meetingsWord(m)}.` : ' has none on record yet.'
+    return {
+      kind: 'wider_sentiment',
+      template: [`${name} ${verb} `, T, '; ', P, tail],
+      place: label,
+      widerPlace: name,
+      basis:
+        `In ${meetingsWord(against)} ${leanWhere}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading). ${own}`,
+      ai: true,
+    }
+  }
+  return null
 }
 
 const COVERAGE = 'Counted from local meeting recordings and transcripts on record; how many meetings are on record varies by state.'
@@ -389,6 +484,9 @@ export function captionSubhead(caption: Caption, topicKey: string, scope: StoryS
       return national
         ? (STORIES[topicKey]?.conclusion?.subhead ?? null)
         : `At local meetings${where}, the public has mostly spoken against ${topic}.`
+    case 'wider_sentiment':
+      // The basis says the place has too few readings of its own; the subhead only names the broader scope's lean.
+      return `Across ${caption.widerPlace ?? 'the country'}, the public has mostly spoken against ${topic} at local meetings.`
     case 'disagreement':
       return `At local meetings${where || ' across the country'}, the public and officials don't always land on the same side of ${topic}.`
     case 'state_gap':
@@ -398,3 +496,19 @@ export function captionSubhead(caption: Caption, topicKey: string, scope: StoryS
       return null
   }
 }
+
+/**
+ * The Start button's words (#1182): it names the topic and the place in effect, "Start the data center story for Tuscaloosa,
+ * Alabama". National (label "National"): no place. `fallback` names a topic with no caption copy (its subject).
+ */
+export function storyStartLabel(topicKey: string, label: string, fallback?: string): string {
+  const raw = CAPTION_COPY[topicKey]?.story ?? fallback ?? topicKey.replace(/-/g, ' ')
+  // Lowercase a plain first word ("Homelessness and shelters"), keep a name ("Flock", "ICE").
+  const name = /^[A-Z][a-z]/.test(raw) && !CAPTION_COPY[topicKey] ? raw[0]!.toLowerCase() + raw.slice(1) : raw
+  return `Start the ${name} story${label && label !== 'National' ? ` for ${label}` : ''}`
+}
+
+/** A title past this many characters (a two-clause title such as "America hates data centers; Tuscaloosa, Alabama brought
+ * them up in 2 meetings.") is set smaller, so it never runs past three lines beside the map (#1182). */
+export const LONG_TITLE_CHARS = 60
+export const isLongTitle = (t: string) => t.length > LONG_TITLE_CHARS

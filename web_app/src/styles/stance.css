@@ -3184,3 +3184,57 @@ html.stance-snap {
 .stance-story[data-mode='pinned'] .stance-act .stance-grid > .stance-left {
   padding-bottom: 72px;
 }
+
+/* The story's opening (#1182): below the sticky bar and in normal flow, so it scrolls away after the first screen. */
+.stance-intro {
+  padding: 10px 36px 14px;
+  border-bottom: 1px solid var(--rule, #d6d3d1);
+}
+.stance-intro .home-story-actions {
+  margin-top: 12px;
+}
+.stance-intro .stance-title-points {
+  margin-top: 12px;
+}
+/* Wide screens (the pinned story): the opening is the first screen on its own, aligned to the top under the title, so
+   the first story screen below (whose words rise only as it is reached) never shows as an empty band under it. */
+.stance-game[data-mode='pinned'] .stance-intro {
+  min-height: calc(100svh - var(--hdr, 0px) - var(--top-h, 96px));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: clamp(16px, 4vh, 40px);
+  border-bottom: 0;
+}
+.stance-game[data-mode='pinned'] .stance-intro > * {
+  max-width: 60rem;
+}
+.stance-game[data-mode='pinned'] .stance-intro .stance-title-subhead {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 1.8vw, 26px);
+  line-height: 1.3;
+  max-width: 40em;
+}
+.stance-game[data-mode='pinned'] .stance-intro .stance-title-basis {
+  margin-top: 10px;
+  font-size: 14px;
+}
+.stance-game[data-mode='pinned'] .stance-intro .home-story-actions {
+  margin-top: 20px;
+}
+.stance-game[data-mode='pinned'] .stance-intro .stance-title-points {
+  margin-top: 20px;
+  gap: 10px;
+  font-size: 15px;
+}
+@media (max-width: 767px) {
+  .stance-intro {
+    padding: 8px 12px 12px;
+  }
+}
+/* A snap target at the very top (its snap position clamps to 0), so the page opens on it instead of snapping past it. */
+html.stance-snap .stance-intro {
+  scroll-snap-align: start;
+  scroll-margin-top: 100vh;
+}

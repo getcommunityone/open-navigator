@@ -71,28 +71,15 @@ html { scroll-behavior: smooth; }
 .v9 .home-story-eyebrow { margin: 0; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; font-weight: 600; }
 /* Sized so a three-line title, the subhead and both buttons fit one laptop screen (#1176). */
 .v9 .home-story-headline { font-size: clamp(28px, 3.2vw, 46px); font-weight: 800; line-height: 1.08; letter-spacing: -0.015em; margin: 6px 0 10px; color: #1c1917; }
+.v9 .home-story-headline.is-long { font-size: clamp(24px, 2.5vw, 36px); line-height: 1.12; }
 .v9 .home-story-subhead { margin: 0; font-size: clamp(15px, 1.3vw, 17px); line-height: 1.5; color: #44403c; max-width: 34em; }
 .v9 .home-story-basis { margin: 8px 0 0; font-size: 13px; color: #78716c; }
-.v9 .home-story-start { display: inline-block; background: #0f766e; color: #fff; border-radius: 999px; padding: 12px 24px; font-size: 16px; font-weight: 700; text-decoration: none; }
-.v9 .home-story-start:hover { background: #115e59; }
-.v9 .home-story-points { list-style: none; margin: 18px 0 0; padding: 0; }
-.v9 .home-story-point { display: flex; gap: 14px; align-items: flex-start; padding: 10px 0; border-top: 1px solid #e7e5e4; }
-.v9 .home-story-point:first-child { border-top: none; padding-top: 4px; }
-.v9 .home-story-point-icon { --hero-point-bg: #0f9d84; flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; background: var(--hero-point-bg); color: #fff; }
-@media (max-width: 640px) { .v9 .home-story-point-icon { width: 48px; height: 48px; } .v9 .home-story-point-icon svg { width: 24px; height: 24px; } }
-.v9 .home-story-point-n { display: inline-block; min-width: 1.4em; margin-right: 6px; font-size: 22px; font-weight: 800; color: #0f9d84; }
-.v9 .home-story-point-title { margin: 2px 0 0; font-size: 17px; font-weight: 800; color: #1c1917; line-height: 1.3; }
-.v9 .home-story-point-line { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: #57534e; }
-.v9 .home-story-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-/* Always reachable (owner, 2026-11-26): when the points push the buttons below the fold, they stick to the bottom of
+/* Always reachable (owner, 2026-11-26): when the card pushes the buttons below the fold, they stick to the bottom of
    the screen until their own place scrolls into view, then sit there. */
 .v9 .home-story-actions { position: sticky; bottom: 0; z-index: 5; padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(to top, #fff 78%, rgba(255,255,255,0)); }
 .v9 .home-story-drill { margin: 10px 0 0; font-size: 13.5px; color: #57534e; }
 .v9 .home-story-drill strong { color: #1c1917; }
-.v9 .home-story-actions .home-story-start { padding: 12px 24px; font-size: 16px; text-align: center; }
-.v9 .home-story-next { display: inline-block; border: 1.5px solid #0f766e; color: #0f766e; background: #fff; border-radius: 999px; padding: 11px 22px; font-size: 16px; font-weight: 700; text-decoration: none; text-align: center; }
-.v9 .home-story-next:hover { background: #f0fdfa; }
 .v9 .home-story-map { position: relative; }
 /* The map never pushes the card past one screen (#1176): capped by height, kept centred at its aspect ratio. */
 .v9 .home-story-map > svg, .v9 .home-story-map svg[role="img"] { max-height: min(60vh, 560px); width: auto; max-width: 100%; margin: 0 auto; }

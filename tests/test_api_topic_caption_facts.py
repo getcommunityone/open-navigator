@@ -222,3 +222,47 @@ def test_lean_sql_scopes():
     assert params == ["GA", "%Fayette%"]
     sql, params = tcf.build_lean_sql(100005, None, None)
     assert "topic_meeting_lean" in sql and params == [100005]
+
+
+def _lean_by_scope(params):
+    """Data-center lean rows that depend on the scope params: (state, city) -> canned counts (test stand-ins)."""
+    if not params:
+        return [{"lean_meetings": 1828, "public_against_meetings": 283, "public_against_states": 32,
+                 "has_public_for": False, "disagreement_meetings": 23, "disagreement_states": 10}]
+    if len(params) == 1:
+        return [{"lean_meetings": 71, "public_against_meetings": 6, "public_against_states": 1,
+                 "has_public_for": False, "disagreement_meetings": 0, "disagreement_states": 0}]
+    return [{"lean_meetings": 2, "public_against_meetings": 0, "public_against_states": 0,
+             "has_public_for": False, "disagreement_meetings": 0, "disagreement_states": 0}]
+
+
+def test_city_scope_returns_state_then_national_readings(get):
+    """#1182: a city too thin for its own reading gets its state's and the country's, nearest first."""
+    conn = dc_conn(routes={
+        "FROM data_center_meeting_lean": _lean_by_scope,
+        "GROUP BY m.jurisdiction_name": [{"name": "Tuscaloosa", "meetings": 2}],
+        "AND m.jurisdiction_name ILIKE": [{"n": 2}],
+        "FROM jurisdictions": [{"state_code": "AL", "state": "Alabama", "population": 5_000_000}],
+    })
+    d = get(conn, "data-centers", {"state": "AL", "city": "Tuscaloosa"}).json()
+    assert d["public_against_meetings"] == 0
+    assert [(w["level"], w["state_code"], w["state"]) for w in d["wider"]] == [
+        ("state", "AL", "Alabama"),
+        ("national", None, None),
+    ]
+    assert d["wider"][0]["public_against_meetings"] == 6
+    assert d["wider"][1]["public_against_meetings"] == 283
+    assert d["wider"][1]["public_against_states"] == 32
+
+
+def test_state_scope_returns_national_reading_and_national_none(get):
+    conn = dc_conn(routes={"FROM data_center_meeting_lean": _lean_by_scope})
+    d = get(conn, "data-centers", {"state": "GA"}).json()
+    assert [w["level"] for w in d["wider"]] == ["national"]
+    assert get(dc_conn(), "data-centers").json()["wider"] is None
+
+
+def test_wider_left_out_when_no_reading_loaded(get):
+    conn = topic_conn(fail=("topic_meeting_lean",))
+    d = get(conn, "short-term-rentals", {"state": "FL"}).json()
+    assert d["wider"] == []

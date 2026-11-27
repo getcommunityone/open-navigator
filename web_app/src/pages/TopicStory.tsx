@@ -5,7 +5,8 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
 import { topicStanceForMap } from '../utils/topicStance'
-import { CAPTION_COPY, captionText, pickCaption } from '../utils/storyCaption'
+import { CAPTION_COPY, captionText, pickCaption, storyStartLabel } from '../utils/storyCaption'
+import { nextStoryLink } from '../utils/storyNav'
 import { useTopicStories } from '../hooks/useTopicStories'
 import { highlightSnippet } from '../lib/highlight'
 import { STATE_CODES } from '../lib/usStates'
@@ -14,6 +15,7 @@ import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesM
 import TimelineChart from '../components/stance/TimelineChart'
 import DumbbellChart from '../components/stance/DumbbellChart'
 import '../styles/folio.css'
+import '../styles/story-actions.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 
 /**
@@ -58,6 +60,9 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
   const stateCode = STATE_CODES.includes(raw) ? raw : null
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
   const label = stateName ?? 'National'
+  // The scope every story link carries: this page is at state grain (it shows and queries the state only), so its links
+  // carry the state it shows, never a city its label doesn't name (CLAUDE.md, scope label rule; city grain is #1186).
+  const scopeQ = stateCode ? `?state=${stateCode}` : ''
 
   const setState = (code: string | null) =>
     setSp(
@@ -174,6 +179,15 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
     : captionQ.isSuccess && captionQ.data.meetings === 0
       ? `No meetings on record about ${def.subject.toLowerCase()} ${stateName ? `in ${stateName}` : 'yet'}.`
       : captionText(caption, CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase())
+  // The two story buttons (#1182), the same as the home card's: Start (named for the topic) jumps to the first section,
+  // Next story moves on, both in the first screen.
+  const next = nextStoryLink(def.slug, scopeQ, topicStories.live)
+  const startStory = () => {
+    const el = document.getElementById('topic-story-start')
+    if (!el) return
+    el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+    el.focus({ preventScroll: true })
+  }
   const items = meetings.data?.pages.flatMap((p) => p.items) ?? []
   const total = meetings.data?.pages[0]?.total ?? 0
 
@@ -191,7 +205,8 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
           <span aria-hidden="true">×</span>
         </Link>
       </div>
-      <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-stone-900 sm:text-5xl" aria-busy={captionQ.isPending || undefined}>
+      {/* Restrained like the home title (#1182): about 36px on a laptop, so the buttons stay in the first screen. */}
+      <h1 className="mt-2 max-w-4xl font-serif text-[26px] font-bold leading-tight text-stone-900 sm:text-4xl" aria-busy={captionQ.isPending || undefined}>
         {headline}
       </h1>
       {caption.basis && (
@@ -200,7 +215,15 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
         </p>
       )}
       <p className="mt-3 max-w-2xl text-stone-600">{def.lede}</p>
-      <p className="mt-2 text-sm text-stone-500">Counted from local meeting recordings and transcripts that mention the topic.</p>
+      <div className="home-story-actions">
+        <button type="button" className="home-story-start" onClick={startStory}>
+          {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
+        </button>
+        <Link to={next.href} className="home-story-next">
+          {next.label} <span aria-hidden="true">→</span>
+        </Link>
+      </div>
+      <p className="mt-3 text-sm text-stone-500">Counted from local meeting recordings and transcripts that mention the topic.</p>
 
       {/* Scope label = the applied filter (CLAUDE.md), with a one-click broaden and a picker. */}
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
@@ -228,7 +251,7 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
         </select>
       </div>
 
-      <section className="mx-auto mt-6 max-w-4xl" aria-label={`Map of meetings about ${def.title.toLowerCase()} by state`}>
+      <section id="topic-story-start" tabIndex={-1} className="mx-auto mt-6 max-w-4xl scroll-mt-20 focus:outline-none" aria-label={`Map of meetings about ${def.title.toLowerCase()} by state`}>
         {national.isError ? (
           <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
         ) : (

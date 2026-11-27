@@ -22,6 +22,7 @@ import {
   storyStats,
 } from '../utils/dataStory'
 import { HOUSE_STYLE } from '../utils/houseTheme'
+import { storyStartLabel } from '../utils/storyCaption'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import type { ChartKey } from '../utils/stanceGame'
 
@@ -153,7 +154,7 @@ export default function DataStories() {
               </>
             ) : (
               <p className="stance-lede">
-                In {placeInLede}, neighbors show up when a data center hits the agenda. Start the story to walk through what
+                In {placeInLede}, neighbors show up when a data center hits the agenda. Start the data center story to walk through what
                 the meetings put on the record.
               </p>
             )}
@@ -164,7 +165,7 @@ export default function DataStories() {
                 to={`/stories/${encodeURIComponent(topic)}${q}`}
                 data-primary
               >
-                Start the story <span aria-hidden="true">→</span>
+                {storyStartLabel(topic, label)} <span aria-hidden="true">→</span>
               </Link>
             </div>
             {showVoices && (
