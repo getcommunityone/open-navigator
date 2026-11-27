@@ -82,8 +82,25 @@ class CaptionVotes(BaseModel):
     decisions: int = Field(0, description="Decisions with a recorded tally in scope.")
     for_: int = Field(0, alias="for", description="Votes for, summed over those decisions.")
     against: int = Field(0, description="Votes against, summed over those decisions.")
+    decisions_for: int | None = Field(
+        None,
+        description="#1290: decisions whose vote went for the data center (with these, decisions / for / against are read "
+        "from data_center_decision too) (data_center_decision.vote_side); null when "
+        "that column or table isn't in this database.",
+    )
+    decisions_against: int | None = Field(
+        None, description="#1290: decisions whose vote went against it (vote_side); null when not available."
+    )
 
     model_config = {"populate_by_name": True}
+
+
+class CaptionComments(BaseModel):
+    """Public comments segmented from our own captions in scope (#1290, ``data_center_comment``), all years. Their side
+    isn't classified yet, so they never set a stance; they say people spoke where no side was counted."""
+
+    comments: int = Field(0, description="Public comments on a data center item found in our captions.")
+    governments: int = Field(0, description="Local governments those comments were made at.")
 
 
 class CaptionWiderLean(BaseModel):
@@ -122,6 +139,9 @@ class TopicCaptionFacts(BaseModel):
     )
     votes: CaptionVotes | None = Field(
         None, description="Recorded votes in scope (data centers only, #1289); null when no meeting in scope was reviewed."
+    )
+    caption_comments: CaptionComments | None = Field(
+        None, description="#1290: public comments from our captions in scope (data centers only); null when not available."
     )
     lean_meetings: int | None = Field(None, description="Meetings in scope with an AI reading (Jev); null when none loaded.")
     public_against_meetings: int | None = Field(
@@ -212,6 +232,34 @@ SPEAKERS_SQL = (
     "FROM data_center_meeting_position p "
     "WHERE ($1::text IS NULL OR p.state_code = $1::text) AND ($2::text IS NULL OR p.jurisdiction_name ILIKE $2::text)"
 )
+
+
+# #1290: which way each tallied vote went (data_center_decision.vote_side, dbt), read defensively so a serving copy
+# without the column still answers (has_side false: sides null).
+VOTE_SIDES_SQL = (
+    "SELECT count(*)::int AS decisions_tallied, sum(d.votes_for)::int AS yes_votes, sum(d.votes_against)::int AS no_votes, "
+    "count(*) FILTER (WHERE to_jsonb(d) ->> 'vote_side' = 'for')::int AS decisions_for, "
+    "count(*) FILTER (WHERE to_jsonb(d) ->> 'vote_side' = 'against')::int AS decisions_against, "
+    "coalesce(bool_or(to_jsonb(d) ? 'vote_side'), false) AS has_side "
+    "FROM data_center_decision d WHERE d.votes_for IS NOT NULL AND d.votes_against IS NOT NULL "
+    "AND ($1::text IS NULL OR d.state_code = $1::text) AND ($2::text IS NULL OR d.jurisdiction_name ILIKE $2::text)"
+)
+CAPTION_COMMENTS_SQL = (
+    "SELECT count(*)::int AS comments, count(DISTINCT c.jurisdiction_id)::int AS governments "
+    "FROM data_center_comment c "
+    "WHERE ($1::text IS NULL OR c.state_code = $1::text) AND ($2::text IS NULL OR c.jurisdiction_name ILIKE $2::text)"
+)
+
+
+def vote_sides(rows: list[Any] | None, decisions: int) -> tuple[int | None, int | None]:
+    """(for, against) decisions by vote_side; (None, None) when the read failed or the column isn't there (unless there
+    is no tallied decision at all, which is a real 0 each)."""
+    if rows is None:
+        return None, None
+    r = dict(rows[0]) if rows else {}
+    if not r.get("has_side"):
+        return (0, 0) if decisions == 0 else (None, None)
+    return int(r.get("decisions_for") or 0), int(r.get("decisions_against") or 0)
 
 
 # The four positions of one meeting's AI reading (#1200), the same for both lean marts (their ``public_lean`` labels
@@ -361,6 +409,14 @@ async def topic_caption_facts(
                     if is_dc
                     else None
                 )
+                side_rows = (
+                    await _optional(conn, "data_center_decision", VOTE_SIDES_SQL, state_code, city_like) if is_dc else None
+                )
+                comment_rows = (
+                    await _optional(conn, "data_center_comment", CAPTION_COMMENTS_SQL, state_code, city_like)
+                    if is_dc
+                    else None
+                )
                 lean_sql, lean_params = build_lean_sql(topic_id, state_code, city_like)
                 lean_rows = await _optional(conn, "meeting lean", lean_sql, *lean_params)
                 wider_rows: list[tuple[str, str | None, list[Any] | None]] = []
@@ -419,11 +475,27 @@ async def topic_caption_facts(
                 states=int(r.get("states") or 0),
                 meetings_reviewed=int(r.get("meetings_reviewed") or 0),
             )
+            n_dec = int(r.get("decisions_with_tally") or 0)
+            yes, no = int(r.get("votes_for") or 0), int(r.get("votes_against") or 0)
+            d_for, d_against = vote_sides(side_rows, n_dec)
+            if d_for is not None and side_rows:
+                # #1290: with the sides, every vote count comes from data_center_decision (the preferred analysis), so
+                # "N decisions" and "k of N went for" never count from two marts.
+                sr = dict(side_rows[0])
+                n_dec = int(sr.get("decisions_tallied") or 0)
+                yes, no = int(sr.get("yes_votes") or 0), int(sr.get("no_votes") or 0)
             votes = CaptionVotes(
-                decisions=int(r.get("decisions_with_tally") or 0),
-                for_=int(r.get("votes_for") or 0),
-                against=int(r.get("votes_against") or 0),
+                decisions=n_dec,
+                for_=yes,
+                against=no,
+                decisions_for=d_for,
+                decisions_against=d_against,
             )
+
+    caption_comments: CaptionComments | None = None
+    if comment_rows is not None:
+        r = dict(comment_rows[0]) if comment_rows else {}
+        caption_comments = CaptionComments(comments=int(r.get("comments") or 0), governments=int(r.get("governments") or 0))
 
     lean: dict[str, Any] = {}
     if lean_rows:
@@ -468,6 +540,7 @@ async def topic_caption_facts(
         places=places,
         speakers=speakers,
         votes=votes,
+        caption_comments=caption_comments,
         wider=wider,
         **lean,
     )

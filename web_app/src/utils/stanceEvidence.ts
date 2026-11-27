@@ -21,6 +21,11 @@ export interface RecordedEvidence {
   votesAgainst: number
   /** The server sends the #1289 `votes` field (null or not): a null then means nothing reviewed, not an older server. */
   reported: boolean
+  /** #1290: decisions whose vote went for / against the topic (dbt `vote_side`); null when the server can't say. */
+  decisionsFor: number | null
+  decisionsAgainst: number | null
+  /** #1290: public comments from our captions in scope (side not classified yet); null when not available. */
+  captionComments: number | null
 }
 
 /** The scope's recorded evidence from its caption facts. Nothing is filled in: a missing count stays null. */
@@ -34,6 +39,9 @@ export function recordedEvidence(f: TopicCaptionFacts | null | undefined): Recor
     votesFor: v?.for ?? 0,
     votesAgainst: v?.against ?? 0,
     reported: Boolean(f && 'votes' in f),
+    decisionsFor: v?.decisions_for ?? null,
+    decisionsAgainst: v?.decisions_against ?? null,
+    captionComments: f?.caption_comments?.comments ?? null,
   }
 }
 
@@ -52,9 +60,24 @@ export function belowStanceMinimum(e: RecordedEvidence, topicKey?: string): bool
   return (e.decisions ?? 0) < STANCE_MIN_DECISIONS && (e.speakers ?? 0) < STANCE_MIN_SPEAKERS
 }
 
-/** Which way the recorded votes went, summed over the scope's decisions; null with no votes or a tie. */
+/** The share of tallied decisions one side needs before the votes lean that way (#1290). */
+export const VOTE_LEAN_SHARE = 2 / 3
+
+/**
+ * Which way the recorded votes went. #1290: by decision, from which way each vote went for the topic (dbt `vote_side`: a
+ * passed moratorium is against, a passed approval or delay is for), leaning a way only with two thirds of the decisions;
+ * mixed votes lean neither way. A "yes" is not "for": summed yes votes counted a 23–0 moratorium as support. Only an older
+ * server without the sides falls back to the summed yes and no votes. Null with no votes, a tie or mixed votes.
+ */
 export function voteSide(e: RecordedEvidence): 'for' | 'against' | null {
   if (!e.decisions) return null
+  if (e.decisionsFor != null && e.decisionsAgainst != null) {
+    const d = e.decisionsFor + e.decisionsAgainst
+    if (d <= 0) return null
+    if (e.decisionsFor / d >= VOTE_LEAN_SHARE) return 'for'
+    if (e.decisionsAgainst / d >= VOTE_LEAN_SHARE) return 'against'
+    return null
+  }
   if (e.votesFor > e.votesAgainst) return 'for'
   if (e.votesAgainst > e.votesFor) return 'against'
   return null
@@ -81,18 +104,39 @@ export function evidenceFacts(e: RecordedEvidence): string {
     const how = e.votesFor > e.votesAgainst ? 'passed' : e.votesAgainst > e.votesFor ? 'failed' : 'tied'
     votes = `One decision ${how} ${fmt(e.votesFor)}–${fmt(e.votesAgainst)}`
   } else {
-    votes = `${fmt(e.decisions)} decisions with recorded votes, ${fmt(e.votesFor)} for and ${fmt(e.votesAgainst)} against in all`
+    // #1290: "for / against" only by which way each decision went; summed votes are yes and no (a yes can be a moratorium).
+    votes =
+      e.decisionsFor != null && e.decisionsAgainst != null
+        ? `${fmt(e.decisions)} decisions with recorded votes, ${fmt(e.decisionsFor)} for and ${fmt(e.decisionsAgainst)} against`
+        : `${fmt(e.decisions)} decisions with recorded votes, ${fmt(e.votesFor)} yes and ${fmt(e.votesAgainst)} no votes in all`
   }
   const r = e.meetingsReviewed
+  const comments = e.captionComments ?? 0
   let speakers: string
   if (e.speakers == null) speakers = 'public speakers are not available yet'
   else if (!r) speakers = `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} on record`
   else {
     const where = `in ${fmt(r)} ${r === 1 ? 'meeting' : 'meetings'} reviewed by hand`
-    speakers = e.speakers === 0 ? `no public speakers ${where}` : `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} ${where}`
+    // #1290: our captions hold public comments, so people did speak; what's missing is which side they took.
+    speakers =
+      e.speakers === 0
+        ? comments > 0
+          ? `no speaker’s side is recorded ${where}, and the ${fmt(comments)} public ${comments === 1 ? 'comment' : 'comments'} in our captions ${comments === 1 ? 'is' : 'are'} not sorted by side yet`
+          : `no public speakers ${where}`
+        : `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} ${where}`
   }
   return `${votes}; ${speakers}.`
 }
+
+/** "Recorded votes went the other way: 3 of 3 decisions went for data centers." (#1290), or the summed votes without sides. */
+export function voteSideClause(e: RecordedEvidence, topic: string): string {
+  const side = voteSide(e)
+  if (!side || e.decisionsFor == null || e.decisionsAgainst == null) return voteClause(e)
+  const d = e.decisionsFor + e.decisionsAgainst
+  const k = side === 'for' ? e.decisionsFor : e.decisionsAgainst
+  return `Recorded votes went the other way: ${fmt(k)} of ${fmt(d)} ${d === 1 ? 'decision' : 'decisions'} with a recorded vote went ${side} ${topic}.`
+}
+
 
 /** "Recorded votes: 79 for and 10 against, in 12 decisions." */
 export function voteClause(e: RecordedEvidence): string {

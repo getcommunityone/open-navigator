@@ -30,7 +30,7 @@
 import type { TopicCaptionFacts } from '../api/topics'
 import { countClauses } from './clauses'
 import { STORIES, storyScopeLabel, type StoryScope, type StoryTitlePart } from './dataStory'
-import { belowStanceMinimum, evidenceFacts, recordedEvidence, stanceSide, voteClause, voteSide } from './stanceEvidence'
+import { belowStanceMinimum, evidenceFacts, recordedEvidence, stanceSide, voteSide, voteSideClause } from './stanceEvidence'
 import { GENERIC_POSITIONS, hasTopicPositions, positionVerdict, topicPositions, type PositionCounts, type TopicPositions } from './topicPositions'
 
 // --- thresholds (story-captions.md says why) -----------------------------------------------------------------------
@@ -334,7 +334,7 @@ function checkAgainstRecord(c: Caption, topicKey: string, facts: TopicCaptionFac
       kind: 'disagreement',
       template: [P, ' is divided on ', T, '.'],
       place,
-      basis: [c.basis, voteClause(e)].filter(Boolean).join(' '),
+      basis: [c.basis, voteSideClause(e, CAPTION_COPY[topicKey]?.topic ?? topicKey.replace(/-/g, ' '))].filter(Boolean).join(' '),
       ai: c.ai,
     }
   }
@@ -548,7 +548,11 @@ function positionTemplate(copy: CaptionCopy, words: TopicPositions, v: Verdict, 
   if (v.kind === 'split') return [name, ' is split on ', T, '.']
   if (v.side === 'against' && copy.hates) return [name, ` ${copy.hates} `, T, '.']
   const own = v.side === 'against' ? words.againstTitle : words.forTitle
-  if (own) return [name, ` ${own}.`]
+  if (own) {
+    // `{T}` is the topic control's place in the sentence (#1290): "[America] mostly wants [water fluoridation] ended."
+    const [before, after = ''] = own.split('{T}')
+    return own.includes('{T}') ? [name, ` ${before}`, T, `${after}.`] : [name, ` ${own}.`]
+  }
   return [name, v.side === 'against' ? ' mostly opposes ' : ' mostly supports ', T, '.']
 }
 
@@ -798,7 +802,7 @@ function stateGap(copy: CaptionCopy, facts: TopicCaptionFacts, scope: StoryScope
 /**
  * The title with the topic as its control (#1224, owner 2026-11-27: "should be able to change data centers"). A title whose
  * topic is written into its words ("Alabama mostly opposes data centers.") gets the blank on that phrase; one whose words
- * don't name it ("Ohio mostly favors gun limits.") names it in brackets before the full stop: "… gun limits (gun control).".
+ * don't name it leads with it ("On [gun control]: …"); never in brackets (#1290).
  */
 export function withTopicBlank(template: StoryTitlePart[], topic: string): StoryTitlePart[] {
   if (template.some((p) => typeof p !== 'string' && p.blank === 'topic')) return template
@@ -810,9 +814,9 @@ export function withTopicBlank(template: StoryTitlePart[], topic: string): Story
     const pieces: StoryTitlePart[] = [part.slice(0, i), T, part.slice(i + needle.length)].filter((x) => x !== '')
     return [...template.slice(0, at), ...pieces, ...template.slice(at + 1)]
   }
-  const last = template[template.length - 1]
-  if (typeof last === 'string' && last.endsWith('.')) return [...template.slice(0, -1), last.slice(0, -1), ' (', T, ').']
-  return [...template, ' (', T, ')']
+  // No phrase names the topic: it leads, never in brackets after the sentence (#1290, owner 2026-11-27).
+  const [head, ...rest] = template
+  return typeof head === 'string' ? ['On ', T, `: ${head}`, ...rest] : ['On ', T, ': ', ...template]
 }
 
 export function captionText(caption: Caption, topic: string): string {

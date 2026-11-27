@@ -385,9 +385,16 @@ export function positionsLoaded(res: DataCenterPositionsResponse | null | undefi
  * on a data center item (said so in the reason, #1059), and null ("not recorded") only when no meeting in scope was
  * reviewed. Votes are null when no decision recorded a tally. A real 0 beside real counts stays 0.
  */
+/** Reviewed meetings with no counted speaker while our captions hold public comments (#1290): people spoke, sides unknown. */
+export function speakerSidesNotRecorded(comments: number): string {
+  return `${plural(comments, 'public comment')} ${comments === 1 ? 'is' : 'are'} on record in our captions here, but no speaker’s side is recorded yet.`
+}
+
 export function positionFigures(
   res: DataCenterPositionsResponse | null | undefined,
   scope?: StoryScope | null,
+  /** #1290: public comments in our captions in scope; with some and no counted speaker, the speaker figures are a dash. */
+  captionComments?: number | null,
 ): PositionFigure[] | null {
   if (!positionsLoaded(res)) return null
   const t = res.totals
@@ -396,8 +403,16 @@ export function positionFigures(
   const reviewed = t.meetings_reviewed ?? 0
   const vote = (v: number | null) => (tallies > 0 && v != null ? v : null)
   // Reviewed meetings with no speaker found are a real 0 (#1059); "not recorded" only when nothing was reviewed.
-  const sp = (v: number | undefined) => (c ? (v ?? 0) : reviewed > 0 ? 0 : null)
-  const spReason = c ? null : reviewed > 0 ? speakersNoneFound(reviewed, scope) : SPEAKERS_NOT_RECORDED
+  // 0 only when nobody spoke (#1290): comments in our captions mean people did, with no side recorded yet: a dash.
+  const spokeUncounted = !c && reviewed > 0 && (captionComments ?? 0) > 0
+  const sp = (v: number | undefined) => (c ? (v ?? 0) : reviewed > 0 && !spokeUncounted ? 0 : null)
+  const spReason = c
+    ? null
+    : spokeUncounted
+      ? speakerSidesNotRecorded(captionComments!)
+      : reviewed > 0
+        ? speakersNoneFound(reviewed, scope)
+        : SPEAKERS_NOT_RECORDED
   const voReason = tallies > 0 ? null : VOTES_NOT_RECORDED
   return [
     { key: 'for', label: 'spoke for', value: sp(c?.for), reason: spReason },
@@ -417,7 +432,11 @@ export function figureDisplay(v: number | null | undefined): string {
  * The line under the figures: what they count, where, and how many meetings and decisions they come from. With nobody
  * speaking it says so (#1289): never "From 1 meeting", which counted the meeting with the vote and read as if someone spoke.
  */
-export function positionsCaption(res: DataCenterPositionsResponse | null | undefined, scope: StoryScope): string | null {
+export function positionsCaption(
+  res: DataCenterPositionsResponse | null | undefined,
+  scope: StoryScope,
+  captionComments?: number | null,
+): string | null {
   if (!positionsLoaded(res)) return null
   const t = res.totals
   const label = scope.stateName ? storyScopeLabel(scope) : null
@@ -426,6 +445,9 @@ export function positionsCaption(res: DataCenterPositionsResponse | null | undef
   const reviewed = t.meetings_reviewed ?? 0
   if (!speakerCounts(res)) {
     const votes = tallies > 0 ? ` Votes from ${plural(tallies, 'decision')} with a recorded vote.` : ''
+    if (reviewed > 0 && (captionComments ?? 0) > 0) {
+      return `No speaker’s side is recorded in the ${plural(reviewed, 'meeting')} reviewed ${place}.${votes}`
+    }
     if (reviewed > 0) return `No public speakers in the ${plural(reviewed, 'meeting')} reviewed ${place}.${votes}`
     return `Public speakers are not available yet for ${label ?? 'the country'}: no meeting here has been reviewed.${votes}`
   }
@@ -821,7 +843,28 @@ export interface ScreenCaption {
   text: string
 }
 
+/**
+ * A screen's supporting line without the next screen's question (#1290, owner screenshot 27 Nov 2026: "… 159 passages in
+ * 2026. What is on the agenda?"): the line says what this screen shows; Next leads on. The closing screen keeps its question
+ * (it is the screen's own).
+ */
+export function dropNextQuestion(context: string): string {
+  return context.replace(/\s*[^.?!]*\?$/, '').trim()
+}
+
 export function screenText(
+  screen: StoryScreen,
+  data: StoryData,
+  status: StoryStatus,
+  scope: StoryScope,
+  question?: Pick<StanceQuestion, 'text' | 'place_text'> | null,
+  caption?: ScreenCaption | null,
+): ScreenText {
+  const t = screenTextRaw(screen, data, status, scope, question, caption)
+  return screen.kind === 'chart' || screen.kind === 'overview' ? { ...t, context: dropNextQuestion(t.context) } : t
+}
+
+function screenTextRaw(
   screen: StoryScreen,
   data: StoryData,
   status: StoryStatus,

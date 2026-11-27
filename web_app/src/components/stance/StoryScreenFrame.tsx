@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useScreenFit } from './useScreenFit'
 import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
 
@@ -35,6 +36,13 @@ export default function StoryScreenFrame(p: Props) {
   const leftRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  // On a phone the screen fits above the bottom bar (#1290): what doesn't fit waits behind "More".
+  const [more, setMore] = useState(false)
+  const hasMore = useScreenFit(sectionRef, rightRef, p.active, more)
+  useEffect(() => {
+    if (!p.active) setMore(false)
+  }, [p.active])
 
   // A column taller than its frame scrolls on its own: Lenis must leave wheel and touch over it alone, but only then.
   useEffect(() => {
@@ -49,6 +57,8 @@ export default function StoryScreenFrame(p: Props) {
 
   return (
     <section
+      ref={sectionRef}
+      data-fit-more={more ? '' : undefined}
       className="stance-panel stance-act"
       data-panel={p.index}
       data-screen={p.id}
@@ -77,6 +87,11 @@ export default function StoryScreenFrame(p: Props) {
         </div>
         <div className="stance-right" ref={rightRef}>
           {p.right}
+          {(hasMore || more) && (
+            <button type="button" className="folio-link-btn stance-screen-more" aria-expanded={more} onClick={() => setMore((m) => !m)}>
+              {more ? 'Less' : 'More on this screen'} {more ? '↑' : '↓'}
+            </button>
+          )}
         </div>
       </div>
     </section>

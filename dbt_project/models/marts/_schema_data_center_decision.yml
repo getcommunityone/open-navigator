@@ -64,6 +64,13 @@ models:
       - name: vote_text
         description: "An uncontested item's vote as said (voice vote, 5-0, unanimous); null for contested decisions and when not stated."
         data_type: text
+      - name: vote_side
+        description: "#1290: which way a recorded vote went for the data center ('for' / 'against'), only when the tally records both a yes and a no count; null otherwise and on a tie. A passed motion to pause, ban or prohibit, or a denial, is 'against'; any other passed motion is 'for'; a failed one is the opposite. Keyword reading of the item's own words (development/story-stance-evidence.md)."
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['for', 'against']
       - name: meeting_date
         description: "Date of the meeting; null when unknown or later than the load date."
         data_type: date

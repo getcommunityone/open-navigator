@@ -21,6 +21,22 @@ plate readers in 9 meetings."), and a city may still name its state's conclusion
 replaces the national fallback of #1182 and #1200 for place scopes; the national page is unchanged. `TopicStory` also
 passes `zoom` to `StoryStatesMap`, so a chosen state is drawn as that state rather than the national map.
 
+## Decision (27 Nov 2026, #1290): votes read by which way they went; speaker sources reconciled; the topic is the noun
+
+[#1290](https://github.com/getcommunityone/open-navigator/issues/1290) revises #1289 below; the reasons are in
+[Story vote direction, speaker sources and phone fit](story-vote-direction-and-phone-fit.md).
+
+- **Votes.** The vote check reads which way each tallied vote went for the topic (`data_center_decision.vote_side`: a passed
+  moratorium is against, a passed approval or delay is for) and leans a way only with two thirds of the decisions. This
+  answers #1289's caveat below; nationally the votes are mixed (7 for, 5 against), so the title is "America hates data
+  centers." again.
+- **Speakers.** Where our captions hold public comments, the facts say "no speaker’s side is recorded …, and the 62 public
+  comments in our captions are not sorted by side yet", never "no public speakers" (#1313's reading line, which names its own
+  source, follows).
+- **Title.** #1313 put the topic control in the insufficient title; #1290 does the same for every topic's conclusion wording,
+  which marks the topic's place (`{T}`), so no title shows the control in brackets ("America mostly wants [water
+  fluoridation] ended.").
+
 ## Decision (27 Nov 2026, #1289): the stance headline agrees with the recorded votes, and needs a minimum
 
 [#1289](https://github.com/getcommunityone/open-navigator/issues/1289). The owner found the Alabama page reading

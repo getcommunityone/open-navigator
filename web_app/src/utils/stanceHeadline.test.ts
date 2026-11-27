@@ -97,7 +97,7 @@ describe('stance headline: below the minimum (#1289)', () => {
       'No decision with a recorded vote; no public speakers in 24 meetings reviewed by hand.',
     )
     expect(evidenceFacts(recordedEvidence(facts(al, { votes: { decisions: 2, for: 9, against: 5 }, speakers: { for: 1, against: 2, question: 0, neutral: 0, states: 1, meetings_reviewed: 24 } })))).toBe(
-      '2 decisions with recorded votes, 9 for and 5 against in all; 3 public speakers in 24 meetings reviewed by hand.',
+      '2 decisions with recorded votes, 9 yes and 5 no votes in all; 3 public speakers in 24 meetings reviewed by hand.',
     )
     expect(evidenceFacts(recordedEvidence(facts(al, { votes: { decisions: 1, for: 2, against: 5 } })))).toMatch(/^One decision failed 2–5;/)
   })
@@ -161,5 +161,48 @@ describe('stance headline agrees with the recorded votes (#1289)', () => {
       }
     }
     for (const [f, s] of cases) expectAgreesWithVotes(pickCaption('data-centers', f, s), f)
+  })
+})
+
+describe('#1290: votes read by which way they went, and the speaker sources reconciled', () => {
+  // Live shapes, 27 Nov 2026: Alabama's one vote ("Zoning Ordinance Delayed", 8–1) went for data centers; nationally 7 of the
+  // 12 tallied decisions went for and 5 against (moratoriums and a denial), so the votes are mixed.
+  const alLive = (over: Over = {}) =>
+    facts(al, { votes: { decisions: 1, for: 8, against: 1, decisions_for: 1, decisions_against: 0 }, caption_comments: { comments: 62, governments: 10 }, ...over })
+
+  it('Alabama: comments in our captions mean people spoke, so never "no public speakers"; the reading is labelled', () => {
+    const c = pickCaption('data-centers', alLive(), al)
+    expect(c.kind).toBe('insufficient')
+    expect(c.basis).toMatch(
+      /^One decision passed 8–1; no speaker’s side is recorded in 24 meetings reviewed by hand, and the 62 public comments in our captions are not sorted by side yet\. /,
+    )
+    expect(c.basis).not.toMatch(/no public speakers/)
+    // The transcript reading names its own source (#1313), so it never reads as counted speakers.
+    expect(c.basis).toContain('A reading of all 71 meeting transcripts found the public speaking on data centers in 8')
+  })
+  it('with no caption comments, reviewed meetings with nobody counted are "no public speakers"', () => {
+    expect(evidenceFacts(recordedEvidence(alLive({ caption_comments: { comments: 0, governments: 0 } })))).toBe(
+      'One decision passed 8–1; no public speakers in 24 meetings reviewed by hand.',
+    )
+  })
+  it('a yes on a moratorium is not support: votes lean by decision side, two thirds or neither', () => {
+    // 11 of 12 motions passed (79–10), but 5 of them paused or denied data centers: mixed, so no lean.
+    const mixed = national({ votes: { decisions: 12, for: 79, against: 10, decisions_for: 7, decisions_against: 5 } })
+    expect(voteSide(recordedEvidence(mixed))).toBeNull()
+    expect(title(pickCaption('data-centers', mixed, nat))).toBe('America hates data centers.')
+    const allFor = national({ votes: { decisions: 3, for: 20, against: 2, decisions_for: 3, decisions_against: 0 } })
+    expect(voteSide(recordedEvidence(allFor))).toBe('for')
+    const allAgainst = national({ votes: { decisions: 3, for: 27, against: 0, decisions_for: 0, decisions_against: 3 } })
+    expect(voteSide(recordedEvidence(allAgainst))).toBe('against')
+  })
+  it('fails when a stance headline disagrees with the votes read by side', () => {
+    const allFor = national({ votes: { decisions: 3, for: 20, against: 2, decisions_for: 3, decisions_against: 0 } })
+    const c = pickCaption('data-centers', allFor, nat)
+    expectAgreesWithVotes(c, allFor)
+    expect(title(c)).toBe('America is divided on data centers.')
+    expect(c.basis).toMatch(/ Recorded votes went the other way: 3 of 3 decisions with a recorded vote went for data centers\.$/)
+    // Votes that went against data centers back an against headline.
+    const allAgainst = national({ votes: { decisions: 3, for: 27, against: 0, decisions_for: 0, decisions_against: 3 } })
+    expect(title(pickCaption('data-centers', allAgainst, nat))).toBe('America hates data centers.')
   })
 })

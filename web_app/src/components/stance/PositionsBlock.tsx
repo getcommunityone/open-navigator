@@ -1,5 +1,7 @@
 import { useCallback, useId, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { DataCenterPositionsResponse, PositionQuote } from '../../api/dataCenters'
+import { fetchTopicCaptionFacts } from '../../api/topics'
 import { POSITIONS_NOT_LOADED, figureDisplay, positionFigures, positionsCaption, positionsLoaded, storyScopeLabel, type LoadState, type StoryScope } from '../../utils/dataStory'
 import { chartSpec } from '../../utils/stanceGame'
 import { Dots } from './ChartPanel'
@@ -45,6 +47,15 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
   const [drill, setDrill] = useState<PositionFigureKey | null>(null)
   const sheetId = useId()
   const closeDrill = useCallback(() => setDrill(null), [])
+  // The caption comments in scope (#1290), from the caption facts the title reads (same query key, so cached): a speaker
+  // figure is 0 only when nobody spoke, and a dash when people spoke but no side is recorded.
+  const factsQ = useQuery({
+    queryKey: ['caption-facts', 'data-centers', scope.stateCode ?? '', scope.stateCode ? (scope.city ?? '') : ''],
+    queryFn: () => fetchTopicCaptionFacts('data-centers', scope.stateCode ?? undefined, scope.city),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const captionComments = factsQ.data?.caption_comments?.comments ?? null
   if (status === 'loading') {
     return (
       <p className="folio-muted" role="status">
@@ -52,7 +63,7 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
       </p>
     )
   }
-  const figures = positionFigures(data, scope)
+  const figures = positionFigures(data, scope, captionComments)
   if (!figures || !positionsLoaded(data)) {
     return (
       <p className="stance-note stance-voices-off" data-testid="positions-off">
@@ -110,7 +121,7 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
           {specDisplay(spec).display.kind === 'units' && <figcaption className="stance-note">{spec.dotMeans}</figcaption>}
         </figure>
       )}
-      <p className="stance-note stance-voices-caption">{positionsCaption(data, scope)}</p>
+      <p className="stance-note stance-voices-caption">{positionsCaption(data, scope, captionComments)}</p>
       <CommentMetricsBlock scope={scope} />
       {quotes && sides.length > 0 && (
         <div className="stance-sides stance-voices-quotes" data-testid="positions-quotes" data-lenis-prevent>
