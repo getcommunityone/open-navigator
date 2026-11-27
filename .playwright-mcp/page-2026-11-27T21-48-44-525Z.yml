@@ -1,0 +1,1592 @@
+- generic [ref=f2e2]:
+  - link "Skip to main content" [ref=f2e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f2e4]:
+    - banner [ref=f2e5]:
+      - generic [ref=f2e6]:
+        - link "Open Navigator home" [ref=f2e7] [cursor=pointer]:
+          - /url: /
+          - generic [aria-hidden] [ref=f2e8]: C1
+          - generic [aria-hidden] [ref=f2e9]: Home
+        - group "Place for this page" [ref=f2e11]:
+          - button "AL. Change town" [pressed] [ref=f2e12] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f2e13]: 📍
+            - generic [ref=f2e14]: AL
+            - generic [aria-hidden] [ref=f2e15]: ▾
+          - button "National" [ref=f2e16] [cursor=pointer]
+        - button "Open menu" [ref=f2e17] [cursor=pointer]: ☰
+    - generic [ref=f2e18]:
+      - main [ref=f2e19]:
+        - generic [ref=f2e51]:
+          - generic [ref=f2e52]:
+            - heading [level=1] [ref=f2e55]:
+              - button "Place, Alabama" [ref=f2e58] [cursor=pointer]:
+                - text: Alabama
+                - generic [aria-hidden]: ▾
+              - text: is split on
+              - generic [ref=f2e59]:
+                - generic [ref=f2e60]:
+                  - combobox "Topic" [ref=f2e61] [cursor=pointer]:
+                    - option "Data centers"
+                    - option "Homelessness and shelters"
+                    - option "Traffic safety"
+                    - option "Parks funding"
+                    - option "Bike lanes"
+                    - option "Drugs and overdoses"
+                    - option "gun control" [selected]
+                    - option "Animal shelters"
+                    - option "Violent crime"
+                    - option "Fire and EMS"
+                    - option "School safety"
+                    - option "Domestic violence"
+                    - option "Theft and break-ins"
+                    - option "Short-term rentals"
+                    - option "Police staffing"
+                    - option "Pickleball"
+                    - option "Youth crime"
+                    - option "Flock and license plate readers"
+                    - option "Immigration and sanctuary"
+                    - option "Water fluoridation"
+                  - generic [aria-hidden]: ▾
+                - text: .
+            - button "Close story" [ref=f2e62] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f2e63]: ×
+              - generic [aria-hidden] [ref=f2e64]: Close
+          - paragraph [ref=f2e65]: Nonprofits, 3 of 11.
+          - generic [ref=f2e67]:
+            - region "Where gun control came up in Alabama." [ref=f2e68]:
+              - generic [ref=f2e69]:
+                - generic [ref=f2e70]:
+                  - paragraph [ref=f2e72]: Overview
+                  - generic [ref=f2e73]:
+                    - heading "Where gun control came up in Alabama." [level=2] [ref=f2e74]:
+                      - generic [ref=f2e75]: Where
+                      - generic [ref=f2e77]: gun
+                      - generic [ref=f2e79]: control
+                      - generic [ref=f2e81]: came
+                      - generic [ref=f2e83]: up
+                      - generic [ref=f2e85]: in
+                      - generic [ref=f2e87]: Alabama.
+                    - paragraph [ref=f2e89]: The public was split on gun control in the 15 meetings where it spoke. Of 352 meetings read in Alabama, the public spoke in 15 (6 favor gun rights, 6 split and 3 favor gun limits). In 337 it didn't speak on it. 34 meetings not read yet. Officials sided against the public in 1.
+                  - generic [ref=f2e90]:
+                    - paragraph [ref=f2e91]: How the public leaned on gun control at local meetings in Alabama, read from each meeting's transcript.
+                    - paragraph [ref=f2e92]: Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them, in the words said at the meeting.
+                    - paragraph [ref=f2e93]: Counted from local meeting recordings and transcripts that mention the topic.
+                - generic [ref=f2e94]:
+                  - generic [ref=f2e95]:
+                    - generic [ref=f2e96]:
+                      - generic [ref=f2e97]: Use the arrow keys to move between each state, Enter to open its story, Escape to hide the quote.
+                      - group [ref=f2e99]:
+                        - generic [ref=f2e100] [cursor=pointer]
+                      - paragraph [ref=f2e101]: "Alabama: 386 meetings on record. These meetings aren't mapped by county or town yet, so the state is drawn as its outline."
+                    - paragraph [ref=f2e102]: "Alabama: 386 meetings where gun control came up; 15 meetings where the public spoke: 6 favor gun rights · 3 favor gun limits · 6 split; in 337 more meetings the public didn't speak on it. Hover to hear what was said; click to open its story."
+                    - list "Legend" [ref=f2e103]:
+                      - listitem [ref=f2e104]: Favor gun rights
+                      - listitem [ref=f2e106]: Favor gun limits
+                      - listitem [ref=f2e108]: Split
+                      - listitem [ref=f2e110]: No reading yet, or the public didn't speak on it (darker = more meetings)
+                    - group [ref=f2e112]:
+                      - generic "How to read this map · data table" [ref=f2e113] [cursor=pointer]
+                  - paragraph [ref=f2e114]: Alabama only. Topic meetings are not counted by county yet, so the state is drawn whole; choose National in the header to compare states.
+            - region "2 meetings and hearings on the calendar in Alabama where gun control could come up, the next on Dec 9." [ref=f2e115]:
+              - generic [ref=f2e116]:
+                - generic [ref=f2e117]:
+                  - paragraph [ref=f2e119]: Coming up
+                  - generic [ref=f2e120]:
+                    - heading "2 meetings and hearings on the calendar in Alabama where gun control could come up, the next on Dec 9." [level=2] [ref=f2e121]:
+                      - generic [ref=f2e122]: "2"
+                      - generic [ref=f2e124]: meetings
+                      - generic [ref=f2e126]: and
+                      - generic [ref=f2e128]: hearings
+                      - generic [ref=f2e130]: "on"
+                      - generic [ref=f2e132]: the
+                      - generic [ref=f2e134]: calendar
+                      - generic [ref=f2e136]: in
+                      - generic [ref=f2e138]: Alabama
+                      - generic [ref=f2e140]: where
+                      - generic [ref=f2e142]: gun
+                      - generic [ref=f2e144]: control
+                      - generic [ref=f2e146]: could
+                      - generic [ref=f2e148]: come
+                      - generic [ref=f2e150]: up,
+                      - generic [ref=f2e152]: the
+                      - generic [ref=f2e154]: next
+                      - generic [ref=f2e156]: "on"
+                      - generic [ref=f2e158]: Dec
+                      - generic [ref=f2e160]: "9."
+                    - paragraph [ref=f2e162]: Scheduled meetings and public hearings from today on, with the agenda, livestream or notice to take part, and the state bills still open. Nothing here is estimated.
+                - generic [ref=f2e164]:
+                  - paragraph [ref=f2e165]: Coming up on gun control · Alabama
+                  - list [ref=f2e166]:
+                    - listitem [ref=f2e167]:
+                      - generic [ref=f2e168]: Dec 9, 2026
+                      - generic [ref=f2e170]:
+                        - paragraph [ref=f2e171]:
+                          - generic [ref=f2e172]: Scheduled meeting
+                          - generic [ref=f2e173]: Marshall County, AL
+                        - paragraph [ref=f2e174]: Marshall County Commission, AL - December 9th, 2026
+                        - paragraph [ref=f2e175]: "Agenda not posted yet. Marshall County discussed gun control on Apr 22, 2026:"
+                        - blockquote [ref=f2e176]:
+                          - text: “south for uh law enforcement training uh citizens training anything uh uh education wise for
+                          - mark [ref=f2e177]: firearms
+                          - text: for the public and so forth so same thing the money's been approved as long as our budgets”
+                          - link "Watch that meeting" [ref=f2e178] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=dKRl4ykxyGI
+                        - 'link "Watch or attend: livestream →" [ref=f2e179] [cursor=pointer]':
+                          - /url: https://www.youtube.com/watch?v=y3gdQc3sDCk
+                    - listitem [ref=f2e180]:
+                      - generic [ref=f2e181]: Dec 23, 2026
+                      - generic [ref=f2e183]:
+                        - paragraph [ref=f2e184]:
+                          - generic [ref=f2e185]: Scheduled meeting
+                          - generic [ref=f2e186]: Marshall County, AL
+                        - paragraph [ref=f2e187]: Marshall County Commission, AL - December 23rd, 2026
+                        - paragraph [ref=f2e188]: "Agenda not posted yet. Marshall County discussed gun control on Apr 22, 2026:"
+                        - blockquote [ref=f2e189]:
+                          - text: “south for uh law enforcement training uh citizens training anything uh uh education wise for
+                          - mark [ref=f2e190]: firearms
+                          - text: for the public and so forth so same thing the money's been approved as long as our budgets”
+                          - link "Watch that meeting" [ref=f2e191] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=dKRl4ykxyGI
+                        - 'link "Watch or attend: livestream →" [ref=f2e192] [cursor=pointer]':
+                          - /url: https://www.youtube.com/watch?v=lTP_3ct1O1Q
+                  - generic [ref=f2e193]:
+                    - paragraph [ref=f2e194]: State bills still open in Alabama (8)
+                    - list [ref=f2e195]:
+                      - listitem [ref=f2e196]:
+                        - link "AL HB 420" [ref=f2e198] [cursor=pointer]:
+                          - /url: https://openstates.org/al/bills/2026rs/HB420/
+                        - generic [ref=f2e199]: Crimes and offenses; discharging a firearm into an occupied school bus or building, penalty increased
+                        - generic [ref=f2e200]: "Passed one chamber · last action Apr 17, 2026: Enacted"
+                      - listitem [ref=f2e201]:
+                        - link "AL HB 612" [ref=f2e203] [cursor=pointer]:
+                          - /url: https://openstates.org/al/bills/2026rs/HB612/
+                        - generic [ref=f2e204]: Covington County; sheriff authorized to sell certain abandoned, unclaimed, or stolen property and firearms, auction and disposition of funds provided, constitutional amendment
+                        - generic [ref=f2e205]: "Passed one chamber · last action Mar 31, 2026: Third Reading in Second House"
+                      - listitem [ref=f2e206]:
+                        - link "AL SB 377" [ref=f2e208] [cursor=pointer]:
+                          - /url: https://openstates.org/al/bills/2026rs/SB377/
+                        - generic [ref=f2e209]: Firearms; possession without identification prohibited in certain municipalities
+                        - generic [ref=f2e210]: "Not yet passed or failed · last action Mar 31, 2026: Read for the first time and referred to the Senate Committee on Judiciary"
+                      - listitem [ref=f2e211]:
+                        - link "AL HB 450" [ref=f2e213] [cursor=pointer]:
+                          - /url: https://openstates.org/al/bills/2026rs/HB450/
+                        - generic [ref=f2e214]: Firearms; possession without identification prohibited in certain municipalities
+                        - generic [ref=f2e215]: "Not yet passed or failed · last action Feb 12, 2026: Read for the first time and referred to the House Committee on Public Safety and Homeland Security"
+                      - listitem [ref=f2e216]:
+                        - link "AL SB 267" [ref=f2e218] [cursor=pointer]:
+                          - /url: https://openstates.org/al/bills/2026rs/SB267/
+                        - generic [ref=f2e219]: Firearms; permit to carry pistol, criminal penalties, exempt persons, established; carrying pistol on employer's property revised; nonsubstantive conforming changes to code
+                        - generic [ref=f2e220]: "Not yet passed or failed · last action Feb 5, 2026: Read for the first time and referred to the Senate Committee on Judiciary"
+                    - paragraph [ref=f2e221]: The 5 furthest along are listed; the State bills screen has them all.
+                  - paragraph [ref=f2e222]: Only items with a real date from Nov 27, 2026 on. A meeting is listed when its posted agenda names the topic, an official notice lists a hearing, or the same government discussed it in a recorded meeting in the last two years (its agenda isn't posted yet). Bills show their last recorded action; the newest action in our copy is from May 4, 2026. Calendars last checked Nov 22, 2026.
+            - region "22 nonprofits in Alabama on record working on gun control; 4 named in a meeting on it." [active] [ref=f2e223]:
+              - generic [ref=f2e224]:
+                - generic [ref=f2e225]:
+                  - paragraph [ref=f2e227]: Nonprofits
+                  - generic [ref=f2e228]:
+                    - heading "22 nonprofits in Alabama on record working on gun control; 4 named in a meeting on it." [level=2] [ref=f2e229]:
+                      - generic [ref=f2e230]: "22"
+                      - generic [ref=f2e232]: nonprofits
+                      - generic [ref=f2e234]: in
+                      - generic [ref=f2e236]: Alabama
+                      - generic [ref=f2e238]: "on"
+                      - generic [ref=f2e240]: record
+                      - generic [ref=f2e242]: working
+                      - generic [ref=f2e244]: "on"
+                      - generic [ref=f2e246]: gun
+                      - generic [ref=f2e248]: control;
+                      - generic [ref=f2e250]: "4"
+                      - generic [ref=f2e252]: named
+                      - generic [ref=f2e254]: in
+                      - generic [ref=f2e256]: a
+                      - generic [ref=f2e258]: meeting
+                      - generic [ref=f2e260]: "on"
+                      - generic [ref=f2e262]: it.
+                    - paragraph [ref=f2e264]: "Nonprofits tied to the topic by the record: named in a meeting on it, a 990 mission or name that names it, or an IRS category in its field. Strongest evidence first, from IRS and Form 990 filings."
+                - generic [ref=f2e265]:
+                  - generic [ref=f2e266]:
+                    - paragraph [ref=f2e267]: Nonprofits working on gun control · Alabama
+                    - list [ref=f2e268]:
+                      - listitem [ref=f2e269]:
+                        - paragraph [ref=f2e270]:
+                          - link "The Child Advocacy Center Inc" [ref=f2e271] [cursor=pointer]:
+                            - /url: /organizations/630917400
+                        - paragraph [ref=f2e272]: Mobile, AL · $1.6M revenue (2024)
+                        - paragraph [ref=f2e273]: Prevention & prosecution of child abuse
+                        - paragraph [ref=f2e274]: "Named in a meeting on gun control in Mobile on Oct 21, 2025:"
+                        - blockquote [ref=f2e275]:
+                          - text: “appropriations to aelia city cdc the
+                          - mark [ref=f2e276]: child advocacy center
+                          - text: and mothers involved against
+                          - mark [ref=f2e277]: gun violence
+                          - text: serve a public purpose and approve payment >> so move second >> properly move”
+                          - link "Watch that meeting" [ref=f2e278] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=Cv3k55fQUJU
+                      - listitem [ref=f2e279]:
+                        - paragraph [ref=f2e280]:
+                          - link "Big Brothers Big Sisters Of The Central Gulf Coast Inc" [ref=f2e281] [cursor=pointer]:
+                            - /url: /organizations/611683905
+                        - paragraph [ref=f2e282]: Mobile, AL · $954K revenue (2024)
+                        - paragraph [ref=f2e283]: To create and support one-to-one mentoring relationships that ignite the power and promise of youth.
+                        - paragraph [ref=f2e284]: "Named in a meeting on gun control in Mobile on Apr 8, 2026:"
+                        - blockquote [ref=f2e285]:
+                          - text: “through 375 are determining appropriations to miss alabama foundation, mothers involved against
+                          - mark [ref=f2e286]: gun violence
+                          - text: ", boy scouts of america,"
+                          - mark [ref=f2e287]: big brothers big sisters of central gulf coast
+                          - text: and kappa”
+                          - link "Watch that meeting" [ref=f2e288] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=s8m9dgfsPDI
+                      - listitem [ref=f2e289]:
+                        - paragraph [ref=f2e290]:
+                          - link "Mothers Involved Against Gun Violence" [ref=f2e291] [cursor=pointer]:
+                            - /url: /organizations/923905813
+                          - generic [ref=f2e292]: Gun violence prevention
+                        - paragraph [ref=f2e293]: Mobile, AL · $0 revenue (2024)
+                        - paragraph [ref=f2e294]: "Named in a meeting on gun control in Mobile on Apr 8, 2026:"
+                        - blockquote [ref=f2e295]:
+                          - text: “through 375 are determining appropriations to miss alabama foundation,
+                          - mark [ref=f2e296]: mothers involved against gun violence
+                          - text: ", boy scouts of america, big brothers big sisters of central gulf coast and kappa”"
+                          - link "Watch that meeting" [ref=f2e297] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=s8m9dgfsPDI
+                      - listitem [ref=f2e298]:
+                        - paragraph [ref=f2e299]:
+                          - link "Positive Parents Have Power" [ref=f2e300] [cursor=pointer]:
+                            - /url: /organizations/475033664
+                        - paragraph [ref=f2e301]: Montgomery, AL · $0 revenue (2025)
+                        - paragraph [ref=f2e302]: "Named in a meeting on gun control in Montgomery on Apr 7, 2026:"
+                        - blockquote [ref=f2e303]:
+                          - text: “councils. good evening. good evening. i am tori hamilton, your advocate of
+                          - mark [ref=f2e304]: gun violence
+                          - mark [ref=f2e305]: gun violence
+                          - text: ”
+                      - listitem [ref=f2e306]
+                  - button "More on this screen ↓" [ref=f2e307] [cursor=pointer]
+            - region "In Alabama, gun control came up in 386 meetings; local bodies voted or put it off in 24 and 8 named a state bill." [ref=f2e308]:
+              - generic [ref=f2e309]:
+                - generic [ref=f2e310]:
+                  - paragraph [ref=f2e312]: What happened
+                  - generic [ref=f2e313]:
+                    - heading "In Alabama, gun control came up in 386 meetings; local bodies voted or put it off in 24 and 8 named a state bill." [level=2] [ref=f2e314]:
+                      - generic [ref=f2e315]: In
+                      - generic [ref=f2e317]: Alabama,
+                      - generic [ref=f2e319]: gun
+                      - generic [ref=f2e321]: control
+                      - generic [ref=f2e323]: came
+                      - generic [ref=f2e325]: up
+                      - generic [ref=f2e327]: in
+                      - generic [ref=f2e329]: "386"
+                      - generic [ref=f2e331]: meetings;
+                      - generic [ref=f2e333]: local
+                      - generic [ref=f2e335]: bodies
+                      - generic [ref=f2e337]: voted
+                      - generic [ref=f2e339]: or
+                      - generic [ref=f2e341]: put
+                      - generic [ref=f2e343]: it
+                      - generic [ref=f2e345]: "off"
+                      - generic [ref=f2e347]: in
+                      - generic [ref=f2e349]: "24"
+                      - generic [ref=f2e351]: and
+                      - generic [ref=f2e353]: "8"
+                      - generic [ref=f2e355]: named
+                      - generic [ref=f2e357]: a
+                      - generic [ref=f2e359]: state
+                      - generic [ref=f2e361]: bill.
+                    - paragraph [ref=f2e363]: From the meetings where it came up to what the public said, what local bodies did, the state bills and what is next. Tap a step to see its records.
+                - generic [ref=f2e365]:
+                  - paragraph [ref=f2e366]: What happened next on gun control · Alabama
+                  - list [ref=f2e367]:
+                    - listitem [ref=f2e368]:
+                      - generic [ref=f2e369]:
+                        - generic [ref=f2e370]: Meetings
+                        - generic [ref=f2e371]: "386"
+                      - paragraph [ref=f2e372]: Meetings where gun control came up.
+                      - list [ref=f2e373]:
+                        - listitem [ref=f2e374]:
+                          - generic [ref=f2e375]: Sep 8, 2026 · Athens, AL
+                          - link "Full Steve Carter Interview" [ref=f2e376] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=IlG6rXpiGaQ
+                          - generic [ref=f2e377]:
+                            - text: “realized that the police department was kind of left out. So, I put the the
+                            - mark [ref=f2e378]: firearms
+                            - text: training system inside for them. Uh, so they could train out there, too. And they do, and that”
+                        - listitem [ref=f2e379]:
+                          - generic [ref=f2e380]: Aug 25, 2026 · Aliceville, AL
+                          - link "City Council Meeting August 25, 2026" [ref=f2e381] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=TBm6p1Jt81M
+                          - generic [ref=f2e382]:
+                            - text: “cannot come around here after I burn for me. But also, if at nighttime, they got a
+                            - mark [ref=f2e383]: firearm
+                            - text: ", they just be out bunny trapping. You need to call the police. You call the police”"
+                        - listitem [ref=f2e384]:
+                          - generic [ref=f2e385]: Aug 24, 2026 · Athens, AL
+                          - link "City Council Work Session and Regular meeting 8/24/2026" [ref=f2e386] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=sQU_aetnrQ0
+                          - generic [ref=f2e387]:
+                            - text: “alcohol beverage determination. So I'll open that public hearing. Shane
+                            - mark [ref=f2e388]: Gun
+                            - mark [ref=f2e389]: store
+                            - text: . >> Yes, sir. Absolutely. All right. So what this is is something that”
+                      - button "See all →" [ref=f2e390] [cursor=pointer]
+                    - listitem [ref=f2e391]:
+                      - generic [ref=f2e392]:
+                        - generic [ref=f2e393]: The public
+                        - generic [ref=f2e394]: "14"
+                      - paragraph [ref=f2e395]: "Meetings where the public spoke: 6 mostly opposed, 2 split and 6 mostly supportive."
+                      - list [ref=f2e396]:
+                        - listitem [ref=f2e397]:
+                          - generic [ref=f2e398]: Feb 2, 2026 · Calera, AL
+                          - link "Calera City Council Meeting - 02/02/2026" [ref=f2e399] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=I2PsxTgk39k
+                          - generic [ref=f2e400]: Public mostly opposed
+                        - listitem [ref=f2e401]:
+                          - generic [ref=f2e402]: Oct 1, 2025 · Tuscaloosa, AL
+                          - link "Tuscaloosa City Council Meeting - Sep 30, 2025" [ref=f2e403] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=v2dtJAoCiV8
+                          - generic [ref=f2e404]: Public mostly opposed
+                        - listitem [ref=f2e405]:
+                          - generic [ref=f2e406]: Nov 20, 2024 · Montgomery, AL
+                          - link "Montgomery City Council Meeting (11/20/24)" [ref=f2e407] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=mBsxcLTTXEM
+                          - generic [ref=f2e408]: Public mostly supportive
+                      - button "See all →" [ref=f2e409] [cursor=pointer]
+                    - listitem [ref=f2e410]:
+                      - generic [ref=f2e411]:
+                        - generic [ref=f2e412]: Officials
+                        - generic [ref=f2e413]: "24"
+                      - paragraph [ref=f2e414]: "Meetings where the body acted: 6 voted for a limit on firearms, 11 voted down a firearms limit, or approved a range or gun shop and 7 tabled or put off."
+                      - list [ref=f2e415]:
+                        - listitem [ref=f2e416]:
+                          - generic [ref=f2e417]: Mar 16, 2026 · Wetumpka, AL
+                          - link "City of Wetumpka - Wetumpka City Council 3/16/2026" [ref=f2e418] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=waGOI6V50zQ
+                          - generic [ref=f2e419]: Stopped or limited it
+                        - listitem [ref=f2e420]:
+                          - generic [ref=f2e421]: Mar 4, 2026 · Jackson, AL
+                          - link "February 17, 2026 Board of Commissioners Meeting" [ref=f2e422] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=bdU_DnYrl48
+                          - generic [ref=f2e423]: Stopped or limited it
+                        - listitem [ref=f2e424]:
+                          - generic [ref=f2e425]: Oct 1, 2025 · Tuscaloosa, AL
+                          - link "Tuscaloosa City Council Meeting - Sep 30, 2025" [ref=f2e426] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=v2dtJAoCiV8
+                          - generic [ref=f2e427]: Stopped or limited it
+                      - button "See all →" [ref=f2e428] [cursor=pointer]
+                    - listitem [ref=f2e429]:
+                      - generic [ref=f2e430]:
+                        - generic [ref=f2e431]: State bills
+                        - generic [ref=f2e432]: "176"
+                      - paragraph [ref=f2e433]: 6 enacted, 2 passed one chamber, 6 pending and 162 failed.
+                      - list [ref=f2e434]:
+                        - listitem [ref=f2e435]:
+                          - generic [ref=f2e436]: May 7, 2024 · AL
+                          - 'link "SB 281: Financial Institutions; to prohibit financial institutions from using a merchant category code to identify firearms transactions; to prohibit disclosure of financial information regarding firearms transactions" [ref=f2e437] [cursor=pointer]':
+                            - /url: https://openstates.org/al/bills/2024rs/SB281/
+                          - generic [ref=f2e438]: Enacted
+                        - listitem [ref=f2e439]:
+                          - generic [ref=f2e440]: Apr 13, 2021 · AL
+                          - 'link "SB 308: Firearms, concealed carry permits, time periods for permits including lifetime permits, fees, statewide standardized issuance and information management, ALEA to estab., firearms prohibited person database, appeal process provided, Sec. 13A-11-75.1 repealed; Secs. 13A-11-70, 13A-11-75, 22-52-10.1 am''d." [ref=f2e441] [cursor=pointer]':
+                            - /url: https://openstates.org/al/bills/2021rs/SB308/
+                          - generic [ref=f2e442]: Enacted
+                        - listitem [ref=f2e443]:
+                          - generic [ref=f2e444]: Mar 27, 2018 · AL
+                          - 'link "SB 27: Firearm, possession prohibited at certain places including by persons with a valid pistol permit, exception for qualified retired law enforcement officers, Sec. 13A-11-61.2 am''d." [ref=f2e445] [cursor=pointer]':
+                            - /url: https://openstates.org/al/bills/2018rs/SB27/
+                          - generic [ref=f2e446]: Enacted
+                      - button "See all →" [ref=f2e447] [cursor=pointer]
+                    - listitem [ref=f2e448]:
+                      - generic [ref=f2e449]:
+                        - generic [ref=f2e450]: Named a bill
+                        - generic [ref=f2e451]: "8"
+                      - paragraph [ref=f2e452]: Meetings that named 7 state bills by number.
+                      - list [ref=f2e453]:
+                        - listitem [ref=f2e454]:
+                          - generic [ref=f2e455]: Apr 6, 2026 · Montgomery, AL
+                          - 'link "AL HB 450: Firearms; possession without identification prohibited in certain municipalities" [ref=f2e456] [cursor=pointer]':
+                            - /url: https://www.youtube.com/watch?v=GeuDKRTRvC4&t=946s
+                          - generic [ref=f2e457]:
+                            - text: “…young people have places to learn, grow, and succeed this summer and beyond. Now, briefly, I just want to highlight as the legislative session comes to a close, um, a bill that we are continuing to monitor, and that is
+                            - mark [ref=f2e458]: House Bill 450
+                            - text: ", which has not come up for a vote. This legislation deals with public safety standards and responsibilities related to firearms in our communities. It is important that any legislation in this space supports law…”"
+                        - listitem [ref=f2e459]:
+                          - generic [ref=f2e460]: Mar 4, 2026 · Montgomery, AL
+                          - 'link "AL HB 450: Firearms; possession without identification prohibited in certain municipalities" [ref=f2e461] [cursor=pointer]':
+                            - /url: https://www.youtube.com/watch?v=KwhPHADfp5k&t=130s
+                          - generic [ref=f2e462]:
+                            - text: “…But with what's happening in DC, there are also challenges right here uh in Alabama in our state legislature. And I want to highlight just a few uh local bills that are taking place right now. I want to start with
+                            - mark [ref=f2e463]: House Bill 450
+                            - text: and that is a House bill that will require individuals in large Alabama cities uh including Montgomery to carry a valid ID when possessing a firearm. This is what we call common sense gun reform. It is a corrective…”
+                        - listitem [ref=f2e464]:
+                          - generic [ref=f2e465]: Mar 3, 2026 · Montgomery, AL
+                          - 'link "AL HB 450: Firearms; possession without identification prohibited in certain municipalities" [ref=f2e466] [cursor=pointer]':
+                            - /url: https://www.youtube.com/watch?v=pKEPkh8LPEs&t=591s
+                          - generic [ref=f2e467]:
+                            - text: “…of people have asked, well, we don't know what these acronyms mean, and that's fair. I understand that. Uh most people don't know what they mean. Even some of the legislators don't know what it means. Um but it means
+                            - mark [ref=f2e468]: House Bill 450
+                            - text: . Um and this is really a gun safety bill that we believe uh is important to the city of Montgomery. Uh, as Chief Grey Boyce has shared with many community groups, maybe some of your neighborhood associations and to the…”
+                    - listitem [ref=f2e469]:
+                      - generic [ref=f2e470]:
+                        - generic [ref=f2e471]: What's next
+                        - generic [ref=f2e472]: "10"
+                      - paragraph [ref=f2e473]: 2 meetings and hearings ahead and 8 state bills still open.
+                      - list [ref=f2e474]:
+                        - listitem [ref=f2e475]:
+                          - generic [ref=f2e476]: Dec 9, 2026 · Marshall County, AL
+                          - link "Marshall County Commission, AL - December 9th, 2026" [ref=f2e477] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=y3gdQc3sDCk
+                          - generic [ref=f2e478]: Scheduled meeting
+                        - listitem [ref=f2e479]:
+                          - generic [ref=f2e480]: Dec 23, 2026 · Marshall County, AL
+                          - link "Marshall County Commission, AL - December 23rd, 2026" [ref=f2e481] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=lTP_3ct1O1Q
+                          - generic [ref=f2e482]: Scheduled meeting
+                      - button "See all →" [ref=f2e483] [cursor=pointer]
+                  - paragraph [ref=f2e484]: Counts are meetings, never speakers. The public's lean and what the body did are an AI (Jev) reading of each transcript, not official minutes. A meeting is tied to a state bill only when the transcript, a decision, the agenda or minutes write the bill's number, in the same state.
+            - region "How often gun control came up in Alabama, year by year." [ref=f2e485]:
+              - generic [ref=f2e486]:
+                - generic [ref=f2e487]:
+                  - paragraph [ref=f2e489]: Over time
+                  - generic [ref=f2e490]:
+                    - heading "How often gun control came up in Alabama, year by year." [level=2] [ref=f2e491]:
+                      - generic [ref=f2e492]: How
+                      - generic [ref=f2e494]: often
+                      - generic [ref=f2e496]: gun
+                      - generic [ref=f2e498]: control
+                      - generic [ref=f2e500]: came
+                      - generic [ref=f2e502]: up
+                      - generic [ref=f2e504]: in
+                      - generic [ref=f2e506]: Alabama,
+                      - generic [ref=f2e508]: year
+                      - generic [ref=f2e510]: by
+                      - generic [ref=f2e512]: year.
+                    - paragraph [ref=f2e514]: 386 meetings on record whose transcript mentions the topic, per year, and how the latest period compares with the one before.
+                - generic [ref=f2e516]:
+                  - generic [ref=f2e517]:
+                    - paragraph [ref=f2e518]: Meetings that discussed gun control, by year · Alabama
+                    - generic [ref=f2e519]:
+                      - group "Trend line, Alabama" [ref=f2e520]:
+                        - generic [ref=f2e521]: "0"
+                        - generic [ref=f2e523]: "50"
+                        - generic [ref=f2e525]: "100"
+                        - generic [ref=f2e527]: "2011"
+                        - generic [ref=f2e528]: "2016"
+                        - generic [ref=f2e529]: "2021"
+                        - generic [ref=f2e530]: "2026"
+                        - 'img "2011: 2 meetings, of 64 recorded meetings · 3.1%"'
+                        - 'img "2012: 9 meetings, of 110 recorded meetings · 8.2%"'
+                        - 'img "2013: 8 meetings, of 197 recorded meetings · 4.1%"'
+                        - 'img "2014: 4 meetings, of 179 recorded meetings · 2.2%"'
+                        - 'img "2015: 3 meetings, of 199 recorded meetings · 1.5%"'
+                        - 'img "2016: 10 meetings, of 220 recorded meetings · 4.5%"'
+                        - 'img "2017: 16 meetings, of 392 recorded meetings · 4.1%"'
+                        - 'img "2018: 21 meetings, of 419 recorded meetings · 5.0%"'
+                        - 'img "2019: 36 meetings, of 457 recorded meetings · 7.9%"'
+                        - 'img "2020: 24 meetings, of 505 recorded meetings · 4.8%"'
+                        - 'img "2021: 33 meetings, of 542 recorded meetings · 6.1%"'
+                        - 'img "2022: 51 meetings, of 490 recorded meetings · 10.4%"'
+                        - 'img "2023: 20 meetings, of 225 recorded meetings · 8.9%"'
+                        - 'img "2024: 10 meetings, of 307 recorded meetings · 3.3%"'
+                        - 'img "2025: 65 meetings, of 1,056 recorded meetings · 6.2%"'
+                        - 'img "2026: 58 meetings, of 1,268 recorded meetings · 4.6%"'
+                        - generic [ref=f2e532]: "58"
+                      - group "Milestones, Alabama, newest first" [ref=f2e533]:
+                        - button "Jan 28, 2025 Tabled or deferred · Montgomery" [pressed] [ref=f2e534] [cursor=pointer]:
+                          - generic [ref=f2e536]: Jan 28, 2025
+                          - generic [ref=f2e537]: Tabled or deferred · Montgomery
+                        - button "Jan 28, 2025 Tabled or deferred · Montgomery" [ref=f2e538] [cursor=pointer]:
+                          - generic [ref=f2e540]: Jan 28, 2025
+                          - generic [ref=f2e541]: Tabled or deferred · Montgomery
+                        - button "Nov 20, 2024 Tabled or deferred · Montgomery" [ref=f2e542] [cursor=pointer]:
+                          - generic [ref=f2e544]: Nov 20, 2024
+                          - generic [ref=f2e545]: Tabled or deferred · Montgomery
+                        - button "May 7, 2024 State bill enacted · Alabama" [ref=f2e546] [cursor=pointer]:
+                          - generic [ref=f2e548]: May 7, 2024
+                          - generic [ref=f2e549]: State bill enacted · Alabama
+                        - button "Apr 13, 2021 State bill enacted · Alabama" [ref=f2e550] [cursor=pointer]:
+                          - generic [ref=f2e552]: Apr 13, 2021
+                          - generic [ref=f2e553]: State bill enacted · Alabama
+                        - button "Jan 21, 2020 Tabled or deferred · Jackson" [ref=f2e554] [cursor=pointer]:
+                          - generic [ref=f2e556]: Jan 21, 2020
+                          - generic [ref=f2e557]: Tabled or deferred · Jackson
+                        - button "Apr 9, 2019 Tabled or deferred · Mobile" [ref=f2e558] [cursor=pointer]:
+                          - generic [ref=f2e560]: Apr 9, 2019
+                          - generic [ref=f2e561]: Tabled or deferred · Mobile
+                        - button "Mar 26, 2019 Tabled or deferred · Mobile" [ref=f2e562] [cursor=pointer]:
+                          - generic [ref=f2e564]: Mar 26, 2019
+                          - generic [ref=f2e565]: Tabled or deferred · Mobile
+                        - button "Nov 5, 2018 Tabled or deferred · Jackson" [ref=f2e566] [cursor=pointer]:
+                          - generic [ref=f2e568]: Nov 5, 2018
+                          - generic [ref=f2e569]: Tabled or deferred · Jackson
+                        - button "Mar 27, 2018 State bill enacted · Alabama" [ref=f2e570] [cursor=pointer]:
+                          - generic [ref=f2e572]: Mar 27, 2018
+                          - generic [ref=f2e573]: State bill enacted · Alabama
+                        - button "Mar 15, 2018 State bill enacted · Alabama" [ref=f2e574] [cursor=pointer]:
+                          - generic [ref=f2e576]: Mar 15, 2018
+                          - generic [ref=f2e577]: State bill enacted · Alabama
+                        - button "Feb 6, 2018 State bill enacted · Alabama" [ref=f2e578] [cursor=pointer]:
+                          - generic [ref=f2e580]: Feb 6, 2018
+                          - generic [ref=f2e581]: State bill enacted · Alabama
+                        - button "Show all 13 milestones" [ref=f2e582] [cursor=pointer]
+                      - generic [ref=f2e583]:
+                        - generic [ref=f2e584]: Jan 28, 2025
+                        - heading "Tabled or deferred · Montgomery, AL AI reading" [level=3] [ref=f2e585]:
+                          - text: Tabled or deferred · Montgomery, AL
+                          - generic [ref=f2e586]: AI reading
+                        - paragraph [ref=f2e587]: Montgomery City Council Meeting (1/28/25)
+                        - paragraph [ref=f2e588]:
+                          - text: What officials did with the item, as an AI (Jev) read the meeting transcript; not an official record.
+                          - link "Watch the meeting ↗" [ref=f2e589] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=JpPKQ3iHSdY
+                    - paragraph [ref=f2e590]: Meetings in our record by year; recording coverage grew sharply in 2025–26, so the rise partly reflects coverage. 16 meetings have no date and are not on the line. Milestones are meetings where officials approved, denied, tabled or paused the item, as an AI read the transcript, and state bills enacted.
+                    - button "Show data table ↓" [ref=f2e591] [cursor=pointer]
+                  - generic [ref=f2e592]:
+                    - paragraph [ref=f2e593]: Share of recorded meetings that discussed gun control, 2025 and 2026, by town · Alabama
+                    - group "Dumbbell chart, 2025 against 2026, Alabama" [ref=f2e595]:
+                      - generic [ref=f2e597]: "2025"
+                      - generic [ref=f2e599]: "2026"
+                      - 'img "Mobile: 2025 20.2% (20 of 99 meetings), 2026 18.5% (5 of 27), change −1.7 percentage points" [ref=f2e600] [cursor=pointer]':
+                        - generic [ref=f2e602]: Mobile
+                        - generic [ref=f2e605]: 20.2%
+                        - generic [ref=f2e606]: 18.5%
+                        - generic [ref=f2e607]: −1.7 pp
+                      - 'img "Montgomery: 2025 15.0% (19 of 127 meetings), 2026 11.0% (14 of 127), change −3.9 percentage points" [ref=f2e608] [cursor=pointer]':
+                        - generic [ref=f2e610]: Montgomery
+                        - generic [ref=f2e613]: 15.0%
+                        - generic [ref=f2e614]: 11.0%
+                        - generic [ref=f2e615]: −3.9 pp
+                      - 'img "Anniston: 2025 3.6% (2 of 56 meetings), 2026 2.1% (1 of 48), change −1.5 percentage points" [ref=f2e616] [cursor=pointer]':
+                        - generic [ref=f2e618]: Anniston
+                        - generic [ref=f2e621]: 3.6%
+                        - generic [ref=f2e622]: 2.1%
+                        - generic [ref=f2e623]: −1.5 pp
+                      - 'img "Auburn: 2025 6.3% (2 of 32 meetings), 2026 2.0% (1 of 49), change −4.2 percentage points" [ref=f2e624] [cursor=pointer]':
+                        - generic [ref=f2e626]: Auburn
+                        - generic [ref=f2e629]: 6.3%
+                        - generic [ref=f2e630]: 2.0%
+                        - generic [ref=f2e631]: −4.2 pp
+                      - 'img "Montgomery County: 2025 4.2% (3 of 71 meetings), 2026 1.0% (1 of 103), change −3.3 percentage points" [ref=f2e632] [cursor=pointer]':
+                        - generic [ref=f2e634]: Montgomery County
+                        - generic [ref=f2e637]: 4.2%
+                        - generic [ref=f2e638]: 1.0%
+                        - generic [ref=f2e639]: −3.3 pp
+                      - 'img "Tuscaloosa: 2025 4.4% (9 of 205 meetings), 2026 0.8% (1 of 128), change −3.6 percentage points" [ref=f2e640] [cursor=pointer]':
+                        - generic [ref=f2e642]: Tuscaloosa
+                        - generic [ref=f2e645]: 4.4%
+                        - generic [ref=f2e646]: 0.8%
+                        - generic [ref=f2e647]: −3.6 pp
+                    - paragraph [ref=f2e648]: Each row divides meetings that discussed gun control by every recorded meeting in that town and year. 2026 is the year so far. Rows with fewer than 20 recorded meetings in either year, or fewer than 3 meetings on the topic across both, are left out (26 towns).
+                    - button "Show data table ↓" [ref=f2e649] [cursor=pointer]
+            - region "Alabama is split on gun control." [ref=f2e650]:
+              - generic [ref=f2e651]:
+                - generic [ref=f2e652]:
+                  - paragraph [ref=f2e654]: Who spoke
+                  - generic [ref=f2e655]:
+                    - heading "Alabama is split on gun control." [level=2] [ref=f2e656]:
+                      - generic [ref=f2e657]: Alabama
+                      - generic [ref=f2e659]: is
+                      - generic [ref=f2e661]: split
+                      - generic [ref=f2e663]: "on"
+                      - generic [ref=f2e665]: gun
+                      - generic [ref=f2e667]: control.
+                    - paragraph [ref=f2e669]: "The public spoke in 15 meetings. An AI read each meeting's transcript for the public's position: these are meetings, never counted speakers."
+                - figure "Alabama is split on gun control." [ref=f2e671]:
+                  - list [ref=f2e672]:
+                    - listitem [ref=f2e673]:
+                      - generic [ref=f2e674]: Public didn't speak on it
+                      - generic [ref=f2e677]: "337"
+                    - listitem [ref=f2e678]:
+                      - generic [ref=f2e679]: Favor gun rights
+                      - generic [ref=f2e682]: "6"
+                    - listitem [ref=f2e683]:
+                      - generic [ref=f2e684]: Split
+                      - generic [ref=f2e687]: "6"
+                    - listitem [ref=f2e688]:
+                      - generic [ref=f2e689]: Favor gun limits
+                      - generic [ref=f2e692]: "3"
+                  - generic [ref=f2e693]: "Alabama: 352 meetings read by an AI (each meeting's transcript, never a count of speakers); 34 more on record aren't shown here (not read yet, or read in a label this page can't show). Gun limits = a local measure restricting firearms (where they may be carried or fired, sales, ranges or shops near homes, storage). Gun rights = opposing such limits or backing a Second Amendment sanctuary or rights-expansion resolution. Not counted: police service weapons, ShotSpotter, tools called guns. Split: the public spoke but was divided, or the AI could not tell which way."
+            - 'region "Alabama''s legislature has taken up gun control: the furthest a bill got is enacted." [ref=f2e694]':
+              - generic [ref=f2e695]:
+                - generic [ref=f2e696]:
+                  - paragraph [ref=f2e698]: State bills
+                  - generic [ref=f2e699]:
+                    - 'heading "Alabama''s legislature has taken up gun control: the furthest a bill got is enacted." [level=2] [ref=f2e700]':
+                      - generic [ref=f2e701]: Alabama's
+                      - generic [ref=f2e703]: legislature
+                      - generic [ref=f2e705]: has
+                      - generic [ref=f2e707]: taken
+                      - generic [ref=f2e709]: up
+                      - generic [ref=f2e711]: gun
+                      - generic [ref=f2e713]: "control:"
+                      - generic [ref=f2e715]: the
+                      - generic [ref=f2e717]: furthest
+                      - generic [ref=f2e719]: a
+                      - generic [ref=f2e721]: bill
+                      - generic [ref=f2e723]: got
+                      - generic [ref=f2e725]: is
+                      - generic [ref=f2e727]: enacted.
+                    - paragraph [ref=f2e729]: 16,918 state bills in our copy of OpenStates, 1,387 enacted. Each state is coloured by the furthest any of its bills got; choose one to see its bills.
+                - generic [ref=f2e731]:
+                  - paragraph [ref=f2e732]: State bills on gun control · Alabama highlighted
+                  - paragraph [ref=f2e733]: 2,958 bills in 50 states, 2025–2026.
+                  - generic [ref=f2e734]:
+                    - group "Map of state bills on gun control" [ref=f2e735]:
+                      - 'button "Alabama: passed one chamber (29 bills)" [pressed] [ref=f2e736] [cursor=pointer]'
+                      - 'button "Alaska: introduced, pending (6 bills)" [ref=f2e737] [cursor=pointer]'
+                      - 'button "Arizona: enacted (39 bills)" [ref=f2e738] [cursor=pointer]'
+                      - 'button "Colorado: enacted (28 bills)" [ref=f2e739] [cursor=pointer]'
+                      - 'button "Florida: failed or died (59 bills)" [ref=f2e740] [cursor=pointer]'
+                      - 'button "Georgia: passed one chamber (34 bills)" [ref=f2e741] [cursor=pointer]'
+                      - 'button "Indiana: enacted (52 bills)" [ref=f2e742] [cursor=pointer]'
+                      - 'button "Kansas: enacted (17 bills)" [ref=f2e743] [cursor=pointer]'
+                      - 'button "Maine: enacted (27 bills)" [ref=f2e744] [cursor=pointer]'
+                      - 'button "Massachusetts: introduced, pending (102 bills)" [ref=f2e745] [cursor=pointer]'
+                      - 'button "Minnesota: passed one chamber (182 bills)" [ref=f2e746] [cursor=pointer]'
+                      - 'button "New Jersey: introduced, pending (157 bills)" [ref=f2e747] [cursor=pointer]'
+                      - 'button "North Carolina: enacted (27 bills)" [ref=f2e748] [cursor=pointer]'
+                      - 'button "North Dakota: enacted (8 bills)" [ref=f2e749] [cursor=pointer]'
+                      - 'button "Oklahoma: enacted (192 bills)" [ref=f2e750] [cursor=pointer]'
+                      - 'button "Pennsylvania: passed one chamber (69 bills)" [ref=f2e751] [cursor=pointer]'
+                      - 'button "South Dakota: enacted (15 bills)" [ref=f2e752] [cursor=pointer]'
+                      - 'button "Texas: enacted (119 bills)" [ref=f2e753] [cursor=pointer]'
+                      - 'button "Wyoming: enacted (7 bills)" [ref=f2e754] [cursor=pointer]'
+                      - 'button "Connecticut: enacted (70 bills)" [ref=f2e755] [cursor=pointer]'
+                      - 'button "Missouri: passed one chamber (175 bills)" [ref=f2e756] [cursor=pointer]'
+                      - 'button "West Virginia: passed one chamber (41 bills)" [ref=f2e757] [cursor=pointer]'
+                      - 'button "Illinois: enacted (235 bills)" [ref=f2e758] [cursor=pointer]'
+                      - 'button "New Mexico: enacted (31 bills)" [ref=f2e759] [cursor=pointer]'
+                      - 'button "Arkansas: enacted (10 bills)" [ref=f2e760] [cursor=pointer]'
+                      - 'button "California: enacted (60 bills)" [ref=f2e761] [cursor=pointer]'
+                      - 'button "Delaware: enacted (10 bills)" [ref=f2e762] [cursor=pointer]'
+                      - 'generic "District of Columbia: no bill in this view" [ref=f2e763]'
+                      - 'button "Hawaii: enacted (71 bills)" [ref=f2e764] [cursor=pointer]'
+                      - 'button "Iowa: enacted (43 bills)" [ref=f2e765] [cursor=pointer]'
+                      - 'button "Kentucky: enacted (62 bills)" [ref=f2e766] [cursor=pointer]'
+                      - 'button "Maryland: enacted (42 bills)" [ref=f2e767] [cursor=pointer]'
+                      - 'button "Michigan: enacted (67 bills)" [ref=f2e768] [cursor=pointer]'
+                      - 'button "Mississippi: enacted (44 bills)" [ref=f2e769] [cursor=pointer]'
+                      - 'button "Montana: enacted (29 bills)" [ref=f2e770] [cursor=pointer]'
+                      - 'button "New Hampshire: enacted (27 bills)" [ref=f2e771] [cursor=pointer]'
+                      - 'button "New York: enacted (228 bills)" [ref=f2e772] [cursor=pointer]'
+                      - 'button "Ohio: passed one chamber (40 bills)" [ref=f2e773] [cursor=pointer]'
+                      - 'button "Oregon: enacted (30 bills)" [ref=f2e774] [cursor=pointer]'
+                      - 'button "Tennessee: enacted (127 bills)" [ref=f2e775] [cursor=pointer]'
+                      - 'button "Utah: enacted (17 bills)" [ref=f2e776] [cursor=pointer]'
+                      - 'button "Virginia: enacted (115 bills)" [ref=f2e777] [cursor=pointer]'
+                      - 'button "Washington: enacted (29 bills)" [ref=f2e778] [cursor=pointer]'
+                      - 'button "Wisconsin: introduced, pending (32 bills)" [ref=f2e779] [cursor=pointer]'
+                      - 'button "Nebraska: introduced, pending (5 bills)" [ref=f2e780] [cursor=pointer]'
+                      - 'button "South Carolina: passed one chamber (35 bills)" [ref=f2e781] [cursor=pointer]'
+                      - 'button "Idaho: enacted (6 bills)" [ref=f2e782] [cursor=pointer]'
+                      - 'button "Nevada: passed one chamber (10 bills)" [ref=f2e783] [cursor=pointer]'
+                      - 'button "Vermont: introduced, pending (24 bills)" [ref=f2e784] [cursor=pointer]'
+                      - 'button "Louisiana: enacted (16 bills)" [ref=f2e785] [cursor=pointer]'
+                      - 'button "Rhode Island: enacted (58 bills)" [ref=f2e786] [cursor=pointer]'
+                    - paragraph [aria-hidden] [ref=f2e787]: Tap or hover a state.
+                  - 'list "Legend: the furthest any bill in the state got" [ref=f2e788]':
+                    - listitem [ref=f2e789]:
+                      - text: Enacted
+                      - generic [ref=f2e791]: "34"
+                    - listitem [ref=f2e792]:
+                      - text: Passed one chamber
+                      - generic [ref=f2e794]: "9"
+                    - listitem [ref=f2e795]:
+                      - text: Introduced, pending
+                      - generic [ref=f2e797]: "6"
+                    - listitem [ref=f2e798]:
+                      - text: Failed or died
+                      - generic [ref=f2e800]: "1"
+                    - listitem [ref=f2e801]: No bill in this view
+                  - generic [ref=f2e803]:
+                    - generic [ref=f2e804]:
+                      - paragraph [ref=f2e805]: "Alabama: 29 bills"
+                      - button "Close Alabama's bills" [ref=f2e806] [cursor=pointer]: Close
+                    - list [ref=f2e807]:
+                      - listitem [ref=f2e808]:
+                        - generic [ref=f2e809]: Passed one chamber
+                        - generic [ref=f2e810]: Restrict
+                        - generic [ref=f2e811]:
+                          - link "HB 420" [ref=f2e812] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2026rs/HB420/
+                          - generic [ref=f2e813]: · 2026rs session
+                          - text: — Crimes and offenses; discharging a firearm into an occupied school bus or building, penalty increased
+                        - generic [ref=f2e814]: "Last action Apr 17, 2026: Enacted"
+                      - listitem [ref=f2e815]:
+                        - generic [ref=f2e816]: Passed one chamber
+                        - generic [ref=f2e817]: Support
+                        - generic [ref=f2e818]:
+                          - link "HB 612" [ref=f2e819] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2026rs/HB612/
+                          - generic [ref=f2e820]: · 2026rs session
+                          - text: — Covington County; sheriff authorized to sell certain abandoned, unclaimed, or stolen property and firearms, auction and disposition of funds provided, constitutional amendment
+                        - generic [ref=f2e821]: "Last action Mar 31, 2026: Third Reading in Second House"
+                      - listitem [ref=f2e822]:
+                        - generic [ref=f2e823]: Introduced, pending
+                        - generic [ref=f2e824]: Restrict
+                        - generic [ref=f2e825]:
+                          - link "SB 377" [ref=f2e826] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2026rs/SB377/
+                          - generic [ref=f2e827]: · 2026rs session
+                          - text: — Firearms; possession without identification prohibited in certain municipalities
+                        - generic [ref=f2e828]: "Last action Mar 31, 2026: Read for the first time and referred to the Senate Committee on Judiciary"
+                      - listitem [ref=f2e829]:
+                        - generic [ref=f2e830]: Introduced, pending
+                        - generic [ref=f2e831]: Restrict
+                        - generic [ref=f2e832]:
+                          - link "HB 450" [ref=f2e833] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2026rs/HB450/
+                          - generic [ref=f2e834]: · 2026rs session
+                          - text: — Firearms; possession without identification prohibited in certain municipalities
+                        - generic [ref=f2e835]: "Last action Feb 12, 2026: Read for the first time and referred to the House Committee on Public Safety and Homeland Security"
+                      - listitem [ref=f2e836]:
+                        - generic [ref=f2e837]: Introduced, pending
+                        - generic [ref=f2e838]: Restrict
+                        - generic [ref=f2e839]:
+                          - link "SB 267" [ref=f2e840] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2026rs/SB267/
+                          - generic [ref=f2e841]: · 2026rs session
+                          - text: — Firearms; permit to carry pistol, criminal penalties, exempt persons, established; carrying pistol on employer's property revised; nonsubstantive conforming changes to code
+                        - generic [ref=f2e842]: "Last action Feb 5, 2026: Read for the first time and referred to the Senate Committee on Judiciary"
+                      - listitem [ref=f2e843]:
+                        - generic [ref=f2e844]: Introduced, pending
+                        - generic [ref=f2e845]: Restrict
+                        - generic [ref=f2e846]:
+                          - link "HB 316" [ref=f2e847] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2026rs/HB316/
+                          - generic [ref=f2e848]: · 2026rs session
+                          - text: — Firearms; storage requirements provided; criminal penalty for violation resulting in possession by minor under certain circumstances, subject to exceptions
+                        - generic [ref=f2e849]: "Last action Jan 22, 2026: Read for the first time and referred to the House Committee on Public Safety and Homeland Security"
+                      - listitem [ref=f2e850]:
+                        - generic [ref=f2e851]: Introduced, pending
+                        - generic [ref=f2e852]: Support
+                        - generic [ref=f2e853]:
+                          - link "SB 156" [ref=f2e854] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2026rs/SB156/
+                          - generic [ref=f2e855]: · 2026rs session
+                          - text: — Firearms, Gun Violence, Protective Order Act, procedure for issuance of gun violence protective order, established
+                        - generic [ref=f2e856]: "Last action Jan 14, 2026: Read for the first time and referred to the Senate Committee on Judiciary"
+                      - listitem [ref=f2e857]:
+                        - generic [ref=f2e858]: Introduced, pending
+                        - generic [ref=f2e859]: Support
+                        - generic [ref=f2e860]:
+                          - link "HB 113" [ref=f2e861] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2026rs/HB113/
+                          - generic [ref=f2e862]: · 2026rs session
+                          - text: — Firearm sales; acceptance of returned firearms with faulty conditions by dealers required
+                        - generic [ref=f2e863]: "Last action Jan 13, 2026: Read for the first time and referred to the House Committee on State Government"
+                      - listitem [ref=f2e864]:
+                        - generic [ref=f2e865]: Failed or died
+                        - generic [ref=f2e866]: Restrict
+                        - generic [ref=f2e867]:
+                          - link "HB 58" [ref=f2e868] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB58/
+                          - generic [ref=f2e869]: · 2025rs session
+                          - text: — Firearms; criminal penalty established for failure to inform of one's concealed possession under certain circumstances
+                        - generic [ref=f2e870]: "Last action May 6, 2025: Currently Indefinitely Postponed"
+                      - listitem [ref=f2e871]:
+                        - generic [ref=f2e872]: Failed or died
+                        - generic [ref=f2e873]: Restrict
+                        - generic [ref=f2e874]:
+                          - link "SB 119" [ref=f2e875] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/SB119/
+                          - generic [ref=f2e876]: · 2025rs session
+                          - text: — Firearms, revise circumstances when firearm possession is prohibited
+                        - generic [ref=f2e877]: "Last action May 6, 2025: Enacted (it had passed one chamber)"
+                      - listitem [ref=f2e878]:
+                        - generic [ref=f2e879]: Failed or died
+                        - generic [ref=f2e880]: Restrict
+                        - generic [ref=f2e881]:
+                          - link "SB 31" [ref=f2e882] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/SB31/
+                          - generic [ref=f2e883]: · 2025rs session
+                          - text: — Firearms; possession of machine guns prohibited; criminal penalty for violating established
+                        - generic [ref=f2e884]: "Last action May 6, 2025: Currently Indefinitely Postponed"
+                      - listitem [ref=f2e885]:
+                        - generic [ref=f2e886]: Failed or died
+                        - generic [ref=f2e887]: Restrict
+                        - generic [ref=f2e888]:
+                          - link "HB 69" [ref=f2e889] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB69/
+                          - generic [ref=f2e890]: · 2025rs session
+                          - text: — Firearms; Class 1 municipalities; possession of certain firearms prohibited under federal law; possession of firearms by prohibited person under federal law, penalty provided
+                        - generic [ref=f2e891]: "Last action Apr 24, 2025: Re-referred to Committee in House of Origin (Jefferson County Legislation)"
+                      - listitem [ref=f2e892]:
+                        - generic [ref=f2e893]: Failed or died
+                        - generic [ref=f2e894]: Support
+                        - generic [ref=f2e895]:
+                          - link "HB 522" [ref=f2e896] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB522/
+                          - generic [ref=f2e897]: · 2025rs session
+                          - text: — Washington County; sheriff, authorized to sell or destroy certain abandoned, stolen, or unclaimed firearms
+                        - generic [ref=f2e898]: "Last action Apr 22, 2025: Reported Out of Committee Second House (it had passed one chamber)"
+                      - listitem [ref=f2e899]:
+                        - generic [ref=f2e900]: Failed or died
+                        - generic [ref=f2e901]: Support
+                        - generic [ref=f2e902]:
+                          - link "SB 219" [ref=f2e903] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/SB219/
+                          - generic [ref=f2e904]: · 2025rs session
+                          - text: — Clay County; authorize sheriff to dispose of certain abandoned, stolen or unclaimed property and firearms
+                        - generic [ref=f2e905]: "Last action Apr 22, 2025: Enacted (it had passed one chamber)"
+                      - listitem [ref=f2e906]:
+                        - generic [ref=f2e907]: Failed or died
+                        - generic [ref=f2e908]: Other
+                        - generic [ref=f2e909]:
+                          - link "SB 40" [ref=f2e910] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/SB40/
+                          - generic [ref=f2e911]: · 2025rs session
+                          - text: — Firearms; firearm hold agreements defined; civil immunity therefrom provided
+                        - generic [ref=f2e912]: "Last action Apr 7, 2025: Enacted (it had passed one chamber)"
+                      - listitem [ref=f2e913]:
+                        - generic [ref=f2e914]: Failed or died
+                        - generic [ref=f2e915]: Restrict
+                        - generic [ref=f2e916]:
+                          - link "SB 116" [ref=f2e917] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/SB116/
+                          - generic [ref=f2e918]: · 2025rs session
+                          - text: — Machine gun conversion devices prohibited
+                        - generic [ref=f2e919]: "Last action Mar 19, 2025: Enacted (it had passed one chamber)"
+                      - listitem [ref=f2e920]:
+                        - generic [ref=f2e921]: Failed or died
+                        - generic [ref=f2e922]: Restrict
+                        - generic [ref=f2e923]:
+                          - link "HB 409" [ref=f2e924] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB409/
+                          - generic [ref=f2e925]: · 2025rs session
+                          - text: — Relating to firearms; enforcement of red flag laws in this state prohibited; cause of action for enforcing red flag laws established
+                        - generic [ref=f2e926]: "Last action Mar 6, 2025: Read for the first time and referred to the House Committee on Judiciary"
+                      - listitem [ref=f2e927]:
+                        - generic [ref=f2e928]: Failed or died
+                        - generic [ref=f2e929]: Other
+                        - generic [ref=f2e930]:
+                          - link "HB 73" [ref=f2e931] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB73/
+                          - generic [ref=f2e932]: · 2025rs session
+                          - text: — Jefferson County; fine for possession of trigger activator, established
+                        - generic [ref=f2e933]: "Last action Feb 25, 2025: Third Reading in House of Origin (it had passed one chamber)"
+                      - listitem [ref=f2e934]:
+                        - generic [ref=f2e935]: Failed or died
+                        - generic [ref=f2e936]: Other
+                        - generic [ref=f2e937]:
+                          - link "HB 216" [ref=f2e938] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB216/
+                          - generic [ref=f2e939]: · 2025rs session
+                          - text: — Firearms; firearm hold agreements defined; civil immunity therefrom provided
+                        - generic [ref=f2e940]: "Last action Feb 18, 2025: Third Reading in House of Origin (it had passed one chamber)"
+                      - listitem [ref=f2e941]:
+                        - generic [ref=f2e942]: Failed or died
+                        - generic [ref=f2e943]: Support
+                        - generic [ref=f2e944]:
+                          - link "SB 170" [ref=f2e945] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/SB170/
+                          - generic [ref=f2e946]: · 2025rs session
+                          - text: — Firearms, Gun Violence Protective Order Act, procedure for issuance of gun violence protective order, established
+                        - generic [ref=f2e947]: "Last action Feb 13, 2025: Read for the first time and referred to the Senate Committee on Judiciary"
+                      - listitem [ref=f2e948]:
+                        - generic [ref=f2e949]: Failed or died
+                        - generic [ref=f2e950]: Restrict
+                        - generic [ref=f2e951]:
+                          - link "HB 206" [ref=f2e952] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB206/
+                          - generic [ref=f2e953]: · 2025rs session
+                          - text: — Assault weapons; possession and transfer prohibited subject to exemptions, actions taken by persons maintaining possession required.
+                        - generic [ref=f2e954]: "Last action Feb 6, 2025: Read for the first time and referred to the House Committee on Public Safety and Homeland Security"
+                      - listitem [ref=f2e955]:
+                        - generic [ref=f2e956]: Failed or died
+                        - generic [ref=f2e957]: Restrict
+                        - generic [ref=f2e958]:
+                          - link "HB 103" [ref=f2e959] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB103/
+                          - generic [ref=f2e960]: · 2025rs session
+                          - text: — Firearms; storage requirements provided; criminal penalty for violation resulting in possession by minor under certain circumstances, subject to exceptions
+                        - generic [ref=f2e961]: "Last action Feb 4, 2025: Read for the first time and referred to the House Committee on Public Safety and Homeland Security"
+                      - listitem [ref=f2e962]:
+                        - generic [ref=f2e963]: Failed or died
+                        - generic [ref=f2e964]: Restrict
+                        - generic [ref=f2e965]:
+                          - link "HB 12" [ref=f2e966] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB12/
+                          - generic [ref=f2e967]: · 2025rs session
+                          - text: — Firearms, bump stocks prohibited subject to exceptions
+                        - generic [ref=f2e968]: "Last action Feb 4, 2025: Read for the first time and referred to the House Committee on Judiciary"
+                      - listitem [ref=f2e969]:
+                        - generic [ref=f2e970]: Failed or died
+                        - generic [ref=f2e971]: Restrict
+                        - generic [ref=f2e972]:
+                          - link "HB 13" [ref=f2e973] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB13/
+                          - generic [ref=f2e974]: · 2025rs session
+                          - text: — Firearms, to prohibit possession and transfer of assault weapon under certain circumstances
+                        - generic [ref=f2e975]: "Last action Feb 4, 2025: Read for the first time and referred to the House Committee on Judiciary"
+                      - listitem [ref=f2e976]:
+                        - generic [ref=f2e977]: Failed or died
+                        - generic [ref=f2e978]: Restrict
+                        - generic [ref=f2e979]:
+                          - link "HB 150" [ref=f2e980] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB150/
+                          - generic [ref=f2e981]: · 2025rs session
+                          - text: — Firearms; transfer of deadly weapon and ammunition to intoxicated persons prohibited; criminal penalty provided
+                        - generic [ref=f2e982]: "Last action Feb 4, 2025: Read for the first time and referred to the House Committee on Public Safety and Homeland Security"
+                      - listitem [ref=f2e983]:
+                        - generic [ref=f2e984]: Failed or died
+                        - generic [ref=f2e985]: Restrict
+                        - generic [ref=f2e986]:
+                          - link "HB 23" [ref=f2e987] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB23/
+                          - generic [ref=f2e988]: · 2025rs session
+                          - text: — Firearms, to require permit to carry assault weapons in vehicles or on one's person or to acquire such.
+                        - generic [ref=f2e989]: "Last action Feb 4, 2025: Read for the first time and referred to the House Committee on Judiciary"
+                      - listitem [ref=f2e990]:
+                        - generic [ref=f2e991]: Failed or died
+                        - generic [ref=f2e992]: Restrict
+                        - generic [ref=f2e993]:
+                          - link "HB 26" [ref=f2e994] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB26/
+                          - generic [ref=f2e995]: · 2025rs session
+                          - text: — Firearms, to prohibit possession of pistols with parts installed to convert into machine gun
+                        - generic [ref=f2e996]: "Last action Feb 4, 2025: Read for the first time and referred to the House Committee on Public Safety and Homeland Security"
+                      - listitem [ref=f2e997]:
+                        - generic [ref=f2e998]: Failed or died
+                        - generic [ref=f2e999]: Restrict
+                        - generic [ref=f2e1000]:
+                          - link "HB 51" [ref=f2e1001] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/HB51/
+                          - generic [ref=f2e1002]: · 2025rs session
+                          - text: — Firearms, possession of bump stocks prohibited in class 1 municipalities, criminal penalties for violations
+                        - generic [ref=f2e1003]: "Last action Feb 4, 2025: Read for the first time and referred to the House Committee on Public Safety and Homeland Security"
+                      - listitem [ref=f2e1004]:
+                        - generic [ref=f2e1005]: Failed or died
+                        - generic [ref=f2e1006]: Restrict
+                        - generic [ref=f2e1007]:
+                          - link "SB 30" [ref=f2e1008] [cursor=pointer]:
+                            - /url: https://openstates.org/al/bills/2025rs/SB30/
+                          - generic [ref=f2e1009]: · 2025rs session
+                          - text: — Firearms; storage where unauthorized individuals not likely to access required; criminal penalties established
+                        - generic [ref=f2e1010]: "Last action Feb 4, 2025: Read for the first time and referred to the Senate Committee on Judiciary"
+                  - group [ref=f2e1011]:
+                    - generic "Every state with a bill (50)" [ref=f2e1012] [cursor=pointer]
+                  - paragraph [ref=f2e1013]: "From our copy of OpenStates: state bills whose subject tags, title or abstract name gun control. Colour is the furthest any bill got, from its own recorded actions. Direction comes from keyword rules on the title and abstract; a bill whose text doesn't say which way is counted as “direction not stated” and shown by status only. Omnibus bills that never name the topic in their title or abstract are missed."
+            - region "In Alabama, local bodies voted for a limit on firearms in 6 meetings and voted down a firearms limit, or approved a range or gun shop in 11." [ref=f2e1014]:
+              - generic [ref=f2e1015]:
+                - generic [ref=f2e1016]:
+                  - paragraph [ref=f2e1018]: Votes
+                  - generic [ref=f2e1019]:
+                    - heading "In Alabama, local bodies voted for a limit on firearms in 6 meetings and voted down a firearms limit, or approved a range or gun shop in 11." [level=2] [ref=f2e1020]:
+                      - generic [ref=f2e1021]: In
+                      - generic [ref=f2e1023]: Alabama,
+                      - generic [ref=f2e1025]: local
+                      - generic [ref=f2e1027]: bodies
+                      - generic [ref=f2e1029]: voted
+                      - generic [ref=f2e1031]: for
+                      - generic [ref=f2e1033]: a
+                      - generic [ref=f2e1035]: limit
+                      - generic [ref=f2e1037]: "on"
+                      - generic [ref=f2e1039]: firearms
+                      - generic [ref=f2e1041]: in
+                      - generic [ref=f2e1043]: "6"
+                      - generic [ref=f2e1045]: meetings
+                      - generic [ref=f2e1047]: and
+                      - generic [ref=f2e1049]: voted
+                      - generic [ref=f2e1051]: down
+                      - generic [ref=f2e1053]: a
+                      - generic [ref=f2e1055]: firearms
+                      - generic [ref=f2e1057]: limit,
+                      - generic [ref=f2e1059]: or
+                      - generic [ref=f2e1061]: approved
+                      - generic [ref=f2e1063]: a
+                      - generic [ref=f2e1065]: range
+                      - generic [ref=f2e1067]: or
+                      - generic [ref=f2e1069]: gun
+                      - generic [ref=f2e1071]: shop
+                      - generic [ref=f2e1073]: in
+                      - generic [ref=f2e1075]: "11."
+                    - paragraph [ref=f2e1077]: 24 meetings where a council or board acted on it, 7 of them put off, as an AI read the transcript.
+                - generic [ref=f2e1079]:
+                  - paragraph [ref=f2e1080]: Where local bodies acted on gun control · Alabama
+                  - list "Totals" [ref=f2e1081]:
+                    - listitem [ref=f2e1082]:
+                      - button "6 Voted for a limit on firearms" [ref=f2e1083] [cursor=pointer]:
+                        - generic [ref=f2e1085]: "6"
+                        - generic [ref=f2e1086]: Voted for a limit on firearms
+                    - listitem [ref=f2e1087]:
+                      - button "11 Voted down a firearms limit, or approved a range or gun shop" [ref=f2e1088] [cursor=pointer]:
+                        - generic [ref=f2e1090]: "11"
+                        - generic [ref=f2e1091]: Voted down a firearms limit, or approved a range or gun shop
+                    - listitem [ref=f2e1092]:
+                      - button "7 Tabled or put off" [ref=f2e1093] [cursor=pointer]:
+                        - generic [ref=f2e1095]: "7"
+                        - generic [ref=f2e1096]: Tabled or put off
+                  - figure "Meetings per year. Hover or tap a year for its counts." [ref=f2e1097]:
+                    - img "Meetings with an action on gun control, by year" [ref=f2e1098]:
+                      - generic [ref=f2e1099]: "5"
+                      - generic [ref=f2e1100]: "2011"
+                      - generic [ref=f2e1112]: "2015"
+                      - generic [ref=f2e1125]: "2019"
+                      - generic [ref=f2e1150]: "2026"
+                  - paragraph [ref=f2e1155]: Meetings (24)
+                  - list [ref=f2e1156]:
+                    - listitem [ref=f2e1157]:
+                      - generic [ref=f2e1159]: Mar 16, 2026
+                      - link "Wetumpka, AL" [ref=f2e1161] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=waGOI6V50zQ
+                      - generic [ref=f2e1162]:
+                        - text: Voted down a firearms limit, or approved a range or gun shop
+                        - generic [ref=f2e1163]: · AI reading, 97% sure
+                    - listitem [ref=f2e1164]:
+                      - generic [ref=f2e1166]: Mar 4, 2026
+                      - link "Jackson, AL" [ref=f2e1168] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=bdU_DnYrl48
+                      - generic [ref=f2e1169]:
+                        - text: Voted down a firearms limit, or approved a range or gun shop
+                        - generic [ref=f2e1170]: · AI reading, 84% sure
+                    - listitem [ref=f2e1171]:
+                      - generic [ref=f2e1173]: Oct 1, 2025
+                      - link "Tuscaloosa, AL" [ref=f2e1175] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=v2dtJAoCiV8
+                      - generic [ref=f2e1176]:
+                        - text: Voted down a firearms limit, or approved a range or gun shop
+                        - generic [ref=f2e1177]: · AI reading, 48% sure
+                    - listitem [ref=f2e1178]:
+                      - generic [ref=f2e1180]: Sep 16, 2025
+                      - link "Auburn, AL" [ref=f2e1182] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=4Wmlfh6-cFI
+                      - generic [ref=f2e1183]:
+                        - text: Voted down a firearms limit, or approved a range or gun shop
+                        - generic [ref=f2e1184]: · AI reading, 83% sure
+                    - listitem [ref=f2e1185]:
+                      - generic [ref=f2e1187]: Apr 1, 2025
+                      - link "Montgomery, AL" [ref=f2e1189] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=-y7nI-trB4k
+                      - generic [ref=f2e1190]:
+                        - text: Voted for a limit on firearms
+                        - generic [ref=f2e1191]: · AI reading, 73% sure
+                    - listitem [ref=f2e1192]:
+                      - generic [ref=f2e1194]: Jan 28, 2025
+                      - link "Montgomery, AL" [ref=f2e1196] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=6YJco9DnAkM
+                      - generic [ref=f2e1197]:
+                        - text: Tabled or put off
+                        - generic [ref=f2e1198]: · AI reading, 95% sure
+                    - listitem [ref=f2e1199]:
+                      - generic [ref=f2e1201]: Jan 28, 2025
+                      - link "Montgomery, AL" [ref=f2e1203] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=JpPKQ3iHSdY
+                      - generic [ref=f2e1204]:
+                        - text: Tabled or put off
+                        - generic [ref=f2e1205]: · AI reading, 93% sure
+                    - listitem [ref=f2e1206]:
+                      - generic [ref=f2e1208]: Nov 20, 2024
+                      - link "Montgomery, AL" [ref=f2e1210] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=mBsxcLTTXEM
+                      - generic [ref=f2e1211]:
+                        - text: Tabled or put off
+                        - generic [ref=f2e1212]: · AI reading, 52% sure
+                    - listitem [ref=f2e1213]:
+                      - generic [ref=f2e1215]: Sep 12, 2023
+                      - link "Montgomery, AL" [ref=f2e1217] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=m10SPlqr2Lw
+                      - generic [ref=f2e1218]:
+                        - text: Voted down a firearms limit, or approved a range or gun shop
+                        - generic [ref=f2e1219]: · AI reading, 97% sure
+                    - listitem [ref=f2e1220]:
+                      - generic [ref=f2e1222]: Feb 18, 2020
+                      - link "Jackson, AL" [ref=f2e1224] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=84h1lfk0upo
+                      - generic [ref=f2e1225]:
+                        - text: Voted down a firearms limit, or approved a range or gun shop
+                        - generic [ref=f2e1226]: · AI reading, 100% sure
+                    - listitem [ref=f2e1227]:
+                      - generic [ref=f2e1229]: Feb 10, 2020
+                      - link "Jackson, AL" [ref=f2e1231] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=yncbTMNKTHs
+                      - generic [ref=f2e1232]:
+                        - text: Voted for a limit on firearms
+                        - generic [ref=f2e1233]: · AI reading, 91% sure
+                    - listitem [ref=f2e1234]:
+                      - generic [ref=f2e1236]: Jan 21, 2020
+                      - link "Jackson, AL" [ref=f2e1238] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=ECvETdtlKOs
+                      - generic [ref=f2e1239]:
+                        - text: Tabled or put off
+                        - generic [ref=f2e1240]: · AI reading, 85% sure
+                  - button "Show all 24" [ref=f2e1241] [cursor=pointer]
+                  - paragraph [ref=f2e1242]: What the body did, as an AI (Jev) read it from the meeting transcript, not from official minutes; the percent is how sure the reading was. A council, board or commission's action only, never a person's.
+            - region "What was said about gun control in Alabama." [ref=f2e1243]:
+              - generic [ref=f2e1244]:
+                - generic [ref=f2e1245]:
+                  - paragraph [ref=f2e1247]: What was said
+                  - generic [ref=f2e1248]:
+                    - heading "What was said about gun control in Alabama." [level=2] [ref=f2e1249]:
+                      - generic [ref=f2e1250]: What
+                      - generic [ref=f2e1252]: was
+                      - generic [ref=f2e1254]: said
+                      - generic [ref=f2e1256]: about
+                      - generic [ref=f2e1258]: gun
+                      - generic [ref=f2e1260]: control
+                      - generic [ref=f2e1262]: in
+                      - generic [ref=f2e1264]: Alabama.
+                    - paragraph [ref=f2e1266]: 386 meetings, those where the public took a position or a speaker is named first. Passages are quoted from the transcript; a position is the meeting's, as an AI read it, never the speaker's.
+                - generic [ref=f2e1267]:
+                  - paragraph [ref=f2e1268]: "Of 386 meetings: the public took a position at 14 (6 favor gun rights, 2 favor gun limits, 6 split). A council or board acted at 24 (6 voted for a limit on firearms, 11 voted down a firearms limit, or approved a range or gun shop, 7 tabled or put off). At 84, the record names who spoke. 278 only mentioned it in passing."
+                  - list [ref=f2e1269]:
+                    - listitem [ref=f2e1270]:
+                      - link "Tuscaloosa City Council Meeting - Sep 30, 2025 · Oct 1, 2025 (plays the recording)" [ref=f2e1271] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=v2dtJAoCiV8
+                        - text: Tuscaloosa City Council Meeting - Sep 30, 2025 · Oct 1, 2025
+                      - paragraph [ref=f2e1272]: Tuscaloosa, AL
+                      - blockquote [ref=f2e1273]:
+                        - text: “this isn't public
+                        - mark [ref=f2e1274]: safety
+                        - text: . This isn't a nuisance. I didn't hear anybody from the public come up and cry nuisance and cry public
+                        - mark [ref=f2e1275]: safety
+                        - text: and
+                        - mark [ref=f2e1276]: guns
+                        - text: … these
+                        - mark [ref=f2e1277]: guns
+                        - text: to look for stolen
+                        - mark [ref=f2e1278]: guns
+                        - text: . And how many did they find? Zero. Zero manpower. Hours going through
+                        - mark [ref=f2e1279]: guns
+                        - text: ”
+                      - paragraph [ref=f2e1280]: Speaker not identified
+                      - paragraph [ref=f2e1281]: "Spoke on it at this meeting: Josh S., Chris M., Derek C. and 3 more"
+                      - list "Positions on record" [ref=f2e1282]:
+                        - listitem [ref=f2e1283]: "■ Public at this meeting: Favor gun rights"
+                        - listitem [ref=f2e1284]: "■ Council or board: Voted down a firearms limit, or approved a range or gun shop"
+                      - paragraph [ref=f2e1285]:
+                        - link "Watch the meeting ↗" [ref=f2e1286] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=v2dtJAoCiV8
+                        - link "Meeting page" [ref=f2e1287] [cursor=pointer]:
+                          - /url: /meetings/7981
+                    - listitem [ref=f2e1288]:
+                      - link "Mobile City Council Meeting July 6, 2021 · Jul 6, 2021 (plays the recording)" [ref=f2e1289] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=EOWQsRQ_BY8
+                        - text: Mobile City Council Meeting July 6, 2021 · Jul 6, 2021
+                      - paragraph [ref=f2e1290]: Mobile, Alabama
+                      - blockquote [ref=f2e1291]:
+                        - text: “time restraint i'm just going to focus on this pandemic resources and
+                        - mark [ref=f2e1292]: gun
+                        - mark [ref=f2e1293]: violence
+                        - text: i think it's very important that we're educated our people perish”
+                      - paragraph [ref=f2e1294]: Speaker not identified
+                      - paragraph [ref=f2e1295]: "Spoke on it at this meeting: Kian"
+                      - list "Positions on record" [ref=f2e1296]:
+                        - listitem [ref=f2e1297]: "Public at this meeting: Split"
+                      - paragraph [ref=f2e1298]:
+                        - link "Watch the meeting ↗" [ref=f2e1299] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=EOWQsRQ_BY8
+                        - link "Meeting page" [ref=f2e1300] [cursor=pointer]:
+                          - /url: /meetings/25935
+                    - listitem [ref=f2e1301]:
+                      - link "Jackson County Board of Commissioners February 18, 2020 Meeting · Feb 18, 2020 (plays the recording)" [ref=f2e1302] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=84h1lfk0upo
+                        - text: Jackson County Board of Commissioners February 18, 2020 Meeting · Feb 18, 2020
+                      - paragraph [ref=f2e1303]: Jackson, Alabama
+                      - blockquote [ref=f2e1304]:
+                        - text: “opened it up for more
+                        - mark [ref=f2e1305]: violence
+                        - text: that's ridiculous the majority of
+                        - mark [ref=f2e1306]: shootings
+                        - text: happen around here as was acknowledged by commissioner mahoney as with unregistered
+                        - mark [ref=f2e1307]: weapons
+                        - text: so what's a red flag law gonna … whom the National Guard to collect our
+                        - mark [ref=f2e1308]: weapons
+                        - text: that we need the same
+                        - mark [ref=f2e1309]: weapons
+                        - text: just like Lucas Lexington and Concord we need the exact same
+                        - mark [ref=f2e1310]: weapons
+                        - text: that the National Guard will be using against”
+                      - paragraph [ref=f2e1311]: Speaker not identified
+                      - paragraph [ref=f2e1312]: "Spoke on it at this meeting: Becky M."
+                      - list "Positions on record" [ref=f2e1313]:
+                        - listitem [ref=f2e1314]: "Public at this meeting: Split"
+                        - listitem [ref=f2e1315]: "■ Council or board: Voted down a firearms limit, or approved a range or gun shop"
+                      - paragraph [ref=f2e1316]:
+                        - link "Watch the meeting ↗" [ref=f2e1317] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=84h1lfk0upo
+                    - listitem [ref=f2e1318]:
+                      - link "City of Mobile, AL City Council Meeting - Tuesday, April 16, 2019 · Apr 16, 2019 (plays the recording)" [ref=f2e1319] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=EvaOYwQZQu0
+                        - text: City of Mobile, AL City Council Meeting - Tuesday, April 16, 2019 · Apr 16, 2019
+                      - paragraph [ref=f2e1320]: Mobile, Alabama
+                      - blockquote [ref=f2e1321]:
+                        - text: “rise today to talk about the discussion that the community is having about
+                        - mark [ref=f2e1322]: gun
+                        - mark [ref=f2e1323]: violence
+                        - text: and more specifically about stolen
+                        - mark [ref=f2e1324]: weapons
+                        - text: from unlocked vehicles I appreciate the discussion … citizens follow the law because it's the law also the NRA recommends
+                        - mark [ref=f2e1325]: gun
+                        - mark [ref=f2e1326]: owners
+                        - text: that have their
+                        - mark [ref=f2e1327]: weapon
+                        - text: stolen report it to the police”
+                      - paragraph [ref=f2e1328]: Said by David P.
+                      - paragraph [ref=f2e1329]: "Also spoke on it: Dwight A."
+                      - list "Positions on record" [ref=f2e1330]:
+                        - listitem [ref=f2e1331]: "Public at this meeting: Split"
+                        - listitem [ref=f2e1332]: "● Council or board: Voted for a limit on firearms"
+                      - paragraph [ref=f2e1333]:
+                        - link "Watch the meeting ↗" [ref=f2e1334] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=EvaOYwQZQu0
+                    - listitem [ref=f2e1335]:
+                      - link "City of Mobile, AL City Council Meeting - Tuesday, March 26, 2019 · Mar 26, 2019 (plays the recording)" [ref=f2e1336] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=9GB1w9r99RU
+                        - text: City of Mobile, AL City Council Meeting - Tuesday, March 26, 2019 · Mar 26, 2019
+                      - paragraph [ref=f2e1337]: Mobile, Alabama
+                      - blockquote [ref=f2e1338]:
+                        - text: “adopt regulations to permit class to municipalities to adopt reasonable regulations to prevent the theft of
+                        - mark [ref=f2e1339]: firearms
+                        - text: from vehicles before I began I want to commend the sponsor of this legislation my friend from district … also how that feels but I want to move on to the next piece dealing with this
+                        - mark [ref=f2e1340]: firearms
+                        - text: concern and I believe that my friend and I from district 4 would have a different interpretation”
+                      - paragraph [ref=f2e1341]: Said by Reggie H.
+                      - list "Positions on record" [ref=f2e1342]:
+                        - listitem [ref=f2e1343]: "Public at this meeting: Split"
+                        - listitem [ref=f2e1344]: "Council or board: Tabled or put off"
+                      - paragraph [ref=f2e1345]:
+                        - link "Watch the meeting ↗" [ref=f2e1346] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=9GB1w9r99RU
+                    - listitem [ref=f2e1347]:
+                      - link "Jackson County Board of Commissioners March 20, 2012 Meeting · Mar 20, 2012 (plays the recording)" [ref=f2e1348] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=wuEUGuwW9CE
+                        - text: Jackson County Board of Commissioners March 20, 2012 Meeting · Mar 20, 2012
+                      - paragraph [ref=f2e1349]: Jackson, Alabama
+                      - blockquote [ref=f2e1350]:
+                        - text: “myself am a
+                        - mark [ref=f2e1351]: concealed
+                        - mark [ref=f2e1352]: weapon
+                        - text: licensee I
+                        - mark [ref=f2e1353]: carry
+                        - text: every day as a group
+                        - mark [ref=f2e1354]: concealed
+                        - mark [ref=f2e1355]: carry
+                        - text: licenses are the most law-abiding people there are nationwide they have the fewest problems of any in Michigan … reiterate that the question was asked by mr. Smith if this is
+                        - mark [ref=f2e1356]: concealed
+                        - mark [ref=f2e1357]: carry
+                        - text: this is about
+                        - mark [ref=f2e1358]: concealed
+                        - mark [ref=f2e1359]: carry
+                        - text: here by employees not open
+                        - mark [ref=f2e1360]: carry
+                        - text: I think that's kind of a misnomer that people”
+                      - paragraph [ref=f2e1361]: Speaker not identified
+                      - paragraph [ref=f2e1362]: "Spoke on it at this meeting: Geoff"
+                      - list "Positions on record" [ref=f2e1363]:
+                        - listitem [ref=f2e1364]: "Public at this meeting: Split"
+                        - listitem [ref=f2e1365]: "■ Council or board: Voted down a firearms limit, or approved a range or gun shop"
+                      - paragraph [ref=f2e1366]:
+                        - link "Watch the meeting ↗" [ref=f2e1367] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=wuEUGuwW9CE
+                    - listitem [ref=f2e1368]:
+                      - link "Calera City Council Meeting - 02/02/2026 · Feb 2, 2026 (plays the recording)" [ref=f2e1369] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=I2PsxTgk39k
+                        - text: Calera City Council Meeting - 02/02/2026 · Feb 2, 2026
+                      - paragraph [ref=f2e1370]: Calera, Alabama
+                      - blockquote [ref=f2e1371]:
+                        - text: “allow cities and counties to pass rules or laws regarding where people are able to uh
+                        - mark [ref=f2e1372]: carry
+                        - mark [ref=f2e1373]: firearms
+                        - text: . Right. So, um, some signs that I've seen around that are not in compliance with that … football stadium. There is a provision for uh if you don't have a
+                        - mark [ref=f2e1374]: concealed
+                        - mark [ref=f2e1375]: carry
+                        - text: license for during the game. Um but that signs up all the time. It doesn't specify. It also”
+                      - paragraph [ref=f2e1376]: Speaker not identified
+                      - list "Positions on record" [ref=f2e1377]:
+                        - listitem [ref=f2e1378]: "■ Public at this meeting: Favor gun rights"
+                      - paragraph [ref=f2e1379]:
+                        - link "Watch the meeting ↗" [ref=f2e1380] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=I2PsxTgk39k
+                    - listitem [ref=f2e1381]:
+                      - link "Montgomery City Council Meeting (11/20/24) · Nov 20, 2024 (plays the recording)" [ref=f2e1382] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=mBsxcLTTXEM
+                        - text: Montgomery City Council Meeting (11/20/24) · Nov 20, 2024
+                      - paragraph [ref=f2e1383]: Montgomery, Alabama
+                      - blockquote [ref=f2e1384]:
+                        - text: “necessary for communities. They help officers protect the community from devastating effects of
+                        - mark [ref=f2e1385]: gun
+                        - mark [ref=f2e1386]: violence
+                        - text: . It's a strong and necessary response. To
+                        - mark [ref=f2e1387]: guns
+                        - text: … that we find on the street. Too often. In fact, the old
+                        - mark [ref=f2e1388]: concealed
+                        - mark [ref=f2e1389]: carry
+                        - text: law that used to be in effect, was incredibly effective because how many times do we probably”
+                      - paragraph [ref=f2e1390]: Speaker not identified
+                      - list "Positions on record" [ref=f2e1391]:
+                        - listitem [ref=f2e1392]: "● Public at this meeting: Favor gun limits"
+                        - listitem [ref=f2e1393]: "Council or board: Tabled or put off"
+                      - paragraph [ref=f2e1394]:
+                        - link "Watch the meeting ↗" [ref=f2e1395] [cursor=pointer]:
+                          - /url: https://www.youtube.com/watch?v=mBsxcLTTXEM
+                  - button "Show more meetings" [ref=f2e1396] [cursor=pointer]
+            - region "What was decided on gun control in Alabama." [ref=f2e1397]:
+              - generic [ref=f2e1398]:
+                - generic [ref=f2e1399]:
+                  - paragraph [ref=f2e1401]: Decisions
+                  - generic [ref=f2e1402]:
+                    - heading "What was decided on gun control in Alabama." [level=2] [ref=f2e1403]:
+                      - generic [ref=f2e1404]: What
+                      - generic [ref=f2e1406]: was
+                      - generic [ref=f2e1408]: decided
+                      - generic [ref=f2e1410]: "on"
+                      - generic [ref=f2e1412]: gun
+                      - generic [ref=f2e1414]: control
+                      - generic [ref=f2e1416]: in
+                      - generic [ref=f2e1418]: Alabama.
+                    - paragraph [ref=f2e1420]: 3 decisions on gun control; 6 more mention it in passing. A decision counts as on gun control only when its wording names the policy, or the meeting's reading backs it; anything unsure is in passing.
+                - generic [ref=f2e1421]:
+                  - generic [ref=f2e1422]:
+                    - heading "Decisions on gun control" [level=3] [ref=f2e1423]
+                    - list [ref=f2e1424]:
+                      - listitem [ref=f2e1425]:
+                        - link "Prohibiting firearm possession while under the influence" [ref=f2e1426] [cursor=pointer]:
+                          - /url: /decisions/4ed4146da7eb139caa2ccc1d2e1b8d0e
+                        - paragraph [ref=f2e1427]: Tuscaloosa, AL · Supported for legislative action
+                        - paragraph [ref=f2e1428]:
+                          - text: Prohibiting
+                          - mark [ref=f2e1429]: firearm
+                          - text: possession while under the influence. The committee endorsed the legislative proposal to prohibit individuals from ... possessing
+                          - mark [ref=f2e1430]: firearms
+                          - text: while under the influence of impairing substances
+                        - list "Who was on each side" [ref=f2e1431]:
+                          - listitem [ref=f2e1432]: "Supported by: John Faile (City Councilor), Joseph Eatmon, Sr. (City Councilor), Raevan Howard (City Councilor) +6"
+                          - listitem [ref=f2e1433]: No opposition recorded
+                        - paragraph [ref=f2e1434]:
+                          - link "Public Safety Committee · Dec 10, 2024 (plays the recording)" [ref=f2e1435] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=ZVot6QI8K18
+                            - text: Public Safety Committee · Dec 10, 2024 ↗
+                          - link "Meeting page" [ref=f2e1436] [cursor=pointer]:
+                            - /url: /meetings/7893
+                          - link "Decision details" [ref=f2e1437] [cursor=pointer]:
+                            - /url: /decisions/4ed4146da7eb139caa2ccc1d2e1b8d0e
+                      - listitem [ref=f2e1438]:
+                        - link "Requiring notification of firearm possession upon inquiry" [ref=f2e1439] [cursor=pointer]:
+                          - /url: /decisions/3a052e1466672787c2c30123c8033145
+                        - paragraph [ref=f2e1440]: Tuscaloosa, AL · Supported for legislative action
+                        - paragraph [ref=f2e1441]:
+                          - text: Requiring notification of
+                          - mark [ref=f2e1442]: firearm
+                          - text: possession upon inquiry. The committee supported the legislative proposal to add a penalty ... inform law enforcement if they possess a
+                          - mark [ref=f2e1443]: firearm
+                          - text: when asked, making the law enforceable
+                        - list "Who was on each side" [ref=f2e1444]:
+                          - listitem [ref=f2e1445]: "Supported by: John Faile (City Councilor), Joseph Eatmon, Sr. (City Councilor), Raevan Howard (City Councilor) +6"
+                          - listitem [ref=f2e1446]: No opposition recorded
+                        - paragraph [ref=f2e1447]:
+                          - link "Public Safety Committee · Dec 10, 2024 (plays the recording)" [ref=f2e1448] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=ZVot6QI8K18
+                            - text: Public Safety Committee · Dec 10, 2024 ↗
+                          - link "Meeting page" [ref=f2e1449] [cursor=pointer]:
+                            - /url: /meetings/7893
+                          - link "Decision details" [ref=f2e1450] [cursor=pointer]:
+                            - /url: /decisions/3a052e1466672787c2c30123c8033145
+                      - listitem [ref=f2e1451]:
+                        - link "Prohibiting felons from possessing firearms" [ref=f2e1452] [cursor=pointer]:
+                          - /url: /decisions/12a6544596176c3ec89018dcd1c2e045
+                        - paragraph [ref=f2e1453]: Tuscaloosa, AL · Supported for legislative action
+                        - paragraph [ref=f2e1454]:
+                          - text: Prohibiting felons from possessing
+                          - mark [ref=f2e1455]: firearms
+                          - text: . The committee supported the legislative proposal to make it illegal ... felon to possess a
+                          - mark [ref=f2e1456]: firearm
+                        - list "Who was on each side" [ref=f2e1457]:
+                          - listitem [ref=f2e1458]: "Supported by: John Faile (City Councilor), Joseph Eatmon, Sr. (City Councilor), Raevan Howard (City Councilor) +6"
+                          - listitem [ref=f2e1459]: No opposition recorded
+                        - paragraph [ref=f2e1460]:
+                          - link "Public Safety Committee · Dec 10, 2024 (plays the recording)" [ref=f2e1461] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=ZVot6QI8K18
+                            - text: Public Safety Committee · Dec 10, 2024 ↗
+                          - link "Meeting page" [ref=f2e1462] [cursor=pointer]:
+                            - /url: /meetings/7893
+                          - link "Decision details" [ref=f2e1463] [cursor=pointer]:
+                            - /url: /decisions/12a6544596176c3ec89018dcd1c2e045
+                  - generic [ref=f2e1464]:
+                    - heading "Mentioned in passing · 6" [level=3] [ref=f2e1465]
+                    - list [ref=f2e1466]:
+                      - listitem [ref=f2e1467]:
+                        - link "Capital Improvement Plan Funds Reallocated from Firearms Training Project" [ref=f2e1468] [cursor=pointer]:
+                          - /url: /decisions/f4f0c813197b83f6bd3b05352e5da41a
+                        - paragraph [ref=f2e1469]: Shelby County, AL · Without Recommendation
+                        - paragraph [ref=f2e1470]:
+                          - text: Capital Improvement Plan Funds Reallocated from
+                          - mark [ref=f2e1471]: Firearms
+                          - text: Training Project. The commission sent down without recommendation the reallocation ... from the
+                          - mark [ref=f2e1472]: firearms
+                          - text: training unit BURM reclamation project to emergency backup generators
+                        - list "Who was on each side" [ref=f2e1473]:
+                          - listitem [ref=f2e1474]: Opposition recorded; no names on record
+                          - listitem [ref=f2e1475]: "Vote: 4–0"
+                        - paragraph [ref=f2e1476]:
+                          - link "Committee Meeting · Apr 8, 2026 (plays the recording)" [ref=f2e1477] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=fSZRw_x9ZWI
+                            - text: Committee Meeting · Apr 8, 2026 ↗
+                          - link "Meeting page" [ref=f2e1478] [cursor=pointer]:
+                            - /url: /meetings/7114
+                          - link "Decision details" [ref=f2e1479] [cursor=pointer]:
+                            - /url: /decisions/f4f0c813197b83f6bd3b05352e5da41a
+                      - listitem [ref=f2e1480]:
+                        - link "Firearms Sale Permit Granted to Dunham's Athleisure Corporation" [ref=f2e1481] [cursor=pointer]:
+                          - /url: /decisions/b5cf5e9056b7cd2e8e375455742dc3ee
+                        - paragraph [ref=f2e1482]: Wetumpka, AL · Approved
+                        - paragraph [ref=f2e1483]:
+                          - mark [ref=f2e1484]: Firearms
+                          - text: Sale Permit Granted to Dunham's Athleisure Corporation. Permission is granted for Dunham's Athleisure Corporation ... sell
+                          - mark [ref=f2e1485]: firearms
+                          - text: at 4896 US Highway
+                        - list "Who was on each side" [ref=f2e1486]:
+                          - listitem [ref=f2e1487]: "Vote: 7–0"
+                        - paragraph [ref=f2e1488]:
+                          - link "City Council · Mar 16, 2026 (plays the recording)" [ref=f2e1489] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=waGOI6V50zQ
+                            - text: City Council · Mar 16, 2026 ↗
+                          - link "Meeting page" [ref=f2e1490] [cursor=pointer]:
+                            - /url: /meetings/4348
+                          - link "Decision details" [ref=f2e1491] [cursor=pointer]:
+                            - /url: /decisions/b5cf5e9056b7cd2e8e375455742dc3ee
+                      - listitem [ref=f2e1492]:
+                        - link "Updating the Law Enforcement Tactical System" [ref=f2e1493] [cursor=pointer]:
+                          - /url: /decisions/9885c56af17a7fdd9dd04ad99efd889d
+                        - paragraph [ref=f2e1494]: Tuscaloosa, AL · Supported for legislative action
+                        - paragraph [ref=f2e1495]:
+                          - text: System, a database of individuals prohibited from possessing
+                          - mark [ref=f2e1496]: firearms
+                        - list "Who was on each side" [ref=f2e1497]:
+                          - listitem [ref=f2e1498]: "Supported by: John Faile (City Councilor), Joseph Eatmon, Sr. (City Councilor), Raevan Howard (City Councilor) +6"
+                          - listitem [ref=f2e1499]: No opposition recorded
+                        - paragraph [ref=f2e1500]:
+                          - link "Public Safety Committee · Dec 10, 2024 (plays the recording)" [ref=f2e1501] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=ZVot6QI8K18
+                            - text: Public Safety Committee · Dec 10, 2024 ↗
+                          - link "Meeting page" [ref=f2e1502] [cursor=pointer]:
+                            - /url: /meetings/7893
+                          - link "Decision details" [ref=f2e1503] [cursor=pointer]:
+                            - /url: /decisions/9885c56af17a7fdd9dd04ad99efd889d
+                      - listitem [ref=f2e1504]:
+                        - link "Discussion on juvenile delinquency and gun violence funding" [ref=f2e1505] [cursor=pointer]:
+                          - /url: /decisions/c85c9f7ed5b400a93a51328dfddc6aeb
+                        - paragraph [ref=f2e1506]: AL · Discussion
+                        - paragraph [ref=f2e1507]:
+                          - text: juvenile delinquency and
+                          - mark [ref=f2e1508]: gun
+                          - mark [ref=f2e1509]: violence
+                          - text: funding. The council discussed ... juvenile delinquency and
+                          - mark [ref=f2e1510]: gun
+                          - mark [ref=f2e1511]: violence
+                          - text: through ARP funding, with
+                        - list "Who was on each side" [ref=f2e1512]:
+                          - listitem [ref=f2e1513]: "Opposed by: Jones (Councilmember)"
+                        - paragraph [ref=f2e1514]:
+                          - link "Mobile City Council · Nov 9, 2021 (plays the recording)" [ref=f2e1515] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=N-OzXpQ7VaU
+                            - text: Mobile City Council · Nov 9, 2021 ↗
+                          - link "Meeting page" [ref=f2e1516] [cursor=pointer]:
+                            - /url: /meetings/25974
+                          - link "Decision details" [ref=f2e1517] [cursor=pointer]:
+                            - /url: /decisions/c85c9f7ed5b400a93a51328dfddc6aeb
+                      - listitem [ref=f2e1518]:
+                        - link "Citizen urges council action on gun violence" [ref=f2e1519] [cursor=pointer]:
+                          - /url: /decisions/a5a9da20dc9dcb19558af3bf8623eb0b
+                        - paragraph [ref=f2e1520]: AL · Citizen advocacy
+                        - paragraph [ref=f2e1521]:
+                          - text: council action on
+                          - mark [ref=f2e1522]: gun
+                          - mark [ref=f2e1523]: violence
+                          - text: . A citizen, Herbert Walter ... council to address
+                          - mark [ref=f2e1524]: gun
+                          - mark [ref=f2e1525]: violence
+                          - text: in the city
+                        - list "Who was on each side" [ref=f2e1526]:
+                          - listitem [ref=f2e1527]: "Spoke on it: Herbert N."
+                        - paragraph [ref=f2e1528]:
+                          - link "Auburn City Council · Nov 19, 2019 (plays the recording)" [ref=f2e1529] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=8zlRoBvXP5w
+                            - text: Auburn City Council · Nov 19, 2019 ↗
+                          - link "Meeting page" [ref=f2e1530] [cursor=pointer]:
+                            - /url: /meetings/7212
+                          - link "Decision details" [ref=f2e1531] [cursor=pointer]:
+                            - /url: /decisions/a5a9da20dc9dcb19558af3bf8623eb0b
+                      - listitem [ref=f2e1532]:
+                        - link "Spire Gas Line Easement Discussion Highlights Concerns Over Ballpark Access and Road Impact" [ref=f2e1533] [cursor=pointer]:
+                          - /url: /decisions/6fe14bdf1768b88f6b20a034a61b9623
+                        - paragraph [ref=f2e1534]: Irondale, AL · Discussion
+                        - paragraph [ref=f2e1535]:
+                          - text: access to the
+                          - mark [ref=f2e1536]: gun
+                          - mark [ref=f2e1537]: range
+                          - text: ", and potential disruption"
+                        - list "Who was on each side" [ref=f2e1538]:
+                          - listitem [ref=f2e1539]: Opposition recorded; no names on record
+                        - paragraph [ref=f2e1540]:
+                          - link "Irondale City Pre Council · Feb 6, 2018 (plays the recording)" [ref=f2e1541] [cursor=pointer]:
+                            - /url: https://www.youtube.com/watch?v=S18Qx5O98iQ
+                            - text: Irondale City Pre Council · Feb 6, 2018 ↗
+                          - link "Meeting page" [ref=f2e1542] [cursor=pointer]:
+                            - /url: /meetings/4144
+                          - link "Decision details" [ref=f2e1543] [cursor=pointer]:
+                            - /url: /decisions/6fe14bdf1768b88f6b20a034a61b9623
+            - region "That's the record on gun control in Alabama." [ref=f2e1544]:
+              - generic [ref=f2e1545]:
+                - generic [ref=f2e1546]:
+                  - paragraph [ref=f2e1548]: Recap
+                  - generic [ref=f2e1549]:
+                    - heading "That's the record on gun control in Alabama." [level=2] [ref=f2e1550]:
+                      - generic [ref=f2e1551]: That's
+                      - generic [ref=f2e1553]: the
+                      - generic [ref=f2e1555]: record
+                      - generic [ref=f2e1557]: "on"
+                      - generic [ref=f2e1559]: gun
+                      - generic [ref=f2e1561]: control
+                      - generic [ref=f2e1563]: in
+                      - generic [ref=f2e1565]: Alabama.
+                    - paragraph [ref=f2e1567]: 386 meetings, 9 decisions, from local meeting recordings and transcripts.
+                - list [ref=f2e1569]:
+                  - listitem [ref=f2e1570]:
+                    - link "Every decision on gun control →" [ref=f2e1571] [cursor=pointer]:
+                      - /url: /search?types=decisions&topic_id=100005&sort=date_desc&state=AL
+                  - listitem [ref=f2e1572]:
+                    - link "Browse every topic in Alabama →" [ref=f2e1573] [cursor=pointer]:
+                      - /url: /browse-topics?state=AL
+                  - listitem [ref=f2e1574]:
+                    - link "All data stories →" [ref=f2e1575] [cursor=pointer]:
+                      - /url: /stories?state=AL
+          - 'button "Next: What happened" [ref=f2e1576] [cursor=pointer]':
+            - text: Next
+            - generic [aria-hidden] [ref=f2e1577]: →
+          - generic [ref=f2e1578]:
+            - 'button "Back: Coming up" [ref=f2e1579] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e1580]: ←
+            - generic [ref=f2e1581]: Eight to go
+      - contentinfo [ref=f2e21]:
+        - generic [ref=f2e22]:
+          - generic [ref=f2e23]:
+            - navigation "Site" [ref=f2e24]:
+              - link "Chat & Contact" [ref=f2e25] [cursor=pointer]:
+                - /url: /chat
+              - link "Impact" [ref=f2e26] [cursor=pointer]:
+                - /url: /#impact
+              - link "Privacy Policy" [ref=f2e27] [cursor=pointer]:
+                - /url: http://localhost:3000/docs/legal/privacy-policy
+              - link "Terms of Service" [ref=f2e28] [cursor=pointer]:
+                - /url: http://localhost:3000/docs/legal/terms-of-service
+              - link "Data Provider Terms" [ref=f2e29] [cursor=pointer]:
+                - /url: http://localhost:3000/docs/legal/data-provider-terms
+            - navigation "CommunityOne on social media" [ref=f2e30]:
+              - link "Instagram" [ref=f2e31] [cursor=pointer]:
+                - /url: https://www.instagram.com/getcommunityone/
+              - link "Facebook" [ref=f2e34] [cursor=pointer]:
+                - /url: https://www.facebook.com/getcommunityone
+              - link "X (Twitter)" [ref=f2e37] [cursor=pointer]:
+                - /url: https://x.com/getcommunityone/
+              - link "LinkedIn" [ref=f2e40] [cursor=pointer]:
+                - /url: https://www.linkedin.com/company/getcommunityone
+              - link "YouTube" [ref=f2e43] [cursor=pointer]:
+                - /url: https://www.youtube.com/@getcommunityone
+              - link "Discord" [ref=f2e46] [cursor=pointer]:
+                - /url: https://discord.gg/uH6Dytek
+          - generic [ref=f2e49]:
+            - text: CommunityOne Navigator · a 501(c)(3) nonprofit ·
+            - link "EIN 42-2467803" [ref=f2e50] [cursor=pointer]:
+              - /url: https://projects.propublica.org/nonprofits/organizations/422467803
+            - text: · Tuscaloosa, Alabama

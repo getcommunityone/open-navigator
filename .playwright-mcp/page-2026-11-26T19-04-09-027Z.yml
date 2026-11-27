@@ -1,0 +1,50 @@
+- generic [ref=f14e3]:
+  - banner [ref=f14e4]:
+    - generic [ref=f14e5]:
+      - link "Go to home" [ref=f14e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f14e7]: C1
+        - generic [ref=f14e8]:
+          - generic [ref=f14e9]: Open Navigator
+          - generic [ref=f14e10]: by CommunityOne
+      - navigation [ref=f14e11]:
+        - button "Data Stories" [ref=f14e12] [cursor=pointer]
+        - button "Search" [ref=f14e13] [cursor=pointer]
+        - button "How It Works" [ref=f14e14] [cursor=pointer]
+        - button "Impact" [ref=f14e15] [cursor=pointer]
+        - button "Register/Login ▾" [ref=f14e17] [cursor=pointer]:
+          - generic [ref=f14e18]: Register/Login
+          - generic [ref=f14e19]: ▾
+  - generic [ref=f14e20]:
+    - main [ref=f14e21]:
+      - status [ref=f14e22]: Loading Data story…
+    - contentinfo [ref=f14e23]:
+      - generic [ref=f14e24]:
+        - generic [ref=f14e25]:
+          - navigation "Site" [ref=f14e26]:
+            - link "Chat & Contact" [ref=f14e27] [cursor=pointer]:
+              - /url: /chat
+            - link "Privacy Policy" [ref=f14e28] [cursor=pointer]:
+              - /url: http://localhost:3000/docs/legal/privacy-policy
+            - link "Terms of Service" [ref=f14e29] [cursor=pointer]:
+              - /url: http://localhost:3000/docs/legal/terms-of-service
+            - link "Data Provider Terms" [ref=f14e30] [cursor=pointer]:
+              - /url: http://localhost:3000/docs/legal/data-provider-terms
+          - navigation "CommunityOne on social media" [ref=f14e31]:
+            - link "Instagram" [ref=f14e32] [cursor=pointer]:
+              - /url: https://www.instagram.com/getcommunityone/
+            - link "Facebook" [ref=f14e35] [cursor=pointer]:
+              - /url: https://www.facebook.com/getcommunityone
+            - link "X (Twitter)" [ref=f14e38] [cursor=pointer]:
+              - /url: https://x.com/getcommunityone/
+            - link "LinkedIn" [ref=f14e41] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/getcommunityone
+            - link "YouTube" [ref=f14e44] [cursor=pointer]:
+              - /url: https://www.youtube.com/@getcommunityone
+            - link "Discord" [ref=f14e47] [cursor=pointer]:
+              - /url: https://discord.gg/uH6Dytek
+        - generic [ref=f14e50]:
+          - text: CommunityOne Navigator · a 501(c)(3) nonprofit ·
+          - link "EIN 42-2467803" [ref=f14e51] [cursor=pointer]:
+            - /url: https://projects.propublica.org/nonprofits/organizations/422467803
+          - text: · Tuscaloosa, Alabama
