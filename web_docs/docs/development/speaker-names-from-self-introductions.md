@@ -45,7 +45,8 @@ must never be shown as a first name. The rules and their tests are in
    - seconds, when the transcript is timed;
    - the raw name tokens;
    - the matched words;
-   - `mentions_minor`, set when the next 300 characters mention a student, a grade, a school or an age under 18.
+   - `mentions_minor`, set when the 200 characters before the introduction or the 300 after it mention a student, a
+     grade, a school or an age under 18 ("I'm 16", "sixteen years old").
 
    It writes only to the local warehouse (`OPEN_NAVIGATOR_DATABASE_URL`). Re-running it replaces each video's rows.
    The PK uses `char_offset` rather than `start_seconds`, because most transcripts have no usable timing (caption
@@ -56,19 +57,23 @@ must never be shown as a first name. The rules and their tests are in
 
    | `speaker_kind` | When | Shown |
    |---|---|---|
-   | `suppressed` | The speaker said they are a student, in a grade or a school, or under 18 (`student_or_minor`); or a resident speaking at a school board meeting (`jurisdiction_type = school_district`, or a title naming a school board, board of education or school committee: `school_board_meeting`) | Nothing |
-   | `official` | First and last name equal exactly **one** current official of the meeting's own government in `person_government` (office `government`, same state, jurisdiction "*Name* Government") | Full name and title, from our officials data |
+   | `suppressed` | The speaker said they are a student, in a grade or a school, or under 18 (`student_or_minor`); or a resident speaking at a school board meeting (`jurisdiction_type = school_district`; a jurisdiction named for a school, ISD, USD or board of education; or a title naming a school(s) board, school district, school committee, board of ed, BOE, USD/ISD or students: `school_board_meeting`) | Nothing |
+   | `unrecognized` | The first word heard is not a known given name: one carried by at least 4 people in the person master (`mdm_person.given_name_norm`, an aggregate of first names only), or an official's first name. Captions are lower-case, so this is what keeps "my name is spelled wrong" from becoming "Spelled W." | Nothing |
+   | `official` | A "my name is" or "I'm … I live" introduction (never a greeting or a chair call, which can name someone else) whose first and last name equal exactly **one** current official of the meeting's own government in `person_government` (office `government`, same state, jurisdiction "*Name* Government") | Full name and title, from our officials data |
    | `resident` | Everyone else | "First L." from the words heard (two words give "Jane D."; one or three words give the first name only, so a middle name is never shown as a surname). Role "Resident" only when they said they live here; otherwise no role |
 
    The mart has no column with a private person's full name. The raw tokens stay in bronze and staging, in the
    private warehouse.
 4. **Which passage (dbt mart `meeting_passage_speaker`, served in `public`).** A quoted passage is placed in the
    transcript by finding the first 80 characters of each ts_headline fragment (with the `<mark>` tags removed) in
-   `event_documents.content`. Each fragment takes the **nearest preceding** introduction in the same recording within
+   `event_documents.content`. A fragment that can't be found, or whose words occur more than once in the transcript
+   (a motion read twice), gets no speaker. Each fragment takes the **nearest preceding** introduction in the same recording within
    **2,500 characters**. That is about three minutes of speech: a usual public-comment limit, and the window
    `int_data_center_transcript__passage` already uses for untimed text. A later introduction always ends the earlier
    one's window. A two-fragment excerpt is named only when both fragments take the same introduction. If the nearest
-   introduction is suppressed, the passage is served with no name, never an older speaker's name.
+   introduction is suppressed or unrecognized, the passage is served with no name, never an older speaker's name.
+   The nearest introduction is found in one ordered pass per recording (a running count of introductions), not by a
+   scan per passage.
    FKs: `meeting_speaker_intro_id`, `topic_transcript_link_id`, `data_center_meeting_mention_id`.
 5. **API.** `GET /api/topics/{id}/states` `newest[]` gains `speaker_display_name` and `speaker_role`.
    `GET /api/data-centers/meeting-mentions` uses this as a fallback when no hand-counted comment names the passage.
@@ -89,6 +94,21 @@ This follows [Privacy and data ethics](privacy-and-data-ethics.md) and
   meeting. The minor check is conservative: "a senior at", "high school" and "my daughter's elementary" all suppress.
 - No sensitive trait is attached to a name. The role is "Resident", an official's title, or nothing.
 - The "Is this you?" hide and remove requests (#1064) will need to suppress these names too, once that store exists.
+
+## Coverage on the local warehouse (2026-11-27)
+
+The extractor ran over the 18,090 transcripts behind story-map quotes (`--story-passages`). It found 51,221
+introductions in 10,660 recordings: 42,986 "my name is", 4,881 chair calls, 2,033 "I'm … I live", 745 greetings and
+576 "this is … from". It flagged 4,494 as student or minor.
+
+| | Passages | Named | Residents | Officials | Withheld (student, minor, school board) | First word not a known name |
+|---|---|---|---|---|---|---|
+| Topic passages (`topic_transcript_link`) | 16,459 | 847 (5.1%) | 847 | 0 | 98 | 122 |
+| Data-center passages (`data_center_meeting_mention`) | 6,323 | 696 (11.0%) | 696 | 0 | 40 | 118 |
+| Topic map cards (newest passage per topic and state) | 284 | 19 | 19 | 0 | | |
+
+Only 5 introductions matched an official, and none of them is next to a story quote. The officials data has about
+550 local officials.
 
 ## Known limits
 

@@ -20,7 +20,9 @@
                 someone else) whose first and last name equal exactly one current official of the meeting's own government
                   (person_government, office 'government', same state, jurisdiction "<name> Government"):
                   shown by full name and title from our officials data (public role).
-      resident    everyone else: "First L." from the words heard (two words -> "Jane D."; one or three words ->
+      unrecognized the first word heard is not a known given name (mdm_person given names carried by 4+ people, or an
+                official's first name): no name, because it may be an ordinary word ("my name is spelled wrong").
+    resident    everyone else: "First L." from the words heard (two words -> "Jane D."; one or three words ->
                   the first name only, so a middle name is never shown as the surname). Role "Resident" only
                   when the introduction says they live here; otherwise null.
     No full private name is stored here or served: only speaker_display_name.
@@ -61,6 +63,21 @@ official as (
       and p.full_name is not null
 ),
 
+-- A resident's first word must be a known given name (#1231 review): captions are lower-case, so "my name is spelled
+-- wrong" would otherwise serve "Spelled W.". Known = a given name at least 4 people carry in the person master
+-- (an aggregate of first names only, nothing about anyone), or the first name of an official.
+given_name as (
+    select p.given_name_norm as given_name
+    from {{ ref('mdm_person') }} as p
+    where p.given_name_norm ~ '^[a-z]{2,}$'
+    group by p.given_name_norm
+    having count(*) >= 4
+    union
+    select o.name_words[1]
+    from official as o
+    where o.name_words[1] ~ '^[a-z]{2,}$'
+),
+
 official_match as (
     select
         i.video_id,
@@ -93,7 +110,8 @@ classified as (
             or coalesce(m.event_title, '') ~* ('(schools?\s+board|school\s+district|school\s+committee|board\s+of\s+ed'
                 || '|\mboe\M|\musd\M|\misd\M|board\s+of\s+trustees.*school|student)'),
             false
-        ) as is_school_board
+        ) as is_school_board,
+        exists (select 1 from given_name as g where g.given_name = i.name_tokens[1]) as is_given_name
     from intro as i
     left join meeting as m on m.video_id = i.video_id
     left join official_match as om
@@ -113,6 +131,7 @@ select
         when c.mentions_minor then 'suppressed'
         when o.person_id is not null then 'official'
         when c.is_school_board then 'suppressed'
+        when not c.is_given_name then 'unrecognized'
         else 'resident'
     end)::text                          as speaker_kind,
     (case
@@ -124,6 +143,7 @@ select
         when c.mentions_minor then null
         when o.person_id is not null then o.full_name
         when c.is_school_board then null
+        when not c.is_given_name then null
         when c.name_token_count = 2
             then initcap(c.name_tokens[1]) || ' ' || upper(left(c.name_tokens[2], 1)) || '.'
         else initcap(c.name_tokens[1])
@@ -132,6 +152,7 @@ select
         when c.mentions_minor then null
         when o.person_id is not null then o.title
         when c.is_school_board then null
+        when not c.is_given_name then null
         when c.says_resident then 'Resident'
     end)::text                          as speaker_role,
     (case when not c.mentions_minor then o.person_id end)::text as person_id

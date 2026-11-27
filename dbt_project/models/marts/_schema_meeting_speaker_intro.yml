@@ -51,14 +51,14 @@ models:
         description: "The meeting's jurisdiction (event_documents)."
         data_type: text
       - name: speaker_kind
-        description: "official | resident | suppressed."
+        description: "official | resident | suppressed | unrecognized (first word not a known given name: no name)."
         data_type: text
         constraints:
           - type: not_null
         data_tests:
           - not_null
           - accepted_values:
-              values: ['official', 'resident', 'suppressed']
+              values: ['official', 'resident', 'suppressed', 'unrecognized']
       - name: suppressed_reason
         description: "student_or_minor | school_board_meeting; null unless speaker_kind = suppressed."
         data_type: text

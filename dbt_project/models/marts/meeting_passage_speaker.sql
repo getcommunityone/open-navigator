@@ -82,21 +82,49 @@ located as (
       and strpos(substr(d.content, strpos(d.content, f.needle) + 1), f.needle) = 0
 ),
 
+-- Nearest preceding introduction without a per-fragment scan: put introductions and fragments of each recording in
+-- one ordered stream (an introduction before a fragment at the same offset; at one offset the most confident
+-- introduction last), keep a running count of introductions, and give each fragment the introduction that count
+-- points at.
+stream as (
+    select video_id, char_offset as pos, 0 as is_fragment, confidence, meeting_speaker_intro_id,
+           null::text as passage_source, null::text as passage_id, null::bigint as fragment_no
+    from intro
+    union all
+    select video_id, fragment_offset, 1, null::numeric, null::text, passage_source, passage_id, fragment_no
+    from located
+    where fragment_offset >= 0
+),
+
+counted as (
+    select s.*,
+           count(s.meeting_speaker_intro_id) over (
+               partition by s.video_id
+               order by s.pos, s.is_fragment, s.confidence nulls last, s.meeting_speaker_intro_id
+               rows between unbounded preceding and current row
+           ) as intro_seq
+    from stream as s
+),
+
+intro_by_seq as (
+    select video_id, intro_seq, meeting_speaker_intro_id, pos as intro_pos
+    from counted
+    where is_fragment = 0
+),
+
 assigned as (
     select
         l.passage_source, l.passage_id, l.topic_transcript_link_id, l.data_center_meeting_mention_id, l.video_id,
         l.fragment_no, l.fragment_offset,
-        i.meeting_speaker_intro_id, i.char_offset as intro_char_offset
+        case when l.fragment_offset - i.intro_pos <= {{ window_chars }} then i.meeting_speaker_intro_id end
+            as meeting_speaker_intro_id,
+        case when l.fragment_offset - i.intro_pos <= {{ window_chars }} then i.intro_pos end as intro_char_offset
     from located as l
-    left join lateral (
-        select x.meeting_speaker_intro_id, x.char_offset
-        from intro as x
-        where x.video_id = l.video_id
-          and x.char_offset <= l.fragment_offset
-          and l.fragment_offset - x.char_offset <= {{ window_chars }}
-        order by x.char_offset desc, x.confidence desc, x.meeting_speaker_intro_id
-        limit 1
-    ) as i on true
+    join counted as c
+        on c.is_fragment = 1 and c.passage_source = l.passage_source and c.passage_id = l.passage_id
+       and c.fragment_no = l.fragment_no
+    left join intro_by_seq as i
+        on i.video_id = c.video_id and i.intro_seq = c.intro_seq and c.intro_seq > 0
     where l.fragment_offset >= 0
 ),
 
