@@ -24,9 +24,9 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { isTouchOnly } from '../../utils/touchOnly'
 import { isCurrentPage } from '../../utils/currentPage'
-import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
-import { MISSING_LEGEND, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
+import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
 export interface StateMarker {
   state_code: string
@@ -317,7 +317,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const shownStance = shownCode ? lineOf(stanceBy.get(shownCode)) : null
   // The card's state is the page the reader is on: no button to it, and the caption says so.
   const shownIsHere = shownCode ? isCurrentPage(href(shownCode), location.pathname, location.search) : false
-  // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200).
+  // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200; guns: "No reading yet", #1237).
   const noReading = words ? words.unread.charAt(0).toLowerCase() + words.unread.slice(1) : 'no AI reading yet'
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
   const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
@@ -366,6 +366,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           return (
             <rect
               key={i}
+              data-state={b.code ?? undefined}
               x={b.x - s / 2}
               y={b.y - s / 2}
               width={s}
@@ -445,13 +446,15 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               Open the {stateName(shownCode)} story <span aria-hidden="true">→</span>
             </Link>
           )}
+          {/* On a phone nothing depends on hover (#1229): the card a tap opened closes here, or on a tap outside the map. */}
+          {touch && <MapCardClose onClose={keyNav.close} what={stateName(shownCode)} />}
         </QuoteCard>
       )}
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? (quote ? 'Tap the button to open its story.' : 'Tap to open its story.') : 'Click to open its story.'}`
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? (quote ? 'Tap the button, or tap the state again, to open its story; tap outside the map to close.' : 'Tap to open its story.') : 'Click to open its story.'}`
           : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to read what was said, then open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
 
@@ -478,7 +481,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           )}
           {hasStance
             ? words
-              ? `${MISSING_LEGEND} (darker = more meetings)`
+              ? `${missingLegend(words)} (darker = more meetings)`
               : byMeetings
               ? 'Meetings, no AI reading yet (darker = more meetings)'
               : 'Meetings, no stance on record (darker = more meetings)'
@@ -501,7 +504,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : 'No speaker positions on record yet; states show meetings only.'}
           {hasLean || (byMeetings && split.length > 0) ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
-          {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${MISSING_LEGEND.charAt(0).toLowerCase()}${MISSING_LEGEND.slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
+          {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${missingLegend(words).charAt(0).toLowerCase()}${missingLegend(words).slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
         </p>
         )}
 

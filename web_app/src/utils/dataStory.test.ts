@@ -9,6 +9,7 @@ import {
   contextSourceFor,
   landConcernNote,
   overviewLean,
+  distinctHeadline,
   positionFigures,
   positionsCaption,
   scopeQuery,
@@ -388,18 +389,24 @@ describe('overview headline at a place (#1115)', () => {
   it('says the place was split when no conclusion is backed (3 for, 5 against, 4 asked)', () => {
     expect(screenText(overview, withSpeakers(3, 5, 4), ready, al).headline).toBe('Alabama was split: 3 spoke for and 5 against data centers.')
   })
-  // #1134: the Overview states the page's caption (the title) when it is a conclusion; otherwise its own headline.
-  it("states the page's caption when it is a conclusion, with the meeting count under it", () => {
-    const hates = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'sentiment', text: 'Alabama hates data centers.' })
-    expect(hates.headline).toBe('Alabama hates data centers.')
-    expect(hates.context).toBe('A data center came up in 3 meetings in Alabama. First, where are they?')
+  // #1222 (owner 2026-11-26: "should not have same title twice"): the header states the caption; the Overview never
+  // repeats it, and with a conclusion caption it leads with its own count of the record (never a stronger speaker claim).
+  it("never repeats the page's caption: leads with its own count of the record", () => {
+    const hates = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'position', text: 'Alabama hates data centers.' })
+    expect(hates.headline).toBe('A data center came up in 3 meetings in Alabama.')
+    expect(hates.context).toBe('First, where are they?')
     const divided = screenText(overview, full, ready, tus, null, { kind: 'disagreement', text: 'Tuscaloosa, Alabama is divided on data centers.' })
-    expect(divided.headline).toBe('Tuscaloosa, Alabama is divided on data centers.')
-    const volume = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'volume', text: 'Alabama talked about data centers in 3 meetings.' })
-    // One title (#1134): a volume or state-gap caption is the Overview headline too, never a stronger speaker claim.
-    expect(volume.headline).toBe('Alabama talked about data centers in 3 meetings.')
+    expect(divided.headline).toBe('A data center came up in 3 meetings in Tuscaloosa, Alabama.')
+    // A count caption that says the same thing as the count line falls to the next line of the record.
+    const same = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'volume', text: 'A data center came up in 3 meetings in Alabama' })
+    expect(same.headline).not.toBe('A data center came up in 3 meetings in Alabama.')
     const question = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'question', text: 'Should Alabama pause data centers?' })
     expect(question.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
+  })
+  it('distinctHeadline skips a candidate equal to the title, ignoring case and punctuation', () => {
+    expect(distinctHeadline('Texas hates data centers.', 'texas hates data centers', 'B.')).toBe('B.')
+    expect(distinctHeadline('X.', null, undefined)).toBeNull()
+    expect(distinctHeadline(null, 'A.')).toBe('A.')
   })
   it('keeps the neutral count below the national minimum of speakers', () => {
     const t = screenText(overview, withSpeakers(0, 9), ready, al)

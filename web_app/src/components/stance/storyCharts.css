@@ -42,9 +42,19 @@
 .sc-pt.is-hollow { fill: var(--paper-raised); stroke: var(--violet); stroke-width: 1.5; }
 .sc-end { font-size: 22px; font-weight: 500; letter-spacing: -0.015em; fill: var(--ink); }
 
+/* #1228 entrance (§4.5): until the chart is on screen the line is undrawn and the points, end value and milestone squares
+   are hidden; then the line draws (.is-drawing) and each point pops in as the line reaches it (delay set inline). */
+.sc-trend:not(.is-revealed) .sc-line { stroke-dashoffset: 1; }
+.sc-trend:not(.is-revealed) .sc-line--thin { animation: none; opacity: 0; }
+.sc-pt, .sc-ms-pop { transform-box: fill-box; transform-origin: center; transition: opacity var(--d-2, 240ms) var(--ease-out), transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1), fill var(--d-1, 120ms) var(--ease-std); }
+.sc-end { transition: opacity var(--d-2, 240ms) var(--ease-out); }
+.sc-trend:not(.is-revealed) :is(.sc-pt, .sc-end) { opacity: 0; }
+.sc-trend:not(.is-revealed) .sc-pt { transform: scale(0); }
+.sc-track:not(.is-revealed) .sc-ms-pop { opacity: 0; transform: scale(0); }
+
 /* Milestone track */
 .sc-ms { cursor: pointer; }
-.sc-ms rect.sc-ms-sq { fill: var(--ink); opacity: 0.75; transition: fill var(--d-1, 120ms) var(--ease-std); }
+.sc-ms rect.sc-ms-sq { fill: var(--ink); opacity: 0.75; }
 .sc-ms[aria-pressed='true'] rect.sc-ms-sq { fill: var(--vermilion); opacity: 1; }
 .sc-ms:focus-visible rect.sc-ms-sq { outline: 2px solid var(--violet-ink); outline-offset: 2px; }
 .sc-detail { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ink); }
@@ -77,11 +87,14 @@
 /* #1209: a single-value row (no comparison) is a stem from zero to the filled dot. */
 .sc-stem { stroke: var(--rule); }
 .sc-delta-flat { fill: var(--ink-2); font-size: 13px; font-weight: 500; }
-/* A stacked row's label sits over the gridlines: a paper halo keeps it legible. */
-.sc-label-halo { paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
+/* #1228 entrance, after the reference's §4.3: the hollow dot pops in, the line grows from it (.sc-bar) and the filled dot
+   rides its end to the value; the change fades in last. Delays are per row, set inline. */
+.sc-pop { transform-box: fill-box; transform-origin: center; transition: opacity var(--d-2, 240ms) var(--ease-out), transform 360ms var(--ease-out); }
+.sc-ride { transition: opacity var(--d-2, 240ms) var(--ease-out), transform var(--d-3, 600ms) var(--ease-out); }
+.sc-fade { transition: opacity var(--d-2, 240ms) var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq { transition: none !important; }
+  .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq, .sc-pop, .sc-ride, .sc-fade, .sc-pt, .sc-ms-pop, .sc-end { transition: none !important; }
   .sc-line.is-drawing { animation: none; }
   .sc-line--thin { animation: none; }
   .sc-matrix:not(.is-revealed) .sc-sq { opacity: 1; }

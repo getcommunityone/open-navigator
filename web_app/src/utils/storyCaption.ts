@@ -3,21 +3,21 @@
 //
 // Rules, in order; each needs its own real counts and otherwise falls through to the next (CLAUDE.md, No Fabricated Data).
 // Thresholds and the reasons for them: web_docs/docs/development/story-captions.md.
-//   p. position (#1200): the place's conclusion from the AI reading of its meetings, in the topic's own words
-//      (utils/topicPositions): a side with more than half of the meetings where the public spoke leads ("In Ohio, most
-//      meetings that took up guns backed the proposal before them: 41 of 63 where the public spoke (AI reading).";
-//      "[Place] hates [topic]: …" only for the "hates" topics), else "[Place] is split on [topic] (AI reading of N meetings …)". Needs at least
-//      HATES_MIN_MEETINGS meetings where the public spoke at the scope's level. Below that the rules below run and the
-//      basis says how many meetings have a reading so far. A broader scope's conclusion can lead too (p2, like a2).
-//   a. sentiment ("[Place] hates [topic]." or, for a topic without "hates", "In 81 meetings, the public mostly opposed
-//      [topic]." (#1190)): confident public-against meetings at volume (AI reading), or (for "hates") the story's
-//      counted-speaker gate. The AI's "for" and "mixed"
-//      labels are unreliable and never used, in a count or a ratio.
-//   a2. wider_sentiment (#1182): the place's own reading is too thin, but the broader scope the map colours (its state,
-//      then the country) passes (a): the title names that scope ("America hates data centers; Tuscaloosa, Alabama brought
-//      them up in 2 meetings."), so the title says what the map beside it shows and never puts a broader claim under a
-//      place's label without naming it.
-//   b. disagreement ("[Place] is divided on [topic]."): officials sided against the public (AI reading) at volume, or
+//   p. position (#1200): the place's conclusion from the AI reading (Jev) of its meetings, in the topic's own words
+//      (utils/topicPositions): "[Ohio] mostly favors gun limits.", "[Place] hates [topic]." only for the "hates"
+//      topics, else "[Place] is split on [topic].". Since #1234 (owner, 26 Nov 2026) the title is the conclusion only: no
+//      count, no "(AI reading)", nothing appended; the count opens the basis line ("The public was against data centers
+//      in 283 of 341 meetings where it spoke."). No visible copy says "AI reading"; the map legend discloses the method.
+//      Needs at least HATES_MIN_MEETINGS meetings where the public spoke at the scope's level. Below that the rules below
+//      run and the basis says how many meetings have a reading so far.
+//   a. sentiment ("[Place] hates [topic]." or, for a topic without "hates", "[Place] mostly opposes [topic]."):
+//      confident public-against meetings at volume, or (for "hates") the story's counted-speaker gate. The AI's "for"
+//      and "mixed" labels are unreliable and never used here, in a count or a ratio.
+//   a2/p2. wider_sentiment (#1182) / wider_position (#1200): the place's own reading is too thin, but the broader scope
+//      the map colours (its state, then the country) passes (a) or (p). The title is that broader conclusion as the same
+//      simple sentence ("America hates data centers.", #1234); the place's own facts open the basis ("Tuscaloosa,
+//      Alabama talked about data centers in 2 meetings. …") and the subhead starts with the place.
+//   b. disagreement ("[Place] is divided on [topic]."): officials sided against the public at volume, or
 //      counted speakers split for and against.
 //   c. state_gap: the place leads the other states (or places in its state) by meetings; a near tie names both.
 //   d. volume: the place's meeting count.
@@ -26,7 +26,7 @@
 import type { TopicCaptionFacts } from '../api/topics'
 import { countClauses } from './clauses'
 import { STORIES, storyScopeLabel, type StoryScope, type StoryTitlePart } from './dataStory'
-import { hasTopicPositions, positionVerdict, topicPositions, type PositionCounts, type TopicPositions } from './topicPositions'
+import { GENERIC_POSITIONS, hasTopicPositions, positionVerdict, topicPositions, type PositionCounts, type TopicPositions } from './topicPositions'
 
 // --- thresholds (story-captions.md says why) -----------------------------------------------------------------------
 
@@ -67,8 +67,8 @@ export interface CaptionCopy {
   hates?: string
   /**
    * For a topic without "hates" (#1190): what "the public mostly opposed" takes in its (a) title and basis lines, usually
-   * the topic ([T]); for guns, where opposing could mean opposing guns or opposing gun limits (#1126), "the gun measures
-   * proposed". Absent (and no `hates`): (a) is skipped.
+   * the topic ([T]); for gun control, where opposing could mean opposing guns or opposing gun limits (#1126, #1237),
+   * "local gun-control measures". Absent (and no `hates`): (a) is skipped.
    */
   opposed?: StoryTitlePart[]
   /** (b) basis wording after "officials", when officials sided against the public, around the topic. */
@@ -123,11 +123,12 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     officials: sidedAgainst,
     question: askMeetings,
   },
+  // Shown as "gun control" (#1237): the gun-control question is what the AI reading asks; the slug stays `guns`.
   guns: {
-    topic: 'guns',
-    story: 'guns',
-    pronoun: 'them',
-    opposed: ['the gun measures proposed'],
+    topic: 'gun control',
+    story: 'gun control',
+    pronoun: 'it',
+    opposed: ['local gun-control measures'],
     facts: 'guns',
     verb: 'took up',
     officials: sidedAgainst,
@@ -219,9 +220,9 @@ const PUBLIC_OPPOSED = 'the public mostly opposed'
 const opposedObject = (copy: CaptionCopy): StoryTitlePart[] => copy.opposed ?? [T]
 const fillTopic = (parts: StoryTitlePart[], topic: string) =>
   parts.map((p) => (typeof p === 'string' ? p : p.blank === 'topic' ? topic : '')).join('')
-/** "In 283 meetings across 32 states, the public mostly opposed data centers (AI reading of each meeting's transcript)." */
+/** "In 283 meetings across 32 states, the public mostly opposed data centers." (no "AI reading" in visible copy, #1222: the map legend discloses it) */
 const opposedBasis = (against: number, where: string, object: string) =>
-  `In ${meetingsWord(against)} ${where}, ${PUBLIC_OPPOSED} ${object} (AI reading of each meeting's transcript).`
+  `In ${meetingsWord(against)} ${where}, ${PUBLIC_OPPOSED} ${object}.`
 const ORDINALS = ['', '', '2nd', '3rd', '4th', '5th']
 /** "twice" / "three times" for a whole-number multiple of at least 2, else null. */
 function timesWord(ratio: number): string | null {
@@ -299,9 +300,10 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
       const where2 = national ? 'nationwide' : `in ${label}`
       return {
         kind: 'position',
-        template: positionTemplate(copy, words, v, { blank: true, national }),
+        template: positionTemplate(copy, words, v, null),
         place,
-        basis: positionBasis(own, words, where2, dis, facts.lean_meetings),
+        // The title is the short conclusion (#1222); its count ("283 of 341 meetings where it spoke") leads the basis.
+        basis: `${positionClaim(copy, words, v, null)} ${positionBasis(own, words, where2, dis, facts.lean_meetings)}`,
         ai: true,
         verdict: v.kind === 'majority' ? v.side : 'split',
       }
@@ -362,11 +364,8 @@ function pickLegacy(copy: CaptionCopy, topicKey: string, facts: TopicCaptionFact
       const counted = speakersPass && sp ? speakerBasis(sp, where, national) : ''
       return {
         kind: 'sentiment',
-        template: copy.hates
-          ? [P, ` ${copy.hates} `, T, '.']
-          : national
-            ? [`In ${meetingsWord(against)}, ${PUBLIC_OPPOSED} `, ...object, '.']
-            : [`In ${meetingsWord(against)} in `, P, `, ${PUBLIC_OPPOSED} `, ...object, '.'],
+        // The count is in the basis (#1222): the title is the conclusion only.
+        template: copy.hates ? [P, ` ${copy.hates} `, T, '.'] : [P, ' mostly opposes ', ...object, '.'],
         place,
         basis: [lean, counted].filter(Boolean).join(' '),
         ai: leanPasses,
@@ -382,7 +381,7 @@ function pickLegacy(copy: CaptionCopy, topicKey: string, facts: TopicCaptionFact
       kind: 'disagreement',
       template: [P, ' is divided on ', T, '.'],
       place,
-      basis: `In ${meetingsWord(dis)}${span}, officials ${copy.officials.before}${copy.topic}${copy.officials.after} (AI reading).`,
+      basis: `In ${meetingsWord(dis)}${span}, officials ${copy.officials.before}${copy.topic}${copy.officials.after}.`,
       ai: true,
     }
   }
@@ -443,20 +442,46 @@ export function positionCounts(f: LeanFields | null | undefined, meetings?: numb
 type Verdict = Exclude<ReturnType<typeof positionVerdict>, { kind: 'too_few' }>
 
 /**
- * The title for a conclusion. `who` 'place' puts the place blank in ("In [Ohio], most meetings …"; nationally the blank is
- * "America": "Across [America], …"); a string names a broader scope as literal text (p2).
+ * The title for a conclusion (#1222, owner 2026-11-26): the short conclusion sentence only, nothing appended. `who` is the
+ * place blank (the scope's own conclusion) or a broader scope's name as literal text (p2, "America hates data centers.").
+ * "[California] mostly wants limits on short-term rentals." / "[America] is split on [short-term rentals]."
  */
-function positionTemplate(copy: CaptionCopy, words: TopicPositions, v: Verdict, who: { blank: true; national: boolean } | string): StoryTitlePart[] {
-  const name: StoryTitlePart = typeof who === 'string' ? who : P
-  const national = typeof who === 'string' ? who === 'America' : who.national
+function positionTemplate(copy: CaptionCopy, words: TopicPositions, v: Verdict, who: string | null): StoryTitlePart[] {
+  const name: StoryTitlePart = who ?? P
+  if (v.kind === 'split') return [name, ' is split on ', T, '.']
+  if (v.side === 'against' && copy.hates) return [name, ` ${copy.hates} `, T, '.']
+  const own = v.side === 'against' ? words.againstTitle : words.forTitle
+  if (own) return [name, ` ${own}.`]
+  return [name, v.side === 'against' ? ' mostly opposes ' : ' mostly supports ', T, '.']
+}
+
+/**
+ * The conclusion with its count, for the basis line (#1222): the title states no number, so this does. `name` null: the
+ * scope's own ("The public was against data centers in 283 of 341 meetings where it spoke."); a name: a broader scope's
+ * ("Across America, the public was against …").
+ */
+function positionClaim(copy: CaptionCopy, words: TopicPositions, v: Verdict, name: string | null): string {
+  const lead = name ? `Across ${name}, ` : ''
+  const cap = (t: string) => (name ? t : t.charAt(0).toUpperCase() + t.slice(1))
   if (v.kind === 'split') {
-    return [name, ' is split on ', T, ` (AI reading of ${meetingsWord(v.of)} where the public spoke).`]
+    return `${lead}${cap('the public was split on ')}${copy.topic} in the ${meetingsWord(v.of)} where it spoke.`
   }
   if (v.side === 'against' && copy.hates) {
-    return [name, ` ${copy.hates} `, T, `: the public was against ${copy.pronoun} in ${fmt(v.count)} of ${meetingsWord(v.of)} where it spoke (AI reading).`]
+    return `${lead}${cap('the public was against ')}${copy.topic} in ${fmt(v.count)} of ${meetingsWord(v.of)} where it spoke.`
+  }
+  if (words === GENERIC_POSITIONS) {
+    const side = v.side === 'against' ? 'mostly opposed' : 'mostly supported'
+    return `${lead}${cap(`the public ${side} `)}${copy.topic} in ${fmt(v.count)} of ${meetingsWord(v.of)} where it spoke.`
   }
   const verb = v.side === 'against' ? words.againstVerb : words.forVerb
-  return [national ? 'Across ' : 'In ', name, ', most meetings that took up ', T, ` ${verb}: ${fmt(v.count)} of ${fmt(v.of)} where the public spoke (AI reading).`]
+  return `${lead}${cap('most meetings ')}${verb}: ${fmt(v.count)} of ${fmt(v.of)} where the public spoke.`
+}
+
+/** The place's own meeting count, leading its facts when the title is a broader scope's (#1222). */
+function placeCount(copy: CaptionCopy, label: string, m: number | null | undefined): string {
+  // An unknown count (null) says nothing: never a made-up zero.
+  if (m == null) return ''
+  return m > 0 ? `${label} ${copy.verb} ${copy.topic} in ${meetingsWord(m)}.` : `${label} has no meetings on ${copy.topic} on record yet.`
 }
 
 /**
@@ -474,7 +499,7 @@ function positionBasis(c: PositionCounts, words: TopicPositions, where: string, 
     ],
     { leadLarger: true },
   )
-  const parts = [`AI reading of each meeting's transcript: of ${meetingsWord(c.read)} read ${where}, the public spoke in ${fmt(spoke)}${sides ? ` (${sides})` : ''}.`]
+  const parts = [`Of ${meetingsWord(c.read)} read ${where}, the public spoke in ${fmt(spoke)}${sides ? ` (${sides})` : ''}.`]
   if (c.silent > 0) parts.push(`In ${fmt(c.silent)} it didn't speak on it.`)
   // Readings in labels outside the question's choices (#1204) were read, but count in none of the four.
   const lean = Math.max(c.read, leanMeetings ?? c.read)
@@ -490,11 +515,11 @@ function readingSoFar(c: PositionCounts | null, meetings: number | null, topic: 
   // Readings whose label is outside the question's choices (#1204) are counted in none of the four; say so, never hide them.
   const unusable = Math.max(0, (leanMeetings ?? 0) - (c?.read ?? 0))
   const tail = unusable > 0 ? ` ${meetingsWord(unusable)} more have a reading in labels this page can't show yet.` : ''
-  if (!c) return meetings && !unusable ? `No meeting ${where} has an AI reading of the public's position yet.` : tail.trim()
+  if (!c) return meetings && !unusable ? `No meeting ${where} has a reading of the public's position yet.` : tail.trim()
   const spoke = c.against + c.for + c.split
   const of = meetings != null && meetings >= c.read ? ` of ${fmt(meetings)}` : ''
   const verb = c.read === 1 && !of ? 'has' : 'have'
-  const head = `${fmt(c.read)}${of} ${c.read === 1 && !of ? 'meeting' : 'meetings'} ${verb} an AI reading so far`
+  const head = `${fmt(c.read)}${of} ${c.read === 1 && !of ? 'meeting' : 'meetings'} ${verb} a reading so far`
   return spoke > 0
     ? `${head}; the public spoke on ${topic} in ${fmt(spoke)}, too few for a conclusion.${tail}`
     : `${head}; in ${c.read === 1 ? 'it' : 'all of them'} the public didn't speak on ${topic}.${tail}`
@@ -519,27 +544,23 @@ function widerPosition(
     if (v.kind === 'too_few') continue
     const name = w.level === 'national' ? 'America' : (w.state ?? w.state_code ?? null)
     if (!name) continue
-    const m = facts.meetings ?? 0
-    const tail: StoryTitlePart[] = ['; ', P, m > 0 ? ` brought ${copy.pronoun} up in ${meetingsWord(m)}.` : ' has none on record yet.']
-    const claim = positionTemplate(copy, words, v, name)
-    // Drop the claim's closing full stop so the place clause follows it.
-    const last = claim[claim.length - 1]
-    const trimmed = typeof last === 'string' ? [...claim.slice(0, -1), last.replace(/\.$/, '')] : claim
+    const m = facts.meetings
     const spoke = own ? own.against + own.for + own.split : 0
     // The place's own reading as it is; never a zero (owner rule), and nothing when its read failed (null).
     const ownLine = !own
       ? facts.lean_meetings === 0
-        ? `${label} has no AI reading of its own yet.`
+        ? 'None has been read yet.'
         : ''
       : spoke === 0
-        ? `${label} has ${meetingsWord(own.read)} with an AI reading, and in none of them did the public speak on it.`
-        : `${label} has ${meetingsWord(own.read)} with an AI reading, the public speaking in ${fmt(spoke)}, under the ${fmt(HATES_MIN_MEETINGS[level])} a conclusion of its own needs.`
+        ? `Of its ${meetingsWord(own.read)} read, the public spoke on it in none.`
+        : `Of its ${meetingsWord(own.read)} read, the public spoke in ${fmt(spoke)}, under the ${fmt(HATES_MIN_MEETINGS[level])} a conclusion of its own needs.`
     return {
       kind: 'wider_position',
-      template: [...trimmed, ...tail],
+      // The title is the broader scope's simple conclusion (#1222); the place's own facts open the basis.
+      template: positionTemplate(copy, words, v, name),
       place: label,
       widerPlace: name,
-      basis: `${positionBasis(c, words, w.level === 'national' ? 'nationwide' : `in ${name}`, 0, w.lean_meetings)}${ownLine ? ` ${ownLine}` : ''}`,
+      basis: [placeCount(copy, label, m), ownLine, positionClaim(copy, words, v, name), positionBasis(c, words, w.level === 'national' ? 'nationwide' : `in ${name}`, 0, w.lean_meetings)].filter(Boolean).join(' '),
       ai: true,
       verdict: v.kind === 'majority' ? v.side : 'split',
     }
@@ -565,10 +586,10 @@ function widerSentiment(
   const ownAgainst = facts.public_against_meetings ?? 0
   const own =
     ownRead === 0
-      ? `${label} has no AI reading of its own yet.`
+      ? 'None has been read yet.'
       : ownAgainst === 0
-        ? `Of ${label}'s ${meetingsWord(ownRead)} with an AI reading, none had a public mostly opposed.`
-        : `Of ${label}'s ${meetingsWord(ownRead)} with an AI reading, ${fmt(ownAgainst)} had a public mostly opposed, under the ${fmt(HATES_MIN_MEETINGS[level])} a title of its own needs.`
+        ? `Of its ${meetingsWord(ownRead)} read, none had a public mostly opposed.`
+        : `Of its ${meetingsWord(ownRead)} read, ${fmt(ownAgainst)} had a public mostly opposed, under the ${fmt(HATES_MIN_MEETINGS[level])} a title of its own needs.`
   for (const w of facts.wider ?? []) {
     const against = w.public_against_meetings ?? 0
     if (against < HATES_MIN_MEETINGS[w.level]) continue
@@ -576,17 +597,14 @@ function widerSentiment(
     if (!name) continue
     const states = w.public_against_states ?? 0
     const leanWhere = w.level === 'national' ? (states > 1 ? `across ${fmt(states)} states` : 'nationwide') : `in ${name}`
-    const m = facts.meetings ?? 0
-    const tail = m > 0 ? ` brought ${copy.pronoun} up in ${meetingsWord(m)}.` : ' has none on record yet.'
-    const claim: StoryTitlePart[] = copy.hates
-      ? [`${name} ${copy.hates} `, T]
-      : [`Across ${name} ${PUBLIC_OPPOSED} `, ...object]
+    const m = facts.meetings
+    // The title is the broader scope's simple conclusion (#1222); the place's own facts open the basis.
     return {
       kind: 'wider_sentiment',
-      template: [...claim, '; ', P, tail],
+      template: copy.hates ? [`${name} ${copy.hates} `, T, '.'] : [`${name} mostly opposes `, ...object, '.'],
       place: label,
       widerPlace: name,
-      basis: `${opposedBasis(against, leanWhere, fillTopic(object, copy.topic))} ${own}`,
+      basis: [placeCount(copy, label, m), own, opposedBasis(against, leanWhere, fillTopic(object, copy.topic))].filter(Boolean).join(' '),
       ai: true,
     }
   }
@@ -696,16 +714,16 @@ export function captionSubhead(caption: Caption, topicKey: string, scope: StoryS
       if (national && caption.verdict === 'against' && CAPTION_COPY[topicKey]?.hates && STORIES[topicKey]?.conclusion?.subhead) {
         return STORIES[topicKey]!.conclusion!.subhead
       }
-      return `How the public leaned on ${topic} at local meetings${where}, as an AI read each meeting's transcript.`
+      return `How the public leaned on ${topic} at local meetings${where}, read from each meeting's transcript.`
     case 'wider_position':
-      return `How the public leaned on ${topic} at local meetings across ${caption.widerPlace ?? 'the country'}, as an AI read each meeting's transcript.`
+    case 'wider_sentiment':
+      // The title is the broader scope's (#1222): the line under it starts with the place in scope, which the home page
+      // draws as its place control, and says why the title is the broader one. No number (the basis has them).
+      return `${storyScopeLabel(scope)} has too few meetings where the public took a side for a conclusion of its own; the title is ${caption.widerPlace ?? 'the country'}'s.`
     case 'sentiment':
       return national
         ? (STORIES[topicKey]?.conclusion?.subhead ?? null)
         : `At local meetings${where}, the public has mostly spoken against ${topic}.`
-    case 'wider_sentiment':
-      // The basis says the place has too few readings of its own; the subhead only names what the broader scope's public mostly opposed.
-      return `Across ${caption.widerPlace ?? 'the country'}, the public has mostly spoken against ${topic} at local meetings.`
     case 'disagreement':
       return `At local meetings${where || ' across the country'}, the public and officials don't always land on the same side of ${topic}.`
     case 'state_gap':
@@ -727,7 +745,7 @@ export function storyStartLabel(topicKey: string, label: string, fallback?: stri
   return `Start the ${name} story${label && label !== 'National' ? ` for ${label}` : ''}`
 }
 
-/** A title past this many characters (a two-clause title such as "America hates data centers; Tuscaloosa, Alabama brought
- * them up in 2 meetings.") is set smaller, so it never runs past three lines beside the map (#1182). */
+/** A title past this many characters (a long count title such as "Tuscaloosa, Alabama talked about Flock and license plate
+ * readers in 12 meetings.") is set smaller, so it never runs past three lines beside the map (#1182). */
 export const LONG_TITLE_CHARS = 60
 export const isLongTitle = (t: string) => t.length > LONG_TITLE_CHARS

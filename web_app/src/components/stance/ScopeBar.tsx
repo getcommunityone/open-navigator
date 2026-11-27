@@ -27,6 +27,9 @@ interface Props {
   placeOpen: boolean
   onPlaceOpenChange: (open: boolean) => void
   onApply: (stateCode: string | null, city: string | null) => void
+  /** The story's Close (×), top right (#1234): with it the bar drops the back crumb and the "Showing:" row; the title's
+   *  place control is the page's place switcher and Close its one exit. */
+  close?: ReactNode
 }
 
 /** The sticky bar above the screens: where you are, the scope label with its broaden controls, and "Your place". */
@@ -44,7 +47,7 @@ export default function ScopeBar(p: Props) {
           </div>
         )}
         {/* With the United States in the sentence blank, skip Showing: National (#959). Keep the back crumb and broaden controls when a place is set. */}
-        {(p.heading || p.stateName) && (
+        {!p.close && (p.heading || p.stateName) && (
           <p className="stance-scope" data-testid="stance-scope">
             {p.heading && (
               <>
@@ -73,6 +76,7 @@ export default function ScopeBar(p: Props) {
       </p>
       {p.extra}
       {p.progress}
+      {p.close}
       {!p.heading && <PlaceControl stateCode={p.stateCode} city={p.city} open={p.placeOpen} onOpenChange={p.onPlaceOpenChange} onApply={p.onApply} />}
     </header>
   )

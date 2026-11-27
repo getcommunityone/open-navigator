@@ -27,7 +27,12 @@ const TOPIC_COPY: Record<string, Partial<Pick<TopicStoryDef, 'title' | 'subject'
   'license-plate-readers': {
     lede: 'Flock Safety cameras and other automated plate readers: who uses them, for what, and the contracts behind them, in the words said at the meeting.',
   },
-  guns: { lede: 'Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them, in the words said at the meeting.' },
+  // Shown as "Gun control" (#1237), the question the AI reading asks; the curated_topics seed and /api/topics keep "Guns".
+  guns: {
+    title: 'Gun control',
+    subject: 'Gun control',
+    lede: 'Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them, in the words said at the meeting.',
+  },
   pickleball: { lede: 'Courts, noise and new venues, as councils and parks boards weigh them, in the words said at the meeting.' },
 }
 

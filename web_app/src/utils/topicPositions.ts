@@ -4,10 +4,10 @@
 //
 // Every position shown is an AI reading (Jev) of the meeting transcript, never a count of speakers. Which way "for"
 // points is fixed per topic by the question Jev was asked: `llm.typesafe.topic_lean.TOPICS[slug].stance` (data centers:
-// their own screen, `screen_transcripts`). The words here restate that stance and never invent a direction: for guns,
-// "for" is the firearm proposal before the body (a range, a show, a store, a rule or a detection contract), so the words
-// are "backed / opposed the gun proposal", never "more gun limits". `topicPositions.test.ts` checks every TOPICS slug is
-// here. Decision record: web_docs/docs/development/topic-meeting-lean.md.
+// their own screen, `screen_transcripts`). The words here restate that stance and never invent a direction. Where "for" and
+// "against" could each be read either way, the two sides are named instead (#1237): guns, read by the gun-control
+// question (question_version 48468cc5296e), say "Favor gun limits" and "Favor gun rights", never "the gun proposal".
+// `topicPositions.test.ts` checks every TOPICS slug is here. Decision record: web_docs/docs/development/topic-meeting-lean.md.
 
 /** One meeting's position in the AI reading. `silent` and `unread` are the two kinds of missing. */
 export type PositionKey = 'against' | 'for' | 'split' | 'silent' | 'unread'
@@ -26,7 +26,14 @@ export interface TopicPositions {
   /** The headline's predicate after "most meetings that took up [topic]": "wanted limits on short-term rentals". */
   againstVerb: string
   forVerb: string
-  /** What "for" means, from topic_lean's stance, for a legend note: "For = allowing short-term rentals". */
+  /**
+   * The short title's predicate after the place (#1222): "[California] mostly wants limits on short-term rentals." Absent:
+   * the title says "mostly opposes / mostly supports [topic]".
+   */
+  againstTitle?: string
+  forTitle?: string
+  /** What "for" means, from topic_lean's stance, for the map's "How to read this map" note: "For = allowing short-term
+   * rentals". A topic with named sides (guns) defines both sides and what isn't counted. No closing period. */
   forMeans: string
 }
 
@@ -44,6 +51,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'were against data centers',
     forVerb: 'were for data centers',
+    againstTitle: 'mostly opposes data centers',
+    forTitle: 'mostly wants data centers',
     forMeans: 'For = for the data center',
   },
   // topic_lean: "for" = allowing short-term rentals (permits, fewer limits); against = banning or restricting them.
@@ -55,6 +64,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'wanted limits on short-term rentals',
     forVerb: 'wanted to allow short-term rentals',
+    againstTitle: 'mostly wants limits on short-term rentals',
+    forTitle: 'mostly wants to allow short-term rentals',
     forMeans: 'For = allowing short-term rentals; against = banning or restricting them',
   },
   // topic_lean: "for" = buying, keeping or expanding license plate reader cameras; against = rejecting or removing them.
@@ -66,18 +77,28 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'were against the plate reader cameras',
     forVerb: 'wanted the plate reader cameras',
+    againstTitle: 'mostly opposes the plate reader cameras',
+    forTitle: 'mostly wants the plate reader cameras',
     forMeans: 'For = buying, keeping or expanding the cameras; against = rejecting or removing them',
   },
-  // topic_lean: "for" = the firearm-related proposal before the body (a range, show, store, rule or detection contract).
+  // Gun control (#1237), read by the gun-control question that wrote the stored readings (question_version 48468cc5296e):
+  // mostly_supportive = asking for a limit on firearms (or objecting to a range, shop or show near homes); mostly_opposed =
+  // defending gun rights, opposing the limit, or backing a Second Amendment sanctuary resolution. Two named sides, so
+  // neither word can be read as "against guns" or "against gun limits".
   guns: {
-    against: 'Opposed the gun proposal',
-    for: 'Backed the gun proposal',
+    against: 'Favor gun rights',
+    for: 'Favor gun limits',
     split: SPLIT,
     silent: SILENT,
-    unread: UNREAD,
-    againstVerb: 'opposed the gun proposal before them',
-    forVerb: 'backed the gun proposal before them',
-    forMeans: 'For = the proposal before the body (a range, show, store, rule or ShotSpotter contract); against = opposing it',
+    unread: 'No reading yet',
+    againstVerb: 'favored gun rights',
+    forVerb: 'favored gun limits',
+    againstTitle: 'mostly favors gun rights',
+    forTitle: 'mostly favors gun limits',
+    forMeans:
+      'Gun limits = a local measure restricting firearms (where they may be carried or fired, sales, ranges or shops near homes, storage). ' +
+      'Gun rights = opposing such limits or backing a Second Amendment sanctuary or rights-expansion resolution. ' +
+      'Not counted: police service weapons, ShotSpotter, tools called guns',
   },
   // topic_lean: "for" = building, keeping or expanding the pickleball courts or venue.
   pickleball: {
@@ -88,6 +109,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'were against the pickleball courts',
     forVerb: 'wanted the pickleball courts',
+    againstTitle: 'mostly opposes the pickleball courts',
+    forTitle: 'mostly wants the pickleball courts',
     forMeans: 'For = building, keeping or expanding the courts or venue',
   },
   // topic_lean: "for" = keeping or adding fluoride in the water; against = ending or opposing fluoridation.
@@ -99,6 +122,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'wanted fluoridation ended',
     forVerb: 'wanted fluoride kept in the water',
+    againstTitle: 'mostly wants fluoridation ended',
+    forTitle: 'mostly wants fluoride kept in the water',
     forMeans: 'For = keeping or adding fluoride; against = ending or opposing fluoridation',
   },
   // topic_lean: "for" = building or keeping the bike lanes or paths; against = opposing or removing them.
@@ -110,6 +135,8 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     unread: UNREAD,
     againstVerb: 'were against the bike lanes',
     forVerb: 'wanted the bike lanes',
+    againstTitle: 'mostly opposes the bike lanes',
+    forTitle: 'mostly wants the bike lanes',
     forMeans: 'For = building or keeping the lanes or paths',
   },
 }
@@ -136,8 +163,12 @@ export function topicPositions(slug: string | null | undefined): TopicPositions 
 /** True when the topic has its own words (a topic Jev reads with its own stance). */
 export const hasTopicPositions = (slug: string | null | undefined) => Boolean(slug && TOPIC_POSITIONS[slug])
 
-/** The legend's grey, saying which two kinds of missing it holds. */
-export const MISSING_LEGEND = `${UNREAD}, or the ${SILENT.charAt(0).toLowerCase()}${SILENT.slice(1)}`
+/** The legend's grey for one topic's words, saying which two kinds of missing it holds. */
+export const missingLegend = (w: Pick<TopicPositions, 'unread' | 'silent'>) =>
+  `${w.unread}, or the ${w.silent.charAt(0).toLowerCase()}${w.silent.slice(1)}`
+
+/** The legend's grey, saying which two kinds of missing it holds (the shared words). */
+export const MISSING_LEGEND = missingLegend({ unread: UNREAD, silent: SILENT })
 
 /** The legend's note on split, so it is never read as missing. */
 export const SPLIT_NOTE = 'Split: the public spoke but was divided, or the AI could not tell which way.'
@@ -179,8 +210,8 @@ export type QuoteStance = 'against' | 'for' | 'split' | 'silent' | null | undefi
 
 /**
  * The short line under a map quote (#1230): where the public stood at the quoted meeting, in the topic's own words
- * ("Public: <against words>", "Public: Split"); for a read meeting where the public didn't speak on it, "Mentions guns;
- * no public stance in this meeting"; for a meeting not read yet, only "Mentions guns". The quote itself is verbatim; this
+ * ("Public: <against words>", "Public: Split"); for a read meeting where the public didn't speak on it, "Mentions gun control;
+ * no public stance in this meeting"; for a meeting not read yet, only "Mentions gun control". The quote itself is verbatim; this
  * line never restates it.
  */
 export function quoteStanceNote(slug: string | null | undefined, subject: string, stance: QuoteStance): string {
