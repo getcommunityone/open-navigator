@@ -42,6 +42,19 @@ Beyond counted speakers, both maps show an **AI reading** of each data center me
 - **Keyboard:** Tab focuses the map, the arrows move between states with the same outline and card, and Enter opens the state (narrows the Overview). From keyboard focus the video does **not** autoplay; the card shows the still image and a play button, which Tab reaches and Enter/Space plays in the card. Escape hides the card.
 - `web_app/e2e/map-taps.check.mjs` now checks this behaviour. At Pixel 7 and iPhone 13: the hint shows, a tap opens the state's story with no card, and a county tap lights only that county. At 1440×900: hover gives one card that does not overlap the map, whose iframe `src` has `autoplay=1&mute=1`, the state lit and outlined, the video swapping between states and gone on leaving; keyboard focus does not autoplay; Enter, a click on a state (Alabama on `/` opens the Alabama story) and the card's link drill. Run it with `node e2e/map-taps.check.mjs --base http://localhost:5173`.
 
+### Which place a story speaks for (#1285)
+
+Owner, 27 Nov 2026: with Tuscaloosa, AL chosen, the Overview said "A data center came up in 2 meetings in Tuscaloosa, Alabama" over the whole Alabama map, and the home map stayed national.
+
+- **5 meetings or more for a place of its own.** `resolveStoryScope` (`web_app/src/utils/resolveStoryScope.ts`, threshold `MIN_SCOPE_MEETINGS = 5`) steps up one level at a time, city → county → state → national, to the first level with 5 or more meetings on the topic. It says why in plain words, for example "Tuscaloosa has only 2 meetings on data centers, too few to call. County counts aren't on record for this topic, so this shows Alabama (71 meetings)."
+- **Where the counts come from.** City and state counts come from `GET /api/topics/{topic}/caption-facts` (`meetings` for the city, `states[]` for the state). No topic serves a county grain the story's charts can be narrowed to yet, so the county step is skipped and the line says so. The helper already handles a county count when one is passed.
+- **What follows the level.** The hook `useStoryScope` (`web_app/src/hooks/useStoryScope.ts`) applies the rule on the home hero (data centers and topic cards) and on the story pages (`DataStory`, `TopicStory`). The headline, the counts, the quotes and the map then use that level. The URL keeps the reader's choice (`?state=AL&city=Tuscaloosa`). The home subtitle gives the reason. On a story page the reason sits on one line in the sticky bar under the headline.
+- **The home map zooms to the place.** With a state or city in effect, the home map draws only that state, on a finer grid. The asked city is marked at the coordinate its meeting record holds (`latitude`/`longitude` on `GET /api/data-centers/meeting-mentions?state=` place counts). When no coordinate is on record, the map says "No map location on record for `<city>`." and draws no guessed pin. With National in effect it is the full US map again.
+- **One click back to National.** Next to the header's place pill, **× National** resets the scope in the URL, and the label, the map and the data go national together. It shows on a desktop, in the phone bar, and as **Show National** in the phone menu. On a story page it drops `?state=&city=`. On home, where the place is the reader's town, it adds `?scope=national`, and the header then reads "National · Use Tuscaloosa, AL", one click back.
+- **Plain subtitle.** When a city's title is the wider place's because too few meetings took a side, the line under it reads "Tuscaloosa, Alabama hasn't had enough public comment on data centers to call. Showing America."
+- **No "AI reading" label** on the home topic-strip tiles.
+- `web_app/e2e/place-scope.check.mjs` checks the zoom, the pin, the reason, "× National" and the story note at 1440×900 and Pixel 7.
+
 ### Which meeting a map card quotes (#1230)
 
 **Changed 26 Nov 2026 ([#1230](https://github.com/getcommunityone/open-navigator/issues/1230)).** The owner did not believe
@@ -200,6 +213,26 @@ A figure with no data behind it is never shown as zero:
 - Until the table behind these figures has been built in the database, the story screen is one quiet line, "Who spoke for and against is not loaded yet."; the `/stories` detail omits the block entirely so the care-first hook and Start stay in view (#962).
 
 The figures come from `GET /api/data-centers/positions?state=&city=&limit=`, which sums the dbt mart `data_center_meeting_position` for the place and returns a few of the speakers' own words on each side from `data_center_public_comment`. The block is `web_app/src/components/stance/PositionsBlock.tsx`; its figures, caption and "not recorded" rules are `positionFigures` and `positionsCaption` in `web_app/src/utils/dataStory.ts`, with tests.
+
+### Tap a number to see the records behind it (#1288)
+
+Every figure on the **Who spoke up** screen that has records behind it is a button: tap it (or press Enter on it) and the list of those records opens. On a wide screen the list opens inline under the figures; on a phone it is a bottom sheet over the screen, with a **Close** button, a tap on the dimmed page or Escape to close it. The list is for the place in the URL (`?state=&city=`), the same scope as the figure, and its header says that scope. It loads 25 rows at a time ("Show more (25 of 60)") and ends with "All 60 shown."
+
+| Number | The list | Endpoint |
+| --- | --- | --- |
+| spoke for / spoke against / asked a question | Each counted speaker: their words verbatim, with the data center words marked; "First L." when the name was heard; the place and date; **Watch this moment** at the timestamp; and why the comment counts ("Counted because the decision it was on names a data center: …") | `GET /api/data-centers/speakers?side=for\|against\|question&state=&city=&limit=&offset=` |
+| votes for / votes against | Each data center decision with a recorded tally and at least one vote on that side: its headline (linking to `/decisions/:id`), the tally, the outcome, the place and date | `GET /api/data-centers/vote-decisions?side=for\|against&state=&city=&limit=&offset=` |
+| the public comments line ("60 public comments at 10 local governments…"), **Mention AI**, **Name &lt;company&gt;** | Each public comment segmented from our captions that the count includes: speaker "First L." when known, the place and date, **Watch this comment** at its start, and the keywords it matched | `GET /api/data-centers/comments?year=&state=&city=&ai=&company=&limit=&offset=` |
+
+The rule: **the list adds up to the number on the tile.** Each endpoint counts with the filter the figure's own endpoint uses (`/positions` scopes on `data_center_meeting_position`; `/comment-metrics` on `data_center_comment` with its `_where`), and pytest checks the filters are the same. A speaker figure counts rows, so the list has that many rows. A vote figure counts votes, not decisions: "8 votes for" opens "8 votes for in 1 decision", and the tallies listed sum to 8.
+
+What doesn't open:
+
+- A figure that is 0, "not recorded" or "—" is plain text: there is nothing to list.
+- The caption comments have **no quote**. `meeting_comment` stores no comment text, on purpose (privacy by construction, #1233), so the list links to the moment in the recording instead, and says why. A comment the segmenter flagged as a possible minor is still listed, so the count adds up, but with no name, no link and no keywords.
+- The overview's row of large counts (meetings, passages, agendas, jobs claims, sites, projects) and the topic story's position bars don't open yet: their endpoints return a capped list with no paging, so a list could stop short of the number. That is follow-up work, #1292.
+
+The buttons and the list are `web_app/src/components/stance/KpiDrill.tsx` (`DrillValue`, `KpiDrillSheet`), used by `PositionsBlock.tsx` and `CommentMetricsBlock.tsx`; the client is `web_app/src/api/storyDrill.ts`; the routes are `api/routes/data_center_drill.py`.
 
 ## The Data Center Story
 
@@ -571,6 +604,16 @@ Every other topic story (`/stories/<topic>`, for example `/stories/water-fluorid
 Below them, the passages are a **unit matrix**: one square per passage, regrouped by a toggle (All, By year, By state or By town, By outcome, By who spoke). The outcome and public-lean groupings are an AI reading and say so. The decisions, agenda and jobs-claim charts use the same matrix with their own grouping first. The design and thresholds: [Story charts: timeline, dumbbell and unit matrix](../development/story-charts-timeline-dumbbell.md).
 
 The headline names the year with the most meetings when the passage list is complete ("Data centers came up in 71 meetings in Texas, most of them in 2026 (278 quoted passages)."); when years tie or the list is capped it keeps the plain count.
+
+### State bills, votes and the five positions (#1274)
+
+Every topic story (`/stories/<topic>`) has two screens after **Who spoke**, and the Who spoke screen gains a chart for topics read with five positions. All three come from our own records and follow the page's state filter:
+
+- **State bills** screen. A US map with each state coloured by the furthest any of its bills on the topic got: enacted, passed one chamber, introduced and pending, or failed. The bills are our copy of OpenStates, matched by the topic's keywords in each bill's subject tags, title and abstract. Two filters recolour it: the period (the last two years with bills, or every year) and the direction (for water fluoridation: ban, restriction, protection, study, or direction not stated). Click or tap a state, or Tab to it and press Enter, to list its bills, each linked to its OpenStates page; every state with a bill is also listed under the map. A bill whose title and abstract don't say which way it goes is shown by status only, never guessed.
+- **Who spoke** screen, five positions. For a topic whose meeting reading has five positions (water fluoridation), one bar per position, counting meetings whose AI reading (Jev) put the public who spoke closest to it. Water fluoridation's five: Support, require everywhere · Support, each community decides · No opinion · Oppose, each community decides · Oppose, ban everywhere. It counts meetings, not people; meetings where the public didn't speak are given in the note. Other topics keep only the four-way breakdown.
+- **Votes** screen. Meetings where, in the AI reading, the council or board voted to move the topic forward (fluoridation: keep or start it), voted to stop or limit it (end it), or tabled or put it off: totals that double as filters, a column per year, the states with most actions, and the meetings themselves, each linked to its recording with how sure the reading was.
+
+There is no ballot-measure chart: we have no ballot-measure data on these topics yet ([#1275](https://github.com/getcommunityone/open-navigator/issues/1275)). Rules, colours and counts: [Topic legislation map, positions and local actions](../development/topic-legislation-map.md).
 
 ## Add a story
 

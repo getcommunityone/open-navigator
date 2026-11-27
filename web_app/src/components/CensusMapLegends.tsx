@@ -41,7 +41,9 @@ export function ChoroplethLegend({
   metricHelp,
   semantics,
   letterGradeLegend,
+  compact = false,
 }: {
+  compact?: boolean
   min: number
   max: number
   scale: CensusScaleId
@@ -82,6 +84,52 @@ export function ChoroplethLegend({
       ? ' Endpoints pool all years from trend data so the scale stays fixed while you scrub the year slider.'
       : ''
   }`
+  if (compact) {
+    // Phone: a slim inline gradient bar, not a card. Same stops and ticks.
+    return (
+      <div className="px-1" data-testid="census-legend-compact">
+        <div className="flex items-center justify-between gap-2 text-[10px] font-semibold leading-tight text-slate-700">
+          <span className="min-w-0 truncate">&lsaquo; {semantics?.lowEnd ?? 'Lower'}</span>
+          <button
+            type="button"
+            className="shrink-0 rounded px-1 text-[10px] font-medium text-slate-500 underline underline-offset-2"
+            aria-expanded={legendHelpOpen}
+            aria-controls={legendHelpPanelId}
+            onClick={() => setLegendHelpOpen((v) => !v)}
+          >
+            How to read
+          </button>
+          <span className="min-w-0 truncate text-right">{semantics?.highEnd ?? 'Higher'} &rsaquo;</span>
+        </div>
+        <div
+          className="mt-0.5 h-2.5 w-full rounded border border-slate-300"
+          style={{ background: `linear-gradient(to right, ${stops.map((x) => `${x.color} ${x.offset}`).join(', ')})` }}
+          role="img"
+          aria-label="Color scale from low to high"
+        />
+        <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-slate-600">
+          {[0, 0.5, 1].map((frac) => (
+            <span key={frac}>{format(min + frac * (max - min))}</span>
+          ))}
+        </div>
+        {letterGradeLegend ? <div className="mt-1">{letterGradeLegend}</div> : null}
+        {legendHelpOpen ? (
+          <div
+            id={legendHelpPanelId}
+            className="mt-1 space-y-1.5 rounded-md border border-amber-100/90 bg-amber-50/45 px-2.5 py-2"
+            role="region"
+            aria-label="How to read this legend"
+          >
+            {semantics?.gradientHint ? (
+              <p className="text-[11px] leading-snug text-slate-800">{semantics.gradientHint}</p>
+            ) : null}
+            <p className="whitespace-pre-wrap text-[11px] leading-snug text-slate-800">{legendInfoBody}</p>
+            <p className="text-[10px] leading-snug text-slate-600">{legendFootnote}</p>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 shadow-sm">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">

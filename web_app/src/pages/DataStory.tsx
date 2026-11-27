@@ -37,9 +37,9 @@ import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
 import { getStancePlayerId } from '../utils/stancePlayer'
-import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { nextStoryLink, storyCloseHref, storyStartHref, storyTopicOptions } from '../utils/storyNav'
 import { optionLabel, questionText } from '../utils/storyQuestion'
+import { useStoryScope } from '../hooks/useStoryScope'
 import { useTopicStories } from '../hooks/useTopicStories'
 import { scopePlaceName, splitCaptionAtPlace, splitTextAtPlace } from '../utils/captionPlace'
 
@@ -64,10 +64,16 @@ export default function DataStory() {
   const playerId = useMemo(() => getStancePlayerId(), [])
 
   // The scope lives in the URL: label, queries and charts all read it from here.
+  // The URL keeps the place asked; the story speaks for the level with enough meetings (#1285, `useStoryScope`): a city
+  // with fewer than 5 steps up to its state, a state with fewer to the country, and a note under the bar says why.
   const rawState = (sp.get('state') ?? '').trim().toUpperCase()
-  const stateCode = STATE_CODES.includes(rawState) ? rawState : undefined
-  const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
-  const city = stateCode ? (sp.get('city') ?? '').trim() || null : null
+  const askedState = STATE_CODES.includes(rawState) ? rawState : undefined
+  const askedCity = askedState ? (sp.get('city') ?? '').trim() || null : null
+  const askedQuery = scopeQuery({ stateCode: askedState, city: askedCity })
+  const placeScope = useStoryScope(storyId, story?.topic ?? storyId, askedState, askedCity)
+  const stateCode = placeScope.effective.stateCode
+  const stateName = placeScope.effective.stateName
+  const city = placeScope.effective.city
   const scope: StoryScope = useMemo(() => ({ stateCode, stateName, city }), [stateCode, stateName, city])
   const scopeKey = `${stateCode ?? ''}|${city ?? ''}`
   const screenParam = sp.get('screen') ?? ''
@@ -371,7 +377,15 @@ export default function DataStory() {
         backLabel="← Data stories"
         // The one exit (#1234, owner 2026-11-27): Close (×) top right, back to the home page with the place kept. The bar
         // drops "← Data stories" and the "Showing:" row; the title's place control is the place switcher.
-        close={<StoryClose to={storyCloseHref(storyId, scopeQuery(scope))} escape={!dialogOpen} />}
+        note={
+          placeScope.resolved.reason ? (
+            // Why the story shows a wider place than the one asked (#1285); the URL keeps the reader's choice.
+            <p className="story-scope-note" role="note" data-scope-level={placeScope.resolved.level}>
+              {placeScope.resolved.reason}
+            </p>
+          ) : undefined
+        }
+        close={<StoryClose to={storyCloseHref(storyId, askedQuery)} escape={!dialogOpen} />}
         title={story.title}
         label={label}
         heading={

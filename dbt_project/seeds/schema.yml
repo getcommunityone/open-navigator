@@ -1,6 +1,50 @@
 version: 2
 
 seeds:
+  - name: topic_legislation_vocabulary
+    description: >
+      Category vocabulary for state bills per curated topic, keyed by topic_query_id; '*' is the generic set used
+      by every topic without its own rows. Served via the topic_legislation_category mart (the seed has a
+      different name so the two never collide).
+    columns:
+      - name: topic_query_id
+        tests: [not_null]
+      - name: category
+        tests: [not_null]
+      - name: display_order
+      - name: label
+      - name: description
+
+  - name: topic_legislation_rule
+    description: >
+      Ordered keyword rules that pick a state bill's category. pattern is a Postgres regex matched against the
+      bill's lowercased title + abstract; the first matching rule by rule_order wins. An empty category leaves the
+      bill out. '*' rules apply to topics without their own. Documented in
+      web_docs/docs/development/topic-legislation-map.md.
+    columns:
+      - name: topic_query_id
+        tests: [not_null]
+      - name: rule_order
+        tests: [not_null]
+      - name: category
+        description: "A category from topic_legislation_category for the same topic, or empty to leave the bill out."
+      - name: pattern
+        tests: [not_null]
+      - name: note
+
+  - name: topic_legislation_scope
+    description: >
+      Extra per-topic filters on bills: require_pattern must match, exclude_pattern must not ('*' exclude applies
+      to every topic), and drop_keywords (pipe-separated) are topic keywords that misfire on bills and are not used
+      to match them (they still apply to meetings).
+    columns:
+      - name: topic_query_id
+        tests: [unique, not_null]
+      - name: require_pattern
+      - name: exclude_pattern
+      - name: drop_keywords
+      - name: note
+
   - name: tax_foundation_sales_tax_rates
     config:
       column_types:

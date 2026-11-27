@@ -119,7 +119,6 @@ html { scroll-behavior: smooth; }
 .v9 .home-topic-title { font-weight: 700; font-size: 15.5px; color: #1c1917; }
 .v9 .home-topic-blurb { font-size: 13.5px; color: #57534e; line-height: 1.4; }
 .v9 .home-topic-caption { color: #292524; font-weight: 500; }
-.v9 .home-topic-ai { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #78716c; font-weight: 600; }
 .v9 .home-topic-go { font-size: 13.5px; font-weight: 700; color: #0f766e; margin-top: 2px; }
 .v9 button.home-topic.is-soon { cursor: pointer; }
 .v9 button.home-topic.is-soon:hover { background: #fafaf9; }
@@ -509,7 +508,22 @@ export default function HomeV9() {
   const { location } = useLocationContext()
   // A place carried in the address (?state=&city=, e.g. from a header tab on a scoped page) sets the whole page's
   // scope, ahead of the saved location, without overwriting it (#975; CLAUDE.md: filters carry over via the URL).
-  const [urlParams] = useSearchParams()
+  const [urlParams, setUrlParams] = useSearchParams()
+  // National chosen in the header or the title (#1285): `?scope=national`, so a refresh, a deep link and the header agree.
+  const urlNational = urlParams.get('scope') === 'national'
+  const setUrlNational = useCallback(
+    (on: boolean) =>
+      setUrlParams(
+        (prev) => {
+          const n = new URLSearchParams(prev)
+          if (on) n.set('scope', 'national')
+          else n.delete('scope')
+          return n
+        },
+        { replace: false, preventScrollReset: true },
+      ),
+    [setUrlParams],
+  )
   const urlState = (urlParams.get('state') ?? '').trim().toUpperCase()
   const urlHasPlace = STATE_CODES.includes(urlState)
   const locState = urlHasPlace ? urlState : location?.state || undefined
@@ -550,6 +564,15 @@ export default function HomeV9() {
     if (levelPicked.current) return
     setLevel(locCity ? 'city' : locState ? 'state' : 'national')
   }, [locCity, locState, pickTick])
+  // Leaving National from the header ("Use Tuscaloosa, AL") goes back to the place's own level.
+  const wasNational = useRef(urlNational)
+  useEffect(() => {
+    if (wasNational.current && !urlNational) {
+      levelPicked.current = false
+      setLevel(locCity ? 'city' : locState ? 'state' : 'national')
+    }
+    wasNational.current = urlNational
+  }, [urlNational, locCity, locState])
   useEffect(() => {
     if (!levelOpen) return
     const onDoc = (e: MouseEvent) => {
@@ -565,6 +588,7 @@ export default function HomeV9() {
     levelPicked.current = true
     setLevel(v)
     setLevelOpen(false)
+    if ((v === 'national') !== urlNational) setUrlNational(v === 'national')
   }
   // The story title's place control (#1206): The United States sets the level to National (the saved place is kept, as
   // the level menu's National does); a state or city goes through the header's pick path, so the saved location, the
@@ -582,9 +606,10 @@ export default function HomeV9() {
   }
 
   // The active scope flows from `level` into every place-scoped query below.
-  const national = level === 'national' || !locState
+  const effLevel: Level = urlNational ? 'national' : level
+  const national = effLevel === 'national' || !locState
   const stateCode = national ? undefined : locState
-  const city = level === 'city' ? locCity : undefined
+  const city = effLevel === 'city' ? locCity : undefined
   // URL params for the ACTIVE scope (the one the scope label names), never the
   // saved location: with National selected, links carry no place at all (#350).
   const activeScopeParams = (): URLSearchParams => {
@@ -594,9 +619,9 @@ export default function HomeV9() {
     return p
   }
   const placeLabel =
-    level === 'national' || !locState
+    effLevel === 'national' || !locState
       ? 'the U.S.'
-      : level === 'state'
+      : effLevel === 'state'
         ? locState
         : locCity || location?.county || locState
 
@@ -1192,7 +1217,7 @@ export default function HomeV9() {
                   Show results for
                 </div>
                 {levelOptions.map((opt) => {
-                  const selected = level === opt.value
+                  const selected = effLevel === opt.value
                   return (
                     <button
                       key={opt.value}

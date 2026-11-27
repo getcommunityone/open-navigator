@@ -97,7 +97,7 @@ What `pickCaption` now returns, for every title (home cards, story header, `/sto
   beside it shows. The place's own facts open the basis line ("Tuscaloosa, Alabama talked about data centers in 2
   meetings. Of its 2 meetings read, the public spoke in 1, under the 3 a conclusion of its own needs. Across America, the
   public was against data centers in 300 of 340 meetings where it spoke. …"), and the subhead starts with the place
-  ("Tuscaloosa, Alabama has too few meetings where the public took a side for a conclusion of its own; the title is
+  ("Tuscaloosa, Alabama hasn't had enough public comment on data centers to call. Showing America.", #1285; before: "Tuscaloosa, Alabama has too few meetings where the public took a side for a conclusion of its own; the title is
   America's."). No "In the United States," lead is added anywhere.
 - **No conclusion anywhere**: the count titles stay ("California and North Carolina took up guns most: 659 and 585
   meetings.").
@@ -121,7 +121,7 @@ Before and after, live data 26 Nov 2026 (data centers):
 | Scope | Before | After |
 |---|---|---|
 | National | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading). | America hates data centers. |
-| `?state=AL` | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading); Alabama brought them up in 71 meetings. | America hates data centers. (subhead: "Alabama has too few meetings where the public took a side …") |
+| `?state=AL` | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading); Alabama brought them up in 71 meetings. | America hates data centers. (subhead: "Alabama hasn't had enough public comment on data centers to call. Showing America.") |
 | `?state=AL&city=Tuscaloosa` | America hates data centers: … (AI reading); Tuscaloosa, Alabama brought them up in 2 meetings. | America hates data centers. (subhead starts "Tuscaloosa, Alabama …", the place control) |
 | `?state=TX` | Texas hates data centers: the public was against them in 17 of 18 meetings where it spoke (AI reading). (header and Overview) | Texas hates data centers. (header only; Overview: "A data center came up in N meetings in Texas.") |
 

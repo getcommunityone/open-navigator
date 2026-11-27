@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 // The state's story plays its drill-down transition on arrival, from the national layout (#1195).
 import { DRILL_FROM_NATIONAL } from '../stance/drillState'
 import { useQuery } from '@tanstack/react-query'
-import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
+import { NATIONAL_BBOX, STATES_ALBERS_TOPO, albersPoint, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from '../stance/QuoteCard'
 import { resolveVideoId, startFromUrl } from '../stance/quoteCardUtils'
@@ -98,6 +98,11 @@ interface Props {
   /** Where the desktop hover card goes (#1277): an element outside the map (the home page's text column, under Start).
    *  None → under the legend. The card never covers the map. */
   cardSlot?: HTMLElement | null
+  /**
+   * Zoom to one state (#1285): the place the story speaks for is a state or a city in it. Only that state is drawn, on a
+   * finer grid; `pin` marks the asked city at its real coordinates, and `note` says why there is no pin.
+   */
+  zoom?: { stateCode: string; pin?: { name: string; lat: number; lon: number } | null; note?: string | null } | null
 }
 
 export type StanceUnit = 'speakers' | 'meetings'
@@ -107,6 +112,8 @@ const plural = (n: number, one: string, many: string) => `${fmt(n)} ${n === 1 ? 
 const W = NATIONAL_BBOX[2]
 const H = NATIONAL_BBOX[3]
 const COLS = 80
+/** Columns across a zoomed state (#1285): finer than the national grid, so the state reads as a map of its own. */
+const ZOOM_COLS = 44
 
 export { BOX_COLORS, STANCE_LABEL, PUBLIC_AGAINST_COLOR, PUBLIC_AGAINST_LABEL, DISAGREEMENT_LABEL, DISAGREEMENT_STROKE }
 /** States with meetings but no stance on record, light to dark by their real meeting count (#1103). */
@@ -202,7 +209,7 @@ interface Box {
  * the map (never over it), with the recording playing muted at the quoted moment (#1277); clicking opens that state's story. On a
  * phone there is no card: a tap opens the state's story at once. Nothing is drawn from a guess: no counts, no split.
  */
-export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions, cardSlot = null }: Props) {
+export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions, cardSlot = null, zoom = null }: Props) {
   const byMeetings = stanceUnit === 'meetings'
   // Topic words (#1200) only for an AI-read meeting split; the speaker map keeps its own words.
   const words = byMeetings ? positions : undefined
@@ -228,17 +235,22 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     queryFn: () => fetchTopo(STATES_ALBERS_TOPO),
     staleTime: 1000 * 60 * 60,
   })
+  const zoomFips = zoom ? (Object.entries(STATE_FIPS_TO_CODE).find(([, c]) => c === zoom.stateCode)?.[0] ?? null) : null
   const grid = useMemo(() => {
     if (!topo) return null
-    const feats = toFeats(topo, 'states').filter((f) => f.id !== '72')
-    const { dots, step } = dotsFor(feats, NATIONAL_BBOX, COLS)
+    const all = toFeats(topo, 'states').filter((f) => f.id !== '72')
+    // Zoomed (#1285): the one state, on its own finer grid, framed by its own bounds.
+    const zf = zoomFips ? all.find((f) => f.id === zoomFips) : undefined
+    const feats = zf ? [zf] : all
+    const frame: [number, number, number, number] = zf ? zf.bbox : NATIONAL_BBOX
+    const { dots, step } = dotsFor(feats, zf ? frame : NATIONAL_BBOX, zf ? ZOOM_COLS : COLS)
     // A state too small for a grid point (DC, at this grid) still gets one box, at its centre.
     const seen = new Set(dots.map((d) => d.id))
     for (const f of feats) {
       if (!seen.has(f.id)) dots.push({ x: (f.bbox[0] + f.bbox[2]) / 2, y: (f.bbox[1] + f.bbox[3]) / 2, id: f.id })
     }
-    return { feats, dots, step }
-  }, [topo])
+    return { feats, dots, step, frame, zoomed: Boolean(zf) }
+  }, [topo, zoomFips])
 
   const stanceBy = useMemo(() => new Map((stance ?? []).map((s) => [s.state_code, s])), [stance])
   const boxes = useMemo<Box[] | null>(() => {
@@ -339,7 +351,10 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
   const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
   const size = grid.step * 0.8
-  const pad = 4
+  const pad = grid.zoomed ? grid.step * 2 : 4
+  const [fx0, fy0, fx1, fy1] = grid.zoomed ? grid.frame : [0, 0, W, H]
+  const vb = `${fx0 - pad} ${fy0 - pad} ${fx1 - fx0 + pad * 2} ${fy1 - fy0 + pad * 2}`
+  const pinPt = grid.zoomed && zoom?.pin ? albersPoint(zoom.pin.lon, zoom.pin.lat) : null
 
   const summary =
     `Map of the United States drawn as small boxes in each state's shape. ${plural(withMeetings, 'state has', 'states have')} at least one meeting where ${subject} came up.` +
@@ -407,7 +422,14 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     <div onMouseLeave={hideSoon} onMouseEnter={keepCard} {...keyNav.stageProps}>
       <div style={{ position: 'relative' }}>
       {keyNav.sr}
-      <svg viewBox={`${-pad} ${-pad} ${W + pad * 2} ${H + pad * 2}`} className="block h-auto w-full" aria-label={summary} {...keyNav.svgProps}>
+      <svg
+        viewBox={vb}
+        className="block h-auto w-full"
+        style={grid.zoomed ? { maxHeight: 'min(60vh, 520px)' } : undefined}
+        data-zoom={grid.zoomed ? zoom?.stateCode : undefined}
+        aria-label={grid.zoomed ? `Map of ${stateName(zoom!.stateCode)} drawn as small boxes${zoom?.pin ? `, with ${zoom.pin.name} marked` : ''}. ${summary}` : summary}
+        {...keyNav.svgProps}
+      >
         {boxes.map((b, i) => {
           const active = !!shownCode && b.code === shownCode
           const muted = shownCode ? !active : !!highlight && b.code !== highlight
@@ -427,7 +449,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               opacity={muted ? (shownCode ? 0.45 : 0.7) : 1}
               // The whole hovered state stands out (#1277), so it reads as one thing to click.
               stroke={active ? '#1c1917' : undefined}
-              strokeWidth={active ? 0.9 : undefined}
+              strokeWidth={active ? grid.step * 0.075 : undefined}
               style={{ cursor: b.code ? 'pointer' : 'default' }}
               onMouseEnter={
                 touch || !b.code
@@ -443,16 +465,36 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           )
         })}
         {/* State outlines over the boxes (#1103), so neighbouring states read as separate shapes. */}
-        <g fill="none" stroke="#57534e" strokeOpacity={0.55} strokeWidth={0.8} strokeLinejoin="round" pointerEvents="none">
+        <g fill="none" stroke="#57534e" strokeOpacity={0.55} strokeWidth={grid.step * 0.066} strokeLinejoin="round" pointerEvents="none">
           {grid.feats.map((f) => (
             <path key={f.id} d={featPath(f)} />
           ))}
         </g>
         {/* The hovered (or keyboard-chosen) state's outline, raised: dark and thick over everything else (#1277). */}
         {shownFeat && (
-          <path d={featPath(shownFeat)} fill="none" stroke="#1c1917" strokeWidth={2.4} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
+          <path d={featPath(shownFeat)} fill="none" stroke="#1c1917" strokeWidth={grid.step * 0.2} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
+        )}
+        {/* The asked city (#1285), at the coordinate its meeting record holds: the map's most prominent mark. */}
+        {pinPt && zoom?.pin && (
+          <g pointerEvents="none" data-pin={zoom.pin.name}>
+            <circle cx={pinPt[0]} cy={pinPt[1]} r={grid.step * 1.4} fill="#0f766e" stroke="#fff" strokeWidth={grid.step * 0.3} />
+            <circle cx={pinPt[0]} cy={pinPt[1]} r={grid.step * 0.35} fill="#fff" />
+            <text
+              x={pinPt[0] + grid.step * 1.6}
+              y={pinPt[1]}
+              dominantBaseline="central"
+              style={{ fontSize: grid.step * 2.1, fontWeight: 700, fill: '#0f172a', stroke: '#fff', strokeWidth: grid.step * 0.6, paintOrder: 'stroke', strokeLinejoin: 'round' }}
+            >
+              {zoom.pin.name}
+            </text>
+          </g>
         )}
       </svg>
+      {grid.zoomed && (
+        <p className="mt-1 text-xs text-stone-600" data-zoom-note="">
+          {zoom?.pin ? `${stateName(zoom.stateCode)}, with ${zoom.pin.name} marked.` : zoom?.note ?? `${stateName(zoom!.stateCode)}.`}
+        </p>
+      )}
 
       </div>
       {cardSlot && cardShown ? createPortal(cardShown, cardSlot) : null}
@@ -461,7 +503,10 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
           ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? 'Tap a state to open its story.' : `Click ${stateName(shownCode)} to open its story.`}`
-          : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a state to hear what was said; click it to open that state’s story.'}`}
+          : grid.zoomed && zoom
+            ? // Zoomed (#1285): the one state's own line, not the national count.
+              `${stateName(zoom.stateCode)}: ${plural(meetings.get(zoom.stateCode) ?? 0, 'meeting', 'meetings')} where ${subject} came up${lineOf(stanceBy.get(zoom.stateCode)) ? `; ${lineOf(stanceBy.get(zoom.stateCode))}` : ''}. ${touch ? 'Tap the map to open its story.' : 'Hover to hear what was said; click to open its story.'}`
+            : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a state to hear what was said; click it to open that state’s story.'}`}
       </p>
 
       <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-tight text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>

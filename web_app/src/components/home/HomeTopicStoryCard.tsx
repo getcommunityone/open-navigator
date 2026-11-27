@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '../../api/topics'
 import { topicStanceForMap } from '../../utils/topicStance'
 import { quoteStanceNote, topicPositions } from '../../utils/topicPositions'
-import type { StoryScope } from '../../utils/dataStory'
+import { storyScopeLabel, type StoryScope } from '../../utils/dataStory'
+import { useStoryScope } from '../../hooks/useStoryScope'
 import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
 import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
@@ -17,10 +18,10 @@ const QUOTES_PER_STATE = 12
 
 interface Props {
   def: TopicStoryDef
+  /** The place asked (the URL's); the card speaks for the level `useStoryScope` resolves (#1285). */
   scope: StoryScope
   /** "?state=AL&city=…" (or empty): carried by every link. */
   query: string
-  label: string
   /** A place picked in the title's place control (#1206); see `HomeDataStories`. */
   onPlaceApply?: (stateCode: string | null, city: string | null) => void
 }
@@ -29,7 +30,12 @@ interface Props {
  * The home card for one topic story (#1013, #1133): its caption for the page's scope (#1125), its lede, Start the story,
  * and the map of meetings per state with each state's newest verbatim passage. Every figure is a real count.
  */
-export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceApply }: Props) {
+export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceApply }: Props) {
+  const topicNoun = CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase()
+  // The place the story speaks for (#1285): too few meetings for the city (or state) steps up a level, and says why.
+  const placeScope = useStoryScope(def.slug, topicNoun, asked.stateCode, asked.city)
+  const scope: StoryScope = placeScope.effective
+  const label = storyScopeLabel(scope)
   // The map's hover card goes in the text column, under Start (#1277), never over the map.
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   const states = useQuery({
@@ -75,10 +81,14 @@ export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceAp
       if (!list) out.set(m.state_code, [q])
       else if (list.length < QUOTES_PER_STATE) list.push(q)
     }
+    // At city level (#1285) the state shows only that city's passages: label and quotes move together.
+    if (scope.city && scope.stateCode) {
+      const c = scope.city.toLowerCase()
+      out.set(scope.stateCode, (out.get(scope.stateCode) ?? []).filter((x) => x.place.toLowerCase().startsWith(c)))
+    }
     return out
-  }, [states.data, def.slug, def.subject])
+  }, [states.data, def.slug, def.subject, scope.city, scope.stateCode])
   const caption = pickCaption(def.slug, facts.data, scope)
-  const topicNoun = CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase()
   const title = captionText(caption, topicNoun)
   // Start opens the story past its cover (#1222).
   const href = storyStartHref(def.slug, query)
@@ -101,7 +111,10 @@ export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceAp
           topic={topicNoun}
           scope={scope}
           onPlaceApply={onPlaceApply}
-          subhead={caption.kind === 'wider_position' || caption.kind === 'wider_sentiment' ? captionSubhead(caption, def.slug, scope) : def.lede}
+          subhead={
+            placeScope.resolved.reason ??
+            (caption.kind === 'wider_position' || caption.kind === 'wider_sentiment' ? captionSubhead(caption, def.slug, scope) : def.lede)
+          }
         />
         <p className="home-story-basis">
           {caption.basis ?? 'Counted from local meeting recordings and transcripts that mention the topic.'}
@@ -121,6 +134,15 @@ export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceAp
             byState={states.data?.states}
             quotes={quotes}
             highlight={scope.stateCode ?? null}
+            zoom={
+              scope.stateCode
+                ? {
+                    stateCode: scope.stateCode,
+                    pin: placeScope.pin,
+                    note: asked.city && placeScope.pinKnown && !placeScope.pin ? `No map location on record for ${asked.city}.` : null,
+                  }
+                : null
+            }
             href={(code) => `/stories/${encodeURIComponent(def.slug)}?state=${encodeURIComponent(code)}`}
             subject={topicNoun.toLowerCase()}
             stance={stance && stance.length > 0 ? stance : undefined}

@@ -1,13 +1,13 @@
-import { useMemo } from 'react'
+import { useCallback, useId, useMemo, useState } from 'react'
 import type { DataCenterPositionsResponse, PositionQuote } from '../../api/dataCenters'
-import { POSITIONS_NOT_LOADED, figureDisplay, positionFigures, positionsCaption, positionsLoaded, type LoadState, type StoryScope } from '../../utils/dataStory'
+import { POSITIONS_NOT_LOADED, figureDisplay, positionFigures, positionsCaption, positionsLoaded, storyScopeLabel, type LoadState, type StoryScope } from '../../utils/dataStory'
 import { chartSpec } from '../../utils/stanceGame'
 import { Dots } from './ChartPanel'
 import { SideColumn, type Passage } from './SidesBlock'
 import CommentMetricsBlock from './CommentMetricsBlock'
+import { DrillValue, KpiDrillSheet, figureDrill, isDrillable } from './KpiDrill'
 import FitDisplay from './FitDisplay'
 import { specDisplay } from '../../utils/displayFit'
-import { storyScopeLabel } from '../../utils/dataStory'
 
 interface Props {
   data: DataCenterPositionsResponse | null | undefined
@@ -18,6 +18,8 @@ interface Props {
   /** Also list a few of the speakers' own words on each side (the story's screen; the hub stays short). */
   quotes?: boolean
 }
+
+type PositionFigureKey = 'for' | 'against' | 'question' | 'votes_for' | 'votes_against'
 
 const toPassage = (q: PositionQuote): Passage => ({
   quote: q.quote,
@@ -39,6 +41,10 @@ const toPassage = (q: PositionQuote): Passage => ({
 export default function PositionsBlock({ data, status, scope, labelledBy, quotes = false }: Props) {
   const stateName = scope.stateName
   const spec = useMemo(() => chartSpec('positions', data, stateName), [data, stateName])
+  // The figure whose records are open (#1288); one at a time.
+  const [drill, setDrill] = useState<PositionFigureKey | null>(null)
+  const sheetId = useId()
+  const closeDrill = useCallback(() => setDrill(null), [])
   if (status === 'loading') {
     return (
       <p className="folio-muted" role="status">
@@ -68,12 +74,30 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
             <dt>{f.label}</dt>
             {/* "—" with "not available yet" for screen readers: no meeting reviewed, never a made-up 0 (#1289). */}
             <dd>
-              {f.value == null ? <span aria-hidden="true">{figureDisplay(f.value)}</span> : figureDisplay(f.value)}
-              {f.value == null && <span className="folio-sr-only">not available yet</span>}
+              <DrillValue
+                drillable={isDrillable(f.value)}
+                label={f.label}
+                open={drill === f.key}
+                controls={sheetId}
+                onToggle={() => setDrill(drill === f.key ? null : f.key)}
+              >
+                {f.value == null ? <span aria-hidden="true">{figureDisplay(f.value)}</span> : figureDisplay(f.value)}
+                {f.value == null && <span className="folio-sr-only">not available yet</span>}
+              </DrillValue>
             </dd>
           </div>
         ))}
       </dl>
+      {drill && (
+        <KpiDrillSheet
+          id={sheetId}
+          drill={figureDrill(drill)}
+          title={figures.find((f) => f.key === drill)?.label.replace(/^./, (c) => c.toUpperCase()) ?? ''}
+          scope={{ stateCode: scope.stateCode, city: scope.city }}
+          scopeLabel={storyScopeLabel(scope)}
+          onClose={closeDrill}
+        />
+      )}
       {reasons.map((r) => (
         <p className="stance-note" key={r}>
           {r}

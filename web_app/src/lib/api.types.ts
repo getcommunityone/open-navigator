@@ -509,6 +509,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Center Caption Comments
+         * @description The public comments behind the caption counts under "Who spoke up" ("60 public comments", "Mention AI",
+         *     "Name Google"): each comment's place, date, speaker ("First L." when known) and the link to its moment in
+         *     the recording. ``total`` equals the tile. No comment text is served (see ``note``).
+         *
+         *     Example:
+         *         GET /api/data-centers/comments?year=2026&state=AL
+         */
+        get: operations["data_center_caption_comments_api_data_centers_comments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/community-events": {
         parameters: {
             query?: never;
@@ -730,6 +755,54 @@ export interface paths {
          *         GET /api/data-centers/sites?state=TX
          */
         get: operations["list_data_center_sites_api_data_centers_sites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data-centers/speakers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Center Speakers
+         * @description The public speakers behind "spoke for", "spoke against" or "asked a question" on the story's "Who spoke up"
+         *     screen, each with their own words and the moment in the recording. ``total`` equals the tile.
+         *
+         *     Example:
+         *         GET /api/data-centers/speakers?side=against&state=AZ
+         */
+        get: operations["data_center_speakers_api_data_centers_speakers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data-centers/vote-decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Center Vote Decisions
+         * @description The decisions behind "votes for" or "votes against": each data center decision with a recorded tally and at
+         *     least one vote on that side, newest first. ``total_votes`` equals the tile.
+         *
+         *     Example:
+         *         GET /api/data-centers/vote-decisions?side=for&state=AL
+         */
+        get: operations["data_center_vote_decisions_api_data_centers_vote_decisions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1240,34 +1313,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/{full_path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Serve React App
-         * @description Serve a real static file if one exists, else the React app (SPA routing).
-         *
-         *     Top-level public assets (e.g. /pdf/*, /communityone_logo.svg,
-         *     /robots.txt, /wikimedia/*) live in static_dir but are not under the
-         *     mounted /assets or /data trees. Without this file check they fall through
-         *     to index.html, so the browser loads the SPA into e.g. an <iframe
-         *     src="/pdf/..."> and React Router renders the NotFound (404) page instead
-         *     of the file. Vite's dev server serves these from public/ at the root, so
-         *     the gap only shows in production.
-         */
-        get: operations["serve_react_app__full_path__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1630,6 +1675,80 @@ export interface components {
             jurisdictions?: components["schemas"]["JurisdictionRunModel"][];
             /** State Code */
             state_code: string;
+        };
+        /** CaptionComment */
+        CaptionComment: {
+            /** Company Keys */
+            company_keys?: string[];
+            /** Concern Keys */
+            concern_keys?: string[];
+            /** Data Center Comment Id */
+            data_center_comment_id: string;
+            /**
+             * Jump Url
+             * @description The recording at the comment's start; null for a possible minor.
+             */
+            jump_url?: string | null;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /** Meeting Date */
+            meeting_date?: string | null;
+            /** Mentions Ai */
+            mentions_ai?: boolean | null;
+            /**
+             * Possible Minor
+             * @default false
+             */
+            possible_minor: boolean;
+            /**
+             * Speaker Display Name
+             * @description "First L."; null when unknown or withheld.
+             */
+            speaker_display_name?: string | null;
+            /** Start Seconds */
+            start_seconds?: number | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Withheld Reason */
+            withheld_reason?: string | null;
+        };
+        /** CaptionCommentsResponse */
+        CaptionCommentsResponse: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /** Company */
+            company?: string | null;
+            /**
+             * Filter
+             * @default all
+             * @enum {string}
+             */
+            filter: "all" | "ai" | "company";
+            /** Items */
+            items?: components["schemas"]["CaptionComment"][];
+            /** Limit */
+            limit: number;
+            /**
+             * Note
+             * @default Comments segmented from our captions are stored without their words (privacy by construction, #1233): each one links to its moment in the recording instead of being quoted.
+             */
+            note: string;
+            /** Offset */
+            offset: number;
+            scope: components["schemas"]["JobClaimScope"];
+            /**
+             * Total
+             * @description Every comment matching the filter in scope (the tile's number).
+             */
+            total?: number | null;
+            /**
+             * Year
+             * @description Calendar year filter as a string; null for all years.
+             */
+            year?: string | null;
         };
         /** ClaimIn */
         ClaimIn: {
@@ -3653,6 +3772,77 @@ export interface components {
             /** Stage */
             stage: string;
         };
+        /** Speaker */
+        Speaker: {
+            /**
+             * Decision Headline
+             * @description The item the comment is on, when there is one.
+             */
+            decision_headline?: string | null;
+            /** Event Decision Id */
+            event_decision_id?: string | null;
+            /** Jump Url */
+            jump_url?: string | null;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /**
+             * Match Basis
+             * @description Why it counts: data_center_decision, data_center_item, own_words or same_item.
+             */
+            match_basis?: string | null;
+            /** Meeting Date */
+            meeting_date?: string | null;
+            /** Public Comment Id */
+            public_comment_id: string;
+            /**
+             * Quote
+             * @description The speaker's own words, verbatim from the transcript.
+             */
+            quote?: string | null;
+            /**
+             * Quote Highlighted
+             * @description The same words with data center terms in <mark>.
+             */
+            quote_highlighted?: string | null;
+            /**
+             * Speaker Display Name
+             * @description "First L."; null when no name was heard.
+             */
+            speaker_display_name?: string | null;
+            /** Speaker Role */
+            speaker_role?: string | null;
+            /** Start Seconds */
+            start_seconds?: number | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Video Url */
+            video_url?: string | null;
+        };
+        /** SpeakersResponse */
+        SpeakersResponse: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /** Items */
+            items?: components["schemas"]["Speaker"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            scope: components["schemas"]["JobClaimScope"];
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "for" | "against" | "question";
+            /**
+             * Total
+             * @description Every counted speaker on this side in scope (the tile's number).
+             */
+            total?: number | null;
+        };
         /** StageBreakdownEntry */
         StageBreakdownEntry: {
             /**
@@ -3923,6 +4113,62 @@ export interface components {
             transcript_source: string;
             /** Video Id */
             video_id: string;
+        };
+        /** VoteDecision */
+        VoteDecision: {
+            /** Data Center Decision Id */
+            data_center_decision_id: string;
+            /**
+             * Decision Url
+             * @description Site path of the decision's page (/decisions/:id).
+             */
+            decision_url?: string | null;
+            /** Headline */
+            headline?: string | null;
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /** Meeting Date */
+            meeting_date?: string | null;
+            /** Outcome */
+            outcome?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Video Url */
+            video_url?: string | null;
+            /** Votes Against */
+            votes_against: number;
+            /** Votes For */
+            votes_for: number;
+        };
+        /** VoteDecisionsResponse */
+        VoteDecisionsResponse: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /** Items */
+            items?: components["schemas"]["VoteDecision"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            scope: components["schemas"]["JobClaimScope"];
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "for" | "against";
+            /**
+             * Total Decisions
+             * @description Decisions with a recorded tally and a vote on this side.
+             */
+            total_decisions?: number | null;
+            /**
+             * Total Votes
+             * @description Their votes on this side summed: the tile's number.
+             */
+            total_votes?: number | null;
         };
         /**
          * WorkflowRequest
@@ -4885,6 +5131,48 @@ export interface operations {
             };
         };
     };
+    data_center_caption_comments_api_data_centers_comments_get: {
+        parameters: {
+            query?: {
+                /** @description Meeting year (default 2026); 0 for all years. */
+                year?: number;
+                /** @description 2-letter code or full state name. */
+                state?: string | null;
+                /** @description City / jurisdiction name (substring). */
+                city?: string | null;
+                /** @description Only comments that mention AI (the 'Mention AI' tile). */
+                ai?: boolean;
+                /** @description Only comments naming this company key. */
+                company?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptionCommentsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_community_events_api_data_centers_community_events_get: {
         parameters: {
             query?: {
@@ -5210,6 +5498,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataCenterSitesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    data_center_speakers_api_data_centers_speakers_get: {
+        parameters: {
+            query: {
+                /** @description The tile: for, against or question. */
+                side: "for" | "against" | "question";
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpeakersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    data_center_vote_decisions_api_data_centers_vote_decisions_get: {
+        parameters: {
+            query: {
+                /** @description The tile: for or against. */
+                side: "for" | "against";
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteDecisionsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5994,37 +6358,6 @@ export interface operations {
             header?: never;
             path: {
                 workflow_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    serve_react_app__full_path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                full_path: string;
             };
             cookie?: never;
         };

@@ -9,7 +9,7 @@ import {
 
 function tabCls({ isActive }: { isActive: boolean }) {
   return [
-    'inline-flex items-center gap-1.5 border-b-2 px-2.5 py-1.5 text-sm font-medium transition-colors',
+    'inline-flex items-center gap-1.5 border-b-2 px-2 py-1 text-[13px] font-medium sm:px-2.5 sm:py-1.5 sm:text-sm transition-colors',
     isActive
       ? 'border-teal-600 text-teal-800'
       : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900',
@@ -18,22 +18,21 @@ function tabCls({ isActive }: { isActive: boolean }) {
 
 export default function DataExplorerLayout() {
   const { pathname } = useLocation()
-  const onMap = pathname.startsWith(`${DATA_EXPLORER_MAP_BASE}/`) || pathname === DATA_EXPLORER_MAP_BASE
   const onScorecard = pathname.startsWith(DATA_EXPLORER_SCORECARD)
   const onJurisdictionQuality =
     pathname === DATA_EXPLORER_JURISDICTION_QUALITY || pathname.startsWith(`${DATA_EXPLORER_JURISDICTION_QUALITY}/`)
 
   return (
     <div className="flex min-h-[calc(100dvh-4.25rem)] flex-1 flex-col page-bg">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-1 min-h-0 flex-col px-3 py-2 sm:px-4 md:px-5 md:py-3">
-        <header className="shrink-0 rounded-lg border border-slate-300/80 bg-white px-3 py-2 shadow-sm sm:px-4 sm:py-2">
-          <h1 className="text-lg font-semibold leading-tight text-slate-900 sm:text-xl">Data explorer</h1>
-          <p className="mt-0.5 max-w-[52rem] text-[11px] leading-snug text-slate-600 sm:text-xs">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-1 min-h-0 flex-col px-3 py-1 sm:px-4 sm:py-2 md:px-5 md:py-3">
+        <header className="shrink-0 rounded-lg border border-slate-300/80 bg-white px-2 py-1 shadow-sm sm:px-4 sm:py-2">
+          <h1 className="sr-only text-lg sm:not-sr-only font-semibold leading-tight text-slate-900 sm:text-xl">Data explorer</h1>
+          <p className="mt-0.5 hidden max-w-[52rem] sm:block text-[11px] leading-snug text-slate-600 sm:text-xs">
             American Community Survey (ACS) 5-year estimates — map and scorecard — plus jurisdiction website mapping
             coverage (counties, cities, school districts) from directory seeds and dbt marts.
           </p>
           <nav
-            className="mt-1.5 -mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+            className="mt-0 -mx-1 flex gap-0.5 overflow-x-auto px-1 sm:mt-1.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
             aria-label="Data explorer views"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
@@ -63,19 +62,17 @@ export default function DataExplorerLayout() {
               Data quality
             </NavLink>
           </nav>
-          {(onMap || onScorecard || onJurisdictionQuality) && (
+          {(onScorecard || onJurisdictionQuality) && (
             <p className="mt-0.5 text-[10px] leading-snug text-slate-600 sm:text-[11px]" aria-live="polite">
-              {onMap
-                ? 'Choropleth and drill-downs match the static census map bundle.'
-                : onScorecard
-                  ? 'Trend windows follow the vintage list in the published bundle (1-, 3-, and 5-year lookbacks when years exist).'
-                  : 'Mapping rates use NACo, USCM, NCES directory, GSA .gov, Wikidata, and overrides — snapshot from `web_app/public/data/jurisdiction_mapping_quality.json`.'}
+              {onScorecard
+                ? 'Trend windows follow the vintage list in the published bundle (1-, 3-, and 5-year lookbacks when years exist).'
+                : 'Mapping rates use NACo, USCM, NCES directory, GSA .gov, Wikidata, and overrides — snapshot from `web_app/public/data/jurisdiction_mapping_quality.json`.'}
             </p>
           )}
         </header>
 
         {/* Workspace: mid-slate so white cards read clearly (slate-100 alone looked “all white”). */}
-        <div className="mt-2 min-h-0 min-w-0 flex-1 rounded-xl border border-stone-300 bg-stone-200/50 p-1.5 shadow-inner sm:mt-2 sm:p-2 md:p-2.5">
+        <div className="mt-1 min-h-0 min-w-0 flex-1 rounded-xl border border-stone-300 bg-stone-200/50 p-1 shadow-inner sm:mt-2 sm:p-2 md:p-2.5">
           <Outlet />
         </div>
       </div>

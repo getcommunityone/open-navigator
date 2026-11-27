@@ -445,6 +445,16 @@ outputPorts:
   contractId: open-navigator-public-topic_company_mention
   type: table
   description: Where a topic's companies are named (#1052).
+- name: topic_legislation_bill
+  version: 1.0.0
+  contractId: open-navigator-public-topic_legislation_bill
+  type: table
+  description: OpenStates state bills about each curated topic, with a category from that topic's vocabulary (#1274).
+- name: topic_legislation_category
+  version: 1.0.0
+  contractId: open-navigator-public-topic_legislation_category
+  type: table
+  description: The category vocabulary each curated topic's state bills use (#1274).
 - name: company_grant
   version: 1.0.0
   contractId: open-navigator-public-company_grant

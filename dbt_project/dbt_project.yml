@@ -126,6 +126,31 @@ seeds:
         pattern_key: text
         place_kind: text
         pattern: text
+    topic_legislation_vocabulary:
+      # Category vocabulary per curated topic for state bills. '*' = the generic set.
+      +column_types:
+        topic_query_id: text
+        category: text
+        display_order: integer
+        label: text
+        description: text
+    topic_legislation_rule:
+      # Ordered keyword rules (POSIX regex on lowercased title + abstract) that pick a bill's category.
+      # Empty category = leave the bill out. '*' = the generic rules for topics without their own.
+      +column_types:
+        topic_query_id: text
+        rule_order: integer
+        category: text
+        pattern: text
+        note: text
+    topic_legislation_scope:
+      # Extra per-topic bill filters: require / exclude regex, and keywords not to use on bills.
+      +column_types:
+        topic_query_id: text
+        require_pattern: text
+        exclude_pattern: text
+        drop_keywords: text
+        note: text
     curated_topics:
       # Hand-authored topics unioned into stg_civicsearch__topic (issue #500).
       # topic_id >= 100000 so it can never collide with a CivicSearch id.

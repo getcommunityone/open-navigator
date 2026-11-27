@@ -1,0 +1,158 @@
+version: 2
+
+models:
+  - name: topic_legislation_bill
+    description: >
+      OpenStates state bills about each curated topic, with a category from that topic's vocabulary (#1274).
+      One row per (topic_id, bill_id). Every topic in the curated_topics seed is matched by its keywords column
+      (whole words, minus the topic_legislation_scope seed's drop_keywords), filtered by that seed's
+      require/exclude patterns, and categorised by the first matching rule in the topic_legislation_rule seed
+      (the topic's own rules, else the generic restrict/support/other set). status (enacted, passed_chamber, pending, failed)
+      comes from the bill's latest action, chapter citations and whether its session is over in our data.
+      Rule and hand check: web_docs/docs/development/topic-legislation-map.md.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [topic_id, bill_id]
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+      - type: foreign_key
+        columns: [bill_id]
+        to: ref('bills')
+        to_columns: [bill_uid]
+      - type: foreign_key
+        columns: [topic_id, category]
+        to: ref('topic_legislation_category')
+        to_columns: [topic_id, category]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [topic_id, bill_id]
+    columns:
+      - name: topic_id
+        description: "FK to civicsearch_topic (e.g. 100001 data centers, 100002 water fluoridation)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: topic_query_id
+        description: "The topic's slug (curated_topics.query_id), e.g. 'water-fluoridation'."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: bill_id
+        description: "FK to bills.bill_uid."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: ocd_bill_id
+        description: "OpenStates OCD bill id."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: identifier
+        description: "Bill number, e.g. 'HB 2395'."
+        data_type: text
+      - name: title
+        data_type: text
+      - name: session
+        description: "OpenStates session identifier, e.g. '2025-2026'."
+        data_type: text
+      - name: session_name
+        data_type: text
+      - name: category
+        description: "From the topic's vocabulary (topic_legislation_category): ban/restriction/protection/study/unclear for water fluoridation, restrict/incentive/protect for data centers, restrict/support/other otherwise."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: status
+        description: "enacted | passed_chamber | pending | failed, from the bill's own OpenStates fields (latest action, chapter citations, passage date, session closed)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enacted, passed_chamber, pending, failed]
+      - name: passed_a_chamber
+        description: "True when the bill was enacted or OpenStates records a passage vote in at least one chamber (also for a bill that later failed)."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: matched_term
+        description: "The first topic keyword found in the title or abstract (lowercase)."
+        data_type: text
+      - name: introduced_date
+        description: "The bill's first action date."
+        data_type: date
+      - name: last_action_date
+        description: "The bill's latest action date."
+        data_type: date
+      - name: last_action_description
+        data_type: text
+      - name: year
+        description: "Calendar year of the latest action (integer)."
+        data_type: integer
+      - name: url
+        description: "The bill's OpenStates page."
+        data_type: text
+      - name: dbt_loaded_at
+        data_type: timestamp with time zone
+
+  - name: topic_legislation_category
+    description: >
+      The category vocabulary each curated topic's state bills use (#1274). One row per (topic_id,
+      category): the topic's own rows from the topic_legislation_vocabulary seed, else the generic '*' set
+      (restrict / support / other).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [topic_id, category]
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [topic_id, category]
+    columns:
+      - name: topic_id
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: topic_query_id
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: category
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: display_order
+        data_type: integer
+      - name: label
+        description: "Display label, e.g. 'Ban'."
+        data_type: text
+      - name: description
+        data_type: text
+      - name: is_generic
+        description: "True when the topic uses the generic '*' vocabulary."
+        data_type: boolean

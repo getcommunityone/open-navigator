@@ -56,6 +56,14 @@ published on November 26, 2026 with `--only recorded_meeting_year` (8,076 rows; 
 
 `meeting_video_kind` (one row per video: whether it is a public meeting, from Jev's existing screen) is on the allow-list too ([#1258](https://github.com/getcommunityone/open-navigator/issues/1258)). The story map cards quote only real meetings with it (#1240); without it production falls back to the newest passage, interviews included. First published on November 27, 2026 with `--only meeting_video_kind` (6,264 rows; Neon 367 MB to 368 MB).
 
+Five comment and speaker tables are on the allow-list too ([#1286](https://github.com/getcommunityone/open-navigator/issues/1286)). The live site reads them, and without the entry a full sync skips them as unclassified. They were first published on November 27, 2026 with `--only` (Neon 368 MB to a projected 393 MB, under the 480 MB budget):
+
+- `meeting_comment` (47,578 rows): public comments at meetings.
+- `data_center_comment` (2,822 rows): comments on data center items, read by `/api/data-centers/comment-metrics`.
+- `data_center_comment_place` (11,255 rows): those comments by place.
+- `segmented_meeting` (13,682 rows): meetings split into segments.
+- `meeting_passage_speaker` (1,921 rows): speaker names on passages, read by `/api/topics/{id}/states`.
+
 ## Decision: production serving stays on Neon (November 15, 2026)
 
 The owner decided to keep production serving on Neon and not move it to Databricks Lakebase
