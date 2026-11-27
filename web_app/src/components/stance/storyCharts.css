@@ -35,6 +35,11 @@
 .sc-line.is-drawing { animation: sc-draw var(--d-4, 900ms) var(--ease-out) both; }
 @keyframes sc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 .sc-pt { fill: var(--violet); cursor: pointer; }
+/* A year whose count isn't comparable (thin recording coverage, #1207): dashed segments and a hollow point, never a
+   solid plunge. A share over too few recorded meetings is hollow too. */
+.sc-line--thin { stroke-dasharray: 5 4; stroke-width: 1.5; animation: sc-fade var(--d-2, 240ms) var(--ease-out) var(--d-4, 900ms) both; }
+@keyframes sc-fade { from { opacity: 0; } to { opacity: 1; } }
+.sc-pt.is-hollow { fill: var(--paper-raised); stroke: var(--violet); stroke-width: 1.5; }
 .sc-end { font-size: 22px; font-weight: 500; letter-spacing: -0.015em; fill: var(--ink); }
 
 /* Milestone track */
@@ -69,9 +74,15 @@
 .sc-delta-down { fill: var(--vermilion-ink); font-size: 13px; font-weight: 500; }
 .sc-dot-early { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
 .sc-dot-late { fill: var(--violet); }
+/* #1209: a single-value row (no comparison) is a stem from zero to the filled dot. */
+.sc-stem { stroke: var(--rule); }
+.sc-delta-flat { fill: var(--ink-2); font-size: 13px; font-weight: 500; }
+/* A stacked row's label sits over the gridlines: a paper halo keeps it legible. */
+.sc-label-halo { paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
 
 @media (prefers-reduced-motion: reduce) {
   .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq { transition: none !important; }
   .sc-line.is-drawing { animation: none; }
+  .sc-line--thin { animation: none; }
   .sc-matrix:not(.is-revealed) .sc-sq { opacity: 1; }
 }

@@ -1142,7 +1142,7 @@ async def _mention_extras(conn: Any, rows: list[dict[str, Any]]) -> None:
 
 
 MENTION_LEAN_SQL = (
-    "SELECT video_id, CASE WHEN coalesce(excluded_no_item, false) THEN NULL ELSE dc_outcome END AS ai_outcome, "
+    "SELECT video_id, nullif(dc_outcome, 'no_data_center_item') AS ai_outcome, "
     # A for/against lean under P 0.7 is split (#1200), as on the maps and in the title, so the unit matrix's "By who
     # spoke" groups never call an unsure reading "For data centers".
     "CASE WHEN public_lean IN ('mostly_opposed', 'mostly_supported') AND coalesce(public_lean_p, 0) < 0.7 "

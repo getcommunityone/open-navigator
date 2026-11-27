@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import httpx
+import yaml
 from fastapi import FastAPI
 
 from api.routes import topic_timeline as tt
+from api.routes.data_centers import MENTION_LEAN_SQL
 
 
 class _Conn:
@@ -243,3 +247,24 @@ def test_lean_table_of_another_shape_drops_milestones_not_the_line(monkeypatch) 
     assert body["milestones"] == []
     lean_sql, lean_params = next((s, p) for s, p in conn.calls if "FROM topic_meeting_lean l" in s)
     assert "l.topic_id = $1" in lean_sql and lean_params[0] == 100002
+
+
+def _model_columns(schema_file: str) -> set[str]:
+    root = Path(__file__).resolve().parents[1] / "dbt_project" / "models" / "marts" / schema_file
+    doc = yaml.safe_load(root.read_text())
+    return {c["name"] for m in doc["models"] for c in m.get("columns", [])}
+
+
+def test_lean_queries_read_only_columns_in_the_model_contract() -> None:
+    """#1207: a column that exists only in one warehouse (excluded_no_item) made production's milestone query fail and
+    the track silently empty. Every ``l.<col>`` the milestone SQL reads must be in the model's schema.yml."""
+    dc_cols = _model_columns("_schema_data_center_meeting_lean.yml")
+    topic_cols = _model_columns("_schema_topic_meeting_lean.yml")
+    for slug, cols, tid in (("data-centers", dc_cols, None), ("guns", topic_cols, 7)):
+        for scope in (tt.build_scope(None, None), tt.build_scope("GA", "Atlanta")):
+            sql, _ = tt.milestones_sql(slug, scope, tid)
+            used = set(re.findall(r"\bl\.([a-z_]+)", sql))
+            assert used and used <= cols, f"{slug}: {sorted(used - cols)} not in the model"
+    assert "excluded_no_item" not in MENTION_LEAN_SQL
+    for col in ("dc_outcome", "public_lean", "video_id"):
+        assert col in dc_cols

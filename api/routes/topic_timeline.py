@@ -208,12 +208,16 @@ def recorded_years_sql(scope: TimelineScope) -> tuple[str, list[Any]]:
 
 
 def milestones_sql(slug: str, scope: TimelineScope, topic_id: int | None = None) -> tuple[str, list[Any]]:
-    """Meetings with an approval, denial, tabling or moratorium (an AI reading), newest last."""
+    """Meetings with an approval, denial, tabling or moratorium (an AI reading), newest last.
+
+    Reads only columns in the lean models' contracts (``_schema_data_center_meeting_lean.yml``,
+    ``_schema_topic_meeting_lean.yml``): a column that exists only in one warehouse makes the serving copy's query fail,
+    and the track silently empties (#1207). ``dc_outcome IN (...)`` already leaves out meetings with no data center item.
+    """
     params: list[Any] = []
     if slug == DATA_CENTERS:
         w = [
             "l.meeting_date IS NOT NULL",
-            "NOT coalesce(l.excluded_no_item, false)",
             "l.dc_outcome IN ('approved', 'denied', 'tabled_or_deferred', 'moratorium')",
             *_where(scope, "l.state_code", ("l.jurisdiction_name",), params),
         ]

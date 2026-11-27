@@ -65,6 +65,113 @@ export function gapYears(years: TimelineYear[], mode: SeriesMode): string[] {
   return out
 }
 
+/**
+ * Thin recording coverage (#1207). A year is thin when its recorded meetings are below THIN_RATIO of BOTH
+ *   - the median of its neighbours' recorded meetings (up to THIN_WINDOW years on each side), so it is a dip, not a
+ *     step on the ramp (2009–2011 nationally sit far below the scope's typical year but in line with their neighbours);
+ *   - the median of every recorded year in the scope, so a ramp's step is not called a hole (Georgia 2024: 115
+ *     recorded against 794 in 2025, but 2023 had 92 and the state's typical year is ~190).
+ * It must also be a dip (some year on each side recorded more), so the first and last years never are, and flagged
+ * years are left out of their neighbours' medians, so every year of a long hole is caught, not only its ends.
+ * Ratios, not counts, so the same rule works for 16,873 meetings nationally and a dozen in a town. Nationally only 2024
+ * qualifies (932 recorded against ~13,000 around it and a median of ~5,200).
+ */
+export const THIN_RATIO = 0.25
+export const THIN_WINDOW = 2
+
+function median(xs: number[]): number | null {
+  if (!xs.length) return null
+  const s = [...xs].sort((a, b) => a - b)
+  const m = Math.floor(s.length / 2)
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2
+}
+
+/** Years (as numbers) whose recorded meetings are thin under the rule above. Needs at least three recorded years. */
+export function thinYears(years: TimelineYear[]): Set<number> {
+  const rec = years
+    .map((y) => ({ year: Number(y.year), n: y.all_recorded_meetings }))
+    .filter((r): r is { year: number; n: number } => Number.isFinite(r.year) && r.n != null && r.n > 0)
+    .sort((a, b) => a.year - b.year)
+  const out = new Set<number>()
+  const scopeMed = median(rec.map((r) => r.n))
+  if (scopeMed == null || rec.length < 3) return out
+  // Repeat with flagged years left out of the neighbours, so every year of a long hole is caught, not only its ends.
+  // A year must be a dip: a neighbour on each side recorded more (so the start of a ramp and the last year never are).
+  /** Unflagged years on one side: those within the window (or else the nearest one), and the most any of them recorded. */
+  const side = (i: number, dir: -1 | 1): { near: number[]; most: number } => {
+    const near: number[] = []
+    let nearest: number | null = null
+    let most = 0
+    for (let j = i + dir; j >= 0 && j < rec.length; j += dir) {
+      const o = rec[j]!
+      if (out.has(o.year)) continue
+      most = Math.max(most, o.n)
+      if (Math.abs(o.year - rec[i]!.year) <= THIN_WINDOW) near.push(o.n)
+      else if (nearest == null) nearest = o.n
+    }
+    return { near: near.length ? near : nearest != null ? [nearest] : [], most }
+  }
+  for (let grew = true; grew; ) {
+    grew = false
+    rec.forEach((r, i) => {
+      if (out.has(r.year)) return
+      const left = side(i, -1)
+      const right = side(i, 1)
+      if (left.most <= r.n || right.most <= r.n) return
+      const localMed = median([...left.near, ...right.near])!
+      if (r.n < THIN_RATIO * localMed && r.n < THIN_RATIO * scopeMed) {
+        out.add(r.year)
+        grew = true
+      }
+    })
+  }
+  return out
+}
+
+/**
+ * The series the chart opens on: the share when it can be drawn and a year on the count line is thin (its count would
+ * read as a real drop), otherwise the count. Not when a thin year's share rests on fewer than MIN_RECORDED_FOR_ZERO
+ * recorded meetings: that share would be a spike of its own (1 of 2 meetings = 50%), so the count line stays.
+ */
+export function defaultSeriesMode(years: TimelineYear[], coverageAvailable: boolean): SeriesMode {
+  if (!coverageAvailable || !years.some((y) => y.share != null)) return 'meetings'
+  const drawn = new Set(buildSeries(years, 'meetings').flat().map((p) => p.year))
+  const thin = years.filter((y) => drawn.has(Number(y.year)) && thinYears(years).has(Number(y.year)))
+  if (!thin.length) return 'meetings'
+  return thin.every((y) => y.share != null && (y.all_recorded_meetings ?? 0) >= MIN_RECORDED_FOR_ZERO) ? 'share' : 'meetings'
+}
+
+/** A run cut into pieces for drawing: a piece touching a thin year is dashed (count mode only), the rest solid. */
+export function splitRun(run: SeriesPoint[], thin: Set<number>): { dashed: boolean; points: SeriesPoint[] }[] {
+  const out: { dashed: boolean; points: SeriesPoint[] }[] = []
+  for (let i = 1; i < run.length; i++) {
+    const a = run[i - 1]!
+    const b = run[i]!
+    const dashed = thin.has(a.year) || thin.has(b.year)
+    const piece = out[out.length - 1]
+    if (piece && piece.dashed === dashed) piece.points.push(b)
+    else out.push({ dashed, points: [a, b] })
+  }
+  return out
+}
+
+/** A hollow marker: a thin year in count mode; in share mode, a share over fewer than MIN_RECORDED_FOR_ZERO meetings. */
+export function isHollow(p: SeriesPoint, mode: SeriesMode, thin: Set<number>): boolean {
+  if (mode === 'meetings') return thin.has(p.year)
+  return (p.src.all_recorded_meetings ?? 0) < MIN_RECORDED_FOR_ZERO
+}
+
+/** "Only 932 meetings were recorded in 2024, so that year's count is not comparable." Null when no year is thin. */
+export function thinNote(years: TimelineYear[], thin: Set<number>): string | null {
+  const ys = years
+    .filter((y) => thin.has(Number(y.year)) && y.all_recorded_meetings != null)
+    .sort((a, b) => Number(a.year) - Number(b.year))
+  if (!ys.length) return null
+  const parts = ys.map((y, i) => `${y.all_recorded_meetings!.toLocaleString('en-US')}${i === 0 ? ' meetings were recorded' : ''} in ${y.year}`)
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+  return `Only ${list}, so ${ys.length === 1 ? "that year's count is" : "those years' counts are"} not comparable.`
+}
+
 /** "nice" upper bound for an axis. */
 export function niceMax(v: number): number {
   if (!(v > 0)) return 1

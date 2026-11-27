@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+// The state's story plays its drill-down transition on arrival, from the national layout (#1195).
+import { DRILL_FROM_NATIONAL } from '../stance/drillState'
 import { useQuery } from '@tanstack/react-query'
 import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
 import { excerptAroundMark } from '../../lib/highlight'
@@ -261,7 +263,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       const st = lineOf(stanceBy.get(code))
       return `${n?.state ?? STATE_CODE_TO_NAME[code] ?? code}: ${plural(n?.meetings ?? 0, 'meeting', 'meetings')}${st ? `; ${st}` : ''}.`
     },
-    onActivate: (code) => navigate(href(code)),
+    onActivate: (code) => navigate(href(code), { state: DRILL_FROM_NATIONAL }),
   })
 
   if (isError) return <p className="text-sm text-stone-500">The map could not be loaded.</p>
@@ -335,7 +337,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     if (!b?.code) return
     // One tap or click opens the state's story (#1120): on a phone there is no hover, so a first tap that only showed
     // the card read as a drill-down that didn't work.
-    navigate(href(b.code))
+    navigate(href(b.code), { state: DRILL_FROM_NATIONAL })
   }
 
   return (
@@ -400,6 +402,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               styles so it looks the same on the home page and on topic stories (outside .v9). */}
           <Link
             to={href(shownCode)}
+            state={DRILL_FROM_NATIONAL}
             className="home-map-card-open"
             style={{
               display: 'block',
@@ -507,7 +510,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                 {listed.map((r) => (
                   <tr key={r.code} className="border-t border-stone-200">
                     <td className="py-1 pr-2">
-                      <Link to={href(r.code)} className="text-teal-800 underline">
+                      <Link to={href(r.code)} state={DRILL_FROM_NATIONAL} className="text-teal-800 underline">
                         {r.name}
                       </Link>
                     </td>
