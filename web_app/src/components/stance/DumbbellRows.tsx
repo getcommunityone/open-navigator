@@ -79,8 +79,9 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
   const bLegendX = single || !aName ? plotL + 5 : plotL + 14 + aName.length * 6.6 + 16
 
   // Compact layout, worked out for every visible row first, so all rows share one height.
+  // (Label widths are estimates: ~6.9px a character for the 12px label, ~7.5px for the change.)
   const plan = new Map(
-    visible.map((r) => {
+    (compact ? visible : []).map((r) => {
       const a = r.a == null ? null : { x: xs(r.a), width: labelWidth(pctLabel(r.a)) }
       const b = { x: xs(r.b), width: labelWidth(pctLabel(r.b)) }
       const right = single ? '' : r.right
@@ -125,7 +126,7 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
           {rows.map((r) => {
             const at = rank.get(r.key)
             const p = plan.get(r.key)
-            if (at == null || !p) return null
+            if (at == null) return null
             const y = topPad + at * rowH
             const a = xs(r.a ?? 0)
             const b = xs(r.b)
@@ -139,7 +140,7 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
             return (
               <g key={r.key} className="sc-row" style={{ transform: `translate(0px, ${y}px)` }} tabIndex={0} role="img" aria-label={r.ariaLabel} {...bind(r.tip)}>
                 <rect className="sc-row-hit" x={0} y={0} width={w} height={rowH} fill="transparent" />
-                {compact ? (
+                {compact && p ? (
                   p.lines.map((line, i) => (
                     <text key={i} className="sc-label" x={0} y={textY + i * 15}>
                       {line}
@@ -175,17 +176,17 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
                   r={6}
                   style={{ opacity: revealed ? 1 : 0, transform: revealed ? 'translateX(0px)' : `translateX(${(a - b).toFixed(1)}px)`, transitionDelay: delay(d + 120) }}
                 />
-                {compact && r.a != null && p.values.a && (
+                {compact && p && r.a != null && p.values.a && (
                   <text className="sc-micro sc-fade sc-val-a" x={p.values.a.x} y={p.values.a.below ? trackY + 19 : trackY - 11} textAnchor="middle" style={fade(d + 200)}>
                     {pctLabel(r.a)}
                   </text>
                 )}
-                {compact && (
+                {compact && p && (
                   <text className="sc-micro sc-fade sc-val-b" x={p.values.b.x} y={trackY - 11} textAnchor="middle" style={fade(d + 640)}>
                     {pctLabel(r.b)}
                   </text>
                 )}
-                {(!compact || p.right) && (
+                {(!compact || p?.right) && (
                   <text
                     className={`sc-fade ${single ? 'sc-delta-flat' : r.negative ? 'sc-delta-down' : 'sc-delta-up'}`}
                     x={w}
