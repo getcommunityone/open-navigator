@@ -5,7 +5,7 @@ title: "fix(stories): a state-scoped story never shows America's title or the na
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 363bb68c45acdf0c6608b30b8080ea58a5b83419
+head_sha: 75f33ac46cbefe0f279deed09e3014cd264baa7e
 verdict: approve
 ---
 
@@ -22,6 +22,7 @@ Automated review (#648) for PR #1317 on `fix/1316-state-never-national`. Heurist
 - `pull_requests/assets/1316/after-phone.png`
 - `pull_requests/assets/1316/before-laptop.png`
 - `pull_requests/assets/1316/before-phone.png`
+- `pull_requests/pr-1317-review.md`
 - `web_app/src/pages/TopicStory.tsx`
 - `web_app/src/utils/storyCaption.test.ts`
 - `web_app/src/utils/storyCaption.ts`
@@ -31,7 +32,7 @@ Automated review (#648) for PR #1317 on `fix/1316-state-never-national`. Heurist
 
 ## CI Status
 
-See the PR checks on `363bb68c45ac`.
+See the PR checks on `75f33ac46cbe`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
