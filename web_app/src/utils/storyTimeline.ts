@@ -71,6 +71,8 @@ export function gapYears(years: TimelineYear[], mode: SeriesMode): string[] {
  *     step on the ramp (2009–2011 nationally sit far below the scope's typical year but in line with their neighbours);
  *   - the median of every recorded year in the scope, so a ramp's step is not called a hole (Georgia 2024: 115
  *     recorded against 794 in 2025, but 2023 had 92 and the state's typical year is ~190).
+ * It must also be a dip (some year on each side recorded more), so the first and last years never are, and flagged
+ * years are left out of their neighbours' medians, so every year of a long hole is caught, not only its ends.
  * Ratios, not counts, so the same rule works for 16,873 meetings nationally and a dozen in a town. Nationally only 2024
  * qualifies (932 recorded against ~13,000 around it and a median of ~5,200).
  */
@@ -93,23 +95,50 @@ export function thinYears(years: TimelineYear[]): Set<number> {
   const out = new Set<number>()
   const scopeMed = median(rec.map((r) => r.n))
   if (scopeMed == null || rec.length < 3) return out
-  rec.forEach((r, i) => {
-    const nb = rec.filter((o, j) => j !== i && Math.abs(o.year - r.year) <= THIN_WINDOW).map((o) => o.n)
-    const localMed = median(nb)
-    if (localMed != null && r.n < THIN_RATIO * localMed && r.n < THIN_RATIO * scopeMed) out.add(r.year)
-  })
+  // Repeat with flagged years left out of the neighbours, so every year of a long hole is caught, not only its ends.
+  // A year must be a dip: a neighbour on each side recorded more (so the start of a ramp and the last year never are).
+  /** Unflagged years on one side: those within the window (or else the nearest one), and the most any of them recorded. */
+  const side = (i: number, dir: -1 | 1): { near: number[]; most: number } => {
+    const near: number[] = []
+    let nearest: number | null = null
+    let most = 0
+    for (let j = i + dir; j >= 0 && j < rec.length; j += dir) {
+      const o = rec[j]!
+      if (out.has(o.year)) continue
+      most = Math.max(most, o.n)
+      if (Math.abs(o.year - rec[i]!.year) <= THIN_WINDOW) near.push(o.n)
+      else if (nearest == null) nearest = o.n
+    }
+    return { near: near.length ? near : nearest != null ? [nearest] : [], most }
+  }
+  for (let grew = true; grew; ) {
+    grew = false
+    rec.forEach((r, i) => {
+      if (out.has(r.year)) return
+      const left = side(i, -1)
+      const right = side(i, 1)
+      if (left.most <= r.n || right.most <= r.n) return
+      const localMed = median([...left.near, ...right.near])!
+      if (r.n < THIN_RATIO * localMed && r.n < THIN_RATIO * scopeMed) {
+        out.add(r.year)
+        grew = true
+      }
+    })
+  }
   return out
 }
 
 /**
  * The series the chart opens on: the share when it can be drawn and a year on the count line is thin (its count would
- * read as a real drop), otherwise the count.
+ * read as a real drop), otherwise the count. Not when a thin year's share rests on fewer than MIN_RECORDED_FOR_ZERO
+ * recorded meetings: that share would be a spike of its own (1 of 2 meetings = 50%), so the count line stays.
  */
 export function defaultSeriesMode(years: TimelineYear[], coverageAvailable: boolean): SeriesMode {
   if (!coverageAvailable || !years.some((y) => y.share != null)) return 'meetings'
   const drawn = new Set(buildSeries(years, 'meetings').flat().map((p) => p.year))
-  for (const y of thinYears(years)) if (drawn.has(y)) return 'share'
-  return 'meetings'
+  const thin = years.filter((y) => drawn.has(Number(y.year)) && thinYears(years).has(Number(y.year)))
+  if (!thin.length) return 'meetings'
+  return thin.every((y) => y.share != null && (y.all_recorded_meetings ?? 0) >= MIN_RECORDED_FOR_ZERO) ? 'share' : 'meetings'
 }
 
 /** A run cut into pieces for drawing: a piece touching a thin year is dashed (count mode only), the rest solid. */

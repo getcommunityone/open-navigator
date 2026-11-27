@@ -122,8 +122,7 @@ describe('thin recording coverage (#1207)', () => {
 
   it('flags the national 2024 hole, not the early ramp', () => {
     const thin = thinYears(national)
-    expect(thin.has(2024)).toBe(true)
-    for (const y of [2009, 2010, 2011, 2023, 2025]) expect(thin.has(y)).toBe(false)
+    expect([...thin]).toEqual([2024])
   })
 
   it("doesn't call a state's ramp step a hole (Georgia data centers 2021–26)", () => {
@@ -135,6 +134,17 @@ describe('thin recording coverage (#1207)', () => {
     const town = [yr('2021', 2, 10), yr('2022', 1, 12), yr('2023', 0, 1), yr('2024', 3, 11), yr('2025', 2, 9)]
     expect([...thinYears(town)]).toEqual([2023])
     expect([...thinYears(town.slice(0, 2))]).toEqual([]) // too few years to judge
+  })
+
+  it('catches every year of a long hole, not only its ends', () => {
+    const long = [1000, 1000, 100, 100, 100, 100, 1000, 1000].map((n, i) => yr(String(2015 + i), 10, n))
+    expect([...thinYears(long)].sort()).toEqual([2017, 2018, 2019, 2020])
+  })
+
+  it("stays on counts when a thin year's share rests on too few recorded meetings", () => {
+    const town = [yr('2021', 2, 40), yr('2022', 3, 44), yr('2023', 1, 2), yr('2024', 3, 41), yr('2025', 2, 39)]
+    expect([...thinYears(town)]).toEqual([2023])
+    expect(defaultSeriesMode(town, true)).toBe('meetings')
   })
 
   it('opens on the share when a drawn year is thin and coverage is known; otherwise on counts', () => {

@@ -101,7 +101,10 @@ both
    and not a step on the ramp; and
 2. the median of every recorded year in the scope, so a step on a steep ramp is not called a hole.
 
-It needs at least three recorded years. Ratios, not counts, so it works at every scope:
+It must also be a **dip**: some year on each side recorded more, so the first year of a ramp and the latest year are
+never thin. Years already flagged are left out of their neighbours' medians and the test repeats until nothing new is
+flagged, so every year of a multi-year hole is caught, not only its two ends. It needs at least three recorded years.
+Ratios, not counts, so it works at every scope:
 
 | Scope | Result | Why |
 | --- | --- | --- |
@@ -113,15 +116,17 @@ One test alone fails one of these cases: the scope median flags the whole early 
 Georgia 2024 but not the lower 2023.
 
 **Drawing.** In Meetings (count) mode a thin year is a **hollow point** joined by **dashed segments** (`splitRun`,
-`.sc-line--thin`), never a solid plunge, and the note names it: "Only 932 meetings were recorded in 2024, so that year's
+`.sc-line--thin`, which fades in after the solid line has drawn), never a solid plunge, and the note names it: "Only 932 meetings were recorded in 2024, so that year's
 count is not comparable." In Share mode the share is still meaningful, so the year is drawn normally; a point is hollow
 there only when the share is over fewer than 25 recorded meetings (`MIN_RECORDED_FOR_ZERO`), and the note says so. A year
 that is already a gap (no topic meetings and under 25 recorded) stays a gap.
 
-**Default mode** (`defaultSeriesMode`). When coverage is available and a year on the count line is thin, the chart
-**opens on the share** of recorded meetings, with the toggle still offered, and the note says why ("… not comparable. The
+**Default mode** (`defaultSeriesMode`). When coverage is available and a year on the count line is thin, and every such
+year still has at least 25 recorded meetings, the chart **opens on the share** of recorded meetings, with the toggle still offered, and the note says why ("… not comparable. The
 share of recorded meetings still compares, so the chart opens on it; Meetings shows the counts."). Otherwise it opens on
-counts, which are easier to read when every year is comparable. Opening on a count line with a dashed hole would show a
+counts, which are easier to read when every year is comparable. A thin year with fewer than 25 recorded meetings keeps the
+chart on counts: its share would be a spike of its own (1 of 2 meetings is 50%), so "the share still compares" would be
+untrue. Opening on a count line with a dashed hole would show a
 plunge first and explain it second; the share answers the question the reader is asking (did attention to the topic
 change?) without the recording hole. The reader's choice of toggle is kept while they stay on the chart.
 - The coverage note is always shown: "Meetings in our record by year; recording coverage grew sharply in 2025–26, so the
