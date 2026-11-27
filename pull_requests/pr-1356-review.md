@@ -5,7 +5,7 @@ title: "feat(stories): data centers over time screen and an honest recorded-meet
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 77c978ca23674892ebd8be837abdeaf4962b63d7
+head_sha: bd4d40209453382137eacc20d33a1e220ae532cb
 verdict: approve
 ---
 
@@ -49,7 +49,7 @@ Automated review (#648) for PR #1356 on `feat/1348-dc-sites-over-time`. Heuristi
 
 ## CI Status
 
-See the PR checks on `77c978ca2367`.
+See the PR checks on `bd4d40209453`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
