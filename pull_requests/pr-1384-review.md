@@ -2,60 +2,28 @@
 pr: 1384
 branch: fix/1380-phone-overview-map-size
 title: "fix(web): phone Overview map fills the screen, compact header and stat row"
-author: jcbowyer
+author: claude-code
 reviewed_at: 2026-11-27
-reviewer: github-actions
-head_sha: 34c34bcaf88150f28310a162fb937c5c25dbdc47
-verdict: approve
+reviewer: coordinator
+verdict: approve-with-nits
 ---
 
-# PR Review: fix(web): phone Overview map fills the screen, compact header and stat row
+## Scans
 
-## Summary
-
-Automated review (#648) for PR #1384 on `fix/1380-phone-overview-map-size`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
-
-## Scope of Change
-
-- `web_app/e2e/phone-overview-map.check.mjs`
-- `web_app/e2e/story-header.check.mjs`
-- `web_app/src/components/stance/ScopeNote.tsx`
-- `web_app/src/components/stance/StoryScreenFrame.tsx`
-- `web_app/src/components/stance/StoryScreenView.tsx`
-- `web_app/src/pages/TopicStory.tsx`
-- `web_app/src/styles/stance.css`
-- `web_app/src/utils/resolveStoryScope.ts`
-- `web_app/src/utils/storySummary.test.ts`
-- `web_app/src/utils/storySummary.ts`
-
-## CI Status
-
-See the PR checks on `34c34bcaf881`.
-
-## Scans (secrets, fabricated data, personal data, destructive data changes)
-
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
+- Secrets / fabricated data / personal data / destructive: none. The stat row shows only real figures (`summaryStats`); the topic check's place counts are a Playwright route stub, test-only.
 
 ## Findings
 
-### 🔴 Blocking (Critical)
+- Nit: new phone rules use the existing 767px story breakpoint, not 640px, so tablets in portrait get the same layout as phones.
+- Nit: a long topic name is ellipsized in the header select at phone width (the full name is still the selected option) to keep the headline to two lines.
+- Nit: the state outline fallback (no county data) keeps its legend line; its other notes are hidden on the phone Overview.
 
-None.
+## Notes
 
-### 🟡 Should fix (Important)
+Scope label still matches the filter: "Showing Alabama · Why?" names the state shown and the reason is behind Why?. StoryCountyMap is untouched (CSS only). Desktop rules are unchanged (all inside the phone media query).
 
-None from automated heuristics.
+## Local checks
 
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
-
-## Verdict
-
-**approve**
+- `vitest run` -> 951 passed; `tsc --noEmit` clean
+- `node e2e/phone-overview-map.check.mjs` -> all checks passed (360x740, 412x915; data center and topic story)
+- `node e2e/story-header.check.mjs` -> no failures
