@@ -585,6 +585,16 @@ Below them, the passages are a **unit matrix**: one square per passage, regroupe
 
 The headline names the year with the most meetings when the passage list is complete ("Data centers came up in 71 meetings in Texas, most of them in 2026 (278 quoted passages)."); when years tie or the list is capped it keeps the plain count.
 
+### State bills, votes and the five positions (#1274)
+
+Every topic story (`/stories/<topic>`) has two screens after **Who spoke**, and the Who spoke screen gains a chart for topics read with five positions. All three come from our own records and follow the page's state filter:
+
+- **State bills** screen. A US map with each state coloured by the furthest any of its bills on the topic got: enacted, passed one chamber, introduced and pending, or failed. The bills are our copy of OpenStates, matched by the topic's keywords in each bill's subject tags, title and abstract. Two filters recolour it: the period (the last two years with bills, or every year) and the direction (for water fluoridation: ban, restriction, protection, study, or direction not stated). Click or tap a state, or Tab to it and press Enter, to list its bills, each linked to its OpenStates page; every state with a bill is also listed under the map. A bill whose title and abstract don't say which way it goes is shown by status only, never guessed.
+- **Who spoke** screen, five positions. For a topic whose meeting reading has five positions (water fluoridation), one bar per position, counting meetings whose AI reading (Jev) put the public who spoke closest to it. Water fluoridation's five: Support, require everywhere · Support, each community decides · No opinion · Oppose, each community decides · Oppose, ban everywhere. It counts meetings, not people; meetings where the public didn't speak are given in the note. Other topics keep only the four-way breakdown.
+- **Votes** screen. Meetings where, in the AI reading, the council or board voted to move the topic forward (fluoridation: keep or start it), voted to stop or limit it (end it), or tabled or put it off: totals that double as filters, a column per year, the states with most actions, and the meetings themselves, each linked to its recording with how sure the reading was.
+
+There is no ballot-measure chart: we have no ballot-measure data on these topics yet ([#1275](https://github.com/getcommunityone/open-navigator/issues/1275)). Rules, colours and counts: [Topic legislation map, positions and local actions](../development/topic-legislation-map.md).
+
 ## Add a story
 
 1. Add the screens to `web_app/src/utils/dataStory.ts` (a list like `DATA_CENTER_STORY`: an `id`, a short word, the dataset key and the kind; start with a `question` and a `scope` screen and end with a `verdict` screen) and a function per record screen that returns its headline and context from the endpoint's response. Add them to `screenText` and cover them in `dataStory.test.ts`, including the empty and failed cases and the banned wording.

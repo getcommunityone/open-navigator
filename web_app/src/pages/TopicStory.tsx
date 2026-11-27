@@ -40,6 +40,11 @@ import StoryScreenFrame from '../components/stance/StoryScreenFrame'
 import TopicPositionsBreakdown from '../components/stance/TopicPositionsBreakdown'
 import StoryNextButton from '../components/stance/StoryNextButton'
 import { useStoryScreens } from '../components/stance/useStoryScreens'
+import LegislationMap from '../components/stance/LegislationMap'
+import LocalActionsTracker from '../components/stance/LocalActionsTracker'
+import PositionBreakdown from '../components/stance/PositionBreakdown'
+import { fetchTopicLegislation, fetchTopicLocalActions } from '../api/topicPolicy'
+import { actionLabels, shadeStates, STATUS_LABEL, yearSpan } from '../utils/topicPolicy'
 import '../styles/folio.css'
 import '../styles/stance.css'
 import '../styles/story-actions.css'
@@ -49,7 +54,8 @@ import { HOUSE_STYLE } from '../utils/houseTheme'
 /**
  * A topic story (#1013): one curated topic's meetings, told from the transcript record. Since #1224 it is told screen by
  * screen like the Data Center Story (the shared screen machine `useStoryScreens`, the same top bar, progress segments,
- * Back/Next, keys and swipe): a cover, then Overview (the state box map), Over time, Who spoke, Companies, What was said,
+ * Back/Next, keys and swipe): a cover, then Overview (the state box map), Over time, Who spoke, State bills, Votes (#1274),
+ * Companies, What was said,
  * Decisions and a Recap. Every screen is built from data the topic has (utils/topicStoryScreens); one with nothing on record
  * for the place drops out and the cover says so. Everything shown is counted or quoted from `topic_transcript_link`, the AI
  * reading (`topic_meeting_lean`) and the decisions search for the topic.
@@ -229,6 +235,21 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
     staleTime: 5 * 60_000,
   })
 
+  // State bills (#1274): national counts (the map shows every state; the scoped state is outlined and opened). Same query
+  // keys as LegislationMap / LocalActionsTracker, so the screen and its chart share one request.
+  const legislation = useQuery({
+    queryKey: ['topic-legislation', def.slug],
+    queryFn: () => fetchTopicLegislation(def.slug),
+    staleTime: 10 * 60_000,
+    retry: 1,
+  })
+  const localActions = useQuery({
+    queryKey: ['topic-local-actions', def.slug, stateCode ?? 'national'],
+    queryFn: () => fetchTopicLocalActions(def.slug, stateCode ?? undefined),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+
   // --- which screens the place has ---------------------------------------------------------------------------------------
   const facts = captionQ.data
   const meetingCount = facts?.meetings ?? 0
@@ -239,6 +260,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const availability: Partial<Record<TopicScreenId, ScreenAvailability>> = {
     timeline: avail(captionQ, () => meetingCount > 0),
     positions: avail(captionQ, () => counts != null),
+    bills: avail(legislation, () => (legislation.data?.total_bills ?? 0) > 0),
+    actions: avail(localActions, () => (localActions.data?.total ?? 0) > 0),
     companies: def.companiesPath ? avail(companies, () => named.length > 0) : 'absent',
     said: avail(meetings, () => total > 0),
     decided: avail(decisions, () => (decisions.data?.total ?? 0) > 0),
@@ -376,7 +399,48 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         return {
           headline: h,
           context: `${line}An AI read each meeting's transcript for the public's position: these are meetings, never counted speakers.`,
-          right: counts ? <TopicPositionsBreakdown counts={counts} words={words} scopeLabel={label} labelledBy="story-h-positions" /> : null,
+          right: counts ? (
+            <>
+              <TopicPositionsBreakdown counts={counts} words={words} scopeLabel={label} labelledBy="story-h-positions" />
+              {/* Topics read with their own five positions (water fluoridation) also show them in full (#1274). */}
+              <PositionBreakdown topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} fiveOnly />
+            </>
+          ) : null,
+        }
+      }
+      case 'bills': {
+        const L = legislation.data
+        const all = L ? shadeStates(L.summary, { sinceYear: null, category: null }) : []
+        const here = stateCode ? all.find((x) => x.state_code === stateCode) : undefined
+        const enacted = L?.status_counts.enacted ?? 0
+        const span = L ? yearSpan(L.summary) : null
+        return {
+          headline: loadingOr(legislation, 'state bills', () =>
+            stateCode
+              ? here
+                ? `${stateName}'s legislature has taken up ${topicWord}: the furthest a bill got is ${STATUS_LABEL[here.status].toLowerCase()}.`
+                : `${stateName}'s legislature has no bill on ${topicWord} in our record; ${fmt(all.length)} other states do.`
+              : `${fmt(all.length)} statehouses have taken up ${topicWord}${span ? ` since ${span[0]}` : ''}.`,
+          ),
+          context: L
+            ? `${fmt(L.total_bills)} state ${L.total_bills === 1 ? 'bill' : 'bills'} in our copy of OpenStates${enacted ? `, ${fmt(enacted)} enacted` : ''}. Each state is coloured by the furthest any of its bills got; choose one to see its bills.`
+            : 'State bills in our copy of OpenStates.',
+          right: <LegislationMap topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} />,
+        }
+      }
+      case 'actions': {
+        const A = localActions.data
+        const w = actionLabels(def.slug)
+        return {
+          headline: loadingOr(localActions, 'votes', () =>
+            A
+              ? `${stateName ? `In ${stateName}` : 'Across America'}, local bodies ${w.advanced.charAt(0).toLowerCase()}${w.advanced.slice(1)} in ${meetingsWord(A.totals.advanced)} and ${w.blocked.charAt(0).toLowerCase()}${w.blocked.slice(1)} in ${fmt(A.totals.blocked)}.`
+              : '',
+          ),
+          context: A
+            ? `${meetingsWord(A.total)} where a council or board acted on it, ${fmt(A.totals.tabled_or_deferred)} of them put off, as an AI read the transcript.`
+            : 'Meetings where a council or board acted on it, as an AI read the transcript.',
+          right: <LocalActionsTracker topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} />,
         }
       }
       case 'companies':

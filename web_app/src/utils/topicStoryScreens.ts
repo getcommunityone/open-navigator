@@ -2,7 +2,7 @@
 // a topic has. A screen with nothing on record for the place drops out of the story (no segment, not reached by Next), and
 // the cover says which ones and why; the Overview and the closing Recap always stay.
 
-export type TopicScreenId = 'overview' | 'timeline' | 'positions' | 'companies' | 'said' | 'decided' | 'recap'
+export type TopicScreenId = 'overview' | 'timeline' | 'positions' | 'bills' | 'actions' | 'companies' | 'said' | 'decided' | 'recap'
 
 export interface TopicScreen {
   id: TopicScreenId
@@ -14,6 +14,8 @@ export const TOPIC_STORY_SCREENS: TopicScreen[] = [
   { id: 'overview', eyebrow: 'Overview' },
   { id: 'timeline', eyebrow: 'Over time' },
   { id: 'positions', eyebrow: 'Who spoke' },
+  { id: 'bills', eyebrow: 'State bills' },
+  { id: 'actions', eyebrow: 'Votes' },
   { id: 'companies', eyebrow: 'Companies' },
   { id: 'said', eyebrow: 'What was said' },
   { id: 'decided', eyebrow: 'Decisions' },
@@ -31,6 +33,8 @@ const EMPTY_WHY: Record<TopicScreenId, string> = {
   overview: '',
   timeline: 'meetings over time (no meetings on record)',
   positions: "who spoke (the public's position isn't on record yet)",
+  bills: 'state bills (none found in our copy of OpenStates)',
+  actions: 'votes by local bodies (none in the meetings read)',
   companies: 'companies named (none named in the meetings)',
   said: 'what was said (no quoted passages)',
   decided: 'decisions (none on record)',

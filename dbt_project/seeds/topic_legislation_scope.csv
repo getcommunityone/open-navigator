@@ -1,0 +1,3 @@
+topic_query_id,require_pattern,exclude_pattern,drop_keywords,note
+*,,^order relative to authorizing,,"Massachusetts study orders list other bills' titles in their abstract; never a bill about the topic itself."
+water-fluoridation,"fluoridat|fluorid\w*\s+(\S+\s+){0,12}(water|supply|supplies)|(water|supply|supplies)\S*\s+(\S+\s+){0,12}fluorid",hydrogen fluoride|hydrofluoric|radionuclides|barium|varnish|silver diamine,,"Fluoride in WATER only: drops refinery hydrogen fluoride, contaminant-level omnibus bills and dental varnish bills."

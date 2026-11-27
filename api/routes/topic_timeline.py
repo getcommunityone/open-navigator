@@ -248,13 +248,13 @@ def milestones_sql(slug: str, scope: TimelineScope, topic_id: int | None = None)
 
 def bills_sql(topic_id: int, scope: TimelineScope) -> tuple[str, list[Any]]:
     params: list[Any] = [topic_id]
-    w = ["b.topic_id = $1", "b.status = 'enacted'", "b.latest_action_date IS NOT NULL"]
+    w = ["b.topic_id = $1", "b.status = 'enacted'", "b.last_action_date IS NOT NULL"]
     if scope.state_code:
         params.append(scope.state_code)
         w.append(f"b.state_code = ${len(params)}")
     sql = (
-        "SELECT b.latest_action_date, b.state_code, b.state, b.identifier, b.title, b.url "
-        f"FROM topic_legislation_bill b WHERE {' AND '.join(w)} ORDER BY b.latest_action_date, b.bill_id"
+        "SELECT b.last_action_date AS latest_action_date, b.state_code, b.state, b.identifier, b.title, b.url "
+        f"FROM topic_legislation_bill b WHERE {' AND '.join(w)} ORDER BY b.last_action_date, b.bill_id"
     )
     return sql, params
 

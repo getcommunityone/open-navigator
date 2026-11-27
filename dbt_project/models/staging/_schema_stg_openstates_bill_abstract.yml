@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: stg_openstates__bill_abstract
+    description: >
+      One row per OpenStates bill (ocd_bill_id) with its abstracts joined into one text field (#1274). Read by
+      topic_legislation_bill to match a topic's words in the bill's title or abstract.
+    columns:
+      - name: ocd_bill_id
+        description: "OCD bill id (natural key)."
+        tests: [unique, not_null]
+      - name: abstract_text
+        description: "The bill's abstracts, space-joined; '' when it has none."
