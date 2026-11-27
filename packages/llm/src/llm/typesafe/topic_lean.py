@@ -628,14 +628,21 @@ def run_topic(args: argparse.Namespace, *, topic: TopicDef | None = None) -> dic
     neighbors = int(getattr(args, "neighbor_chunks", 0) or 0)
     database_url = _database_url(args.database_url)
     states = [s for part in (args.state or []) for s in part.split(",")]
-    sql, params = select_sql(topic, rescreen=args.rescreen, states=states)
-
     conn = psycopg2.connect(database_url)
     try:
-        with conn.cursor() as cur:
-            cur.execute(CREATE_SQL)
-            cur.execute(ALTER_SQL)
-        conn.commit()
+        if args.dry_run:
+            # A dry run never writes (#1201): no DDL on the live table; with no table yet, nothing has been read.
+            with conn.cursor() as cur:
+                cur.execute("SELECT to_regclass(%s) IS NOT NULL", [TABLE])
+                table_exists = cur.fetchone()[0]
+            conn.rollback()
+            sql, params = select_sql(topic, rescreen=args.rescreen or not table_exists, states=states)
+        else:
+            with conn.cursor() as cur:
+                cur.execute(CREATE_SQL)
+                cur.execute(ALTER_SQL)
+            conn.commit()
+            sql, params = select_sql(topic, rescreen=args.rescreen, states=states)
         keywords = topic_keywords(conn, topic)
         with conn.cursor() as cur:
             cur.execute(sql, [*params, args.limit])

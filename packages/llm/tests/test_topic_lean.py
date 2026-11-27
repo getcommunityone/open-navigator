@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from llm.typesafe import screen_transcripts as st
 from llm.typesafe import topic_lean as tl
 
