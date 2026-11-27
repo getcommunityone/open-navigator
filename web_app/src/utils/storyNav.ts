@@ -33,9 +33,9 @@ export function nextLiveStory(currentId: string, stories: LiveStory[] = LIVE_STO
 export const START_SCREEN = 'overview'
 
 /**
- * A "Start the … story" link (#1222): the story at `query`'s scope, opened past its cover on the first content screen
+ * A "Start the … story" link (#1222): the story at `query`'s scope, opened on the first screen
  * (`?screen=overview`), so the reader who pressed Start on the home page or the stories list doesn't press Start again.
- * The cover still opens for a plain link (a shared URL, the topic picker, Next story).
+ * Since #1282 a story has no cover, so a plain link opens the same first screen; the explicit `?screen=` keeps Start links unambiguous.
  */
 export function storyStartHref(storyId: string, query = ''): string {
   const qs = new URLSearchParams(query.replace(/^\?/, ''))

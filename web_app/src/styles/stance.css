@@ -663,6 +663,7 @@
   .stance-game .stance-right {
     order: 4;
   }
+  .stance-game .stance-overview-lead,
   .stance-game .stance-qblock {
     order: 5;
   }
@@ -3146,7 +3147,24 @@ html.stance-snap {
   padding-bottom: 72px;
 }
 
-/* The story's opening (#1182): below the sticky bar and in normal flow, so it scrolls away after the first screen. */
+/* The big faded screen word (#1282, owner 2026-11-27): it sat over the bottom of the map and under the green Next. The
+   top bar and the card already name the screen, so the story draws no watermark. */
+.stance-story .stance-word {
+  display: none;
+}
+/* The opening's subhead, basis and points in Overview's left column (#1282). */
+.stance-overview-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.stance-overview-lead .stance-title-points {
+  margin-top: 4px;
+}
+
+/* (The story's own cover is gone, #1282; these rules remain for any page still using .stance-intro.)
+   The story's opening (#1182): below the sticky bar and in normal flow, so it scrolls away after the first screen. */
 .stance-intro {
   padding: 10px 36px 14px;
   border-bottom: 1px solid var(--rule, #d6d3d1);

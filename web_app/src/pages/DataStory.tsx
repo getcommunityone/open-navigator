@@ -31,7 +31,7 @@ import {
 import { fetchDataCenterPositions, type DataCenterPositionsResponse } from '../api/dataCenters'
 import { storyHeroPoints } from '../utils/heroPoints'
 import { fetchTopicCaptionFacts } from '../api/topics'
-import { captionSubhead, captionText, pickCaption, storyStartLabel, withTopicBlank } from '../utils/storyCaption'
+import { captionSubhead, captionText, pickCaption, withTopicBlank } from '../utils/storyCaption'
 import '../styles/story-actions.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
@@ -165,7 +165,7 @@ export default function DataStory() {
   const dialogOpen = placeOpen
   // The screen machine (#1224): landing, ?screen= sync, the cover, keys, swipe, re-aimed jumps (#1208) and focus, shared
   // with the topic stories.
-  const { rootRef, startRef, wide, mode, active, activeRef, onCover, goTo } = useStoryScreens({
+  const { rootRef, wide, mode, active, activeRef, goTo } = useStoryScreens({
     screens,
     screenParam,
     setSp,
@@ -318,6 +318,39 @@ export default function DataStory() {
       onApply={applyPlace}
     />
   )
+  // The opening's subhead, basis and points (#1282) sit in Overview's left column, under its headline: Overview is screen 1.
+  const overviewLead = (
+    <div className="stance-overview-lead">
+      {(subhead || subheadPlace) && (
+        // A div, not a p: the place control's dialog is a div.
+        <div className="stance-title-subhead">
+          {/* A broader scope's title (#1222): the place in scope is named, as the place control, in this line instead. */}
+          {subheadPlace ? (
+            <>
+              {subheadPlace.before}
+              {placeBlank(placeOpen, setPlaceOpen, subheadPlace.place)}
+              {subheadPlace.after}
+            </>
+          ) : (
+            subhead
+          )}
+        </div>
+      )}
+      {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+      {points.length > 0 && (
+        <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
+          {points.map((pt) => (
+            <li key={pt.icon}>
+              <span className="stance-title-point-n">{pt.n}</span>
+              <span>
+                <strong>{pt.title}</strong> {pt.line}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
 
   return (
     <div
@@ -379,42 +412,6 @@ export default function DataStory() {
         onPlaceOpenChange={setPlaceOpen}
         onApply={applyPlace}
       />
-      {/* The opening (#1182): subhead, basis, the two story buttons and the points, in the first screen and in normal flow,
-          so they scroll away and the sticky bar above stays the title and the progress only. It is the story's cover
-          (data-cover): a hold at the top of the page, so snapping and the wheel limit never pull the reader past it. */}
-      <div className="stance-intro" data-cover>
-        {(subhead || subheadPlace) && (
-          // A div, not a p: the place control's dialog is a div.
-          <div className="stance-title-subhead">
-            {/* A broader scope's title (#1222): the place in scope is named, as the place control, in this line instead. */}
-            {subheadPlace ? (
-              <>
-                {subheadPlace.before}
-                {placeBlank(placeOpen, setPlaceOpen, subheadPlace.place)}
-                {subheadPlace.after}
-              </>
-            ) : (
-              subhead
-            )}
-          </div>
-        )}
-        {title.basis && <p className="stance-title-basis">{title.basis}</p>}
-        {/* The cover's two buttons are gone (#1234, owner 2026-11-27): the fixed Next at the bottom right starts the story.
-            This mark tells when the cover is in view. */}
-        <span ref={startRef} className="stance-cover-mark" aria-hidden="true" />
-        {points.length > 0 && (
-          <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
-            {points.map((pt) => (
-              <li key={pt.icon}>
-                <span className="stance-title-point-n">{pt.n}</span>
-                <span>
-                  <strong>{pt.title}</strong> {pt.line}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
       <p className="folio-sr-only" aria-live="polite">
         {screens[active] ? `${screens[active]!.eyebrow}. ${texts[active]!.headline}` : ''}
       </p>
@@ -458,6 +455,7 @@ export default function DataStory() {
                 stance={statements.get(s.id)}
                 question={s.kind === 'overview' && question ? questionText(question, scope) : null}
                 said={s.kind === 'overview' ? optionLabel(question, before) : null}
+                lead={s.kind === 'overview' ? overviewLead : null}
               />
             )
           })}
@@ -473,9 +471,7 @@ export default function DataStory() {
       </div>
       {/* The one way forward (#1234, owner 2026-11-27): a green Next fixed at the bottom right on every screen, desktop and
           phone. Cover: starts the story; a screen: the next screen; the last screen: the next story, keeping the place. */}
-      {onCover ? (
-        <StoryNextButton label="Next" ariaLabel={storyStartLabel(storyId, label)} onClick={() => goTo(0)} />
-      ) : active < n - 1 ? (
+      {active < n - 1 ? (
         <StoryNextButton label="Next" ariaLabel={`Next: ${screens[active + 1]?.eyebrow ?? ''}`.replace(/: $/, '')} onClick={() => goTo(Math.min(activeRef.current + 1, n - 1))} />
       ) : (
         <StoryNextButton label="Done" ariaLabel="Done: close the story" href={storyCloseHref(storyId, scopeQuery(scope))} quiet />
@@ -493,7 +489,6 @@ export default function DataStory() {
           storyHref={onward.href}
           storyLabel={onward.label}
           storyIsNext={onward.next != null}
-          hideNext={onCover}
         />
       )}
       <p className="stance-keys">Keys: PageDown, Space or ↓ next · PageUp, Shift+Space or ↑ back · Home and End jump to the ends</p>
