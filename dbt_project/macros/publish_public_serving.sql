@@ -193,6 +193,7 @@
     'data_center_meeting_position':        "_s.state_code in {{states}}",
     'data_center_meeting_lean':            "_s.state_code in {{states}}",
     'topic_meeting_lean':                  "_s.state_code in {{states}}",
+    'topic_place_meeting':                 "_s.state_code in {{states}}",
     'meeting_video_kind':
         "_s.video_id in (select video_id from gold.topic_transcript_link where state_code in {{states}} "
         "union select video_id from gold.data_center_meeting_mention where state_code in {{states}})",
@@ -282,6 +283,7 @@
     'person_government_term',
     'data_center_meeting_lean',
     'topic_meeting_lean',
+    'topic_place_meeting',
     'meeting_video_kind',
     'recorded_meeting_year',
     'segmented_meeting', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
