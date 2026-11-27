@@ -34,7 +34,7 @@ describe('topic position vocabulary', () => {
 
   it('keeps split (neutral) and missing distinct, and the legend names both kinds of missing', () => {
     const w = topicPositions('pickleball')
-    expect(w.split).toBe('Split')
+    expect(w.split).toBe('Both sides spoke')
     expect(w.silent).toBe("Public didn't speak on it")
     expect(w.unread).toBe('Not read yet')
     expect(MISSING_LEGEND).toBe("Not read yet, or the public didn't speak on it")
@@ -47,7 +47,7 @@ describe('topic position vocabulary', () => {
     const g = topicPositions('guns')
     expect(g.for).toBe('Favor gun limits')
     expect(g.against).toBe('Favor gun rights')
-    expect(g.split).toBe('Split')
+    expect(g.split).toBe('Both sides spoke')
     expect(missingLegend(g)).toBe("No reading yet, or the public didn't speak on it")
     expect(g.forMeans).toMatch(/^Gun limits = a local measure restricting firearms/)
     expect(g.forMeans).toMatch(/Gun rights = opposing such limits or backing a Second Amendment sanctuary/)
@@ -110,7 +110,7 @@ describe('map quote stance line (#1230)', () => {
     const w = topicPositions('guns')
     expect(quoteStanceNote('guns', 'guns', 'against')).toBe(`Public: ${w.against}`)
     expect(quoteStanceNote('guns', 'guns', 'for')).toBe(`Public: ${w.for}`)
-    expect(quoteStanceNote('guns', 'guns', 'split')).toBe(`Public: ${w.split}`)
+    expect(quoteStanceNote('guns', 'guns', 'split')).toBe(`At this meeting: ${w.split.toLowerCase()}`)
     expect(quoteStanceNote('guns', 'guns', 'silent')).toBe('Mentions guns; no public stance in this meeting')
     expect(quoteStanceNote('guns', 'guns', null)).toBe('Mentions guns')
   })

@@ -139,26 +139,26 @@ export const LEGEND_STANCES = ['against', 'for', 'neutral'] as const
 export const LEGEND_LABEL: Record<(typeof LEGEND_STANCES)[number], string> = {
   against: 'Spoke against',
   for: 'Spoke for',
-  neutral: 'No side',
+  neutral: 'Spoke, no side',
 }
 /** The same four entries when the split counts meetings by the AI reading (#1127). */
 export const AI_LEGEND_LABEL: Record<(typeof LEGEND_STANCES)[number], string> = {
   against: 'Public mostly opposed',
   for: 'Public mostly supported',
-  neutral: 'Public split',
+  neutral: 'Both sides spoke',
 }
 /** Column and line words for an AI-read meeting split; a meeting reading has no "asked a question". */
 const AI_STANCE_LABEL: Record<Stance, string> = {
   against: 'Public mostly opposed',
   for: 'Public mostly supported',
   question: 'Asked a question',
-  neutral: 'Public split',
+  neutral: 'Both sides spoke',
 }
 const AI_LINE_WORD: Record<Stance, string> = {
   against: 'mostly opposed',
   for: 'mostly supported',
   question: 'asked a question',
-  neutral: 'split',
+  neutral: 'both sides spoke',
 }
 
 /** The real speaker counts as one line ("3 spoke against · 1 asked a question"), or null with none on record. With
@@ -171,19 +171,19 @@ export function stanceLine(s: StanceCounts | undefined, unit: StanceUnit = 'spea
     const parts = keys.map((k) => `${fmt(stanceCount(s, k))} ${AI_LINE_WORD[k]}`)
     return `${plural(total, 'meeting', 'meetings')} read: ${parts.join(' · ')}`
   }
-  return keys.map((k) => `${fmt(stanceCount(s, k))} ${STANCE_LABEL[k].toLowerCase()}`).join(' · ')
+  return keys.map((k) => `${fmt(stanceCount(s, k))} ${k === 'neutral' ? 'no side' : STANCE_LABEL[k].toLowerCase()}`).join(' · ')
 }
 
 /**
  * A state's AI reading in the topic's words (#1200): "AI reading of 45 meetings where the public spoke: 30 against the
- * cameras · 6 for the cameras · 9 split; in 180 more it didn't speak on it". Zero clauses are left out; null with no reading.
+ * cameras · 6 for the cameras · both sides spoke at 9; in 180 more it didn't speak on it". Zero clauses are left out; null with no reading.
  */
 export function positionLine(s: StateStance | undefined, words: TopicPositions): string | null {
   const spoke = s ? speakersOf(s) : 0
   const silent = Math.max(0, s?.silent_meetings ?? 0)
   if (spoke === 0 && silent === 0) return null
   const label: Record<Stance, string> = { against: words.against, for: words.for, question: words.split, neutral: words.split }
-  const parts = STANCE_ORDER.filter((k) => k !== 'question' && stanceCount(s!, k) > 0).map((k) => `${fmt(stanceCount(s!, k))} ${label[k].toLowerCase()}`)
+  const parts = STANCE_ORDER.filter((k) => k !== 'question' && stanceCount(s!, k) > 0).map((k) => (k === 'neutral' ? `${label[k].toLowerCase()} at ${fmt(stanceCount(s!, k))}` : `${fmt(stanceCount(s!, k))} ${label[k].toLowerCase()}`))
   const head = spoke > 0 ? `${plural(spoke, 'meeting', 'meetings')} where the public spoke: ${parts.join(' · ')}` : ''
   const silentMeetings = silent === 1 ? 'meeting' : 'meetings'
   const tail =
@@ -377,7 +377,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const summary =
     `Map of the United States drawn as small boxes in each state's shape. ${plural(withMeetings, 'state has', 'states have')} at least one meeting where ${subject} came up.` +
     (hasStance && split.length
-      ? ` In ${plural(split.length, 'state', 'states')} the boxes are split by ${byMeetings ? `a reading of ${plural(speakersTotal, 'meeting', 'meetings')}` : `${plural(speakersTotal, 'speaker', 'speakers')} on record`}: ` +
+      ? ` In ${plural(split.length, 'state', 'states')} the boxes are broken down by ${byMeetings ? `a reading of ${plural(speakersTotal, 'meeting', 'meetings')}` : `${plural(speakersTotal, 'speaker', 'speakers')} on record`}: ` +
         split.map((s) => `${stateName(s.state_code)}, ${lineOf(s)}`).join('; ') +
         '.'
       : '') +
@@ -643,12 +643,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           <p className="mt-1 text-xs text-stone-500">
           {byMeetings
             ? split.length > 0
-              ? `Split by a reading of ${plural(speakersTotal, 'meeting', 'meetings')} in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
+              ? `Broken down by a reading of ${plural(speakersTotal, 'meeting', 'meetings')} in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : silentTotal > 0
                 ? `In the ${plural(silentTotal, 'meeting', 'meetings')} the AI read, the public didn't speak on it; states show meetings only.`
                 : 'These meetings have not been read yet; states show meetings only.'
             : split.length > 0
-              ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
+              ? `Broken down by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : 'No speaker positions on record yet; states show meetings only.'}
           {hasLean || (byMeetings && split.length > 0) ? ' Each meeting is read by a classifier from its transcript; these are not counted speakers.' : ''}
           {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${missingLegend(words).charAt(0).toLowerCase()}${missingLegend(words).slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}

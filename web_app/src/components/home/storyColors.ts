@@ -16,7 +16,7 @@ export const STANCE_LABEL: Record<Stance, string> = {
   against: 'Spoke against',
   for: 'Spoke for',
   question: 'Asked a question',
-  neutral: 'No side',
+  neutral: 'Spoke, no side',
 }
 
 /** A colour mixed toward white by `amount` (0 = unchanged, 1 = white). */

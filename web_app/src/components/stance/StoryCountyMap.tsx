@@ -419,7 +419,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           viewBox={vb}
           className="stance-map-svg"
           data-map="county"
-          aria-label={`Dot map of ${stateName}'s counties, split by ${positions ? 'a reading of its meetings' : "speakers' stance"} where any are on record and otherwise shaded by meetings where ${what} came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where a reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where a reading of the meetings found officials sided against the public (see the data table).` : ''}`}
+          aria-label={`Dot map of ${stateName}'s counties, broken down by ${positions ? 'a reading of its meetings' : "speakers' stance"} where any are on record and otherwise shaded by meetings where ${what} came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where a reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where a reading of the meetings found officials sided against the public (see the data table).` : ''}`}
           {...keyNav.svgProps}
         >
           {grid.dots.map((d, i) => {
@@ -557,10 +557,10 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           <p className="stance-note">
             {positions
               ? stances.size > 0
-                ? `Split by a reading of ${plural(speakersTotal)} where the public spoke, in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only. Each meeting is read by a classifier from its transcript; these are not counted speakers.${positions.forMeans ? ` ${positions.forMeans}.` : ''}`
+                ? `Broken down by a reading of ${plural(speakersTotal)} where the public spoke, in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only. Each meeting is read by a classifier from its transcript; these are not counted speakers.${positions.forMeans ? ` ${positions.forMeans}.` : ''}`
                 : `No reading of ${stateName}'s meetings found the public taking a side yet; counties show meetings only.`
               : stances.size > 0
-                ? `Split by ${fmt(speakersTotal)} ${speakersTotal === 1 ? 'speaker' : 'speakers'} on record in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only.`
+                ? `Broken down by ${fmt(speakersTotal)} ${speakersTotal === 1 ? 'speaker' : 'speakers'} on record in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only.`
                 : `No speaker positions on record in ${stateName} yet; counties show meetings only.`}
             {leans.size > 0
               ? ' Each meeting is read by a classifier from its transcript; these are not counted speakers. Only “the public mostly opposed” and “officials sided against the public” are shown.'

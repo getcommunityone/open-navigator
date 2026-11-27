@@ -44,7 +44,7 @@ export function chainSteps(d: TopicOutcomesResponse, topic: string, actionWords:
       count: s.public.count,
       available: s.public.available,
       line: s.public.count
-        ? `Meetings where the public spoke: ${partsSentence([['mostly opposed', s.public.by_lean.opposed], ['split', s.public.by_lean.mixed], ['mostly supportive', s.public.by_lean.supportive]])}.`
+        ? `Meetings where the public spoke: ${partsSentence([['mostly opposed', s.public.by_lean.opposed], ['both sides spoke', s.public.by_lean.mixed], ['mostly supportive', s.public.by_lean.supportive]])}.`
         : 'No recorded public comment on it yet.',
     },
     {

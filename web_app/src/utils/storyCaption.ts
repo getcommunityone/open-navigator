@@ -304,7 +304,7 @@ function readingLine(c: PositionCounts, topic: string, words: TopicPositions): s
     [
       { n: c.against, text: (n) => `${fmt(n)} ${words === GENERIC_POSITIONS ? 'against' : words.against.toLowerCase().replace(/ data centers$/, '')}` },
       { n: c.for, text: (n) => `${fmt(n)} ${words === GENERIC_POSITIONS ? 'for' : words.for.toLowerCase().replace(/ data centers$/, '')}` },
-      { n: c.split, text: (n) => `${fmt(n)} split` },
+      { n: c.split, text: (n) => `both sides spoke at ${fmt(n)}` },
     ],
     { leadLarger: true },
   )
@@ -384,7 +384,7 @@ function pickFromReading(topicKey: string, facts: TopicCaptionFacts | null | und
         kind: 'position',
         template: positionTemplate(plain, words, v2, null),
         place,
-        basis: `${positionClaim(plain, words, v2, null)} ${positionBasis(own, words, where, dis, facts.lean_meetings)}`,
+        basis: `${positionClaim(plain, words, v2, null)} ${positionBasis(own, words, where, dis, facts.lean_meetings, copy.topic)}`,
         ai: true,
         verdict: v2.kind === 'majority' ? v2.side : 'split',
       }
@@ -396,7 +396,7 @@ function pickFromReading(topicKey: string, facts: TopicCaptionFacts | null | und
         template: positionTemplate(copy, words, v, null),
         place,
         // The title is the short conclusion (#1222); its count ("283 of 341 meetings where it spoke") leads the basis.
-        basis: `${positionClaim(copy, words, v, null)} ${positionBasis(own, words, where2, dis, facts.lean_meetings)}`,
+        basis: `${positionClaim(copy, words, v, null)} ${positionBasis(own, words, where2, dis, facts.lean_meetings, copy.topic)}`,
         ai: true,
         verdict: v.kind === 'majority' ? v.side : 'split',
       }
@@ -545,7 +545,7 @@ type Verdict = Exclude<ReturnType<typeof positionVerdict>, { kind: 'too_few' }>
  */
 function positionTemplate(copy: CaptionCopy, words: TopicPositions, v: Verdict, who: string | null): StoryTitlePart[] {
   const name: StoryTitlePart = who ?? P
-  if (v.kind === 'split') return [name, ' is split on ', T, '.']
+  if (v.kind === 'split') return [name, ' is divided on ', T, '.']
   if (v.side === 'against' && copy.hates) return [name, ` ${copy.hates} `, T, '.']
   const own = v.side === 'against' ? words.againstTitle : words.forTitle
   if (own) {
@@ -565,7 +565,7 @@ function positionClaim(copy: CaptionCopy, words: TopicPositions, v: Verdict, nam
   const lead = name ? `Across ${name}, ` : ''
   const cap = (t: string) => (name ? t : t.charAt(0).toUpperCase() + t.slice(1))
   if (v.kind === 'split') {
-    return `${lead}${cap('the public was split on ')}${copy.topic} in the ${meetingsWord(v.of)} where it spoke.`
+    return `${lead}${cap('the public was mixed on ')}${copy.topic} in the ${meetingsWord(v.of)} where it spoke.`
   }
   if (v.side === 'against' && copy.hates) {
     return `${lead}${cap('the public was against ')}${copy.topic} in ${fmt(v.count)} of ${meetingsWord(v.of)} where it spoke.`
@@ -590,17 +590,17 @@ function placeCount(copy: CaptionCopy, label: string, m: number | null | undefin
  * of 225 meetings read in California, the public spoke in 45: 30 were against the cameras, 6 for the cameras and 9 split.
  * In 180 it didn't speak on it."
  */
-function positionBasis(c: PositionCounts, words: TopicPositions, where: string, disagreement = 0, leanMeetings?: number | null): string {
+function positionBasis(c: PositionCounts, words: TopicPositions, where: string, disagreement = 0, leanMeetings?: number | null, topic?: string): string {
   const spoke = c.against + c.for + c.split
   const sides = countClauses(
     [
       { n: c.against, text: (n) => `${fmt(n)} ${words.against.toLowerCase()}` },
       { n: c.for, text: (n) => `${fmt(n)} ${words.for.toLowerCase()}` },
-      { n: c.split, text: (n) => `${fmt(n)} split` },
+      { n: c.split, text: (n) => `both sides spoke at ${fmt(n)}` },
     ],
     { leadLarger: true },
   )
-  const parts = [`Of ${meetingsWord(c.read)} read ${where}, the public spoke in ${fmt(spoke)}${sides ? ` (${sides})` : ''}.`]
+  const parts = [`Of ${meetingsWord(c.read)} read ${where}, the public spoke${topic ? ` on ${topic}` : ''} in ${fmt(spoke)}${sides ? ` (${sides})` : ''}.`]
   if (c.silent > 0) parts.push(`In ${fmt(c.silent)} it didn't speak on it.`)
   // Readings in labels outside the question's choices (#1204) were read, but count in none of the four.
   const lean = Math.max(c.read, leanMeetings ?? c.read)
@@ -662,7 +662,7 @@ function widerPosition(
       template: positionTemplate(copy, words, v, name),
       place: label,
       widerPlace: name,
-      basis: [placeCount(copy, label, m), ownLine, positionClaim(copy, words, v, name), positionBasis(c, words, w.level === 'national' ? 'nationwide' : `in ${name}`, 0, w.lean_meetings)].filter(Boolean).join(' '),
+      basis: [placeCount(copy, label, m), ownLine, positionClaim(copy, words, v, name), positionBasis(c, words, w.level === 'national' ? 'nationwide' : `in ${name}`, 0, w.lean_meetings, copy.topic)].filter(Boolean).join(' '),
       ai: true,
       verdict: v.kind === 'majority' ? v.side : 'split',
     }

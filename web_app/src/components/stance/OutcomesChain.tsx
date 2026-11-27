@@ -25,7 +25,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 const STATUS: Record<string, string> = { enacted: 'Enacted', passed_chamber: 'Passed one chamber', pending: 'Pending', failed: 'Failed' }
 const LABEL: Record<string, string> = {
   opposed: 'Public mostly opposed',
-  mixed: 'Public split',
+  mixed: 'Both sides spoke',
   supportive: 'Public mostly supportive',
   advanced: 'Moved it forward',
   blocked: 'Stopped or limited it',

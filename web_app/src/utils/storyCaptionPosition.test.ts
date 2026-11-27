@@ -51,7 +51,7 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
     expect(captionText(c, 'short-term rentals')).toBe(
       'America mostly wants limits on short-term rentals.',
     )
-    expect(c.basis).toMatch(/^Most meetings wanted limits on short-term rentals: 304 of 436 where the public spoke\. Of 2,880 meetings read nationwide, the public spoke in 436/)
+    expect(c.basis).toMatch(/^Most meetings wanted limits on short-term rentals: 304 of 436 where the public spoke\. Of 2,880 meetings read nationwide, the public spoke on short-term rentals in 436/)
     expect(c.basis).toMatch(/In 2,444 it didn't speak on it\./)
     expect(captionSubhead(c, 'short-term-rentals', nat)).toMatch(/read from each meeting's transcript/)
   })
@@ -66,13 +66,13 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
     expect(text('water-fluoridation', facts({ against: 40, for: 5, split: 5, silent: 0 }), nat, 'water fluoridation')).not.toMatch(/hates/)
   })
 
-  it('no side with a majority: "is split on"', () => {
+  it('no side with a majority: "is divided on"', () => {
     const c = pickCaption('license-plate-readers', facts({ against: 6, for: 5, split: 2, silent: 30 }, oh), oh)
     expect(c.verdict).toBe('split')
     expect(captionText(c, 'Flock and license plate readers')).toBe(
-      'Ohio is split on Flock and license plate readers.',
+      'Ohio is divided on Flock and license plate readers.',
     )
-    expect(c.basis).toMatch(/^The public was split on Flock and license plate readers in the 13 meetings where it spoke\. /)
+    expect(c.basis).toMatch(/^The public was mixed on Flock and license plate readers in the 13 meetings where it spoke\. /)
   })
 
   it('too few: keeps the count title and says how many meetings have a reading so far', () => {
@@ -125,7 +125,7 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
     const t = pickCaption('data-centers', facts({ against: 0, for: 1, split: 0, silent: 1 }, tus, { meetings: 2, wider: [NATIONAL_DC] }), tus)
     expect(captionText(t, 'data centers')).toBe('Tuscaloosa, Alabama talked about data centers in 2 meetings.')
     const sp = pickCaption('short-term-rentals', facts({ against: 30, for: 30, split: 10, silent: 0 }), nat)
-    expect(captionText(sp, 'short-term rentals')).toBe('America is split on short-term rentals.')
+    expect(captionText(sp, 'short-term rentals')).toBe('America is divided on short-term rentals.')
     const ca: StoryScope = { stateCode: 'CA', stateName: 'California', city: null }
     expect(text('short-term-rentals', facts({ against: 30, for: 5, split: 2, silent: 0 }, ca), ca, 'short-term rentals')).toBe('California mostly wants limits on short-term rentals.')
     for (const c of [n, sp]) {
@@ -194,7 +194,7 @@ describe('pickCaption (p) lower tier: the place named from 5 meetings where the 
 
   it('no majority from 5 meetings is split', () => {
     const c = pickCaption('guns', facts({ against: 2, for: 2, split: 2, silent: 40 }, oh), oh)
-    expect(captionText(c, 'gun control')).toBe('Ohio is split on gun control.')
+    expect(captionText(c, 'gun control')).toBe('Ohio is divided on gun control.')
   })
 
   it('under 5 meetings where the public spoke keeps the broader fallback (the place is not the title)', () => {

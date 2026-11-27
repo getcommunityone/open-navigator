@@ -504,7 +504,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
               : verdict.kind === 'majority'
                 ? `${stateName ? `In ${stateName}` : 'Across America'}, the public mostly ${publicVerb(verdict.side === 'against' ? words.againstVerb : words.forVerb, topicWord)}.`
                 : verdict.kind === 'split'
-                  ? `${placeWord} is split on ${topicWord}.`
+                  ? `${placeWord} is divided on ${topicWord}.`
                   : `Too few meetings where the public spoke to say which way ${placeWord} leans.`,
         )
         const line =
