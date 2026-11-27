@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
+import { pickDisplay } from '../../utils/displayFit'
 import { fetchTopicTimeline, type TimelineMilestone, type TopicTimelineResponse } from '../../api/topicTimeline'
 import {
   buildSeries,
@@ -130,6 +131,25 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   if (q.isError) return <p className="stance-nodata" role="status">The timeline could not be loaded right now.</p>
   const pts = runs.flat()
   if (!data || pts.length === 0) return null
+  // A line only with 6 or more points (#1289, utils/displayFit): fewer years read as the numbers in a sentence.
+  const counts = buildSeries(years, 'meetings').flat()
+  // The choice reads the same series the sentence prints (meetings per year), whichever series the chart opens on.
+  const fit = pickDisplay({ items: counts.reduce((a, p) => a + p.value, 0), seriesPoints: counts.length })
+  if (fit.kind !== 'line') {
+    return (
+      <div className="sc-block" data-display={fit.kind}>
+        <p className="sc-h">
+          Meetings that discussed {subject}, by year · {scopeLabel}
+        </p>
+        <p className="stance-fit-lead">
+          {counts.length === 1
+            ? `All in ${counts[0]!.year}: ${fmt(counts[0]!.value)} ${counts[0]!.value === 1 ? 'meeting' : 'meetings'}.`
+            : `${counts.map((p) => `${p.year}: ${fmt(p.value)}`).join('; ')}.`}{' '}
+          Too few years on record for a trend line.
+        </p>
+      </div>
+    )
+  }
 
   const w = Math.max(280, width)
   const h = 240

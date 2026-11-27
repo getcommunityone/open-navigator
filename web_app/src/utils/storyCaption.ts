@@ -22,10 +22,15 @@
 //   c. state_gap: the place leads the other states (or places in its state) by meetings; a near tie names both.
 //   d. volume: the place's meeting count.
 //   e. question: the topic's question.
+// Then the recorded record checks the result (#1289, utils/stanceEvidence): a stance headline whose side is the opposite of
+// the scope's recorded votes becomes "[Place] is divided on [topic]."; and with fewer than 3 decisions with a recorded vote
+// and fewer than 5 hand-counted speakers, any stance headline gives way to "Not enough recorded activity to say." (kind
+// `insufficient`) with the facts in its basis.
 // No caption or basis line ever states a zero ("0 spoke for"): a zero clause is left out (owner rule).
 import type { TopicCaptionFacts } from '../api/topics'
 import { countClauses } from './clauses'
 import { STORIES, storyScopeLabel, type StoryScope, type StoryTitlePart } from './dataStory'
+import { belowStanceMinimum, evidenceFacts, recordedEvidence, stanceSide, voteClause, voteSide } from './stanceEvidence'
 import { GENERIC_POSITIONS, hasTopicPositions, positionVerdict, topicPositions, type PositionCounts, type TopicPositions } from './topicPositions'
 
 // --- thresholds (story-captions.md says why) -----------------------------------------------------------------------
@@ -202,6 +207,7 @@ export type CaptionKind =
   | 'state_gap'
   | 'volume'
   | 'question'
+  | 'insufficient'
 
 export interface Caption {
   kind: CaptionKind
@@ -272,6 +278,48 @@ function speakerBasis(sp: Speakers, where: string, national: boolean): string {
  * the result comes from `facts`.
  */
 export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | undefined, scope: StoryScope): Caption {
+  const c = pickFromReading(topicKey, facts, scope)
+  if (!facts || !factsMatchScope(facts, scope)) return c
+  return checkAgainstRecord(c, topicKey, facts, scope)
+}
+
+/** Captions that claim which way a place leans (or that it is divided): the ones the recorded activity must back. */
+const STANCE_KINDS: ReadonlySet<CaptionKind> = new Set(['position', 'wider_position', 'sentiment', 'wider_sentiment', 'disagreement'])
+
+/** The title for a scope with too little recorded activity for any stance (#1289). */
+export const NOT_ENOUGH_TITLE = 'Not enough recorded activity to say.'
+
+/**
+ * #1289: the stance headline agrees with every kind of recorded evidence. Below the minimum it says there is not enough to
+ * say, with the facts; a side opposite the recorded votes becomes "divided", with both in the basis.
+ */
+function checkAgainstRecord(c: Caption, topicKey: string, facts: TopicCaptionFacts, scope: StoryScope): Caption {
+  if (!STANCE_KINDS.has(c.kind)) return c
+  const e = recordedEvidence(facts)
+  const national = !scope.stateName
+  const place = national ? 'America' : storyScopeLabel(scope)
+  if (belowStanceMinimum(e, topicKey)) {
+    const own = positionCounts(facts, facts.meetings)
+    const where = national ? 'nationwide' : `in ${storyScopeLabel(scope)}`
+    const reading = own ? positionBasis(own, topicPositions(topicKey), where) : ''
+    return { kind: 'insufficient', template: [NOT_ENOUGH_TITLE], place, basis: [evidenceFacts(e), reading].filter(Boolean).join(' '), ai: Boolean(reading) }
+  }
+  const votes = voteSide(e)
+  const side = stanceSide(c)
+  if (votes && side && votes !== side) {
+    return {
+      kind: 'disagreement',
+      template: [P, ' is divided on ', T, '.'],
+      place,
+      basis: [c.basis, voteClause(e)].filter(Boolean).join(' '),
+      ai: c.ai,
+    }
+  }
+  return c
+}
+
+/** The caption from the AI reading and counts alone (rules p to e), before the recorded record checks it. */
+function pickFromReading(topicKey: string, facts: TopicCaptionFacts | null | undefined, scope: StoryScope): Caption {
   const copy: CaptionCopy = CAPTION_COPY[topicKey] ?? {
     topic: topicKey.replace(/-/g, ' '),
     story: topicKey.replace(/-/g, ' '),
@@ -773,6 +821,9 @@ export function captionSubhead(caption: Caption, topicKey: string, scope: StoryS
         : `At local meetings${where}, the public has mostly spoken against ${topic}.`
     case 'disagreement':
       return `At local meetings${where || ' across the country'}, the public and officials don't always land on the same side of ${topic}.`
+    case 'insufficient':
+      // Starts with the place, which the story draws as its place control (#1234). No number: the basis has them.
+      return `${national ? 'The country' : storyScopeLabel(scope)} has fewer than 3 decisions with a recorded vote and fewer than 5 public speakers on ${topic}, so this page draws no conclusion about which way it leans.`
     case 'state_gap':
     case 'volume':
       return `Where ${topic} came up at local meetings${where}, in the words said there.`
