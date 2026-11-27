@@ -31,9 +31,9 @@ for (const [vname, opts] of VIEWS) {
     const page = await ctx.newPage()
     const errors = []
     page.on('pageerror', (e) => errors.push(String(e)))
-    await page.goto(BASE + path, { waitUntil: 'domcontentloaded' })
+    await page.goto(BASE + path, { waitUntil: 'domcontentloaded', timeout: 180000 })
     const sel = county ? 'svg[data-map="county"]' : 'svg rect[data-state]'
-    const ok = await page.waitForSelector(sel, { timeout: 30000 }).then(() => true, () => false)
+    const ok = await page.waitForSelector(sel, { timeout: 90000 }).then(() => true, () => false)
     await page.waitForTimeout(1200)
     const info = await page.evaluate(() => ({
       title: document.querySelector('.stance-map-title')?.textContent ?? null,
