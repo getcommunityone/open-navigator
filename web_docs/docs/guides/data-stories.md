@@ -403,8 +403,9 @@ FK `data_center_site_id`).
   announced date (it publishes day, month or year-only dates; staging now keeps the year of all three) or Epoch AI's first
   dated timeline row. The registry publishes no opening or completion date. A site with no date is never placed at a
   guessed year: the footnote counts them by status ("60 sites have no date on record …"). Coverage on 27 Nov 2026: 728 of
-  2,379 sites have a date (437 registry announced dates at day, month or year precision, 79 Epoch first reports where
-  earlier than any registry date, plus Epoch's 96 operating years, 20 of them projected); 2,307 have coordinates.
+  2,379 sites have a date: 649 by a registry announced date (217 to the day, 322 to the month, 110 year only) and 79 by
+  Epoch's first dated report. All 96 Epoch sites have an operating year, 20 of them projected (2027–2028). 2,307 sites have
+  coordinates.
 - **Phase in a year.** An Epoch AI site is proposed before its first dated row, under construction from it, and operating
   from its first row with a building operational; a year after this one is Epoch's projection and the screen says
   "projected". A registry site keeps its status today, because the registry has no history. The per-year totals are
