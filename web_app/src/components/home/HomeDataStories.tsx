@@ -167,7 +167,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   const stateAspect = useStateAspect(scope.stateCode)
   const drill = (city: string | null) => {
     if (!scope.stateCode) return
-    const p = new URLSearchParams({ state: scope.stateCode })
+    const p = new URLSearchParams({ state: scope.stateCode, screen: 'overview' })
     if (city) p.set('city', city)
     navigate(`/stories/data-centers?${p.toString()}`)
   }
@@ -242,7 +242,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                 stance={speakers.data?.available ? (speakers.data.by_state ?? []) : undefined}
                 highlight={scope.stateCode ?? null}
                 zoom={zoom}
-                href={(code) => `/stories/data-centers?state=${encodeURIComponent(code)}`}
+                href={(code) => `/stories/data-centers?state=${encodeURIComponent(code)}&screen=overview`}
                 cardSlot={cardSlot}
               />
             )}

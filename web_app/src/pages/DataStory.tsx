@@ -286,6 +286,8 @@ export default function DataStory() {
           else next.delete('state')
           if (code && community) next.set('city', community)
           else next.delete('city')
+          // A place change always restarts on Overview (#1367); never keep the old place's ?screen=.
+          next.set('screen', 'overview')
           return next
         },
         { replace: true },

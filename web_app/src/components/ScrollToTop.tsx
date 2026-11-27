@@ -11,6 +11,10 @@ import { useLocation } from 'react-router-dom'
  * `/explore#explore-build`), the page owns an in-page anchor scroll, so we skip
  * the reset and let that behavior win.
  *
+ * Exception: `/stories/*` owns its own landing (`useStoryScreens` scrolls to the
+ * Overview hold, often ~1300px on the pinned desktop layout). Resetting to y=0
+ * here races that land and can leave the reader mid-story (#991, #1367).
+ *
  * The reset uses `behavior: 'instant'` to override the global
  * `html { scroll-behavior: smooth }` rule — a smooth animation on every route
  * change gets interrupted as the new page's content loads and frequently never
@@ -21,6 +25,7 @@ export default function ScrollToTop() {
 
   useEffect(() => {
     if (hash) return
+    if (pathname.startsWith('/stories/') || pathname === '/stories') return
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
   }, [pathname, hash])
 
