@@ -10,7 +10,6 @@ import '../../styles/story-actions.css'
 import HomeTopicBar from './HomeTopicBar'
 import { askedStory as askedStoryOf, withStory } from '../../utils/homeTopic'
 import { storyTopicOptions } from '../../utils/storyNav'
-import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
 import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
@@ -54,7 +53,7 @@ function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) 
  * - a US map of small boxes in each state's shape (#1087), split by the real counts of speakers for, against, asking a
  *   question or taking no side where any are on record, each state linking to its story, and a card quoting one of the
  *   state's real passages, verbatim, with where and when it was said;
- * - Browse topics: picks the story the card shows (Data centers by default, Short-term rentals; others coming soon), #1025.
+ * - the compact topic chip bar above the hero (#1350, #1371): picks the story the card shows; **Compare all** opens the YoY page.
  */
 export default function HomeDataStories({ stateCode, city = null, onPlaceApply }: Props) {
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
@@ -86,9 +85,9 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   const topicStories = useTopicStories()
   const askedStory = askedStoryOf(sp)
   const topicDef = askedStory ? topicStories.stories[askedStory] : undefined
-  const story: HomeStoryKey = topicDef ? askedStory : 'data-centers'
+  const story = topicDef ? askedStory : 'data-centers'
   // ?topic= (the legacy ?story= still reads) keeps the place and replaces history, so Back leaves the page (#1350).
-  const selectStory = (next: HomeStoryKey) => setSp((prev) => withStory(prev, next), { replace: true, preventScrollReset: true })
+  const selectStory = (next: string) => setSp((prev) => withStory(prev, next), { replace: true, preventScrollReset: true })
   // The topic word in the headline: a dropdown of every live story, the same list as the chip row and the story pages.
   const topicWord = topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : dcTopic
   const topicControl = { value: story, options: storyTopicOptions(topicStories.live, story, topicWord), onPick: selectStory }
@@ -251,8 +250,9 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
         )}
         </div>
 
-        {/* Story -> what happens next (#1302): below the story and its map, above Browse topics; Coming up first. It follows
-            the place asked in the URL (each card says when that place has nothing and offers the wider view). */}
+        {/* Story -> what happens next (#1302): below the story and its map; Coming up first. It follows the place asked in
+            the URL (each card says when that place has nothing and offers the wider view). Topic switching is only the
+            chip bar above (#1371); the large Browse topics strip is gone. */}
         <HomeOutcomesScroller
           topic={story}
           subject={topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : dcTopic}
@@ -261,8 +261,6 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
           label={topicDef ? (stateName ?? 'National') : storyScopeLabel(asked)}
           dataCenterStory={!topicDef}
         />
-
-        <HomeTopicStrip query={q} selected={story} onSelect={selectStory} stateCode={stateCode} city={asked.city} scopeLabel={storyScopeLabel(asked)} />
       </div>
     </section>
   )
