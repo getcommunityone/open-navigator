@@ -1,11 +1,17 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { GENERIC_POSITIONS, MISSING_LEGEND, TOPIC_POSITIONS, positionVerdict, topicPositions } from './topicPositions'
+import { GENERIC_POSITIONS, MISSING_LEGEND, TOPIC_POSITIONS, dataCenterQuoteNote, missingLegend, positionVerdict, quoteStanceNote, topicPositions } from './topicPositions'
 
 // The Jev question definitions: the one source of which way "for" points per topic.
 const TOPIC_LEAN = readFileSync(resolve(__dirname, '../../../packages/llm/src/llm/typesafe/topic_lean.py'), 'utf8')
 const TOPIC_SLUGS = [...TOPIC_LEAN.matchAll(/^ {4}"([a-z-]+)": TopicDef\(/gm)].map((m) => m[1]!)
+/** One topic's `TopicDef(...)` block of topic_lean.py, up to the next topic. */
+const blockOf = (slug: string) => {
+  const start = TOPIC_LEAN.indexOf(`"${slug}": TopicDef(`)
+  const next = TOPIC_LEAN.slice(start + 1).search(/^ {4}"[a-z-]+": TopicDef\(/m)
+  return next < 0 ? TOPIC_LEAN.slice(start) : TOPIC_LEAN.slice(start, start + 1 + next)
+}
 const stanceOf = (slug: string) => {
   const start = TOPIC_LEAN.indexOf(`"${slug}": TopicDef(`)
   const block = TOPIC_LEAN.slice(start, TOPIC_LEAN.indexOf('item=', start))
@@ -32,12 +38,29 @@ describe('topic position vocabulary', () => {
     expect(MISSING_LEGEND).toBe("No AI reading yet, or the public didn't speak on it")
   })
 
-  it('guns follow topic_lean: for or against the proposal before the body, never "gun limits"', () => {
-    expect(stanceOf('guns')).toMatch(/firearm-related proposal before the body/)
+  // The stored guns readings (question_version 48468cc5296e) were written by the gun-control question: mostly_supportive =
+  // asking for a limit on firearms, mostly_opposed = defending gun rights or backing a Second Amendment sanctuary
+  // resolution. The words name both sides (#1237), never "the gun proposal".
+  it('guns name both sides of the gun-control question: Favor gun limits / Favor gun rights', () => {
     const g = topicPositions('guns')
-    expect(g.for).toBe('Backed the gun proposal')
-    expect(g.against).toBe('Opposed the gun proposal')
-    for (const v of Object.values(g)) expect(v).not.toMatch(/limit/i)
+    expect(g.for).toBe('Favor gun limits')
+    expect(g.against).toBe('Favor gun rights')
+    expect(g.split).toBe('Split')
+    expect(missingLegend(g)).toBe("No reading yet, or the public didn't speak on it")
+    expect(g.forMeans).toMatch(/^Gun limits = a local measure restricting firearms/)
+    expect(g.forMeans).toMatch(/Gun rights = opposing such limits or backing a Second Amendment sanctuary/)
+    expect(g.forMeans).toMatch(/Not counted: police service weapons, ShotSpotter, tools called guns$/)
+    for (const v of Object.values(g)) expect(v).not.toMatch(/proposal|proposed/i)
+  })
+
+  // Main's topic_lean.py still holds the earlier "proposal before the body" guns question; the stored readings came from
+  // the gun-control one (#1239). Skipped only while the old wording is there: once it is replaced, whatever the field
+  // names, this runs and fails unless the new question still says gun limits are "for" and gun rights "against".
+  it.skipIf(/proposal before the body/.test(blockOf('guns')))('guns words match topic_lean\'s gun-control sides', () => {
+    const b = blockOf('guns')
+    expect(b).toMatch(/gun-control measure/)
+    expect(b).toMatch(/asking for limits on guns[\s\S]*are for it/)
+    expect(b).toMatch(/defending gun rights[\s\S]*against it/)
   })
 
   it('short-term rentals follow topic_lean: for = allowing them, against = banning or restricting them', () => {
@@ -72,5 +95,27 @@ describe('positionVerdict', () => {
   })
   it('below the floor there is no conclusion', () => {
     expect(positionVerdict(c(9, 0, 0, 900), 10)).toEqual({ kind: 'too_few', of: 9 })
+  })
+})
+
+describe('map quote stance line (#1230)', () => {
+  it("names the public side in the topic's own words, or says the passage only mentions the topic", () => {
+    // The words come from TOPIC_POSITIONS, never hard-coded here: a topic can be reworded without touching this line.
+    const w = topicPositions('guns')
+    expect(quoteStanceNote('guns', 'guns', 'against')).toBe(`Public: ${w.against}`)
+    expect(quoteStanceNote('guns', 'guns', 'for')).toBe(`Public: ${w.for}`)
+    expect(quoteStanceNote('guns', 'guns', 'split')).toBe(`Public: ${w.split}`)
+    expect(quoteStanceNote('guns', 'guns', 'silent')).toBe('Mentions guns; no public stance in this meeting')
+    expect(quoteStanceNote('guns', 'guns', null)).toBe('Mentions guns')
+  })
+  it('never says "AI reading" in the line', () => {
+    for (const s of ['against', 'for', 'split', 'silent', null] as const) expect(quoteStanceNote('guns', 'guns', s)).not.toMatch(/AI reading/)
+  })
+  it('data centers: only the served readings get a line', () => {
+    expect(dataCenterQuoteNote('mostly_opposed')).toBe(`Public: ${TOPIC_POSITIONS['data-centers']!.against}`)
+    expect(dataCenterQuoteNote('no_public_comment_on_data_center')).toBe('Mentions data centers; no public stance in this meeting')
+    expect(dataCenterQuoteNote('mostly_supported')).toBeNull()
+    expect(dataCenterQuoteNote('mixed')).toBeNull()
+    expect(dataCenterQuoteNote(null)).toBeNull()
   })
 })

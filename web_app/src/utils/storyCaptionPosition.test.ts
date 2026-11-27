@@ -41,8 +41,8 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
     const c = pickCaption('guns', facts({ against: 10, for: 41, split: 12, silent: 0 }, oh), oh)
     expect(c.kind).toBe('position')
     expect(c.ai).toBe(true)
-    expect(captionText(c, 'guns')).toBe('In Ohio, most meetings that took up guns backed the gun proposal before them: 41 of 63 where the public spoke (AI reading).')
-    expect(captionText(c, 'guns')).not.toMatch(/limit/)
+    expect(captionText(c, 'gun control')).toBe('In Ohio, most meetings that took up gun control favored gun limits: 41 of 63 where the public spoke (AI reading).')
+    expect(captionText(c, 'gun control')).not.toMatch(/proposal/)
   })
 
   it('national majority for short-term rentals: wanted limits (topic_lean: against = restricting)', () => {
@@ -76,8 +76,8 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
   it('too few: keeps the count title and says how many meetings have a reading so far', () => {
     const c = pickCaption('guns', facts({ against: 0, for: 1, split: 0, silent: 19 }), nat)
     expect(c.kind).toBe('state_gap')
-    expect(captionText(c, 'guns')).toBe('California and North Carolina took up guns most: 659 and 585 meetings.')
-    expect(c.basis).toMatch(/20 of 700 meetings have an AI reading so far; the public spoke on guns in 1, too few for a conclusion\.$/)
+    expect(captionText(c, 'gun control')).toBe('California and North Carolina took up gun control most: 659 and 585 meetings.')
+    expect(c.basis).toMatch(/20 of 700 meetings have an AI reading so far; the public spoke on gun control in 1, too few for a conclusion\.$/)
   })
 
   it('readings in labels outside the question are said, never counted as a side (#1204)', () => {

@@ -957,6 +957,47 @@ def build_mention_queries(
     return items_sql, params, counts_sql, counts_params
 
 
+def build_mention_state_quotes_query(
+    scope: JobClaimScope, site_id: str | None, strength: str | None, per_state: int
+) -> tuple[str, list[Any]]:
+    """Up to ``per_state`` passages per state for the story map cards (#1230), one per meeting (its first passage).
+
+    Only real public meetings: a recording Jev read as ``government_other`` (media briefing, ceremony, interview) or
+    ``not_government`` (podcast, stream) is never quoted (``meeting_video_kind``); an unscreened one is kept. Then
+    meetings Jev read as the public mostly opposed (``data_center_meeting_lean.public_against``, P >= 0.7, the only
+    lean the maps serve), newest first; then screened meetings; then the rest, newest first.
+    """
+    where_sql, params = _mention_where(scope.state_code, scope.city, site_id, strength)
+    params.append(per_state)
+    sql = (
+        "WITH first_passage AS ("
+        "SELECT DISTINCT ON (m.video_id) m.* FROM data_center_meeting_mention m "
+        f"WHERE ({where_sql}) AND m.state_code IS NOT NULL "
+        "ORDER BY m.video_id, m.passage_index"
+        "), ranked AS ("
+        "SELECT f.*, row_number() OVER ("
+        "PARTITION BY f.state_code ORDER BY "
+        "CASE WHEN l.public_against THEN 0 WHEN k.is_public_meeting THEN 1 ELSE 2 END, "
+        "f.meeting_date DESC NULLS LAST, f.video_id"
+        ") AS state_rank "
+        "FROM first_passage f "
+        "LEFT JOIN data_center_meeting_lean l ON l.video_id = f.video_id "
+        "LEFT JOIN meeting_video_kind k ON k.video_id = f.video_id "
+        "WHERE k.is_public_meeting IS NOT FALSE"
+        ") "
+        "SELECT r.data_center_meeting_mention_id, r.video_id, r.video_url, r.meeting_title, "
+        "r.meeting_date, r.jurisdiction_id, r.jurisdiction_name, r.state_code, r.state, "
+        "r.passage_index, r.start_seconds::float8 AS start_seconds, r.evidence, "
+        "coalesce(r.match_terms, ARRAY[]::text[]) AS match_terms, r.match_strength, "
+        "r.data_center_site_id, s.site_name, r.site_match_basis "
+        "FROM ranked r "
+        "LEFT JOIN data_center_site s ON s.data_center_site_id = r.data_center_site_id "
+        f"WHERE r.state_rank <= ${len(params)} "
+        "ORDER BY r.state_code, r.state_rank"
+    )
+    return sql, params
+
+
 def build_mention_by_state_query(site_id: str | None, strength: str | None) -> tuple[str, list[Any]]:
     """Distinct meetings per state across the whole country (#970), with the same site and strength filters.
 
@@ -1186,10 +1227,19 @@ async def list_data_center_meeting_mentions(
         None, description="site_specific (names a tracked site/owner) or data_center."
     ),
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    quotes_per_state: int | None = Query(
+        None,
+        ge=1,
+        le=10,
+        description="For the story map cards (#1230): instead of the newest `limit` passages, up to this many per state, "
+        "one per meeting, real public meetings only, meetings where the public mostly opposed first, newest first. "
+        "Counts are unchanged.",
+    ),
 ) -> DataCenterMeetingMentionsResponse:
     """
     Meeting passages where a data center was discussed, newest meeting first, each with a
-    quoted, highlighted excerpt of the transcript and the moment to jump to.
+    quoted, highlighted excerpt of the transcript and the moment to jump to. With ``quotes_per_state``, each state's
+    map quotes instead (see ``build_mention_state_quotes_query``).
 
     Example:
         GET /api/data-centers/meeting-mentions?state=NC&city=Charlotte
@@ -1210,11 +1260,23 @@ async def list_data_center_meeting_mentions(
         span.set_attribute("meeting_mentions.city", applied.city or "")
         span.set_attribute("meeting_mentions.site_id", site_clean or "")
         span.set_attribute("meeting_mentions.limit", limit)
+        span.set_attribute("meeting_mentions.quotes_per_state", quotes_per_state or 0)
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 with tracer.start_as_current_span("data-centers.meeting-mentions.query"):
-                    rows = await conn.fetch(items_sql, *params)
+                    if quotes_per_state:
+                        quotes_sql, quotes_params = build_mention_state_quotes_query(
+                            applied, site_clean, strength, quotes_per_state
+                        )
+                        try:
+                            rows = await conn.fetch(quotes_sql, *quotes_params)
+                        except (asyncpg.exceptions.UndefinedTableError, asyncpg.exceptions.UndefinedColumnError) as e:
+                            # A serving copy without meeting_video_kind / data_center_meeting_lean: the newest passages.
+                            logger.warning("data-centers: map-quote tables unavailable ({}); newest passages", e)
+                            rows = await conn.fetch(items_sql, *params)
+                    else:
+                        rows = await conn.fetch(items_sql, *params)
                     count_rows = await conn.fetch(counts_sql, *counts_params)
                     state_rows = await conn.fetch(by_state_sql, *by_state_params)
                     place_rows = []

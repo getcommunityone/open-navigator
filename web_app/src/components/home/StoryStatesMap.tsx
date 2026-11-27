@@ -26,7 +26,7 @@ import { isTouchOnly } from '../../utils/touchOnly'
 import { isCurrentPage } from '../../utils/currentPage'
 import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
-import { MISSING_LEGEND, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
+import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
 export interface StateMarker {
   state_code: string
@@ -60,6 +60,8 @@ export interface StateQuote {
   date: string | null
   /** The meeting's title, for a meeting passage. */
   meeting: string | null
+  /** Where the public stood at this meeting, as a short line (#1230); none → no line. */
+  stanceNote?: string | null
   /** The recording at the passage's moment, or the recording. */
   url: string | null
   /** The recording's YouTube id, when known (else derived from `url`). */
@@ -315,7 +317,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const shownStance = shownCode ? lineOf(stanceBy.get(shownCode)) : null
   // The card's state is the page the reader is on: no button to it, and the caption says so.
   const shownIsHere = shownCode ? isCurrentPage(href(shownCode), location.pathname, location.search) : false
-  // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200).
+  // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200; guns: "No reading yet", #1237).
   const noReading = words ? words.unread.charAt(0).toLowerCase() + words.unread.slice(1) : 'no AI reading yet'
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
   const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
@@ -401,6 +403,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           role={quote.role}
           item={quote.item}
           meeting={quote.meeting}
+          stanceNote={quote.stanceNote ?? null}
           videoId={resolveVideoId(quote.videoId, quote.url)}
           startSeconds={quote.startSeconds ?? startFromUrl(quote.url)}
           url={quote.url}
@@ -478,7 +481,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           )}
           {hasStance
             ? words
-              ? `${MISSING_LEGEND} (darker = more meetings)`
+              ? `${missingLegend(words)} (darker = more meetings)`
               : byMeetings
               ? 'Meetings, no AI reading yet (darker = more meetings)'
               : 'Meetings, no stance on record (darker = more meetings)'
@@ -501,7 +504,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : 'No speaker positions on record yet; states show meetings only.'}
           {hasLean || (byMeetings && split.length > 0) ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
-          {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${MISSING_LEGEND.charAt(0).toLowerCase()}${MISSING_LEGEND.slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
+          {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${missingLegend(words).charAt(0).toLowerCase()}${missingLegend(words).slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
         </p>
         )}
 

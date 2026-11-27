@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '../../api/topics'
 import { topicStanceForMap } from '../../utils/topicStance'
-import { topicPositions } from '../../utils/topicPositions'
+import { quoteStanceNote, topicPositions } from '../../utils/topicPositions'
 import type { StoryScope } from '../../utils/dataStory'
 import { CAPTION_COPY, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
 import '../../styles/story-actions.css'
@@ -62,6 +62,8 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next, onP
         text: m.excerpt,
         date: m.date ?? null,
         meeting: m.title ?? null,
+        // Where the public stood at the quoted meeting (#1230): the API picks a meeting where it took a side first.
+        stanceNote: quoteStanceNote(def.slug, CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase(), m.public_stance),
         url: m.video_url ?? null,
         videoId: m.video_id ?? null,
       }
@@ -70,7 +72,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next, onP
       else if (list.length < QUOTES_PER_STATE) list.push(q)
     }
     return out
-  }, [states.data])
+  }, [states.data, def.slug, def.subject])
   const caption = pickCaption(def.slug, facts.data, scope)
   const topicNoun = CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase()
   const title = captionText(caption, topicNoun)
