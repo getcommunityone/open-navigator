@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import MapSkeleton, { useStateAspect } from './MapSkeleton'
 import { useQuery } from '@tanstack/react-query'
 import { COUNTIES_ALBERS_TOPO, albersPoint, bboxOf, dotsFor, featAt, fetchTopo, meetingColor, toFeats } from '../../lib/dotMatrix'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
@@ -89,7 +90,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   useEffect(() => keepCard, [])
   const stateFips = FIPS_OF_CODE[stateCode] ?? null
   const stateName = STATE_CODE_TO_NAME[stateCode] ?? stateCode
-  const { data: topo, isError } = useQuery({
+  const aspect = useStateAspect(stateCode)
+  const { data: topo, isError, refetch } = useQuery({
     queryKey: ['us-atlas-counties-albers'],
     queryFn: () => fetchTopo(COUNTIES_ALBERS_TOPO),
     staleTime: 1000 * 60 * 60,
@@ -186,20 +188,16 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     },
   })
 
-  if (isError) {
-    return (
-      <p className="stance-nodata" role="status">
-        The county shapes could not be loaded. The counts below still show every place.
-      </p>
-    )
-  }
-  if (!grid || !placed || !sides) {
+  // Loading (#1328): the map's box and a quiet shimmer; a failure says so with Try again.
+  if (isError) return <MapSkeleton aspect={aspect} error onRetry={() => void refetch()} />
+  if (topo && !grid) {
     return (
       <p className="stance-note" role="status">
-        {topo && !grid ? `No county shapes for ${stateName}.` : 'Loading the map…'}
+        No county shapes for {stateName}.
       </p>
     )
   }
+  if (!grid || !placed || !sides) return <MapSkeleton aspect={aspect} />
 
   const { byCounty, counts, stances, leans, rings, unplaced } = placed
   const max = Math.max(0, ...counts.values())
@@ -351,7 +349,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
 
   return (
     // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
-    <figure className="stance-map" aria-labelledby={labelledBy} onMouseLeave={leaveMap} onMouseEnter={keepCard} {...keyNav.stageProps}>
+    <figure className="stance-map map-fade-in" aria-labelledby={labelledBy} onMouseLeave={leaveMap} onMouseEnter={keepCard} {...keyNav.stageProps}>
       <figcaption className="stance-map-head">
         <span>
           Meetings where a data center came up, by county · {stateName}

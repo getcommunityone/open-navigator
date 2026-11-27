@@ -17,6 +17,7 @@ import { storyStartHref } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
 import StoryCountyMap from '../stance/StoryCountyMap'
+import MapSkeleton, { useStateAspect } from '../stance/MapSkeleton'
 
 
 interface Props {
@@ -163,6 +164,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
     retry: 1,
   })
   const byPlace = statePlaces.data?.counts?.by_place
+  const stateAspect = useStateAspect(scope.stateCode)
   const drill = (city: string | null) => {
     if (!scope.stateCode) return
     const p = new URLSearchParams({ state: scope.stateCode })
@@ -225,9 +227,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                   onDrill={drill}
                 />
               ) : (
-                <p className="text-sm text-stone-500" role="status">
-                  Loading the map…
-                </p>
+                <MapSkeleton aspect={stateAspect} label={`Loading the map of ${label}`} />
               )
             ) : national.isError ? (
               <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
