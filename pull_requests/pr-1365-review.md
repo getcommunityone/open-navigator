@@ -5,7 +5,7 @@ title: "feat(topics): topic_organization mart and API tie nonprofits to curated 
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 223d212e388c5a40c462c5062a87a93360f1d999
+head_sha: 8f422f4974d2333d2384f2fd769dcbbc898ae992
 verdict: approve
 ---
 
@@ -20,6 +20,8 @@ Automated review (#648) for PR #1365 on `feat/1345-topic-organization`. Heuristi
 
 - `api/main.py`
 - `api/routes/topic_organizations.py`
+- `dbt_project/contracts/products/open-navigator-public-api.odps.yaml`
+- `dbt_project/contracts/topic_organization.odcs.yaml`
 - `dbt_project/dbt_project.yml`
 - `dbt_project/macros/publish_public_serving.sql`
 - `dbt_project/models/intermediate/int_topic_organization__named_in_meeting.sql`
@@ -28,13 +30,14 @@ Automated review (#648) for PR #1365 on `feat/1345-topic-organization`. Heuristi
 - `dbt_project/models/marts/topic_organization.sql`
 - `dbt_project/seeds/schema.yml`
 - `dbt_project/seeds/topic_organization_rule.csv`
+- `pull_requests/pr-1365-review.md`
 - `tests/test_api_topic_organizations.py`
 - `web_docs/docs/development/topic-organizations.md`
 - `web_docs/docs/guides/data-stories.md`
 
 ## CI Status
 
-See the PR checks on `223d212e388c`.
+See the PR checks on `8f422f4974d2`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
