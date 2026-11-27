@@ -14,7 +14,7 @@ interface Props {
   /** The story the hero shows. */
   selected: string
   onSelect: (slug: string) => void
-  /** "?state=AL&city=…" (or empty): carried to Browse Topics so the place travels. */
+  /** "?state=AL&city=…" (or empty): carried to Compare all (`/browse-topics/all`) so the place travels. */
   query: string
   /** The hero it controls. */
   panelId: string
@@ -23,8 +23,8 @@ interface Props {
 /**
  * The home topic switcher (#1350): one chip per live topic story, directly above the headline so a reader sees how to
  * change topic without scrolling. A tablist (one tab stop; arrows, Home and End move and pick), the active chip filled
- * teal. It scrolls sideways on a phone with a fade at the edge; "All topics" is a link to Browse Topics, kept out of the
- * tablist.
+ * teal. It scrolls sideways with a fade at the edge; **Compare all** opens the YoY compare page (#1371), kept out of the
+ * tablist (replaces the old "All topics" link and the large Browse topics strip).
  */
 export default function HomeTopicBar({ topics, selected, onSelect, query, panelId }: Props) {
   const listRef = useRef<HTMLDivElement>(null)
@@ -87,8 +87,8 @@ export default function HomeTopicBar({ topics, selected, onSelect, query, panelI
             )
           })}
         </div>
-        <Link to={`/browse-topics${query}`} className="home-tbar-chip is-all">
-          All topics <span aria-hidden="true">→</span>
+        <Link to={`/browse-topics/all${query}`} className="home-tbar-chip is-all">
+          Compare all <span aria-hidden="true">→</span>
         </Link>
       </div>
     </nav>
