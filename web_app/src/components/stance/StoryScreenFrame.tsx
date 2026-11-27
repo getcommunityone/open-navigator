@@ -24,6 +24,8 @@ interface Props {
   navPrimary?: ReactNode
   /** The figure column. */
   right: ReactNode
+  /** Phones (#1380): the Overview drops its boxed word and fills the screen with the map; the headline stays for screen readers. */
+  glance?: boolean
 }
 
 /**
@@ -39,7 +41,7 @@ export default function StoryScreenFrame(p: Props) {
   const sectionRef = useRef<HTMLElement>(null)
   // On a phone the screen fits above the bottom bar (#1290): what doesn't fit waits behind "More".
   const [more, setMore] = useState(false)
-  const hasMore = useScreenFit(sectionRef, rightRef, p.active, more)
+  const hasMore = useScreenFit(sectionRef, rightRef, p.active, more || !!p.glance)
   useEffect(() => {
     if (!p.active) setMore(false)
   }, [p.active])
@@ -59,7 +61,7 @@ export default function StoryScreenFrame(p: Props) {
     <section
       ref={sectionRef}
       data-fit-more={more ? '' : undefined}
-      className="stance-panel stance-act"
+      className={`stance-panel stance-act${p.glance ? ' stance-panel--glance' : ''}`}
       data-panel={p.index}
       data-screen={p.id}
       data-live={p.active ? '' : undefined}

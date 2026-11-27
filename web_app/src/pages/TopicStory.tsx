@@ -805,8 +805,17 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 onNext={() => goTo(i + 1)}
                 onPrev={i > 0 ? () => goTo(i - 1) : undefined}
                 right={v.right}
+                glance={!wide && s.id === 'overview'}
               >
-                {v.lead}
+                {!wide && s.id === 'overview' && v.lead ? (
+                  // Phones (#1380): the map fills the screen; the subhead and notes stay one tap away, never dropped.
+                  <details className="stance-glance-about">
+                    <summary>About this map</summary>
+                    {v.lead}
+                  </details>
+                ) : (
+                  v.lead
+                )}
               </StoryScreenFrame>
             )
           })}

@@ -57,12 +57,10 @@ export function resolveStoryScope(c: ScopeCounts): ResolvedScope {
   return { ...r, short: r.reason ? shortReason(c, r) : null }
 }
 
-/** "Showing Alabama · Tuscaloosa has too few meetings (2)": what is shown, then the one fact that moved it. */
-function shortReason(c: ScopeCounts, r: Omit<ResolvedScope, 'short'>): string {
+/** "Showing Alabama": what is shown, on one line. The fact that moved it (the asked place's count) is in `reason`, behind "Why?". */
+function shortReason(_c: ScopeCounts, r: Omit<ResolvedScope, 'short'>): string {
   const shown = r.level === 'national' ? 'the whole country' : (r.stateName ?? 'the state')
-  const asked = r.asked === 'city' ? (c.city?.trim() || 'The city') : (c.stateName ?? c.stateCode ?? 'The state')
-  const n = r.asked === 'city' ? c.cityMeetings : c.stateMeetings
-  return `Showing ${shown} · ${asked} has too few meetings${n != null ? ` (${n.toLocaleString('en-US')})` : ''}`
+  return `Showing ${shown}`
 }
 
 function resolveLevel(c: ScopeCounts): Omit<ResolvedScope, 'short'> {
