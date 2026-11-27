@@ -1,4 +1,7 @@
+import { useCallback, useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import type { DrillKind } from '../../api/storyDrill'
+import { DrillValue, KpiDrillSheet, isDrillable } from './KpiDrill'
 import { fetchDataCenterCommentMetrics, type DataCenterCommentMetrics } from '../../api/dataCenters'
 import { storyScopeLabel, type StoryScope } from '../../utils/dataStory'
 import { fmt } from '../../utils/stanceGame'
@@ -27,6 +30,10 @@ export function commentMetricsLine(m: DataCenterCommentMetrics | undefined, scop
  * Missing or failed data shows one quiet line, never a stand-in number.
  */
 export default function CommentMetricsBlock({ scope, year = 2026 }: Props) {
+  // The count whose comments are open (#1288): 'all', 'ai' or 'company-<key>'.
+  const [drill, setDrill] = useState<string | null>(null)
+  const sheetId = useId()
+  const closeDrill = useCallback(() => setDrill(null), [])
   const q = useQuery<DataCenterCommentMetrics>({
     queryKey: ['dc-comment-metrics', year, scope.stateCode ?? 'national', scope.city ?? ''],
     queryFn: () =>
@@ -44,13 +51,28 @@ export default function CommentMetricsBlock({ scope, year = 2026 }: Props) {
     )
   }
   const m = q.data
+  const toggle = (k: string) => setDrill(drill === k ? null : k)
+  const drillKind = (k: string): DrillKind =>
+    k === 'all' ? { kind: 'comments', filter: 'all' } : k === 'ai' ? { kind: 'comments', filter: 'ai' } : { kind: 'comments', filter: 'company', company: k.slice('company-'.length) }
+  const drillTitle = (k: string) =>
+    k === 'all' ? 'Public comments from meeting captions' : k === 'ai' ? 'Comments that mention AI' : `Comments that name ${companies.find((c) => `company-${c.key}` === k)?.label ?? k.slice(8)}`
   const companies = m.companies.slice(0, 5)
   const ai = m.ai_mentions
   return (
     <div className="stance-voices-comments" data-testid="comment-metrics">
       <p className="stance-note">
         The figures above are hand-counted from meeting analyses. From our own meeting captions:{' '}
-        <strong>{line}</strong>.
+        <DrillValue
+          drillable={isDrillable(q.data.comments)}
+          label="public comments from meeting captions"
+          open={drill === 'all'}
+          controls={sheetId}
+          onToggle={() => toggle('all')}
+          text
+        >
+          <strong>{line}</strong>
+        </DrillValue>
+        .
       </p>
       {(companies.length > 0 || ai) && (
         <dl className="stance-voices-figures">
@@ -58,7 +80,9 @@ export default function CommentMetricsBlock({ scope, year = 2026 }: Props) {
             <div data-figure="ai">
               <dt>Mention AI</dt>
               <dd>
-                {fmt(ai.count)}
+                <DrillValue drillable={isDrillable(ai.count)} label="mention AI" open={drill === 'ai'} controls={sheetId} onToggle={() => toggle('ai')}>
+                  {fmt(ai.count)}
+                </DrillValue>
                 {pct(ai.share) ? ` (${pct(ai.share)})` : ''}
               </dd>
             </div>
@@ -66,10 +90,30 @@ export default function CommentMetricsBlock({ scope, year = 2026 }: Props) {
           {companies.map((c) => (
             <div key={c.key} data-figure={`company-${c.key}`}>
               <dt>Name {c.label}</dt>
-              <dd>{fmt(c.count)}</dd>
+              <dd>
+                <DrillValue
+                  drillable={isDrillable(c.count)}
+                  label={`name ${c.label}`}
+                  open={drill === `company-${c.key}`}
+                  controls={sheetId}
+                  onToggle={() => toggle(`company-${c.key}`)}
+                >
+                  {fmt(c.count)}
+                </DrillValue>
+              </dd>
             </div>
           ))}
         </dl>
+      )}
+      {drill && (
+        <KpiDrillSheet
+          id={sheetId}
+          drill={drillKind(drill)}
+          title={drillTitle(drill)}
+          scope={{ stateCode: scope.stateCode, city: scope.city, year }}
+          scopeLabel={`${storyScopeLabel(scope)}, ${year}`}
+          onClose={closeDrill}
+        />
       )}
       <p className="stance-note">
         A comment is one speaker&apos;s turn at the microphone, found by self-introductions and the chair calling speakers;
