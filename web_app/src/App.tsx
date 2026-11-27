@@ -159,6 +159,7 @@ function RouteChangeTracer() {
 // The challenge and the story pull in gsap and lenis, so they load on their own route chunks and no other page pays for them.
 const DataStory = lazy(() => import('./pages/DataStory'))
 const TopicStory = lazy(() => import('./pages/TopicStory'))
+const BrowseAllTopics = lazy(() => import('./pages/BrowseAllTopics'))
 const OrganizationPage = lazy(() => import('./pages/OrganizationPage'))
 const DataStories = lazy(() => import('./pages/DataStories'))
 
@@ -215,6 +216,15 @@ function App() {
         <Route path="policy-questions" element={<PolicyQuestionsPage />} />
         <Route path="policy-question/:questionId" element={<PolicyQuestionPage />} />
         <Route path="browse-topics" element={<BrowseTopics />} />
+        {/* Every main topic, last year against this year, in one animated dumbbell (#1343). */}
+        <Route
+          path="browse-topics/all"
+          element={
+            <LazyRouteBoundary name="Browse all topics">
+              <BrowseAllTopics />
+            </LazyRouteBoundary>
+          }
+        />
         <Route path="browse-causes" element={<BrowseCauses />} />
         <Route path="data-centers" element={<DataCenters />} />
         <Route path="play" element={<ChallengeRedirect />} />

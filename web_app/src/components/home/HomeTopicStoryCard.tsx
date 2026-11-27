@@ -11,7 +11,7 @@ import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import TopicCountyMap from '../stance/TopicCountyMap'
-import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
+import HomeStoryTitle, { type TopicControl, HomeStorySubhead } from './HomeStoryTitle'
 import { storyStartHref } from '../../utils/storyNav'
 
 /** A state's map passages, newest first, at most this many. */
@@ -25,13 +25,15 @@ interface Props {
   query: string
   /** A place picked in the title's place control (#1206); see `HomeDataStories`. */
   onPlaceApply?: (stateCode: string | null, city: string | null) => void
+  /** The topic word as a dropdown of every live story (#1350). */
+  topicControl?: TopicControl
 }
 
 /**
  * The home card for one topic story (#1013, #1133): its caption for the page's scope (#1125), its lede, Start the story,
  * and the map of meetings per state with each state's newest verbatim passage. Every figure is a real count.
  */
-export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceApply }: Props) {
+export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceApply, topicControl }: Props) {
   const topicNoun = CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase()
   // The place the story speaks for (#1285): too few meetings for the city (or state) steps up a level, and says why.
   const placeScope = useStoryScope(def.slug, topicNoun, asked.stateCode, asked.city)
@@ -136,7 +138,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
           aria-busy={facts.isPending || undefined}
           style={facts.isPending ? { visibility: 'hidden' } : undefined}
         >
-          <HomeStoryTitle caption={caption} topic={topicNoun} scope={scope} onPlaceApply={onPlaceApply} />
+          <HomeStoryTitle caption={caption} topic={topicNoun} scope={scope} onPlaceApply={onPlaceApply} topicControl={topicControl} />
         </h1>
         {/* A broader scope's title (#1222): the line under it names the place in scope (as its control); else the lede. */}
         <HomeStorySubhead

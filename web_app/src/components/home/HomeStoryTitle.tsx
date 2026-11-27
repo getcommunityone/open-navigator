@@ -15,6 +15,53 @@ interface Props {
   scope: StoryScope
   /** A place picked in the title's control: a state (and city), or null/null for the United States. */
   onPlaceApply?: (stateCode: string | null, city: string | null) => void
+  /** The topic word as a dropdown of every live story (#1350); without it the topic is plain text. */
+  topicControl?: TopicControl
+}
+
+export interface TopicControl {
+  /** The current story's slug. */
+  value: string
+  options: { value: string; label: string }[]
+  onPick: (slug: string) => void
+}
+
+/**
+ * The topic word in a title as the stories' inline dropdown (#1350): the same dotted underline and caret as the place
+ * blank, a native select so it is keyboard and screen-reader operable. Sized to the word shown where the browser can.
+ */
+function TopicSelect({ word, control }: { word: string; control: TopicControl }) {
+  return (
+    <span className="home-place home-topic-blank">
+      <span className="stance-blank-wrap">
+        <select className="stance-blank" aria-label="Topic" value={control.value} onChange={(e) => control.onPick(e.target.value)}>
+          {control.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.value === control.value ? word : o.label}
+            </option>
+          ))}
+        </select>
+        <span aria-hidden="true" className="stance-blank-caret">
+          ▾
+        </span>
+      </span>
+    </span>
+  )
+}
+
+/** Text with its first mention of the topic word replaced by the topic dropdown (the rest stays text). */
+function withTopic(text: string, topic: string, control: TopicControl | undefined, used: { done: boolean }) {
+  if (!control || used.done || !topic) return text
+  const i = text.toLowerCase().indexOf(topic.toLowerCase())
+  if (i < 0) return text
+  used.done = true
+  return (
+    <>
+      {text.slice(0, i)}
+      <TopicSelect word={text.slice(i, i + topic.length)} control={control} />
+      {text.slice(i + topic.length)}
+    </>
+  )
 }
 
 /**
@@ -23,25 +70,38 @@ interface Props {
  * my location, a state list; a bottom sheet on a phone). The words come from the shared caption; this only swaps the
  * place for the control. Without `onPlaceApply` the title is plain text.
  */
-export default function HomeStoryTitle({ caption, topic, scope, onPlaceApply }: Props) {
+export default function HomeStoryTitle({ caption, topic, scope, onPlaceApply, topicControl }: Props) {
   const split = splitCaptionAtPlace(caption, topic, scope)
   // The title names a broader place than the scope (#1222): it stays plain; `HomeStorySubhead` carries the control.
-  if (!split) return <>{fill(caption, topic)}</>
-  if (!onPlaceApply) return <>{`${split.before}${split.place}${split.after}`}</>
-  return <PlaceSplit split={split} scope={scope} onPlaceApply={onPlaceApply} />
+  if (!split) return <>{withTopic(fill(caption, topic), topic, topicControl, { done: false })}</>
+  if (!onPlaceApply) return <>{withTopic(`${split.before}${split.place}${split.after}`, topic, topicControl, { done: false })}</>
+  return <PlaceSplit split={split} scope={scope} onPlaceApply={onPlaceApply} topic={topic} topicControl={topicControl} />
 }
 
 const fill = (caption: Caption, topic: string) =>
   caption.template.map((p) => (typeof p === 'string' ? p : p.blank === 'place' ? caption.place : topic)).join('')
 
-function PlaceSplit({ split, scope, onPlaceApply }: { split: CaptionPlaceSplit; scope: StoryScope; onPlaceApply: NonNullable<Props['onPlaceApply']> }) {
+function PlaceSplit({
+  split,
+  scope,
+  onPlaceApply,
+  topic = '',
+  topicControl,
+}: {
+  split: CaptionPlaceSplit
+  scope: StoryScope
+  onPlaceApply: NonNullable<Props['onPlaceApply']>
+  topic?: string
+  topicControl?: TopicControl
+}) {
+  const used = { done: false }
   const [open, setOpen] = useState(false)
   const { before, place, after } = split
   // Closing punctuation stays on the control's line, so "." never wraps alone.
   const mark = /^[.?!,;:]/.exec(after)?.[0] ?? ''
   return (
     <>
-      {before}
+      {withTopic(before, topic, topicControl, used)}
       <span className="home-place-nowrap">
         <PlaceControl
           variant="blank"
@@ -55,7 +115,7 @@ function PlaceSplit({ split, scope, onPlaceApply }: { split: CaptionPlaceSplit; 
         />
         {mark}
       </span>
-      {after.slice(mark.length)}
+      {withTopic(after.slice(mark.length), topic, topicControl, used)}
     </>
   )
 }
