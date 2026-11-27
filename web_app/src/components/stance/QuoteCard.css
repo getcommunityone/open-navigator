@@ -350,26 +350,36 @@ div.qcard-media {
   font-size: 12px;
 }
 .qcard--compact .qcard-quote {
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 .map-hover-open {
-  display: block;
-  margin: 6px 0 0;
-  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 6px 14px;
   border: 0;
-  background: none;
-  color: var(--qcard-teal);
+  border-radius: 999px;
+  background: var(--qcard-teal);
+  color: #fff;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.3;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 120ms ease;
 }
 .map-hover-open:hover,
 .map-hover-open:focus-visible {
-  text-decoration: underline;
+  background: #115e59;
+  color: #fff;
+  text-decoration: none;
+}
+.map-hover-open:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
 }
 .map-hover-here {
   margin: 6px 0 0;

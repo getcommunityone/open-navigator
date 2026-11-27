@@ -95,6 +95,7 @@ function mapState(page, sel, readoutSel) {
         lit: [...new Set(lit.map((e) => e.getAttribute('data-state')).filter(Boolean))],
         litCount: lit.length,
         outline: !!svg?.querySelector('[data-active-outline]'),
+        drillCue: svg?.querySelector('[data-hover-drill-cue]')?.textContent ?? null,
         readout: scope.querySelector(readoutSel)?.textContent ?? '',
         close: !!document.querySelector('.map-card-close'),
       }
@@ -212,6 +213,7 @@ async function hoverChecks(page, sel, readoutSel, a, b, name) {
   await page.waitForTimeout(600)
   let r = await mapState(page, sel, readoutSel)
   ok(r.lit.length === 1 && r.lit[0] === a && r.litCount > 1 && r.outline, `hover ${a}: the whole state is lit and outlined (${r.litCount} shapes)`)
+  ok(Boolean(r.drillCue && r.drillCue.includes('Click')), `  on-map drill-down pill shows ("${r.drillCue}")`)
   ok(r.cards === 1, `hover ${a}: one card (${r.cards}) · ${r.place}`)
   ok(r.offMap === true, '  the card is beside the map, not over it')
   if (r.src) {
@@ -231,7 +233,7 @@ async function hoverChecks(page, sel, readoutSel, a, b, name) {
   // The card stays a moment so the mouse can reach its link, then goes.
   await page.waitForTimeout(900)
   r = await mapState(page, sel, readoutSel)
-  ok(r.cards === 0 && r.iframes === 0, 'leaving the map removes the card and its player')
+  ok(r.cards === 0 && r.iframes === 0 && !r.drillCue, 'leaving the map removes the card, its player and the drill-down pill')
 }
 
 async function desktop(ctx) {
