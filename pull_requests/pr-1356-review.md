@@ -5,7 +5,7 @@ title: "feat(stories): data centers over time screen and an honest recorded-meet
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 5bc6ccc8f4c2ef88ab95cbad88534afc01bdc075
+head_sha: 77c978ca23674892ebd8be837abdeaf4962b63d7
 verdict: approve
 ---
 
@@ -22,6 +22,8 @@ Automated review (#648) for PR #1356 on `feat/1348-dc-sites-over-time`. Heuristi
 - `api/main.py`
 - `api/routes/data_center_sites_timeline.py`
 - `api/routes/recorded_coverage.py`
+- `dbt_project/contracts/data_center_site_timeline.odcs.yaml`
+- `dbt_project/contracts/products/open-navigator-public-api.odps.yaml`
 - `dbt_project/macros/publish_public_serving.sql`
 - `dbt_project/models/marts/_schema_data_center_site_timeline.yml`
 - `dbt_project/models/marts/data_center_site_timeline.sql`
@@ -47,7 +49,7 @@ Automated review (#648) for PR #1356 on `feat/1348-dc-sites-over-time`. Heuristi
 
 ## CI Status
 
-See the PR checks on `5bc6ccc8f4c2`.
+See the PR checks on `77c978ca2367`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
