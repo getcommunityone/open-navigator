@@ -675,13 +675,21 @@ function agendasText(res: DataCenterAgendaItemsResponse, scope: StoryScope): Scr
 
 export const DECISIONS_NOT_LOADED = 'Decisions on data center items are not loaded yet.'
 
+/** "12 are on a data center; 2 only mention one in passing. " (#1293), from the server's whole-scope split; '' without it. */
+export function decisionsRelevanceLine(res: DataCenterDecisionsResponse): string {
+  const on = res.counts?.on_topic
+  const off = res.counts?.in_passing
+  if (on == null || off == null || on + off <= 0) return ''
+  return `${fmtN(on)} ${on === 1 ? 'is' : 'are'} on a data center${off > 0 ? `; ${fmtN(off)} only ${off === 1 ? 'mentions' : 'mention'} one in passing` : ''}. `
+}
+
 function decisionsText(res: DataCenterDecisionsResponse, scope: StoryScope): ScreenText | null {
   const c = res.counts?.contested ?? 0
   const u = res.counts?.uncontested ?? 0
   if (c + u <= 0) return null
   return {
     headline: decisionsSentence(c, u, placeFor('decisions', scope)),
-    context: 'Without debate means on the consent agenda or by a routine vote, and includes items that were tabled or denied. What about meetings the companies host?',
+    context: `${decisionsRelevanceLine(res)}Without debate means on the consent agenda or by a routine vote, and includes items that were tabled or denied. What about meetings the companies host?`,
     empty: false,
     failed: false,
   }

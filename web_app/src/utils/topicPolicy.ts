@@ -158,6 +158,12 @@ const GENERIC_ACTION_LABEL: Record<ActionGroup, string> = {
 
 /** Per-topic words for the three outcome groups, restating the question the meeting reading asked. */
 const TOPIC_ACTION_LABEL: Record<string, Record<ActionGroup, string>> = {
+  // The gun-control question's outcomes (llm.typesafe.topic_lean.TOPICS.guns, #1293): "it" would be ambiguous here.
+  guns: {
+    advanced: 'Voted for a limit on firearms',
+    blocked: 'Voted down a firearms limit, or approved a range or gun shop',
+    tabled_or_deferred: 'Tabled or put off',
+  },
   'water-fluoridation': {
     advanced: 'Voted to keep or start fluoridation',
     blocked: 'Voted to end fluoridation',
