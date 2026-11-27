@@ -628,7 +628,8 @@ export interface paths {
         /**
          * List Data Center Meeting Mentions
          * @description Meeting passages where a data center was discussed, newest meeting first, each with a
-         *     quoted, highlighted excerpt of the transcript and the moment to jump to.
+         *     quoted, highlighted excerpt of the transcript and the moment to jump to. With ``quotes_per_state``, each state's
+         *     map quotes instead (see ``build_mention_state_quotes_query``).
          *
          *     Example:
          *         GET /api/data-centers/meeting-mentions?state=NC&city=Charlotte
@@ -4893,6 +4894,8 @@ export interface operations {
                 /** @description site_specific (names a tracked site/owner) or data_center. */
                 strength?: ("site_specific" | "data_center") | null;
                 limit?: number;
+                /** @description For the story map cards (#1230): instead of the newest `limit` passages, up to this many per state, one per meeting, real public meetings only, meetings where the public mostly opposed first, newest first. Counts are unchanged. */
+                quotes_per_state?: number | null;
             };
             header?: never;
             path?: never;
@@ -4929,6 +4932,8 @@ export interface operations {
                 city?: string | null;
                 /** @description Quotes per side. */
                 limit?: number;
+                /** @description If set, up to this many quotes per state and side instead of `limit` per side (the home map). */
+                per_state?: number;
             };
             header?: never;
             path?: never;

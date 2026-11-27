@@ -31,13 +31,20 @@ rewording one topic re-reads only that topic.
 |---|---|
 | Short-term rentals | allowing short-term rentals (permits, fewer limits) |
 | Flock and license plate readers | buying, keeping or expanding the cameras |
-| Guns | the firearm-related proposal before the body (a range, show, store, rule or detection contract) |
+| Gun control (slug `guns`) | a local gun-control measure: a limit on firearms (where guns may be carried or fired, sales, gun shows, shops or ranges near homes, safe storage, assault weapons, ghost guns). Against = defending gun rights or backing a Second Amendment sanctuary resolution |
 | Pickleball | building, keeping or expanding the courts or venue |
 | Water fluoridation | keeping or adding fluoride in the water |
 | Bike lanes | building or keeping the lanes or paths |
 
-Guns is the one topic where "for" depends on the proposal, because a gun range and a gun restriction point opposite
-ways. Its map reads "for or against what was proposed", and the hand check below decides whether it is shown.
+Gun control is the one topic where "for" and "against" could each be read either way (against guns, or against gun
+limits), so the site names both sides instead ([#1237](https://github.com/getcommunityone/open-navigator/issues/1237)):
+**Favor gun limits** (`mostly_supportive`) and **Favor gun rights** (`mostly_opposed`). The stored readings
+(`question_version` `48468cc5296e`, 7,036 meetings, 26 Nov 2026) were written by the gun-control question above, which
+also leaves out tools called guns (nail, staple, radar guns), police buying or qualifying with their own service weapons,
+a shooting with no limit debated, and gunshot detection such as ShotSpotter. That question is not yet on `main`'s
+`topic_lean.py`, which still holds an earlier "proposal before the body" wording: committing it is
+[#1239](https://github.com/getcommunityone/open-navigator/issues/1239). The topic id (100005), slug and URL stay `guns`;
+only the display name is "Gun control".
 
 Labels: `public_lean` and `official_lean` are `mostly_opposed`, `mostly_supportive`, `mixed` or `did_not_speak`;
 `outcome` is `approved`, `denied`, `tabled_or_deferred`, `moratorium`, `discussed_no_action` or `no_item`. A lean is
@@ -77,9 +84,9 @@ cd dbt_project && dbt build --select stg_jev__transcript_topic_lean+            
 Each meeting's reading is shown as one of four positions, in the topic's own words (`web_app/src/utils/topicPositions.ts`,
 which restates the "for" column above; a vitest checks it against `TOPICS`):
 
-- **Against** (`public_against`: mostly opposed, P ≥ 0.7), e.g. "Want limits on short-term rentals", "Opposed the gun
-  proposal".
-- **For** (mostly supportive, P ≥ 0.7), e.g. "Want to allow short-term rentals", "Backed the gun proposal".
+- **Against** (`public_against`: mostly opposed, P ≥ 0.7), e.g. "Want limits on short-term rentals", "Favor gun
+  rights".
+- **For** (mostly supportive, P ≥ 0.7), e.g. "Want to allow short-term rentals", "Favor gun limits".
 - **Split** (neutral): mixed, or a for/against lean under P 0.7.
 - **Missing**: no reading yet, or `did_not_speak`. Never shown as split.
 

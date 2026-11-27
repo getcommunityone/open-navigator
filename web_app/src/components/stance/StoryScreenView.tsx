@@ -1,6 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
 import type { AreaConcernsResponse, DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
+import { fetchDataCenterMeetingMentions } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
 import PayrollJobsPanel from './PayrollJobsPanel'
 import PositionsBlock from './PositionsBlock'
@@ -66,6 +68,18 @@ export default function StoryScreenView(p: Props) {
   const mentions = p.data['meeting-mentions'] as DataCenterMeetingMentionsResponse | null | undefined
   const byState = mentions?.counts?.by_state
   const byPlace = mentions?.counts?.by_place
+  // The national map's hover quote (#1230): each state's map-quote meeting (real public meetings only, meetings where the
+  // public mostly opposed first, then newest), not the newest passage, which can be a briefing or a keyword-only mention.
+  // The same query as the home map, so it is cached. A failure falls back to the scope's passages.
+  const overviewNational = screen.kind === 'overview' && !scope.stateCode
+  const mapQuotes = useQuery({
+    queryKey: ['home', 'story-map', 'meeting-mentions', 'quotes-per-state', 3],
+    queryFn: () => fetchDataCenterMeetingMentions({ quotesPerState: 3 }),
+    enabled: overviewNational,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const nationalPassages = mapQuotes.data?.items ?? mentions?.items
   const jobsData = p.data['job-claims'] as JobClaimsResponse | null | undefined
   const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
@@ -138,7 +152,7 @@ export default function StoryScreenView(p: Props) {
                           p.onBroaden(code, null)
                         }}
                         labelledBy={`story-h-${screen.id}`}
-                        passages={mentions?.items}
+                        passages={nationalPassages}
                       />
                     ) : stats.some((s) => s.key === 'meetings') && (
                       <ChartPanel

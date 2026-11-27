@@ -40,7 +40,7 @@ export const TILE_DECOR: TileDecor[] = [
   { key: 'dc', title: 'Data centers', blurb: 'Who spoke up, the sites and projects, and what was decided.', match: slug('data-centers'), companies: 'data-centers', caption: 'data-centers' },
   { key: 'str', title: 'Short-term rentals', blurb: 'Airbnb, VRBO and vacation rentals, in the words said at meetings.', match: slug('short-term-rentals'), companies: 'short-term-rentals', caption: 'short-term-rentals' },
   { key: 'lpr', title: 'Flock and license plate readers', blurb: 'Flock Safety cameras, automated plate readers and the contracts behind them.', match: slug('license-plate-readers'), companies: 'license-plate-readers', caption: 'license-plate-readers' },
-  { key: 'guns', title: 'Guns', blurb: 'Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them.', match: slug('guns'), companies: 'guns', caption: 'guns' },
+  { key: 'guns', title: 'Gun control', blurb: 'Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them.', match: slug('guns'), companies: 'guns', caption: 'guns' },
   { key: 'pickleball', title: 'Pickleball', blurb: 'Courts, noise and new venues, as councils and parks boards weigh them.', match: slug('pickleball'), caption: 'pickleball' },
   {
     key: 'bike',

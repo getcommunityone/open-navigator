@@ -5,7 +5,7 @@ import api from '../lib/api'
 import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
 import { companySearchTerm } from '../utils/companySearchTerm'
 import { topicStanceForMap } from '../utils/topicStance'
-import { positionVerdict, spokeOf, topicPositions } from '../utils/topicPositions'
+import { positionVerdict, quoteStanceNote, spokeOf, topicPositions } from '../utils/topicPositions'
 import {
   CAPTION_COPY,
   HATES_MIN_MEETINGS,
@@ -181,12 +181,14 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         text: m.excerpt,
         date: m.date ?? null,
         meeting: m.title ?? null,
+        // Where the public stood at the quoted meeting (#1230): the API picks a meeting where it took a side first.
+        stanceNote: quoteStanceNote(def.slug, topicWord, m.public_stance),
         url: m.video_url ?? null,
         videoId: m.video_id ?? null,
       })
     }
     return out
-  }, [national.data])
+  }, [national.data, def.slug, topicWord])
   const meetings = useInfiniteQuery({
     queryKey: ['topic-story', def.topicId, 'meetings', stateCode ?? ''],
     queryFn: ({ pageParam }) => fetchTopicMeetings(def.topicId, { state: stateCode ?? undefined, limit: PAGE, offset: pageParam }),
