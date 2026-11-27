@@ -1,47 +1,34 @@
 import { describe, expect, it } from 'vitest'
-import type { LegislationBill, LegislationState } from '../api/topicPolicy'
+import type { LegislationSummaryRow } from '../api/topicPolicy'
 import {
   actionLabels,
+  countByCategory,
   countByStatus,
-  filterBills,
+  filterRows,
   pct,
   positionFill,
   positionStyle,
   shadeStates,
-  sortBills,
   topStatus,
   yearSpan,
 } from './topicPolicy'
 
-const bill = (over: Partial<LegislationBill>): LegislationBill => ({
-  bill_id: 'b',
-  identifier: 'HB 1',
-  title: 't',
-  session: '2026',
-  year: '2026',
+const row = (over: Partial<LegislationSummaryRow>): LegislationSummaryRow => ({
+  state_code: 'KY',
+  state: 'Kentucky',
   category: 'ban',
+  year: '2026',
   status: 'pending',
-  passed_a_chamber: false,
-  url: null,
-  introduced_date: null,
-  last_action_date: '2026-01-01',
-  last_action: null,
+  bills: 1,
   ...over,
 })
 
-const states: LegislationState[] = [
-  {
-    state_code: 'KY',
-    state: 'Kentucky',
-    top_status: 'passed_chamber',
-    status_counts: {},
-    bills: [
-      bill({ bill_id: 'k1', status: 'failed', year: '2025', category: 'restriction' }),
-      bill({ bill_id: 'k2', status: 'passed_chamber', year: '2026', category: 'unclear' }),
-    ],
-  },
-  { state_code: 'UT', state: 'Utah', top_status: 'enacted', status_counts: {}, bills: [bill({ bill_id: 'u1', status: 'enacted', year: '2025', category: 'unclear' })] },
-  { state_code: 'ME', state: 'Maine', top_status: 'failed', status_counts: {}, bills: [bill({ bill_id: 'm1', status: 'failed', year: '2019' })] },
+const rows: LegislationSummaryRow[] = [
+  row({ status: 'failed', year: '2025', category: 'restriction', bills: 3 }),
+  row({ status: 'passed_chamber', year: '2026', category: 'unclear' }),
+  row({ state_code: 'UT', state: 'Utah', status: 'enacted', year: '2025', category: 'unclear' }),
+  row({ state_code: 'ME', state: 'Maine', status: 'failed', year: '2019' }),
+  row({ state_code: 'GA', state: 'Georgia', status: 'pending', year: null }),
 ]
 
 describe('topStatus', () => {
@@ -52,31 +39,28 @@ describe('topStatus', () => {
   })
 })
 
-describe('filterBills / shadeStates', () => {
+describe('filterRows / shadeStates', () => {
   it('filters by year and category and recolours each state from what is left', () => {
-    expect(filterBills(states[0]!.bills, { sinceYear: 2026, category: null }).map((b) => b.bill_id)).toEqual(['k2'])
-    const recent = shadeStates(states, { sinceYear: 2025, category: null })
-    expect(recent.map((s) => [s.state_code, s.status])).toEqual([
-      ['KY', 'passed_chamber'],
-      ['UT', 'enacted'],
+    expect(filterRows(rows, { sinceYear: 2026, category: null })).toHaveLength(1)
+    const recent = shadeStates(rows, { sinceYear: 2025, category: null })
+    expect(recent.map((s) => [s.state_code, s.status, s.bills])).toEqual([
+      ['KY', 'passed_chamber', 4],
+      ['UT', 'enacted', 1],
     ])
-    const restriction = shadeStates(states, { sinceYear: null, category: 'restriction' })
+    const restriction = shadeStates(rows, { sinceYear: null, category: 'restriction' })
     expect(restriction.map((s) => [s.state_code, s.status])).toEqual([['KY', 'failed']])
     expect(countByStatus(recent)).toEqual({ enacted: 1, passed_chamber: 1, pending: 0, failed: 0 })
+    // A bill with no year shows under every year, never under a period.
+    expect(shadeStates(rows, { sinceYear: null, category: null }).map((s) => s.state_code)).toContain('GA')
   })
 
-  it('sorts a state’s bills furthest first, then newest', () => {
-    const out = sortBills([
-      bill({ bill_id: 'a', status: 'failed', last_action_date: '2026-05-01' }),
-      bill({ bill_id: 'b', status: 'pending', last_action_date: '2025-01-01' }),
-      bill({ bill_id: 'c', status: 'pending', last_action_date: '2026-02-01' }),
-    ])
-    expect(out.map((b) => b.bill_id)).toEqual(['c', 'b', 'a'])
+  it('counts bills per category within the period', () => {
+    expect(Object.fromEntries(countByCategory(rows, 2025))).toEqual({ restriction: 3, unclear: 2 })
   })
 
-  it('finds the year span, ignoring bills with no year', () => {
-    expect(yearSpan(states)).toEqual([2019, 2026])
-    expect(yearSpan([{ ...states[0]!, bills: [bill({ year: null })] }])).toBeNull()
+  it('finds the year span, ignoring rows with no year', () => {
+    expect(yearSpan(rows)).toEqual([2019, 2026])
+    expect(yearSpan([row({ year: null })])).toBeNull()
   })
 })
 

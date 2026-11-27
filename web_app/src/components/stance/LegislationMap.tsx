@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { geoPath } from 'd3-geo'
 import { feature } from 'topojson-client'
-import { fetchTopicLegislation, type TopicLegislationResponse } from '../../api/topicPolicy'
+import { fetchTopicLegislation, fetchTopicStateBills, type TopicLegislationResponse, type TopicStateBillsResponse } from '../../api/topicPolicy'
 import { STATES_ALBERS_TOPO, fetchTopo } from '../../lib/dotMatrix'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
@@ -11,6 +11,7 @@ import {
   STATUS_FILL,
   STATUS_LABEL,
   STATUS_ORDER,
+  countByCategory,
   countByStatus,
   shadeStates,
   yearSpan,
@@ -65,7 +66,7 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
   const topo = useQuery({ queryKey: ['topo', STATES_ALBERS_TOPO], queryFn: () => fetchTopo(STATES_ALBERS_TOPO), staleTime: Infinity })
   const shapes = useMemo(() => (topo.data ? toShapes(topo.data) : []), [topo.data])
 
-  const span = useMemo(() => (q.data ? yearSpan(q.data.by_state) : null), [q.data])
+  const span = useMemo(() => (q.data ? yearSpan(q.data.summary) : null), [q.data])
   const recentFrom = span ? Math.max(span[0], span[1] - 1) : null
   const [period, setPeriod] = useState<'recent' | 'all'>('recent')
   const [category, setCategory] = useState<string | null>(null)
@@ -73,11 +74,14 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
   const [hover, setHover] = useState<string | null>(null)
 
   const filter: BillFilter = { sinceYear: period === 'recent' ? recentFrom : null, category }
-  const shades = useMemo(() => (q.data ? shadeStates(q.data.by_state, filter) : []), [q.data, filter.sinceYear, filter.category]) // eslint-disable-line react-hooks/exhaustive-deps
+  const shades = useMemo(() => (q.data ? shadeStates(q.data.summary, filter) : []), [q.data, filter.sinceYear, filter.category]) // eslint-disable-line react-hooks/exhaustive-deps
+  const catCounts = useMemo(() => (q.data ? countByCategory(q.data.summary, filter.sinceYear) : new Map<string, number>()), [q.data, filter.sinceYear])
   const byCode = useMemo(() => new Map(shades.map((s) => [s.state_code, s])), [shades])
   const counts = countByStatus(shades)
-  const billCount = shades.reduce((n, s) => n + s.bills.length, 0)
-  const open = picked ?? stateCode ?? null
+  const billCount = shades.reduce((n, s) => n + s.bills, 0)
+  // The page's scoped state opens by default; 'none' means the reader closed it. A new scope resets the choice.
+  useEffect(() => setPicked(null), [stateCode])
+  const open = picked === 'none' ? null : (picked ?? stateCode ?? null)
   const openShade = open ? byCode.get(open) : undefined
   const hoverShade = hover ? byCode.get(hover) : undefined
 
@@ -110,22 +114,22 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
 
   const periodLabel = period === 'recent' && recentFrom && span ? `${recentFrom}–${span[1]}` : span ? `${span[0]}–${span[1]}` : 'all years'
   const cats = q.data.categories.filter((c) => c.bills > 0)
+  const toggle = (code: string) => setPicked(open === code ? 'none' : code)
   const describe = (s: StateShade | undefined, code: string) =>
     s
-      ? `${s.state ?? STATE_CODE_TO_NAME[code] ?? code}: ${STATUS_LABEL[s.status].toLowerCase()} (${s.bills.length} bill${s.bills.length === 1 ? '' : 's'})`
+      ? `${s.state ?? STATE_CODE_TO_NAME[code] ?? code}: ${STATUS_LABEL[s.status].toLowerCase()} (${s.bills.toLocaleString('en-US')} bill${s.bills === 1 ? '' : 's'})`
       : `${STATE_CODE_TO_NAME[code] ?? code}: no bill in this view`
 
   return (
     <div className="sc-block lm">
       {title}
       <div className="sc-controls" role="group" aria-label="Which bills">
-        <div className="lm-seg" role="radiogroup" aria-label="Period">
+        <div className="lm-seg" role="group" aria-label="Period">
           {(['recent', 'all'] as const).map((p) => (
             <button
               key={p}
               type="button"
-              role="radio"
-              aria-checked={period === p}
+              aria-pressed={period === p}
               className="lm-chip"
               onClick={() => setPeriod(p)}
             >
@@ -138,7 +142,7 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
             <option value="">Every direction</option>
             {cats.map((c) => (
               <option key={c.category} value={c.category}>
-                {c.label ?? c.category} ({c.bills})
+                {c.label ?? c.category} ({(catCounts.get(c.category) ?? 0).toLocaleString('en-US')})
               </option>
             ))}
           </select>
@@ -173,11 +177,11 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
                   onMouseLeave={() => setHover((h) => (h === s.code ? null : h))}
                   onFocus={() => setHover(s.code)}
                   onBlur={() => setHover((h) => (h === s.code ? null : h))}
-                  onClick={() => shade && setPicked(isOpen ? null : s.code)}
+                  onClick={() => shade && toggle(s.code)}
                   onKeyDown={(e) => {
                     if (shade && (e.key === 'Enter' || e.key === ' ')) {
                       e.preventDefault()
-                      setPicked(isOpen ? null : s.code)
+                      toggle(s.code)
                     }
                   }}
                 >
@@ -205,7 +209,9 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
         </li>
       </ul>
 
-      {openShade && <StateBills shade={openShade} cats={q.data.categories} onClose={() => setPicked(stateCode && picked !== stateCode ? stateCode : null)} />}
+      {openShade && (
+        <StateBills topic={topic} shade={openShade} filter={filter} cats={q.data.categories} onClose={() => setPicked('none')} />
+      )}
       {open && !openShade && (
         <p className="sc-note">{STATE_CODE_TO_NAME[open] ?? open} has no bill on {subject} in this view.</p>
       )}
@@ -217,11 +223,11 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
             .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.state_code.localeCompare(b.state_code))
             .map((s) => (
               <li key={s.state_code}>
-                <button type="button" className="lm-statebtn" onClick={() => setPicked(s.state_code)} aria-pressed={open === s.state_code}>
+                <button type="button" className="lm-statebtn" onClick={() => toggle(s.state_code)} aria-pressed={open === s.state_code}>
                   <span className="lm-swatch" style={{ background: STATUS_FILL[s.status] }} aria-hidden="true" />
                   {s.state ?? STATE_CODE_TO_NAME[s.state_code] ?? s.state_code}
                   <span className="lm-count">
-                    {STATUS_LABEL[s.status]} · {s.bills.length}
+                    {STATUS_LABEL[s.status]} · {s.bills.toLocaleString('en-US')}
                   </span>
                 </button>
               </li>
@@ -239,23 +245,56 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
   )
 }
 
-function StateBills({ shade, cats, onClose }: { shade: StateShade; cats: TopicLegislationResponse['categories']; onClose: () => void }) {
+function StateBills({
+  topic,
+  shade,
+  filter,
+  cats,
+  onClose,
+}: {
+  topic: string
+  shade: StateShade
+  filter: BillFilter
+  cats: TopicLegislationResponse['categories']
+  onClose: () => void
+}) {
+  const q = useQuery<TopicStateBillsResponse>({
+    queryKey: ['topic-state-bills', topic, shade.state_code, filter.sinceYear, filter.category],
+    queryFn: () => fetchTopicStateBills(topic, shade.state_code, filter),
+    staleTime: 10 * 60_000,
+    retry: 1,
+  })
   const catLabel = new Map(cats.map((c) => [c.category, c.label ?? c.category]))
   const name = shade.state ?? STATE_CODE_TO_NAME[shade.state_code] ?? shade.state_code
+  const bills = q.data?.bills ?? []
   return (
     <div className="sc-detail lm-detail" aria-live="polite">
       <div className="lm-detail-head">
         <p className="sc-detail-title">
-          {name}: {shade.bills.length} bill{shade.bills.length === 1 ? '' : 's'}
+          {name}: {shade.bills.toLocaleString('en-US')} bill{shade.bills === 1 ? '' : 's'}
         </p>
         <button type="button" className="lm-chip" onClick={onClose} aria-label={`Close ${name}'s bills`}>
           Close
         </button>
       </div>
+      {q.isLoading && <p className="sc-note" role="status">Loading {name}&apos;s bills…</p>}
+      {q.isError && <p className="sc-note">{name}&apos;s bills could not be loaded right now.</p>}
+      {q.data && q.data.matching > bills.length && (
+        <p className="sc-note">
+          Showing the first {bills.length.toLocaleString('en-US')} of {q.data.matching.toLocaleString('en-US')}: furthest
+          along first, then newest.
+        </p>
+      )}
       <ul className="lm-bills">
-        {shade.bills.map((b) => (
+        {bills.map((b) => (
           <li key={b.bill_id}>
-            <span className="sc-tag" style={{ background: STATUS_FILL[b.status], color: b.status === 'enacted' || b.status === 'passed_chamber' ? 'var(--paper)' : 'var(--ink)' }}>
+            <span
+              className="sc-tag"
+              style={{
+                background: STATUS_FILL[b.status],
+                color: b.status === 'enacted' || b.status === 'passed_chamber' ? 'var(--paper)' : 'var(--ink)',
+              }}
+            >
               {STATUS_LABEL[b.status]}
             </span>{' '}
             <span className="sc-tag lm-cat">{catLabel.get(b.category) ?? b.category}</span>

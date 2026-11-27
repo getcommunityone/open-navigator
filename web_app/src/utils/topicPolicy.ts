@@ -1,7 +1,7 @@
 // Words and pure helpers for a topic's policy charts (#1274): the state legislation map, the public-position breakdown
 // and the local-actions tracker. Every count these charts show comes from the API (our bills and our meetings); the words
 // here only name what the data already says. Decision record: web_docs/docs/development/topic-legislation-map.md.
-import type { ActionCounts, ActionGroup, BillStatus, LegislationBill, LegislationState } from '../api/topicPolicy'
+import type { ActionCounts, ActionGroup, BillStatus, LegislationSummaryRow } from '../api/topicPolicy'
 
 /** Most advanced first: a state's colour is the first status any of its (filtered) bills reached. */
 export const STATUS_ORDER: readonly BillStatus[] = ['enacted', 'passed_chamber', 'pending', 'failed']
@@ -22,9 +22,9 @@ export const STATUS_FILL: Record<BillStatus, string> = {
 }
 export const NO_BILL_FILL = 'var(--paper-raised)'
 
-/** The most advanced status among some bills, or null when there are none. */
-export function topStatus(bills: Pick<LegislationBill, 'status'>[]): BillStatus | null {
-  for (const s of STATUS_ORDER) if (bills.some((b) => b.status === s)) return s
+/** The most advanced status among some rows, or null when there are none. */
+export function topStatus(rows: { status: BillStatus }[]): BillStatus | null {
+  for (const s of STATUS_ORDER) if (rows.some((b) => b.status === s)) return s
   return null
 }
 
@@ -35,11 +35,12 @@ export interface BillFilter {
   category: string | null
 }
 
-export function filterBills(bills: LegislationBill[], f: BillFilter): LegislationBill[] {
-  return bills.filter(
-    (b) =>
-      (f.category == null || b.category === f.category) &&
-      (f.sinceYear == null || (b.year != null && Number(b.year) >= f.sinceYear)),
+export function filterRows(rows: LegislationSummaryRow[], f: BillFilter): LegislationSummaryRow[] {
+  return rows.filter(
+    (r) =>
+      r.bills > 0 &&
+      (f.category == null || r.category === f.category) &&
+      (f.sinceYear == null || (r.year != null && Number(r.year) >= f.sinceYear)),
   )
 }
 
@@ -47,28 +48,23 @@ export interface StateShade {
   state_code: string
   state: string | null
   status: BillStatus
-  bills: LegislationBill[]
+  bills: number
 }
 
-/** Each state's filtered bills and the status that colours it; states left with no bill are dropped. */
-export function shadeStates(states: LegislationState[], f: BillFilter): StateShade[] {
-  const out: StateShade[] = []
-  for (const s of states) {
-    const bills = filterBills(s.bills, f)
-    const status = topStatus(bills)
-    if (status) out.push({ state_code: s.state_code, state: s.state, status, bills: sortBills(bills) })
+/** Each state's status (the furthest any filtered bill got) and bill count; states left with no bill are dropped. */
+export function shadeStates(rows: LegislationSummaryRow[], f: BillFilter): StateShade[] {
+  const by = new Map<string, { state: string | null; rows: LegislationSummaryRow[] }>()
+  for (const r of filterRows(rows, f)) {
+    const g = by.get(r.state_code) ?? { state: r.state, rows: [] }
+    g.rows.push(r)
+    by.set(r.state_code, g)
   }
-  return out
-}
-
-/** Within a state: most advanced status first, then newest action. */
-export function sortBills(bills: LegislationBill[]): LegislationBill[] {
-  return [...bills].sort(
-    (a, b) =>
-      STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) ||
-      (b.last_action_date ?? '').localeCompare(a.last_action_date ?? '') ||
-      (a.identifier ?? '').localeCompare(b.identifier ?? ''),
-  )
+  const out: StateShade[] = []
+  for (const [code, g] of by) {
+    const status = topStatus(g.rows)
+    if (status) out.push({ state_code: code, state: g.state, status, bills: g.rows.reduce((n, r) => n + r.bills, 0) })
+  }
+  return out.sort((a, b) => a.state_code.localeCompare(b.state_code))
 }
 
 /** States per status, for the legend counts. */
@@ -78,18 +74,24 @@ export function countByStatus(shades: StateShade[]): Record<BillStatus, number> 
   return c
 }
 
-/** Earliest and latest year among the bills (strings on the wire), or null when no bill has a year. */
-export function yearSpan(states: LegislationState[]): [number, number] | null {
+/** Earliest and latest year among the rows (strings on the wire), or null when none has a year. */
+export function yearSpan(rows: LegislationSummaryRow[]): [number, number] | null {
   let lo = Infinity
   let hi = -Infinity
-  for (const s of states)
-    for (const b of s.bills) {
-      if (b.year == null) continue
-      const y = Number(b.year)
-      if (y < lo) lo = y
-      if (y > hi) hi = y
-    }
+  for (const r of rows) {
+    if (r.year == null) continue
+    const y = Number(r.year)
+    if (y < lo) lo = y
+    if (y > hi) hi = y
+  }
   return Number.isFinite(lo) ? [lo, hi] : null
+}
+
+/** Bills per category among the filtered rows (for the direction menu). */
+export function countByCategory(rows: LegislationSummaryRow[], sinceYear: number | null): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const r of filterRows(rows, { sinceYear, category: null })) m.set(r.category, (m.get(r.category) ?? 0) + r.bills)
+  return m
 }
 
 // ---------------------------------------------------------------------------------------------------------------

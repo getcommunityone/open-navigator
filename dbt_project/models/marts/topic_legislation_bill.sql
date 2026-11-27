@@ -29,11 +29,14 @@
        'unclear' catch-all: the bill is about fluoride in water but its text doesn't say which way, so the map
        shows its status only; other topics with their own vocabulary have no catch-all (we do not guess).
     4. Status, from the bill's own OpenStates fields:
-         enacted — a chapter citation, or the latest action says "signed" (as a word) / approved by governor /
-                   chaptered / act no. / public act / pub. ch. / became law / effective;
-         failed  — the latest action says died / failed / sine die / postponed indefinitely / inexpedient /
-                   veto sustained / withdrawn / killed / left in committee / left pending / upon adjournment /
-                   on table / enacting clause stricken / study order / legislative files / without further
+         enacted — a chapter citation, or the latest action says signed by the governor (New Mexico: a bare
+                   "Signed") / approved by governor / chaptered / act no. / public act / pub. ch. / became law /
+                   effective / filed with the secretary of state; a Speaker's or Senate President's signature is not
+                   enactment;
+         failed  — the latest action says died / failed to pass (not a failed amendment or motion) / sine die /
+                   postponed indefinitely / inexpedient / veto sustained / withdrawn by the sponsor (not "withdrawn
+                   from committee") / killed / left in committee / left pending / upon adjournment / laid on the
+                   table / enacting clause stricken / study order / legislative files / without further
                    action / filed with the chief clerk / held under submission; OR its session is over in our
                    data (int_bills__session_span.is_closed) without enactment;
          passed_chamber — not enacted or failed, but OpenStates records a passage vote (latest_passage_date):
@@ -104,6 +107,8 @@ bill_text as (
     from {{ ref('bills') }} b
     left join {{ ref('stg_openstates__bill_abstract') }} a on a.ocd_bill_id = b.ocd_bill_id
     where b.state_code is not null
+      -- Hawaii's "GM" items are the governor's nominations for confirmation, not bills.
+      and coalesce(b.identifier, '') !~ '^GM '
 ),
 
 candidates as (
@@ -161,9 +166,14 @@ statused as (
                     select 1 from jsonb_array_elements(case when jsonb_typeof(st.citations) = 'array' then st.citations else '[]'::jsonb end) ci
                     where ci ->> 'citation_type' = 'chapter'
                  )
-              or coalesce(c.latest_action_description, '') ~* '(\msigned|approved by governor|chaptered|act no\.|public act|pub\. ch|became law|effective)'
+              -- A governor's signature, never a presiding officer's ("Signed by the Speaker" happens at enrollment, before
+              -- the governor acts). New Mexico records the governor's signature as a bare "Signed".
+              or coalesce(c.latest_action_description, '') ~* '(signed by (the )?gov|governor signed|gov\w*\.? signed|^signed\.?$|signed chap|approved by (the )?governor|chaptered|act no\.|public act|pub\. ch|became law|becomes law|effective|filed with (the )?secretary of state)'
               then 'enacted'
-            when coalesce(c.latest_action_description, '') ~* '(died|failed|sine die|indefinitely postponed|postponed indefinitely|inexpedient|veto sustained|withdrawn|killed|left in committee|left pending|upon adjournment|on table|enacting clause stricken|study order|legislative files|without further action|filed with the chief clerk|held under submission)'
+            -- Only actions that end the bill: a withdrawal by its sponsor (not North Carolina's "Withdrawn From Com/Cal",
+              -- which moves it), a failed passage vote (not a failed amendment or motion), being laid on the table.
+            when coalesce(c.latest_action_description, '') ~* '(died|\mfailed (to pass|to concur|in |on (second|third|final)|passage)|^failed\.?$|sine die|indefinitely postponed|postponed indefinitely|inexpedient|veto sustained|withdrawn by (the )?(sponsor|author)|^withdrawn\.?$|; withdrawn\.?$|withdrawn prior to|withdrawn from consideration|killed|left in committee|left pending|upon adjournment|laid on (the )?table|enacting clause stricken|study order|legislative files|without further action|filed with the chief clerk|held under submission)'
+              and coalesce(c.latest_action_description, '') !~* '(amendment\S*|motion)\s+(\S+\s+){0,3}failed'
               then 'failed'
             when ss.is_closed
               then 'failed'

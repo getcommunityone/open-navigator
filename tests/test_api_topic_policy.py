@@ -72,14 +72,8 @@ def _get(monkeypatch, conn: _Conn, path: str, params: dict | None = None) -> htt
 # --- legislation -------------------------------------------------------------------------------------------------
 
 
-def _bill(**kw) -> dict[str, Any]:
-    base = {
-        "topic_id": 100002, "bill_id": "abc", "state_code": "KS", "state": "Kansas", "identifier": "SB 333",
-        "title": "Prohibiting the use of fluoride additives in public water supplies.", "session": "2025-2026",
-        "year": 2026, "category": "ban", "status": "pending", "passed_a_chamber": False,
-        "url": "https://openstates.org/ks/bills/2025-2026/SB333/", "introduced_date": date(2026, 1, 16),
-        "last_action_date": date(2026, 1, 16), "last_action_description": "Referred to Committee",
-    }
+def _summary(**kw) -> dict[str, Any]:
+    base = {"topic_id": 100002, "state_code": "KS", "state": "Kansas", "category": "ban", "year": 2026, "status": "pending", "bills": 1}
     base.update(kw)
     return base
 
@@ -91,48 +85,66 @@ _CATS = [
 ]
 
 
-def test_legislation_groups_by_state_with_top_status(monkeypatch) -> None:
+def test_legislation_summary_counts(monkeypatch) -> None:
     rows = [
-        _bill(),
-        _bill(bill_id="def", state_code="KY", state="Kentucky", identifier="HB 16", category="restriction", status="failed",
-              passed_a_chamber=True, introduced_date=None),
-        _bill(bill_id="ghi", state_code="KY", state="Kentucky", identifier="HB 103", category="unclear",
-              status="passed_chamber", passed_a_chamber=True),
-        _bill(bill_id="jkl", state_code="UT", state=None, identifier="HB 81", category="unclear", status="enacted",
-              passed_a_chamber=True, year=2025),
+        _summary(),
+        _summary(state_code="KY", state="Kentucky", category="restriction", year=2025, status="failed", bills=2),
+        _summary(state_code="KY", state="Kentucky", category="unclear", year=2026, status="passed_chamber"),
+        _summary(state_code="UT", state=None, category="unclear", year=2025, status="enacted"),
+        _summary(state_code="GA", state="GA", category="ban", year=None, status="failed"),
     ]
     conn = _Conn({"topic_legislation_category": _CATS, "topic_legislation_bill": rows})
     r = _get(monkeypatch, conn, "/api/topics/Water-Fluoridation/legislation")
     assert r.status_code == 200
     body = r.json()
     assert body["available"] is True and body["topic_id"] == 100002
-    assert body["total_bills"] == 4 and body["states_with_bills"] == 3
-    assert body["status_counts"] == {"pending": 1, "failed": 1, "passed_chamber": 1, "enacted": 1}
-    by = {s["state_code"]: s for s in body["by_state"]}
-    assert by["KS"]["top_status"] == "pending"
-    assert by["KY"]["top_status"] == "passed_chamber"  # most advanced of failed + passed_chamber
-    assert by["UT"]["top_status"] == "enacted"
-    assert by["UT"]["state"] == "Utah"  # filled from the state code when the row has none
-    ut = by["UT"]["bills"][0]
-    assert ut["year"] == "2025"  # a bare year is a string on the wire
-    assert ut["passed_a_chamber"] is True
-    assert by["KY"]["bills"][0]["introduced_date"] is None
-    assert {c["category"]: c["bills"] for c in body["categories"]} == {"ban": 1, "restriction": 1, "unclear": 2}
-    _, params = next(c for c in conn.calls if "FROM topic_legislation_bill " in c[0])
-    assert params == ("water-fluoridation", None)
+    assert body["total_bills"] == 6 and body["states_with_bills"] == 4
+    assert body["status_counts"] == {"pending": 1, "failed": 3, "passed_chamber": 1, "enacted": 1}
+    by = {(s["state_code"], s["status"]): s for s in body["summary"]}
+    assert by[("UT", "enacted")]["state"] == "Utah"  # filled from the code when the row has none
+    assert by[("GA", "failed")]["state"] == "Georgia"  # a row carrying the code as its name
+    assert by[("KY", "failed")]["year"] == "2025"  # a bare year is a string on the wire
+    assert by[("GA", "failed")]["year"] is None
+    assert {c["category"]: c["bills"] for c in body["categories"]} == {"ban": 2, "restriction": 2, "unclear": 2}
+    sql, params = next(c for c in conn.calls if "FROM topic_legislation_bill " in c[0])
+    assert "GROUP BY" in sql and params == ("water-fluoridation",)
 
 
-def test_legislation_binds_state_filter(monkeypatch) -> None:
-    conn = _Conn({"topic_legislation_category": _CATS, "topic_legislation_bill": [_bill()]})
-    r = _get(monkeypatch, conn, "/api/topics/water-fluoridation/legislation", {"state": " ks "})
-    assert r.status_code == 200 and r.json()["state_code"] == "KS"
-    _, params = next(c for c in conn.calls if "FROM topic_legislation_bill " in c[0])
-    assert params == ("water-fluoridation", "KS")
+def _bill(**kw) -> dict[str, Any]:
+    base = {
+        "bill_id": "abc", "state": "Kansas", "identifier": "SB 333",
+        "title": "Prohibiting the use of fluoride additives in public water supplies.", "session": "2025-2026",
+        "year": 2026, "category": "ban", "status": "pending", "passed_a_chamber": False,
+        "url": "https://openstates.org/ks/bills/2025-2026/SB333/", "introduced_date": date(2026, 1, 16),
+        "last_action_date": date(2026, 1, 16), "last_action_description": "Referred to Committee", "matching": 3,
+    }
+    base.update(kw)
+    return base
 
 
-def test_legislation_rejects_bad_state(monkeypatch) -> None:
-    conn = _Conn({})
-    assert _get(monkeypatch, conn, "/api/topics/water-fluoridation/legislation", {"state": "Kansas"}).status_code == 400
+def test_state_bills_binds_filters_and_reports_matching(monkeypatch) -> None:
+    rows = [_bill(), _bill(bill_id="def", identifier="HB 2", status="failed", passed_a_chamber=True, introduced_date=None)]
+    conn = _Conn({"topic_legislation_bill": rows})
+    r = _get(monkeypatch, conn, "/api/topics/water-fluoridation/legislation/ks", {"since_year": "2025", "category": "Ban", "limit": "2"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["state_code"] == "KS" and body["state"] == "Kansas"
+    assert body["matching"] == 3 and body["limit"] == 2 and len(body["bills"]) == 2
+    assert body["since_year"] == "2025" and body["category"] == "ban"
+    assert body["bills"][0]["year"] == "2026" and body["bills"][0]["introduced_date"] == "2026-01-16"
+    assert body["bills"][1]["passed_a_chamber"] is True and body["bills"][1]["introduced_date"] is None
+    _, params = conn.calls[0]
+    assert params == ("water-fluoridation", "KS", 2025, "ban", 2)
+
+
+def test_state_bills_empty_state(monkeypatch) -> None:
+    body = _get(monkeypatch, _Conn({"topic_legislation_bill": []}), "/api/topics/water-fluoridation/legislation/WY").json()
+    assert body["matching"] == 0 and body["bills"] == [] and body["state"] == "Wyoming"
+
+
+def test_state_bills_rejects_bad_state_and_limit(monkeypatch) -> None:
+    assert _get(monkeypatch, _Conn({}), "/api/topics/water-fluoridation/legislation/Kansas").status_code == 400
+    assert _get(monkeypatch, _Conn({}), "/api/topics/water-fluoridation/legislation/KS", {"limit": "5000"}).status_code == 422
 
 
 def test_legislation_missing_table_is_empty_200(monkeypatch) -> None:
@@ -141,7 +153,7 @@ def test_legislation_missing_table_is_empty_200(monkeypatch) -> None:
     r = _get(monkeypatch, conn, "/api/topics/water-fluoridation/legislation")
     assert r.status_code == 200
     body = r.json()
-    assert body["available"] is False and body["by_state"] == [] and body["total_bills"] == 0
+    assert body["available"] is False and body["summary"] == [] and body["total_bills"] == 0
 
 
 def test_legislation_db_error_is_503(monkeypatch) -> None:
@@ -240,3 +252,10 @@ def test_local_actions_missing_table_is_empty_200(monkeypatch) -> None:
 
 def test_bad_topic_slug_is_400(monkeypatch) -> None:
     assert _get(monkeypatch, _Conn({}), "/api/topics/bad%20slug!/local-actions").status_code == 400
+
+
+def test_local_actions_filters_false_hits_and_empty_is_unavailable(monkeypatch) -> None:
+    conn = _Conn({"topic_meeting_lean": []})
+    body = _get(monkeypatch, conn, "/api/topics/pickleball/local-actions").json()
+    assert body["available"] is False and body["total"] == 0
+    assert "excluded_no_item" in conn.calls[0][0]

@@ -1,11 +1,15 @@
 """
 Where policy is moving on a topic (#1274): state bills, what local bodies voted, and the positions the public took.
 
-``GET /api/topics/{topic}/legislation?state=``
-    State bills about a curated topic (``public.topic_legislation_bill``), grouped by state, with the topic's category
-    vocabulary (``public.topic_legislation_category``) and each state's most advanced status (enacted > passed a
-    chamber > pending > failed). Category and status come from documented dbt rules; nothing is estimated, and a state
-    with no matching bill is simply absent.
+``GET /api/topics/{topic}/legislation``
+    State bills about a curated topic (``public.topic_legislation_bill``) counted per state, category, latest-action
+    year and status, with the topic's category vocabulary (``public.topic_legislation_category``): small enough for the
+    map to recolour by period and direction on the client for any topic (guns has ~17,000 bills). Category and status
+    come from documented dbt rules; nothing is estimated, and a state with no matching bill is simply absent.
+
+``GET /api/topics/{topic}/legislation/{state}?since_year=&category=&limit=``
+    One state's bills, furthest status first (enacted > passed a chamber > pending > failed), newest first, at most
+    ``limit`` (200), with how many match.
 
 ``GET /api/topics/{topic}/positions?state=``
     Meetings per public position, from the AI reading of each meeting (``public.topic_meeting_lean``). Topics read with
@@ -83,6 +87,9 @@ def _iso(value: Any) -> str | None:
 # Legislation
 # ---------------------------------------------------------------------------
 
+#: Most bills a state list returns at once (a busy topic can have thousands in one state).
+MAX_STATE_BILLS = 200
+
 
 class LegislationCategory(BaseModel):
     category: str
@@ -90,6 +97,17 @@ class LegislationCategory(BaseModel):
     description: str | None = None
     display_order: int | None = None
     bills: int = 0
+
+
+class LegislationSummaryRow(BaseModel):
+    """Bills in one state with one category, latest-action year and status: what the map colours from."""
+
+    state_code: str
+    state: str | None = None
+    category: str
+    year: str | None = None
+    status: str  # enacted | passed_chamber | pending | failed
+    bills: int
 
 
 class LegislationBill(BaseModel):
@@ -107,14 +125,6 @@ class LegislationBill(BaseModel):
     last_action: str | None = None
 
 
-class LegislationState(BaseModel):
-    state_code: str
-    state: str | None = None
-    top_status: str
-    status_counts: dict[str, int] = {}
-    bills: list[LegislationBill] = []
-
-
 class TopicLegislation(BaseModel):
     topic: str
     topic_id: int | None = None
@@ -124,16 +134,27 @@ class TopicLegislation(BaseModel):
     states_with_bills: int = 0
     status_counts: dict[str, int] = {}
     categories: list[LegislationCategory] = []
-    by_state: list[LegislationState] = []
+    summary: list[LegislationSummaryRow] = []
 
 
-_LEGISLATION_SQL = """
-    SELECT b.topic_id, b.bill_id, b.state_code, b.state, b.identifier, b.title, b.session, b.year, b.category,
-           b.status, b.passed_a_chamber, b.url, b.introduced_date, b.last_action_date, b.last_action_description
+class TopicStateBills(BaseModel):
+    topic: str
+    state_code: str
+    state: str | None = None
+    since_year: str | None = None
+    category: str | None = None
+    #: Bills matching the filters; ``bills`` holds the first ``limit`` of them, furthest status first, newest first.
+    matching: int = 0
+    limit: int = MAX_STATE_BILLS
+    bills: list[LegislationBill] = []
+
+
+_SUMMARY_SQL = """
+    SELECT b.topic_id, b.state_code, b.state, b.category, b.year, b.status, count(*)::int AS bills
     FROM topic_legislation_bill b
     WHERE (b.topic_query_id = $1::text OR b.topic_id::text = $1::text)
-      AND ($2::text IS NULL OR b.state_code = $2::text)
-    ORDER BY b.state_code, b.last_action_date DESC NULLS LAST, b.identifier
+    GROUP BY b.topic_id, b.state_code, b.state, b.category, b.year, b.status
+    ORDER BY b.state_code, b.year, b.category, b.status
 """
 
 _CATEGORIES_SQL = """
@@ -141,6 +162,21 @@ _CATEGORIES_SQL = """
     FROM topic_legislation_category c
     WHERE c.topic_query_id = $1::text OR c.topic_id::text = $1::text
     ORDER BY c.display_order, c.category
+"""
+
+# $1 topic, $2 state, $3 since year (or null), $4 category (or null), $5 limit.
+_STATE_BILLS_SQL = """
+    SELECT b.bill_id, b.state, b.identifier, b.title, b.session, b.year, b.category, b.status, b.passed_a_chamber,
+           b.url, b.introduced_date, b.last_action_date, b.last_action_description,
+           count(*) OVER ()::int AS matching
+    FROM topic_legislation_bill b
+    WHERE (b.topic_query_id = $1::text OR b.topic_id::text = $1::text)
+      AND b.state_code = $2::text
+      AND ($3::int IS NULL OR b.year >= $3::int)
+      AND ($4::text IS NULL OR b.category = $4::text)
+    ORDER BY array_position(ARRAY['enacted', 'passed_chamber', 'pending', 'failed'], b.status),
+             b.last_action_date DESC NULLS LAST, b.identifier
+    LIMIT $5
 """
 
 
@@ -152,46 +188,33 @@ def top_status(statuses: list[str]) -> str:
     return statuses[0] if statuses else "pending"
 
 
-def shape_legislation(key: str, state_code: str | None, rows: list[Any], categories: list[Any]) -> TopicLegislation:
-    by_state: dict[str, LegislationState] = {}
+def shape_legislation(key: str, rows: list[Any], categories: list[Any]) -> TopicLegislation:
     status_counts: dict[str, int] = {}
     cat_counts: dict[str, int] = {}
+    states: set[str] = set()
+    summary: list[LegislationSummaryRow] = []
     for r in rows:
-        group = by_state.get(r["state_code"])
-        if group is None:
-            group = by_state[r["state_code"]] = LegislationState(
-                state_code=r["state_code"], state=_state_name(r["state"], r["state_code"]), top_status="pending"
-            )
-        status = r["status"]
-        group.status_counts[status] = group.status_counts.get(status, 0) + 1
-        status_counts[status] = status_counts.get(status, 0) + 1
-        cat_counts[r["category"]] = cat_counts.get(r["category"], 0) + 1
-        group.bills.append(
-            LegislationBill(
-                bill_id=r["bill_id"],
-                identifier=r["identifier"],
-                title=r["title"],
-                session=r["session"],
-                year=str(r["year"]) if r["year"] is not None else None,
+        n = int(r["bills"])
+        states.add(r["state_code"])
+        status_counts[r["status"]] = status_counts.get(r["status"], 0) + n
+        cat_counts[r["category"]] = cat_counts.get(r["category"], 0) + n
+        summary.append(
+            LegislationSummaryRow(
+                state_code=r["state_code"],
+                state=_state_name(r["state"], r["state_code"]),
                 category=r["category"],
-                status=status,
-                passed_a_chamber=bool(r["passed_a_chamber"]),
-                url=r["url"],
-                introduced_date=_iso(r["introduced_date"]),
-                last_action_date=_iso(r["last_action_date"]),
-                last_action=r["last_action_description"],
+                year=str(r["year"]) if r["year"] is not None else None,
+                status=r["status"],
+                bills=n,
             )
         )
-    for g in by_state.values():
-        g.top_status = top_status(list(g.status_counts))
     first = rows[0] if rows else (categories[0] if categories else None)
     return TopicLegislation(
         topic=key,
         topic_id=first["topic_id"] if first else None,
-        state_code=state_code,
         available=bool(categories) or bool(rows),
-        total_bills=len(rows),
-        states_with_bills=len(by_state),
+        total_bills=sum(status_counts.values()),
+        states_with_bills=len(states),
         status_counts=status_counts,
         categories=[
             LegislationCategory(
@@ -200,36 +223,94 @@ def shape_legislation(key: str, state_code: str | None, rows: list[Any], categor
             )
             for c in categories
         ],
-        by_state=list(by_state.values()),
+        summary=summary,
+    )
+
+
+def shape_state_bills(
+    key: str, state_code: str, since_year: int | None, category: str | None, limit: int, rows: list[Any]
+) -> TopicStateBills:
+    return TopicStateBills(
+        topic=key,
+        state_code=state_code,
+        state=_state_name(rows[0]["state"] if rows else None, state_code),
+        since_year=str(since_year) if since_year is not None else None,
+        category=category,
+        matching=int(rows[0]["matching"]) if rows else 0,
+        limit=limit,
+        bills=[
+            LegislationBill(
+                bill_id=r["bill_id"],
+                identifier=r["identifier"],
+                title=r["title"],
+                session=r["session"],
+                year=str(r["year"]) if r["year"] is not None else None,
+                category=r["category"],
+                status=r["status"],
+                passed_a_chamber=bool(r["passed_a_chamber"]),
+                url=r["url"],
+                introduced_date=_iso(r["introduced_date"]),
+                last_action_date=_iso(r["last_action_date"]),
+                last_action=r["last_action_description"],
+            )
+            for r in rows
+        ],
     )
 
 
 @router.get("/{topic}/legislation", response_model=TopicLegislation)
 async def topic_legislation(
     topic: str = Path(..., description="Topic slug (e.g. water-fluoridation) or numeric topic id."),
-    state: str | None = Query(None, description="Optional 2-letter state code."),
 ) -> TopicLegislation:
-    """State bills about a curated topic, grouped by state, with each state's most advanced status (#1274)."""
+    """State bills about a curated topic, counted per state, category, year and status: what the map colours from
+    (#1274). A state's bills themselves come from ``/legislation/{state}``."""
     key = _topic_key(topic)
-    state_code = _state_code(state)
     with tracer.start_as_current_span("topics.legislation") as span:
         span.set_attribute("topics.topic", key)
-        span.set_attribute("topics.state", state_code or "")
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 categories = await conn.fetch(_CATEGORIES_SQL, key)
-                rows = await conn.fetch(_LEGISLATION_SQL, key, state_code)
+                rows = await conn.fetch(_SUMMARY_SQL, key)
         except asyncpg.exceptions.UndefinedTableError:
             span.set_attribute("topics.relation_missing", True)
-            return TopicLegislation(topic=key, state_code=state_code)
+            return TopicLegislation(topic=key)
         except Exception as exc:
             logger.exception("topic legislation failed")
             span.record_exception(exc)
             raise HTTPException(status_code=503, detail="This topic's legislation is unavailable right now.") from exc
-        span.set_attribute("topics.bills", len(rows))
-        return shape_legislation(key, state_code, list(rows), list(categories))
+        span.set_attribute("topics.summary_rows", len(rows))
+        return shape_legislation(key, list(rows), list(categories))
 
+
+@router.get("/{topic}/legislation/{state}", response_model=TopicStateBills)
+async def topic_state_bills(
+    topic: str = Path(..., description="Topic slug (e.g. water-fluoridation) or numeric topic id."),
+    state: str = Path(..., description="2-letter state code."),
+    since_year: int | None = Query(None, ge=1900, le=2100, description="Only bills whose latest action is in this year or later."),
+    category: str | None = Query(None, max_length=40, description="Only bills in this category."),
+    limit: int = Query(MAX_STATE_BILLS, ge=1, le=MAX_STATE_BILLS),
+) -> TopicStateBills:
+    """One state's bills on a topic, furthest status first, newest first, with how many match (#1274)."""
+    key = _topic_key(topic)
+    state_code = _state_code(state)
+    assert state_code is not None
+    cat = category.strip().lower() if category and category.strip() else None
+    with tracer.start_as_current_span("topics.state-bills") as span:
+        span.set_attribute("topics.topic", key)
+        span.set_attribute("topics.state", state_code)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(_STATE_BILLS_SQL, key, state_code, since_year, cat, limit)
+        except asyncpg.exceptions.UndefinedTableError:
+            span.set_attribute("topics.relation_missing", True)
+            return TopicStateBills(topic=key, state_code=state_code, state=_state_name(None, state_code), limit=limit)
+        except Exception as exc:
+            logger.exception("topic state bills failed")
+            span.record_exception(exc)
+            raise HTTPException(status_code=503, detail="This state's bills are unavailable right now.") from exc
+        return shape_state_bills(key, state_code, since_year, cat, limit, list(rows))
 
 # ---------------------------------------------------------------------------
 # Public positions in meetings
@@ -388,6 +469,7 @@ _ACTIONS_SQL = """
     ) k ON TRUE
     WHERE (t.query_id = $1::text OR l.topic_id::text = $1::text)
       AND l.outcome_group IN ('advanced', 'blocked', 'tabled_or_deferred')
+      AND NOT coalesce(l.excluded_no_item, false)
       AND ($2::text IS NULL OR l.state_code = $2::text)
     ORDER BY l.meeting_date DESC NULLS LAST, l.video_id
 """
@@ -438,7 +520,7 @@ def shape_actions(key: str, state_code: str | None, rows: list[Any]) -> TopicLoc
     return TopicLocalActions(
         topic=key,
         state_code=state_code,
-        available=True,
+        available=bool(rows),
         total=total,
         undated=undated,
         totals=totals,

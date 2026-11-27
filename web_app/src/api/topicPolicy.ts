@@ -19,12 +19,14 @@ export interface LegislationBill {
   last_action: string | null
 }
 
-export interface LegislationState {
+/** Bills in one state with one category, latest-action year and status: what the map colours from. */
+export interface LegislationSummaryRow {
   state_code: string
   state: string | null
-  top_status: BillStatus
-  status_counts: Partial<Record<BillStatus, number>>
-  bills: LegislationBill[]
+  category: string
+  year: string | null
+  status: BillStatus
+  bills: number
 }
 
 export interface LegislationCategory {
@@ -44,7 +46,19 @@ export interface TopicLegislationResponse {
   states_with_bills: number
   status_counts: Partial<Record<BillStatus, number>>
   categories: LegislationCategory[]
-  by_state: LegislationState[]
+  summary: LegislationSummaryRow[]
+}
+
+export interface TopicStateBillsResponse {
+  topic: string
+  state_code: string
+  state: string | null
+  since_year: string | null
+  category: string | null
+  /** Bills matching the filters; `bills` holds the first `limit`, furthest status first, newest first. */
+  matching: number
+  limit: number
+  bills: LegislationBill[]
 }
 
 export interface PositionCount {
@@ -95,8 +109,23 @@ export interface TopicLocalActionsResponse {
 const params = (state?: string): Record<string, string> => (state ? { state } : {})
 
 export async function fetchTopicLegislation(topic: string): Promise<TopicLegislationResponse> {
-  // Always national: the map shows every state, and the scoped state is highlighted on the client.
+  // Always national counts: the map shows every state, and the scoped state is highlighted and opened on the client.
   const res = await api.get<TopicLegislationResponse>(`/topics/${encodeURIComponent(topic)}/legislation`)
+  return res.data
+}
+
+export async function fetchTopicStateBills(
+  topic: string,
+  state: string,
+  filter: { sinceYear: number | null; category: string | null },
+): Promise<TopicStateBillsResponse> {
+  const p: Record<string, string> = {}
+  if (filter.sinceYear != null) p.since_year = String(filter.sinceYear)
+  if (filter.category) p.category = filter.category
+  const res = await api.get<TopicStateBillsResponse>(
+    `/topics/${encodeURIComponent(topic)}/legislation/${encodeURIComponent(state)}`,
+    { params: p },
+  )
   return res.data
 }
 

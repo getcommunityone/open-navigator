@@ -12,7 +12,7 @@ A topic story shows where policy is moving on its topic in three charts, each bu
 
 | Chart | Component | Endpoint | Source |
 |---|---|---|---|
-| State legislation map | `LegislationMap.tsx` | `GET /api/topics/{topic}/legislation` | `public.topic_legislation_bill`, `public.topic_legislation_category` (OpenStates bills) |
+| State legislation map | `LegislationMap.tsx` | `GET /api/topics/{topic}/legislation` (counts per state, category, year, status) and `GET /api/topics/{topic}/legislation/{state}` (one state's bills, at most 200) | `public.topic_legislation_bill`, `public.topic_legislation_category` (OpenStates bills) |
 | What the public said in meetings | `PositionBreakdown.tsx` | `GET /api/topics/{topic}/positions?state=` | `public.topic_meeting_lean` (AI reading, Jev) |
 | Where local bodies acted | `LocalActionsTracker.tsx` | `GET /api/topics/{topic}/local-actions?state=` | `public.topic_meeting_lean.outcome_group` (AI reading, Jev) |
 
@@ -33,7 +33,7 @@ Grain: one row per (topic_id, bill_id). PK (topic_id, bill_id); FK topic_id → 
 chapter citations) and `int_bills__session_span` (whether a session is over). Every topic in the `curated_topics` seed is
 covered with no code change.
 
-1. **Match.** A state bill (federal bills are left out) whose lowercased OpenStates subject tags, title and abstract
+1. **Match.** A state bill (federal bills and Hawaii's "GM" governor's nominations are left out) whose lowercased OpenStates subject tags, title and abstract
    contain one of the topic's keywords as a whole word, minus the topic's `drop_keywords`.
 2. **Scope** (seed `topic_legislation_scope`). The topic's `require_pattern` must match the same text, and its
    `exclude_pattern` and the `'*'` exclude must not match the title and abstract. For water fluoridation the require
@@ -53,10 +53,13 @@ covered with no code change.
    Other topics use their own vocabulary (data centers: restrict / incentive / protect) or the generic restrict / support
    / other set.
 4. **Status**, from the bill's own OpenStates fields:
-   - `enacted` — a chapter citation, or the latest action says signed / approved by governor / chaptered / became law /
-     effective (and similar);
-   - `failed` — the latest action says died / failed / sine die / inexpedient / left in committee / study order (and
-     similar), or its session is over in our data without enactment;
+   - `enacted` — a chapter citation, or the latest action says signed by the governor (New Mexico writes a bare
+     "Signed") / approved by governor / chaptered / became law / effective / filed with the secretary of state. A
+     Speaker's or Senate President's signature is not enactment: it comes at enrollment, before the governor acts;
+   - `failed` — the latest action ends the bill: died, failed to pass (a failed amendment or motion does not count),
+     sine die, inexpedient, withdrawn by its sponsor (North Carolina's "Withdrawn From Com/Cal" only moves a bill and
+     does not count), left in committee, laid on the table, study order (and similar); or its session is over in our
+     data without enactment;
    - `passed_chamber` — neither, but OpenStates records a passage vote (`latest_passage_date`);
    - `pending` — introduced, with no passage or final action yet.
    `passed_a_chamber` is also true for a bill that passed one chamber and then died.
@@ -81,7 +84,9 @@ it, and the chart always reads the live table.)*
   without a legend and survives colour-blind viewing; the legend lists every status with its count of states.
 - **Period.** The last two years with bills (default) or every year. **Direction.** Every direction, or one category.
   Both recolour the map and the counts line.
-- **A state** (click, tap, or Tab + Enter) opens its bills: status and direction tags, the bill number linked to its
+- The map loads counts only (per state, category, year and status), so a topic with thousands of bills (guns: about
+  17,000) stays small. **A state** (click, tap, or Tab + Enter) loads its bills for the period and direction selected,
+  at most 200, furthest along first and then newest, and says when there are more: status and direction tags, the bill number linked to its
   OpenStates page, session, title and last action. **Every state with a bill** is also listed under the map, so nothing
   depends on colour or pointer alone. The page's `?state=` opens that state by default.
 - Shapes are us-atlas Albers states (`STATES_ALBERS_TOPO`); if they fail, the note says so and the list still works.
