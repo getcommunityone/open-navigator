@@ -1,12 +1,7 @@
 ---
 pr: 1327
-branch: feat/1320-decision-supporters
-title: "feat(stories): who supported and opposed each decision, and its vote, on the Decisions screens"
-author: jcbowyer
-reviewed_at: 2026-11-27
-reviewer: github-actions
-head_sha: 641c687aed47342ecff1c8b73295f6f01362dd15
-verdict: approve
+issue: 1320
+verdict: approve-with-nits
 ---
 
 # PR #1327 review
@@ -27,50 +22,4 @@ Nits (non-blocking):
 - "Supported by" restates the record's dominant view, which is the view most speakers held, not always a vote for the motion; the main view's label (`supported_view`) is served for a future tooltip.
 - Slug parsing is heuristic by design; more official titles can be added to `_ROLE_PHRASES` as they show up.
 
-- `api/routes/data_centers.py`
-- `api/routes/decision_people.py`
-- `api/routes/topics.py`
-- `pull_requests/pr-1327-review.md`
-- `tests/test_api_decision_people.py`
-- `tests/test_api_topic_said.py`
-- `web_app/src/api/dataCenters.ts`
-- `web_app/src/api/topics.ts`
-- `web_app/src/components/stance/FitDisplay.tsx`
-- `web_app/src/components/stance/TopicRecordCards.tsx`
-- `web_app/src/components/stance/UnitMatrixChart.tsx`
-- `web_app/src/styles/topic-story.css`
-- `web_app/src/utils/saidCards.test.ts`
-- `web_app/src/utils/saidCards.ts`
-- `web_app/src/utils/stanceGame.ts`
-- `web_docs/docs/guides/data-stories.md`
-
-## CI Status
-
-See the PR checks on `641c687aed47`.
-
-## Scans (secrets, fabricated data, personal data, destructive data changes)
-
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
-
-## Findings
-
-### 🔴 Blocking (Critical)
-
-None.
-
-### 🟡 Should fix (Important)
-
-None from automated heuristics.
-
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
-
-## Verdict
-
-**approve**
+No blocking findings.
