@@ -460,6 +460,11 @@ outputPorts:
   contractId: open-navigator-public-topic_upcoming
   type: table
   description: 'What is coming up on each curated topic (#1302): scheduled meetings and public hearings with a real date, each tied to the topic by evidence (an agenda that names it, a verified official hearing notice, or a scheduled meeting of a government whose recorded meeting discussed it in the two years before).'
+- name: meeting_bill_link
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_bill_link
+  type: table
+  description: 'The state bills a meeting names (#1314, porting #1072''s draft).'
 - name: company_grant
   version: 1.0.0
   contractId: open-navigator-public-company_grant

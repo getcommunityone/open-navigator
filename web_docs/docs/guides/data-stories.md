@@ -738,6 +738,10 @@ Owner, 27 Nov 2026: upcoming meetings and legislation are "where we have the gre
 
 How items are found, what the warehouse holds and what is left out: [What's coming up on a topic](../development/topic-upcoming.md).
 
+### What happened next: the chain from meeting to outcome (#1314)
+
+A **What happened** screen follows Coming up on every story. It walks from the meetings where the topic came up to what followed, one step at a time: **Meetings** → **The public** (meetings where the public spoke, mostly opposed / split / mostly supportive) → **Officials** (meetings where the council or board moved it forward, stopped or limited it, put a moratorium on it, or tabled it) → **State bills** (by status) → **Named a bill** (meetings that wrote one of the topic's state bills by number) → **What's next** (meetings and hearings ahead, bills still open). Each step is one count, a line in words and up to three linked examples. **See all** opens that step's screen. An empty step says "No recorded … yet". The flow runs top to bottom on a phone and left to right on a wide screen. The home strip gains a **Votes** card. How meetings are tied to bills: [How meetings are linked to state bills](../development/meeting-bill-links.md).
+
 ## Add a story
 
 1. Add the screens to `web_app/src/utils/dataStory.ts` (a list like `DATA_CENTER_STORY`: an `id`, a short word, the dataset key and the kind; start with a `question` and a `scope` screen and end with a `verdict` screen) and a function per record screen that returns its headline and context from the endpoint's response. Add them to `screenText` and cover them in `dataStory.test.ts`, including the empty and failed cases and the banned wording.

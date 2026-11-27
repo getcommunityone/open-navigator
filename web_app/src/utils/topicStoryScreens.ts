@@ -2,7 +2,7 @@
 // a topic has. A screen with nothing on record for the place drops out of the story (no segment, not reached by Next), and
 // the cover says which ones and why; the Overview, Coming up (#1302) and the closing Recap always stay.
 
-export type TopicScreenId = 'overview' | 'upcoming' | 'timeline' | 'positions' | 'bills' | 'actions' | 'companies' | 'said' | 'decided' | 'recap'
+export type TopicScreenId = 'overview' | 'upcoming' | 'outcomes' | 'timeline' | 'positions' | 'bills' | 'actions' | 'companies' | 'said' | 'decided' | 'recap'
 
 export interface TopicScreen {
   id: TopicScreenId
@@ -15,6 +15,8 @@ export const TOPIC_STORY_SCREENS: TopicScreen[] = [
   // What's coming up (#1302): second, because what a reader can still act on is where the story has most impact. It
   // always stays: an empty scope says "Nothing upcoming on record for <place>" and offers the next level up.
   { id: 'upcoming', eyebrow: 'Coming up' },
+  // What happened next (#1314): the chain from the meetings to what followed, each step opening its screen. It always stays.
+  { id: 'outcomes', eyebrow: 'What happened' },
   { id: 'timeline', eyebrow: 'Over time' },
   { id: 'positions', eyebrow: 'Who spoke' },
   { id: 'bills', eyebrow: 'State bills' },
@@ -35,6 +37,7 @@ export type ScreenAvailability = 'loading' | 'error' | 'ready' | 'empty' | 'abse
 const EMPTY_WHY: Record<TopicScreenId, string> = {
   overview: '',
   upcoming: '',
+  outcomes: '',
   timeline: 'meetings over time (no meetings on record)',
   positions: "who spoke (the public's position isn't on record yet)",
   bills: 'state bills (none found in our copy of OpenStates)',
@@ -56,7 +59,7 @@ export function planTopicScreens(avail: Partial<Record<TopicScreenId, ScreenAvai
   const screens: TopicScreen[] = []
   const dropped: TopicScreenPlan['dropped'] = []
   for (const s of TOPIC_STORY_SCREENS) {
-    const a = s.id === 'overview' || s.id === 'recap' || s.id === 'upcoming' ? 'ready' : (avail[s.id] ?? 'loading')
+    const a = s.id === 'overview' || s.id === 'recap' || s.id === 'upcoming' || s.id === 'outcomes' ? 'ready' : (avail[s.id] ?? 'loading')
     if (a === 'absent') continue
     if (a === 'empty') {
       dropped.push({ id: s.id, why: EMPTY_WHY[s.id] })

@@ -363,6 +363,7 @@ from api.routes import topic_companies as topic_companies_routes
 from api.routes import topic_timeline as topic_timeline_routes
 from api.routes import topic_policy as topic_policy_routes
 from api.routes import topic_upcoming as topic_upcoming_routes
+from api.routes import topic_outcomes as topic_outcomes_routes
 from api.routes import topic_caption_facts as topic_caption_facts_routes
 from api.routes import organizations as organizations_routes
 from api.routes import money_and_talk as money_and_talk_routes
@@ -422,6 +423,7 @@ app.include_router(topic_timeline_routes.router)
 # State bills, local actions and public positions on a topic (#1274); prefix /api/topics baked in.
 app.include_router(topic_policy_routes.router)
 app.include_router(topic_upcoming_routes.router)
+app.include_router(topic_outcomes_routes.router)
 # Prefix ("/api/topics") baked into the router (#1125): the facts behind a topic caption.
 app.include_router(topic_caption_facts_routes.router)
 # Prefix ("/api/organizations") baked into the router (#1015): the organization page.

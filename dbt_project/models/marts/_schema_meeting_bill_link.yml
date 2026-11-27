@@ -1,0 +1,106 @@
+version: 2
+
+models:
+  - name: meeting_bill_link
+    description: >
+      The state bills a meeting names (#1314, porting #1072's draft). One row per (meeting_key, bill_uid). A bill
+      identifier ("HB 288", "House Bill 288", "SB 79", "AB", "HF", "SF", "LB" forms) written in the transcript, a decision's
+      headline or statement, an agenda or minutes, or the AI analysis's legislation number, matched to bills by the
+      meeting's state, kind and number in the meeting year's session (else the year before). No identifier, no link.
+      Docs: web_docs/docs/development/meeting-bill-links.md.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [bill_uid]
+        to: ref('bills')
+        to_columns: [bill_uid]
+      - type: foreign_key
+        columns: [event_meeting_id]
+        to: ref('event_meeting')
+        to_columns: [event_meeting_id]
+      - type: foreign_key
+        columns: [event_meeting_document_id]
+        to: ref('event_meeting_document')
+        to_columns: [event_meeting_document_id]
+    columns:
+      - name: meeting_bill_link_id
+        description: 'Primary key: md5(meeting_key | bill_uid).'
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: meeting_key
+        description: "The meeting: its recording's video_id, or 'doc:<event_meeting_document_id>' for an agenda or minutes with no recording."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: video_id
+        description: 'The meeting recording, when there is one.'
+        data_type: text
+      - name: event_meeting_id
+        description: 'FK to event_meeting when the meeting has been analyzed.'
+        data_type: integer
+      - name: event_meeting_document_id
+        description: 'FK to event_meeting_document when the link came from an agenda or minutes.'
+        data_type: text
+      - name: meeting_date
+        description: 'The meeting date.'
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: jurisdiction_name
+        description: 'The government holding the meeting.'
+        data_type: text
+      - name: state_code
+        description: "2-letter state of the meeting; also the bill's state."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state
+        description: 'Full state name.'
+        data_type: text
+      - name: bill_uid
+        description: 'FK to bills.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: identifier
+        description: "The bill's OpenStates identifier (e.g. 'HB 288')."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: bill_title
+        description: "The bill's OpenStates title."
+        data_type: text
+      - name: match_method
+        description: 'The strongest source that names the bill: transcript, decision, minutes, agenda or analysis.'
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['transcript', 'decision', 'minutes', 'agenda', 'analysis']
+      - name: match_methods
+        description: 'Every source that names the bill for this meeting.'
+        data_type: text[]
+        constraints:
+          - type: not_null
+      - name: match_text
+        description: 'Verbatim excerpt of that source with the reference in <mark>; render with highlightSnippet.'
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: start_seconds
+        description: 'Seconds into the recording where the bill is said, when the transcript has timed cues.'
+        data_type: numeric
+      - name: url
+        description: 'Where to see it: the recording at that moment, the decision page, or the document.'
+        data_type: text
+        constraints:
+          - type: not_null

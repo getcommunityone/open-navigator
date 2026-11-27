@@ -14,6 +14,9 @@ import StoryScreenFrame from '../components/stance/StoryScreenFrame'
 import UpcomingPanel from '../components/stance/UpcomingPanel'
 import { useTopicUpcoming } from '../hooks/useTopicUpcoming'
 import { upcomingHeadline } from '../utils/topicUpcoming'
+import OutcomesChain from '../components/stance/OutcomesChain'
+import { useTopicOutcomes } from '../hooks/useTopicOutcomes'
+import { outcomesHeadline } from '../utils/topicOutcomes'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
 import StoryClose from '../components/stance/StoryClose'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
@@ -96,6 +99,8 @@ export default function DataStory() {
 
   // What's coming up (#1302), for the Coming up screen's headline; the panel reads the same cache entry.
   const upcomingQ = useTopicUpcoming(storyId, stateCode, city)
+  // What happened next (#1314), for the chain screen's headline; the panel reads the same cache entry.
+  const outcomesQ = useTopicOutcomes(storyId, stateCode, city)
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
@@ -442,6 +447,43 @@ export default function DataStory() {
               onNext: () => goTo(i + 1),
             }
             if (s.kind === 'question') return <QuestionScreen key={s.id} {...common} vote={vote} />
+            if (s.kind === 'outcomes') {
+              return (
+                <StoryScreenFrame
+                  key={s.id}
+                  id={s.id}
+                  index={i}
+                  active={active === i}
+                  eyebrow={s.eyebrow}
+                  headline={
+                    outcomesQ.isPending
+                      ? 'Loading what happened next…'
+                      : outcomesQ.isError
+                        ? 'What happened next could not be loaded right now.'
+                        : outcomesHeadline(outcomesQ.data, story.topic, label)
+                  }
+                  context="From the meetings where it came up to what the public said, what local bodies did, the state bills and what is next. Tap a step to see its records."
+                  nextLabel={common.nextLabel}
+                  onNext={common.onNext}
+                  onPrev={common.onPrev}
+                  right={
+                    <OutcomesChain
+                      topic={storyId}
+                      stateCode={stateCode}
+                      city={city}
+                      scopeLabel={label}
+                      subject={story.topic}
+                      actionWords={{ advanced: 'Approved', blocked: 'Denied' }}
+                      dataCenterStory
+                      onOpenScreen={(id) => {
+                        const at = screens.findIndex((x) => x.id === id)
+                        if (at >= 0) goTo(at)
+                      }}
+                    />
+                  }
+                />
+              )
+            }
             if (s.kind === 'upcoming') {
               return (
                 <StoryScreenFrame

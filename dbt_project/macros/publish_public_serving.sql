@@ -276,7 +276,7 @@
     'meeting_policy_question_jev',
     'topic_company', 'topic_company_mention',
     'topic_legislation_bill', 'topic_legislation_category',
-    'topic_upcoming',
+    'topic_upcoming', 'meeting_bill_link',
     'company_grant',
     'business', 'business_mention',
     'person_government_term',
