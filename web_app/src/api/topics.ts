@@ -212,6 +212,47 @@ export async function fetchTopicStanceMap(topicId: number, params: { state?: str
   return res.data
 }
 
+/**
+ * One government's meetings on a topic in a state (#1349), in the data-center map's `by_place` shape, so StoryCountyMap
+ * reads it as it is. `speakers_*` are MEETINGS as the AI read them (public mostly opposed / supported / split), never
+ * counted speakers; 0 where the government has no reading.
+ */
+export interface TopicPlaceCount {
+  jurisdiction_id: string
+  jurisdiction_name: string | null
+  jurisdiction_type: string | null
+  geoid: string | null
+  latitude: number | null
+  longitude: number | null
+  meetings: number
+  lean_meetings: number
+  speakers_against: number
+  speakers_for: number
+  speakers_neutral: number
+  speakers_question: number
+  silent_meetings: number
+  public_against_meetings: number
+  disagreement_meetings: number
+}
+
+export interface TopicPlaces {
+  topic_id: number
+  state_code: string
+  /** Distinct meetings on the topic in the state (the same count as /states for it). */
+  total_meetings: number
+  /** Meetings whose government can't be drawn: total minus the sum of `by_place`. Footnoted, never spread. */
+  unplaced_meetings: number
+  /** False until `topic_place_meeting` is published: the page keeps the state outline. */
+  available: boolean
+  by_place: TopicPlaceCount[]
+}
+
+/** `GET /api/topics/{id}/places?state=` (#1349): a topic's meetings per government for the state's county map. */
+export async function fetchTopicPlaces(topicId: number, state: string): Promise<TopicPlaces> {
+  const res = await api.get<TopicPlaces>(`/topics/${topicId}/places`, { params: { state } })
+  return res.data
+}
+
 /** A company's newest mention: verbatim evidence with the matched words in <mark> (render with highlightSnippet). */
 export interface TopicCompanyMention {
   mention_kind: string
