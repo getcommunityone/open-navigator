@@ -16,6 +16,11 @@ interface Props {
   variant?: 'button' | 'blank'
   /** The blank's current text (the place label). */
   display?: string
+  /**
+   * Optional (#1206): a class added to the control and to the dialog's scrim, for a page outside `.folio` (the home page)
+   * that supplies the house tokens itself. Story pages leave it out and keep their look.
+   */
+  themeClassName?: string
 }
 
 interface Suggestion {
@@ -38,7 +43,7 @@ function suggestionText(loc: LocationData): string {
  * and a state list. It reads the same geocoder helpers as the home page's location search (utils/resolvePlace) but
  * never touches the saved site-wide location; the page's `?state=&city=` stays the authority via `onApply`.
  */
-export default function PlaceControl({ stateCode, city, open, onOpenChange, onApply, variant = 'button', display }: Props) {
+export default function PlaceControl({ stateCode, city, open, onOpenChange, onApply, variant = 'button', display, themeClassName }: Props) {
   const blank = variant === 'blank'
   const toggleRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -199,7 +204,7 @@ export default function PlaceControl({ stateCode, city, open, onOpenChange, onAp
 
   const dialog = open && host && (
     <div
-      className="stance-dialog-scrim"
+      className={`stance-dialog-scrim${themeClassName ? ` ${themeClassName}` : ''}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) close()
       }}
@@ -304,7 +309,7 @@ export default function PlaceControl({ stateCode, city, open, onOpenChange, onAp
   )
 
   return (
-    <div className={`stance-place${blank ? ' is-blank' : ''}`}>
+    <div className={`stance-place${blank ? ' is-blank' : ''}${themeClassName ? ` ${themeClassName}` : ''}`}>
       <button
         type="button"
         ref={toggleRef}

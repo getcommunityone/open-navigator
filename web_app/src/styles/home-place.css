@@ -1,0 +1,78 @@
+/*
+ * The home story title's place control (#1206): the story pages' PlaceControl, outside `.folio`. `.home-place` is on the
+ * control and on its dialog's scrim (PlaceControl `themeClassName`), so both get the house tokens here, and the control
+ * stays subtle in the home title: the title's own font and colour, a dotted teal underline and a small caret.
+ */
+.home-place {
+  --font-sans: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --paper: #fafaf9;
+  --paper-raised: #ffffff;
+  --ink: #1c1917;
+  --ink-2: #57534e;
+  --ink-3: #a8a29e;
+  --violet-ink: #0f766e;
+  --violet-100: #ccfbf1;
+  --t-micro: 11px;
+  --d-1: 120ms;
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+}
+.home-place-nowrap {
+  white-space: nowrap;
+}
+.stance-place.is-blank.home-place {
+  white-space: normal;
+}
+.home-place .stance-blank {
+  position: relative;
+  min-height: 0;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  color: inherit;
+  border-bottom: 0.06em dotted #0f766e;
+  text-align: left;
+}
+/* At least 44px to tap, drawn outside the box so the title's line height doesn't change. */
+.home-place .stance-blank::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: max(100%, 44px);
+  transform: translateY(-50%);
+}
+.home-place .stance-blank:hover {
+  background: #f0fdfa;
+}
+.home-place .stance-blank:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 2px;
+}
+.home-place .stance-blank-caret {
+  font-size: 0.45em;
+  margin-left: 0.2em;
+  color: #0f766e;
+}
+.stance-dialog-scrim.home-place {
+  font-family: var(--font-sans);
+}
+.stance-dialog-scrim.home-place .stance-dialog {
+  border-radius: 12px;
+  border-color: #d6d3d1;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+.stance-dialog-scrim.home-place .folio-btn,
+.stance-dialog-scrim.home-place .folio-select {
+  border-radius: 8px;
+}
+@media (max-width: 767px) {
+  .home-place .stance-blank {
+    min-height: 0;
+  }
+  .stance-dialog-scrim.home-place .stance-dialog {
+    border-radius: 12px 12px 0 0;
+  }
+}

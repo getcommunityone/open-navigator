@@ -9,6 +9,7 @@ import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, st
 import '../../styles/story-actions.css'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
+import HomeStoryTitle from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { nextStoryLink } from '../../utils/storyNav'
@@ -19,6 +20,11 @@ interface Props {
   /** The home page's place, so the Start button and the topic links carry it (CLAUDE.md, scope label rule). */
   stateCode?: string
   city?: string | null
+  /**
+   * A place picked in the title's place control (#1206): a state (and city), or null/null for the United States. The home
+   * page applies it the way the header's place control does, so every label and the data move together.
+   */
+  onPlaceApply?: (stateCode: string | null, city: string | null) => void
 }
 
 const STORY = STORIES['data-centers']!
@@ -41,7 +47,7 @@ function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) 
  *   state's real passages, verbatim, with where and when it was said;
  * - Browse topics: picks the story the card shows (Data centers by default, Short-term rentals; others coming soon), #1025.
  */
-export default function HomeDataStories({ stateCode, city = null }: Props) {
+export default function HomeDataStories({ stateCode, city = null, onPlaceApply }: Props) {
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
   const scope = { stateCode, stateName, city: stateCode ? city : null }
   const label = storyScopeLabel(scope)
@@ -56,7 +62,8 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   const pending = dcFacts.isPending
   const dcCaption = pickCaption('data-centers', dcFacts.data, scope)
   const dcSubhead = captionSubhead(dcCaption, 'data-centers', scope)
-  const dcTitle = dcCaption.kind === 'question' ? STORY.question : captionText(dcCaption, CAPTION_COPY['data-centers']!.topic)
+  const dcTopic = CAPTION_COPY['data-centers']!.topic
+  const dcTitle = captionText(dcCaption, dcTopic)
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
@@ -135,14 +142,15 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
         {topicDef ? (
-          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} next={nextStoryLink(topicDef.slug, q, topicStories.live)} />
+          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} next={nextStoryLink(topicDef.slug, q, topicStories.live)} onPlaceApply={onPlaceApply} />
         ) : (
         <div className="home-story-card">
           <div className="home-story-text">
             <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
             {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}
             <h1 id="home-story-dc" className={`font-display home-story-headline${isLongTitle(dcTitle) ? ' is-long' : ''}`} aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
-              {dcTitle}
+              {/* The place in the title is the place control (#1206): "[America ▾] hates data centers." */}
+              <HomeStoryTitle caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} />
             </h1>
             {/* The subhead speaks only for the caption's scope (#1134): never a national claim on a place's page. */}
             {!pending && dcSubhead && <p className="home-story-subhead">{dcSubhead}</p>}
@@ -160,7 +168,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
                 {nextDc.label} <span aria-hidden="true">→</span>
               </Link>
             </div>
-            <HomeStoryDrill label={label} />
+            <HomeStoryDrill />
           </div>
 
           <div className="home-story-map">
