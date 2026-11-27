@@ -17,6 +17,7 @@ def test_normalize_website():
     assert parse.normalize_website("N/A") is None
     assert parse.normalize_website("info@example.org") is None
     assert parse.normalize_website("www.facebook.com/someorg") is None
+    assert parse.normalize_website("www,typo.org") is None
 
 
 def test_website_from_990_xml():

@@ -38,7 +38,7 @@ def normalize_website(raw: str | None) -> Optional[str]:
         s = "https://" + s
     parts = urlsplit(s)
     host = (parts.hostname or "").lower()
-    if "." not in host or NOT_OWN_SITE.search(host):
+    if "." not in host or not re.fullmatch(r"[a-z0-9.-]+", host) or NOT_OWN_SITE.search(host):
         return None
     path = parts.path or "/"
     return f"https://{host}{path if path.endswith('/') or '.' in path.rsplit('/', 1)[-1] else path + '/'}"
