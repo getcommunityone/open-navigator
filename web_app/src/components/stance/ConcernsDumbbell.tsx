@@ -79,7 +79,8 @@ export default function ConcernsDumbbell({ data, status, place, idBase }: Props)
       a: r.national,
       b: r.place,
       right: pp,
-      negative: r.place < r.national,
+      // From the rounded label, so a difference that prints as +0.0 pp is never coloured as a fall.
+      negative: pp.startsWith('−'),
       ariaLabel: `${r.label}: ${place} ${pctLabel(r.place)} of mentions (${mentions(r.placeMentions)} of ${fmt(built.placeTotal)}), nationally ${pctLabel(r.national)} (${fmt(r.nationalMentions)} of ${fmt(built.nationalTotal)}), difference ${pp.replace('pp', 'percentage points')}`,
       tip: {
         cat: r.label,
@@ -112,6 +113,7 @@ export default function ConcernsDumbbell({ data, status, place, idBase }: Props)
       )}
       {drawn.length > 0 ? (
         <DumbbellRows
+          key={place ?? 'national'}
           rows={drawn}
           aName={compare ? 'Nationally' : undefined}
           bName={compare ? String(place) : 'Share of mentions'}

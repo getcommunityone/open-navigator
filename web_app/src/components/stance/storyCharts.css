@@ -71,6 +71,7 @@
 .sc-dot-late { fill: var(--violet); }
 /* #1209: a single-value row (no comparison) is a stem from zero to the filled dot. */
 .sc-stem { stroke: var(--rule); }
+.sc-delta-flat { fill: var(--ink-2); font-size: 13px; font-weight: 500; }
 /* A stacked row's label sits over the gridlines: a paper halo keeps it legible. */
 .sc-label-halo { paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
 

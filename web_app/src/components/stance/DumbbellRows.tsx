@@ -50,6 +50,7 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
   const [revealed, setRevealed] = useState(reduced)
   const svgRef = useRef<SVGSVGElement>(null)
 
+  // Callers mount this only once their rows are loaded (and key it by scope), so the svg exists when the observer attaches.
   useEffect(() => {
     if (reduced) return setRevealed(true)
     const el = svgRef.current
@@ -134,7 +135,7 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
                 )}
                 <circle className="sc-dot-late" cx={b} cy={trackY} r={6} style={{ opacity: revealed ? 1 : 0, transition: reduced ? undefined : `opacity 240ms ${delay + 360}ms` }} />
                 {!stacked && (
-                  <text className={r.negative ? 'sc-delta-down' : 'sc-delta-up'} x={w} y={textY} textAnchor="end">
+                  <text className={single ? 'sc-delta-flat' : r.negative ? 'sc-delta-down' : 'sc-delta-up'} x={w} y={textY} textAnchor="end">
                     {r.right}
                   </text>
                 )}

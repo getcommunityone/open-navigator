@@ -130,6 +130,7 @@ export default function DumbbellChart({ topic, stateCode, scopeLabel, subject, i
         </div>
       </div>
       <DumbbellRows
+        key={stateCode ?? 'national'}
         rows={drawn}
         aName={String(y0)}
         bName={String(y1)}
