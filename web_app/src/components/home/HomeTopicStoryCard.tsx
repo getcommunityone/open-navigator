@@ -109,7 +109,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
 export function HomeStoryDrill({ label }: { label: string }) {
   return (
     <p className="home-story-drill">
-      Showing <strong>{label}</strong>. Click a state on the map to open its story.
+      Showing <strong>{label}</strong>. Pick a state on the map to open its story.
     </p>
   )
 }
