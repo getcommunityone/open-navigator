@@ -24,7 +24,12 @@ latent. Verdict: approve-with-nits.
 - Commits:
   - 397e23ed feat(stories): state legislation map, local-actions tracker and meeting positions for a topic
   - 98ee887b fix(stories): legislation map loads counts, then one state's bills; stricter bill status rules
+  - 0c1686f7 merge of origin/main (#1244 screens): charts placed on the State bills / Votes / Who spoke screens
 - Range reviewed: `origin/main..feat/1274-topic-legislation-map`
+
+After the merge with #1244, re-checked: `topicStoryScreens` gains `bills` and `actions` (each drops out with a cover
+note when empty, test updated); headlines are computed from the same API counts; `PositionBreakdown` with `fiveOnly`
+renders nothing for topics without five positions; tsc, vitest (760) and screenshots of the three screens pass.
 
 ## CI Status
 | Check | Status |
