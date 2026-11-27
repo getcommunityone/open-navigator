@@ -286,10 +286,22 @@ comparable with the national view. The Heatmap ranks each column on its own.
   view the address carries `chapter` (and no `layout`), on any other screen it carries `layout` (and no `chapter`), and the closing action block is `layout=action`.
   A `layout` for a chapter's first section (for example `tiles`) lands on its chapter opener.
 - Opening a tile or a state name goes to the national map for that metric. The map does not yet open on that state.
-- **A pinned county's panel on the map** (`/data-explorer/map/...`, `CensusDrilldownMapPage.tsx`) docks as a bottom sheet only
-  on phones, narrower than 768 px (`md`), and is capped at 45% of the window height. From 768 px up it stays in the page: below
-  the map until 1280 px (`xl`), beside it from there. Inside the phone sheet only the pinned card shows; the "Hovering" comparison
-  card appears only in the 1280 px sidebar, so the panel's height never changes with the pointer (#1095).
+- **A pinned county's panel on the map** (`/data-explorer/map/...`, `CensusDrilldownMapPage.tsx`). From 1024 px (`lg`) up the
+  panel for the area you are on (name, value, rank, trend, drill options) sits beside the map and stays in view as you scroll;
+  with nothing pinned it shows the current scope (the state you drilled into, or the shape under the pointer). Between 760 px and
+  1024 px it sits below the map. The "Hovering" comparison card appears only in the 1280 px sidebar, so the panel's height never
+  changes with the pointer (#1095).
+- **Phones and touch screens** (`(max-width: 760px), (hover: none)`; #1238). Nothing depends on hover. The first tap on a state
+  or county selects it and shows a compact strip under the map (name · value · rank) with an "Open state ▸" or "Show towns ▸"
+  button; tapping the same shape again also drills, and a tap on empty map clears the selection. A pinned county's card is a
+  bottom sheet collapsed to one line (name · value · rank · "Details ▴"); "Details" or an upward swipe on its handle expands it
+  to at most 45% of the window, "Hide ▾" or a downward swipe collapses it, and each new pin starts collapsed so the map stays
+  visible above it. The "County outline" and "ZIP outlines" toggles sit in a small row above the map instead of over it. Info
+  "i" panels open only on a tap or click (never on hover or focus), have a close button, and close on Escape or an outside
+  tap; the one inside the sheet opens as a small popover near the top of the window rather than over the sheet.
+- **Framing.** Drilling into a state, a county's Cities & towns or its ZIPs fits the whole area on the map with a margin of
+  context around it (the area fills about three quarters of the map). Picking a town or ZIP highlights it without zooming
+  further in.
 - **Place labels.** A county's Cities & towns view labels each place (for example Dunwoody, Chamblee and Tucker in DeKalb County,
   GA). When no place polygons are drawn for the county, the county's own name is shown at its centre in the same style, so the
   view is not a blank shape. It is the name only; no value is implied (#1095).

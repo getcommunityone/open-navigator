@@ -824,3 +824,28 @@ seeds:
         tests: [not_null]
       - name: published_on
         description: "The source's publication date (YYYY-MM-DD), when it gives one."
+  - name: comment_concern_terms
+    description: >
+      #1233: per-comment concern keyword patterns (Postgres regex, matched on lower(comment_text)), by topic.
+      data-centers rows follow the reference category list (in_reference_list = true); extra categories we track
+      are in_reference_list = false and are left out of the multi-concern share.
+    columns:
+      - name: concern_key
+        tests: [unique, not_null]
+  - name: comment_entity_terms
+    description: "#1233: companies, public figures and AI terms a comment names (regex on lower(comment_text))."
+    columns:
+      - name: entity_key
+        tests: [unique, not_null]
+  - name: comment_role_terms
+    description: >
+      #1233: self-described roles matched on the comment's introduction. is_public_comment = false marks staff,
+      the applicant and consultants (left out of public comments); possible_minor drops the display name.
+    columns:
+      - name: role_key
+        tests: [unique, not_null]
+  - name: comment_place_patterns
+    description: "#1233 phase 1b: case-sensitive regex shapes of public places (roads, schools, counties, sites)."
+    columns:
+      - name: pattern_key
+        tests: [unique, not_null]

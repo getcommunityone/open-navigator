@@ -95,9 +95,9 @@ export function heroPoints(
   const pHand = place ? handCountLine(place.speakers, inPlace) : null
   const nHand = handCountLine(speakers, num(opts.speakerStates) > 0 ? ` in ${plural(num(opts.speakerStates), 'state')}` : '')
   let line1: string | null = null
-  if (pAgainst > 0) line1 = `${plural(pAgainst, 'meeting')}${inPlace} where the public mostly opposed data centers (AI reading).`
+  if (pAgainst > 0) line1 = `${plural(pAgainst, 'meeting')}${inPlace} where the public mostly opposed data centers.`
   else if (pHand) line1 = pHand
-  else if (against > 0) line1 = nat(`${plural(against, 'meeting')}${states > 0 ? ` across ${plural(states, 'state')}` : ''} where the public mostly opposed data centers (AI reading).`)
+  else if (against > 0) line1 = nat(`${plural(against, 'meeting')}${states > 0 ? ` across ${plural(states, 'state')}` : ''} where the public mostly opposed data centers.`)
   else if (nHand) line1 = nat(nHand)
   if (line1) out.push({ icon: 'quote', title: 'Communities are saying no.', line: line1 })
 
@@ -109,8 +109,8 @@ export function heroPoints(
       title: 'Projects are being stopped.',
       line:
         pStopped > 0
-          ? `${plural(pStopped, 'meeting')}${inPlace} tabled, denied or paused a data center (AI reading).`
-          : nat(`${plural(stopped, 'meeting')} tabled, denied or paused a data center (AI reading).`),
+          ? `${plural(pStopped, 'meeting')}${inPlace} tabled, denied or paused a data center.`
+          : nat(`${plural(stopped, 'meeting')} tabled, denied or paused a data center.`),
     })
   }
 
@@ -122,8 +122,8 @@ export function heroPoints(
       title: "Officials don't always listen.",
       line:
         pDisagree > 0
-          ? `Officials sided against the public in ${plural(pDisagree, 'meeting')}${inPlace} (AI reading).`
-          : nat(`Officials sided against the public ${meetingsAcross(disagree, num(lean?.disagreement_states))} (AI reading).`),
+          ? `Officials sided against the public in ${plural(pDisagree, 'meeting')}${inPlace}.`
+          : nat(`Officials sided against the public ${meetingsAcross(disagree, num(lean?.disagreement_states))}.`),
     })
   }
 

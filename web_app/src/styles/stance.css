@@ -3085,6 +3085,25 @@ html.stance-snap {
   }
 }
 
+/* The bar's Back (#1222): a 48px round arrow left of the progress, the secondary action beside Next. */
+@media (max-width: 767px) {
+  .folio .story-bottombar-back {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin: 0;
+    padding: 0;
+    font-size: 20px;
+    color: #0f766e;
+    background: var(--paper);
+    border: 1px solid #0f766e;
+    border-radius: 999px !important;
+  }
+}
+
 /* `.folio *` squares every corner; dots are round and the bar's Next is the primary action's pill. */
 .folio .story-bottombar-dot {
   border-radius: 999px !important;
@@ -3221,4 +3240,121 @@ html.stance-snap .stance-intro {
   display: block;
   -webkit-line-clamp: unset;
   overflow: visible;
+}
+
+/* The story's fixed Next (#1234, owner 2026-11-27): one green pill at the bottom right of the window on every screen,
+   desktop and phone, inside the safe-area insets. The story leaves room under its last content so it never covers it; on
+   a phone it sits at the right end of the bottom bar, which keeps Back and the progress dots. */
+.folio .story-next-fixed {
+  position: fixed;
+  right: calc(24px + env(safe-area-inset-right));
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 0 24px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  background: #0f766e;
+  border: 1px solid #0f766e;
+  border-radius: 999px !important;
+  text-decoration: none;
+  box-shadow: 0 6px 18px color-mix(in srgb, #0f172a 22%, transparent);
+  cursor: pointer;
+}
+.folio .story-next-fixed:hover {
+  color: #fff;
+  background: #115e59;
+}
+.folio .story-next-fixed:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 3px;
+}
+/* Room for it under the last content, on a wide screen (phones already leave the bar's height). */
+@media (min-width: 768px) {
+  .stance-game.stance-story {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 767px) {
+  .folio .story-next-fixed {
+    right: calc(12px + env(safe-area-inset-right));
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    max-width: calc(100vw - 140px);
+    padding: 0 20px;
+  }
+  .story-bottombar-nextspace {
+    flex: 0 0 104px;
+  }
+}
+/* The story's inline Next buttons give way to the fixed one (#1234); Back, Skip and the records link stay. */
+.stance-story .stance-nav button.stance-next[data-nav='next'] {
+  display: none;
+}
+.stance-cover-mark {
+  display: block;
+  height: 1px;
+}
+
+/* The story's Close (#1234, owner 2026-11-27): a 44px × in the top-right corner of the story's sticky bar, at the same
+   place and size on every story and every screen. */
+.folio .story-close {
+  position: absolute;
+  top: 6px;
+  right: calc(8px + env(safe-area-inset-right));
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink, #1c1917);
+  background: transparent;
+  border: 0;
+  border-radius: 999px !important;
+  cursor: pointer;
+}
+.folio .story-close:hover {
+  background: color-mix(in srgb, var(--ink, #1c1917) 8%, transparent);
+}
+.folio .story-close:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 2px;
+}
+/* The bar leaves room for the × at its right, so the title, the screen word and Sound never sit under it. */
+.stance-story .stance-top {
+  padding-right: calc(60px + env(safe-area-inset-right));
+}
+/* The last screen's Done (#1234): quiet, outlined, in Next's place. */
+.folio .story-next-fixed.is-quiet {
+  color: #0f766e;
+  background: var(--paper, #fff);
+  border-color: #0f766e;
+  box-shadow: none;
+}
+.folio .story-next-fixed.is-quiet:hover {
+  color: #115e59;
+  background: #f0fdfa;
+}
+/* "Another story: …" (#1234): a small plain-text link after the last screen, never a button. */
+.story-another {
+  margin: 24px 16px 0;
+  font-size: 14px;
+  text-align: center;
+  color: var(--ink-2, #57534e);
+}
+.story-another a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

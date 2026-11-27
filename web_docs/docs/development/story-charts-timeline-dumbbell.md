@@ -6,7 +6,7 @@ description: Design, data contract and thresholds for the story Meetings screen'
 # Story charts: timeline, dumbbell and unit matrix
 
 **Issue:** [#1140](https://github.com/getcommunityone/open-navigator/issues/1140)
-**Status:** built (2026-11-26); thin-coverage years and the production milestone fix: [#1207](https://github.com/getcommunityone/open-navigator/issues/1207)
+**Status:** built (2026-11-26); thin-coverage years and the production milestone fix: [#1207](https://github.com/getcommunityone/open-navigator/issues/1207); entrance motion and the phone dumbbell fix: [#1228](https://github.com/getcommunityone/open-navigator/issues/1228)
 
 The owner asked for the formats of three reference mockups (sections 01, 03 and 05 of the sample page) in place of the
 story's per-year dot blocks. They are ported as React components fed only by the warehouse; none of the sample data is used.
@@ -84,7 +84,7 @@ and public groupings.
 - Series builder `buildSeries(years, mode)`: runs of consecutive years; a run breaks at a missing year or a gap year.
 - A year with no topic meetings is drawn as a real 0 only when at least **25 recorded meetings** exist that year
   (`MIN_RECORDED_FOR_ZERO`); below that it is a gap (Texas 2024 has 7 recorded meetings). The note lists gap years.
-- The line draws in once (`stroke-dashoffset` on a `pathLength=1` path); none with reduced motion.
+- The line draws in left to right when the chart scrolls into view (see [Motion](#motion)); none with reduced motion.
 - Toggle **Meetings / Share of recorded meetings**, shown only when shares exist.
 
 ### Thin recording coverage (#1207)
@@ -167,6 +167,12 @@ in the area`), so there is no per-concern share of objections either.
 - The rows: `buildConcernRows` in `web_app/src/utils/concernDumbbell.ts`, tested in `concernDumbbell.test.ts`. The
   screen's headline (#1139/#1147) is unchanged.
 
+### Phone layout (#1228)
+
+Under 460px the dumbbell stacks: each row's label sits on its own line with the change right-aligned on the same line,
+and the track sits below it. The gridlines are drawn per row as short segments around the track, so no line, the zero
+line included, crosses a label. The axis labels stay at the bottom.
+
 ## Unit matrix
 
 One square per listed record, never per estimate. Groupings come from real fields on each record (`Dot.facets`):
@@ -187,3 +193,32 @@ percentage over the records drawn, and the note says whether those are all the r
 Square *i* is always record *i*, so a regrouping slides squares to new places (`transform` transition, staggered);
 reduced motion jumps. Arrow keys walk squares in reading order; a meeting square plays its recording, others open their
 source; **Show data table** lists the current groups.
+
+## Motion
+
+The charts follow the reference's motion (jcbowyer/vizjb12 §4.1, §4.3 and §4.5), with CSS transitions only (no
+animation library).
+
+**Trigger.** Each chart's entrance runs when it scrolls into view, through `useChartReveal`
+(`web_app/src/components/stance/useChartReveal.ts`). On a phone a story screen is a fixed-height scroll-snap section
+whose `.stance-grid` scrolls on its own, so a tall chart may show only its first row when the screen arrives. The
+`IntersectionObserver` therefore uses **threshold 0**: any visible pixel starts the entrance. Before #1228 the dumbbell
+waited for 20% of its height to show and the matrix for 15%. On a phone the clipped chart never reached that, so the
+Concerns screen kept every dot at opacity 0 and every line at zero length.
+
+**Never stuck.** If the observer never fires (no `IntersectionObserver`, or a clipping ancestor it cannot see past) but
+the chart's box has sat inside the window for `REVEAL_FALLBACK_MS` (1.8 s), the chart is drawn in its final state.
+Under `prefers-reduced-motion` the hook always returns revealed, and `storyCharts.css` turns every transition off, so
+the final state is drawn at once.
+
+**Replay.** A scope change replays the entrance. The dumbbells are keyed by scope, the timeline replays on a new series
+(scope, or Meetings / Share), and the matrix replays on a new chart or scope. A re-sort of the dumbbell does not replay:
+the rows slide to their new rank.
+
+| Chart | Entrance | On change |
+| --- | --- | --- |
+| Dumbbell (`DumbbellRows`) | Row by row, 60 ms apart (`revealDelayMs`, squeezed into 540 ms): the hollow dot pops in, the line grows from it, the filled dot rides the line's end to its value, then the change fades in. A single-value row grows its stem from zero. | Sort: rows slide (600 ms). |
+| Trend line (`TimelineChart`) | The line draws left to right (900 ms). Each year's point pops in as the line reaches it, the end value fades in at the end, and the milestone squares pop in along the track after it. | Mode or scope: replays. |
+| Unit matrix (`UnitMatrixChart`) | Squares fade in on a diagonal wave from the top-left (`staggerDelayMs`, up to 900 ms). | Grouping: squares fly to their new places in reading order (up to about 500 ms). |
+
+The delays are set inline, per property, so a later colour change (selecting a milestone) is never delayed.

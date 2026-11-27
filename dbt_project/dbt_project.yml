@@ -98,6 +98,34 @@ seeds:
       +column_types:
         code: varchar
         major_code: varchar
+    comment_concern_terms:
+      # #1233: per-comment concern keyword patterns (Postgres regex on lower(comment_text)).
+      +column_types:
+        topic_query_id: text
+        concern_key: text
+        concern_label: text
+        in_reference_list: boolean
+        pattern: text
+    comment_entity_terms:
+      # #1233: companies, people and AI terms named in a comment.
+      +column_types:
+        entity_type: text
+        entity_key: text
+        entity_label: text
+        pattern: text
+    comment_role_terms:
+      # #1233: self-described speaker roles, matched on the introduction.
+      +column_types:
+        role_key: text
+        role_label: text
+        is_public_comment: boolean
+        pattern: text
+    comment_place_patterns:
+      # #1233 (1b): public place shapes (roads, schools, counties, sites) in comment text.
+      +column_types:
+        pattern_key: text
+        place_kind: text
+        pattern: text
     curated_topics:
       # Hand-authored topics unioned into stg_civicsearch__topic (issue #500).
       # topic_id >= 100000 so it can never collide with a CivicSearch id.

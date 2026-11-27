@@ -1,0 +1,13 @@
+topic_query_id,concern_key,concern_label,in_reference_list,pattern
+data-centers,water_use,Water use,true,\y(water|aquifers?|wells|gallons|groundwater|drought|cooling towers?|water table|reservoirs?)\y
+data-centers,quality_of_life,Quality of life,true,\y(noise|noisy|humming|hum|decibels?|light pollution|glare|traffic|air quality|pollution|polluted|diesel|generators?|health|asthma|quality of life|peace and quiet|vibrations?)\y
+data-centers,lack_of_transparency,Lack of transparency,true,\y(transparen\w*|ndas?|non-?disclosure|secre(t|cy|tive|tly)|closed doors|in the dark|code ?names?|nobody told|no one told|foia|public records?|kept from us|hidden|hiding)\y
+data-centers,company_distrust,Company distrust,true,\y(distrust|don'?t trust|can'?t trust|lie|lied|lies|lying|liars?|greed\w*|big tech|billionaires?|broken promises?|false promises?|they don'?t care|out of state compan(y|ies)|corporate interests?)\y
+data-centers,rushed_review,Rushed review,true,\y(rush\w*|fast[- ]?track\w*|too fast|so fast|slow down|moratorium|postpone\w*|table (this|it)|more time|hast(y|ily)|railroad\w*|ramm(ed|ing) (it )?through|pushed through)\y
+data-centers,limited_community_benefit,Limited community benefit,true,\y(community benefits?|benefit (to|for) (the|our) (community|residents|town|city|county)|who benefits|what do we get|no benefit|benefits? agreement|nothing for (us|the community))\y
+data-centers,few_jobs,Few jobs,true,"\y(few|only|handful of|not many|hardly any|very few|so few|minimal|no real)\y[^.]{0,40}\yjobs?\y|\yjobs?\y[^.]{0,30}\y(temporary|go away|won'?t last|leave after)\y"
+data-centers,taxpayer_subsidies,Taxpayer subsidies,true,\y(tax (breaks?|abatements?|incentives?|exemptions?|credits?)|abatements?|subsid\w*|pilot agreements?|payments? in lieu|incentive packages?|giveaways?|corporate welfare)\y
+data-centers,community_character,Community character,true,\y(character|rural (feel|way of life|community|area)|small[- ]town|way of life|eyesores?|ugly|industrial (zone|zoning|use|park)|viewsheds?|scenic|skyline|beauty of)\y
+data-centers,farmland_wildlife_loss,Farmland / wildlife loss,true,\y(farm ?lands?|farms?|farming|agricultur\w*|prime soils?|crops?|wildlife|habitats?|wetlands?|forests?|woods|trees|endangered|eagles?|open space|green space|prairies?)\y
+data-centers,property_rights,Property rights,true,\y(property rights|private property|right to (use|sell|develop)|landowners?'? rights|eminent domain|my land|our land|my property)\y
+data-centers,energy_costs_grid,Electricity costs / grid,false,\y(electric(ity)? (bills?|rates?|costs?)|utility (bills?|rates?)|power bills?|rate ?payers?|the grid|power grid|megawatts?|gigawatts?|transmission lines?|substations?|blackouts?|brownouts?)\y

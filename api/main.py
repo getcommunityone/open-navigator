@@ -372,6 +372,7 @@ from api.routes import meeting_browse as meeting_browse_routes
 from api.routes import feed as feed_routes
 from api.routes import alerts as alerts_routes
 from api.routes import data_centers as data_centers_routes
+from api.routes import data_center_comments as data_center_comments_routes
 from api.database import init_db
 
 app.include_router(auth_routes.router, prefix="/api")
@@ -437,6 +438,7 @@ app.include_router(alerts_routes.router, prefix="/api")
 app.include_router(feed_routes.router, prefix="/api")
 # Data-center job claims by phase (#246). Router prefix is "/data-centers".
 app.include_router(data_centers_routes.router, prefix="/api")
+app.include_router(data_center_comments_routes.router, prefix="/api")
 # Data-center job-application links (#248): public list + admin screen.
 from api.routes import application_links as application_links_routes
 

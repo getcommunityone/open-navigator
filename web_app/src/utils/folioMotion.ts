@@ -28,3 +28,11 @@ export function countUpValue(target: number, t: number): number {
   if (!(t < 1)) return target
   return target * easeOutCubic(t)
 }
+
+/**
+ * Story-chart entrance delay for item `index` of `count` (#1228, the reference's §4.3 rows): 60 ms apart, like vizjb12's
+ * `idx * 60`, but squeezed so the last item starts within `budgetMs` and a long list still finishes in about a second.
+ */
+export function revealDelayMs(index: number, count: number, budgetMs = 540): number {
+  return Math.round(rowDelayMs(index, count, 60, budgetMs))
+}

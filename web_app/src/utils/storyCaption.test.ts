@@ -59,7 +59,7 @@ describe('pickCaption (a) hates', () => {
     expect(captionText(c, 'data centers')).toBe('America hates data centers.')
     expect(c.ai).toBe(true)
     expect(c.basis).toBe(
-      "In 283 meetings across 32 states, the public mostly opposed data centers (AI reading of each meeting's transcript). 29 speakers counted by hand in 4 states: 18 against and 3 for.",
+      "In 283 meetings across 32 states, the public mostly opposed data centers. 29 speakers counted by hand in 4 states: 18 against and 3 for.",
     )
   })
 
@@ -93,14 +93,14 @@ describe('pickCaption (b) divided', () => {
     const c = pickCaption('data-centers', facts({ lean_meetings: 1828, public_against_meetings: 20, disagreement_meetings: 23, disagreement_states: 10 }), nat)
     expect(c.kind).toBe('disagreement')
     expect(captionText(c, 'data centers')).toBe('America is divided on data centers.')
-    expect(c.basis).toBe('In 23 meetings across 10 states, officials backed data centers while the public pushed back (AI reading).')
+    expect(c.basis).toBe('In 23 meetings across 10 states, officials backed data centers while the public pushed back.')
     expect(c.ai).toBe(true)
   })
 
   it('in a state, and for a topic without a "hates" verb', () => {
     const c = pickCaption('guns', facts({ disagreement_meetings: 12, public_against_meetings: 40 }, ga), ga)
     expect(captionText(c, 'guns')).toBe('Georgia is divided on guns.')
-    expect(c.basis).toBe('In 12 meetings in Georgia, officials sided against the public on gun control (AI reading).')
+    expect(c.basis).toBe('In 12 meetings in Georgia, officials sided against the public on gun control.')
   })
 
   it('or counted speakers split with both sides substantial', () => {
@@ -249,10 +249,10 @@ describe('the title says what the map shows (#1182)', () => {
     const c = pickCaption('data-centers', facts({ meetings: 2, lean_meetings: 2, public_against_meetings: 0, wider: [STATE_RED, NATIONAL_RED] }, tus), tus)
     expect(c.kind).toBe('wider_sentiment')
     expect(c.widerPlace).toBe('Alabama')
-    expect(captionText(c, 'data centers')).toBe('Alabama hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings.')
+    expect(captionText(c, 'data centers')).toBe('Alabama hates data centers.')
     expect(c.ai).toBe(true)
     expect(c.basis).toBe(
-      "In 12 meetings in Alabama, the public mostly opposed data centers (AI reading of each meeting's transcript). Of Tuscaloosa, Alabama's 2 meetings with an AI reading, none had a public mostly opposed.",
+      "Tuscaloosa, Alabama talked about data centers in 2 meetings. Of its 2 meetings read, none had a public mostly opposed. In 12 meetings in Alabama, the public mostly opposed data centers.",
     )
     expect(c.basis).not.toMatch(ZERO)
     // The place blank stays the scope's own place, so the label and the place picker still name Tuscaloosa.
@@ -261,20 +261,23 @@ describe('the title says what the map shows (#1182)', () => {
 
   it('a thin state too: falls back to the country the map colours (Tuscaloosa, 26 Nov 2026 shape)', () => {
     const c = pickCaption('data-centers', facts({ meetings: 2, lean_meetings: 2, public_against_meetings: 0, wider: [STATE_THIN, NATIONAL_RED] }, tus), tus)
-    expect(captionText(c, 'data centers')).toBe('America hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings.')
-    expect(c.basis).toMatch(/^In 283 meetings across 32 states, /)
+    expect(captionText(c, 'data centers')).toBe('America hates data centers.')
+    expect(c.basis).toMatch(/^Tuscaloosa, Alabama talked about data centers in 2 meetings\. .*In 283 meetings across 32 states, /)
+    // The line under the title starts with the place in scope (the home page draws it as the place control), no number.
     expect(captionSubhead(c, 'data-centers', tus)).toBe(
-      'Across America, the public has mostly spoken against data centers at local meetings.',
+      "Tuscaloosa, Alabama has too few meetings where the public took a side for a conclusion of its own; the title is America's.",
     )
     const s = pickCaption('data-centers', facts({ meetings: 71, lean_meetings: 71, public_against_meetings: 6, wider: [NATIONAL_RED] }, al), al)
-    expect(captionText(s, 'data centers')).toBe('America hates data centers; Alabama brought them up in 71 meetings.')
+    expect(captionText(s, 'data centers')).toBe('America hates data centers.')
+    expect(s.basis).toMatch(/^Alabama talked about data centers in 71 meetings\. .* In 283 meetings across 32 states, the public mostly opposed data centers\.$/)
     // Alabama has many readings, few against: the basis says so, never "too few readings".
-    expect(s.basis).toMatch(/Of Alabama's 71 meetings with an AI reading, 6 had a public mostly opposed, under the 10 a title of its own needs\.$/)
+    expect(s.basis).toMatch(/Of its 71 meetings read, 6 had a public mostly opposed, under the 10 a title of its own needs\./)
     const none = pickCaption('data-centers', facts({ meetings: 2, lean_meetings: null, public_against_meetings: null, wider: [NATIONAL_RED] }, tus), tus)
-    expect(none.basis).toMatch(/Tuscaloosa, Alabama has no AI reading of its own yet\.$/)
+    expect(none.basis).toMatch(/^Tuscaloosa, Alabama talked about data centers in 2 meetings\. None has been read yet\./)
     // A state name missing from the API's broader entry comes from the scope, never a bare code.
     const unnamed = pickCaption('data-centers', facts({ meetings: 2, public_against_meetings: 0, wider: [{ ...STATE_RED, state: null }] }, tus), tus)
-    expect(captionText(unnamed, 'data centers')).toMatch(/^Alabama hates data centers;/)
+    expect(unnamed.widerPlace).toBe('Alabama')
+    expect(unnamed.basis).toMatch(/In 12 meetings in Alabama, /)
   })
 
   it("the place's own reading still wins when it passes", () => {
@@ -289,27 +292,28 @@ describe('the title says what the map shows (#1182)', () => {
 
   it('a topic not allowed "hates" says plainly what the public mostly opposed (#1190)', () => {
     const c = pickCaption('water-fluoridation', facts({ lean_meetings: 526, public_against_meetings: 81, public_against_states: 19 }), nat)
-    expect(captionText(c, 'water fluoridation')).toBe('In 81 meetings, the public mostly opposed water fluoridation.')
+    expect(captionText(c, 'water fluoridation')).toBe('America mostly opposes water fluoridation.')
     expect(captionText(c, 'water fluoridation')).not.toMatch(/hates|lean/)
-    expect(c.basis).toBe("In 81 meetings across 19 states, the public mostly opposed water fluoridation (AI reading of each meeting's transcript).")
+    expect(c.basis).toBe("In 81 meetings across 19 states, the public mostly opposed water fluoridation.")
     const g = pickCaption('guns', facts({ public_against_meetings: 400 }), nat)
-    expect(captionText(g, 'gun control')).toBe('In 400 meetings, the public mostly opposed local gun-control measures.')
-    expect(g.basis).toBe("In 400 meetings nationwide, the public mostly opposed local gun-control measures (AI reading of each meeting's transcript).")
+    expect(captionText(g, 'gun control')).toBe('America mostly opposes local gun-control measures.')
+    expect(g.basis).toBe("In 400 meetings nationwide, the public mostly opposed local gun-control measures.")
     const az: StoryScope = { stateCode: 'AZ', stateName: 'Arizona', city: null }
     const r = pickCaption('short-term-rentals', facts({ public_against_meetings: 12 }, az), az)
-    expect(captionText(r, 'short-term rentals')).toBe('In 12 meetings in Arizona, the public mostly opposed short-term rentals.')
+    expect(captionText(r, 'short-term rentals')).toBe('Arizona mostly opposes short-term rentals.')
     const w = pickCaption('short-term-rentals', facts({ meetings: 40, public_against_meetings: 1, wider: [{ ...NATIONAL_RED, public_against_meetings: 60 }] }, fl), fl)
-    expect(captionText(w, 'short-term rentals')).toBe('Across America the public mostly opposed short-term rentals; Florida brought them up in 40 meetings.')
+    expect(captionText(w, 'short-term rentals')).toBe('America mostly opposes short-term rentals.')
+    expect(w.basis).toMatch(/^Florida took up short-term rentals in 40 meetings\. .*In 60 meetings .*, the public mostly opposed short-term rentals\.$/)
   })
 
   it('plain wording edge cases: one meeting, one state, and counted speakers alone never make a plain title (#1190)', () => {
     const tusc: StoryScope = { stateCode: 'AL', stateName: 'Alabama', city: 'Tuscaloosa' }
     const one = pickCaption('water-fluoridation', facts({ public_against_meetings: 3, lean_meetings: 4 }, tusc), tusc)
-    expect(captionText(one, 'water fluoridation')).toBe('In 3 meetings in Tuscaloosa, Alabama, the public mostly opposed water fluoridation.')
+    expect(captionText(one, 'water fluoridation')).toBe('Tuscaloosa, Alabama mostly opposes water fluoridation.')
     const w = pickCaption('water-fluoridation', facts({ meetings: 1, lean_meetings: 1, public_against_meetings: 0, wider: [{ ...NATIONAL_RED, public_against_meetings: 50, public_against_states: 1 }] }, tusc), tusc)
-    expect(captionText(w, 'water fluoridation')).toBe('Across America the public mostly opposed water fluoridation; Tuscaloosa, Alabama brought it up in 1 meeting.')
+    expect(captionText(w, 'water fluoridation')).toBe('America mostly opposes water fluoridation.')
     expect(w.basis).toBe(
-      "In 50 meetings nationwide, the public mostly opposed water fluoridation (AI reading of each meeting's transcript). Of Tuscaloosa, Alabama's 1 meeting with an AI reading, none had a public mostly opposed.",
+      "Tuscaloosa, Alabama took up water fluoridation in 1 meeting. Of its 1 meeting read, none had a public mostly opposed. In 50 meetings nationwide, the public mostly opposed water fluoridation.",
     )
     const sp = pickCaption('water-fluoridation', facts({ meetings: 30, public_against_meetings: 2, speakers: { for: 1, against: 40, question: 0, neutral: 0, states: 3 } }), nat)
     expect(sp.kind).not.toBe('sentiment')
@@ -321,5 +325,19 @@ describe('storyStartLabel (#1182)', () => {
     expect(storyStartLabel('data-centers', 'Tuscaloosa, Alabama')).toBe('Start the data center story for Tuscaloosa, Alabama')
     expect(storyStartLabel('license-plate-readers', 'National')).toBe('Start the Flock and license plate readers story')
     expect(storyStartLabel('homelessness', 'Georgia', 'Homelessness and shelters')).toBe('Start the homelessness and shelters story for Georgia')
+  })
+})
+
+describe('no "AI reading" in caption copy (#1222, owner 2026-11-26)', () => {
+  it('titles, bases and subheads never say "AI reading"', () => {
+    const scopes: StoryScope[] = [{ stateName: null, city: null }, { stateCode: 'AL', stateName: 'Alabama', city: null }, { stateCode: 'AL', stateName: 'Alabama', city: 'Tuscaloosa' }]
+    const shapes = [
+      { lean_meetings: 1828, public_against_meetings: 283, public_against_states: 32, disagreement_meetings: 23, disagreement_states: 10 },
+      { lean_meetings: 1828, public_against_meetings: 20, disagreement_meetings: 23, disagreement_states: 10 },
+    ]
+    for (const sc of scopes) for (const f of shapes) for (const k of ['data-centers', 'guns', 'water-fluoridation']) {
+      const c = pickCaption(k, facts(f, sc), sc)
+      for (const line of [captionText(c, k), c.basis ?? '', captionSubhead(c, k, sc) ?? '']) expect(line).not.toMatch(/AI read/)
+    }
   })
 })
