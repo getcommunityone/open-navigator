@@ -5,7 +5,7 @@ title: "feat(data-centers): segment public comments once per meeting and flag co
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 7f3c61682504dd04d80c0c173080a2ac90e23f19
+head_sha: f0df4a345c3eb380e73ebddcd239daada85c8848
 verdict: approve
 ---
 
@@ -56,7 +56,7 @@ Automated review (#648) for PR #1247 on `feat/1233-dc-comment-segments`. Heurist
 
 ## CI Status
 
-See the PR checks on `7f3c61682504`.
+See the PR checks on `f0df4a345c3e`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
