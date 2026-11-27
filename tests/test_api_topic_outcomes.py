@@ -143,7 +143,14 @@ def test_bad_inputs(monkeypatch) -> None:
 
 # --- the live warehouse: each step equals its mart ------------------------------------------------------------------------
 
-_DSN = os.environ.get("TOPIC_UPCOMING_TEST_DSN", "postgresql://postgres:password@localhost:5433/open_navigator")
+# The local warehouse (CLAUDE.md: localhost:5433), from the same variables the API reads; skipped when unreachable.
+_DB = {
+    "host": os.environ.get("TOPIC_TEST_DB_HOST", "localhost"),
+    "port": int(os.environ.get("TOPIC_TEST_DB_PORT", "5433")),
+    "user": os.environ.get("POSTGRES_USER", "postgres"),
+    "password": os.environ.get("POSTGRES_PASSWORD", ""),
+    "database": "open_navigator",
+}
 
 
 @pytest.mark.parametrize("topic,state", [("water-fluoridation", None), ("water-fluoridation", "GA"),
@@ -151,7 +158,7 @@ _DSN = os.environ.get("TOPIC_UPCOMING_TEST_DSN", "postgresql://postgres:password
 def test_live_counts_match_marts(monkeypatch, topic: str, state: str | None) -> None:
     async def run():
         try:
-            pool = await asyncpg.create_pool(_DSN, min_size=1, max_size=2, timeout=3,
+            pool = await asyncpg.create_pool(**_DB, min_size=1, max_size=2, timeout=3,
                                              server_settings={"search_path": "public"})
         except Exception:
             return None
