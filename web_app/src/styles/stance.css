@@ -3238,3 +3238,43 @@ html.stance-snap .stance-intro {
   scroll-snap-align: start;
   scroll-margin-top: 100vh;
 }
+
+/* The /stories index (#1203): one card per story, two columns on a wide screen; coming-soon cards are muted. */
+@media (min-width: 900px) {
+  .stories-hub .stories-list[data-testid='stories-index'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 72rem;
+  }
+}
+.stories-card.is-soon {
+  border-style: dashed;
+  opacity: 0.75;
+}
+.stories-card .folio-eyebrow {
+  margin: 0;
+}
+.stories-detail summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  text-decoration: underline;
+}
+.stories-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* The index keeps its broaden controls on a phone (the story bar hides them for room). */
+.stories-scope .stance-scope .folio-link-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+/* A card title is a full sentence with its numbers: never cut it off mid-claim. */
+.stories-list[data-testid='stories-index'] .stories-card-title {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
