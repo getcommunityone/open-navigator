@@ -73,6 +73,11 @@ interface Props {
   positions?: TopicPositions
   /** Meetings in the state the server couldn't place on any government (#1349): added to the "couldn't be placed" note. */
   unplacedMeetings?: number
+  /**
+   * Title, legend, notes and data table beside/under the map (#1374). Home passes false: the hero already names the place
+   * and the panel crowded the map. Story Overview keeps the default (true).
+   */
+  chrome?: boolean
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -88,7 +93,7 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
  * city, town or school district is placed in the county its coordinates fall in, and drawn as a ring. United States broadens
  * back to the national map.
  */
-export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill, subject, positions, unplacedMeetings = 0 }: Props) {
+export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill, subject, positions, unplacedMeetings = 0, chrome = true }: Props) {
   const what = subject ?? 'a data center'
   const titleNoun = subject ? subject.charAt(0).toUpperCase() + subject.slice(1) : 'Data center'
   const [hover, setHover] = useState<string | null>(null)
@@ -386,7 +391,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     >
       {/* The figure is the size container; this inner grid is what the container query lays out (a container can't
           query itself). */}
-      <div className="stance-map-layout" data-shape={mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide'}>
+      <div className="stance-map-layout" data-shape={mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide'} data-chrome={chrome ? undefined : 'off'}>
+      {chrome && (
       <div className="stance-map-head">
         {/* One short line; the highlighted city is named in the key, not appended here. */}
         <span className="stance-map-title">{titleNoun} meetings by county · {stateName}</span>
@@ -404,6 +410,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           </select>
         </span>
       </div>
+      )}
       <div className="stance-map-stage">
         {keyNav.sr}
         {/* Fits the screen (#1309): the height is capped by the visible screen and the width follows the state's shape. */}
@@ -512,6 +519,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         </svg>
         </div>
       </div>
+      {chrome ? (
       <div className="stance-map-side">
       <p className="stance-map-readout">
         {hover
@@ -606,6 +614,10 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         )}
       </details>
       </div>
+      ) : (
+        // Home hero (#1374): no side panel; the hover card still goes in the text column under Start.
+        cardSlot ? (cardShown ? createPortal(cardShown, cardSlot) : null) : cardShown
+      )}
       </div>
     </figure>
   )

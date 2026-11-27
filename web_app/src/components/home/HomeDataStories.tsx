@@ -228,6 +228,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                   passages={statePlaces.data?.items}
                   cardSlot={cardSlot}
                   onDrill={drill}
+                  chrome={false}
                 />
               ) : (
                 <MapSkeleton aspect={stateAspect} label={`Loading the map of ${label}`} />

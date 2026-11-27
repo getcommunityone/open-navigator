@@ -177,6 +177,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
             cardSlot={cardSlot}
             onPickState={(code) => onPlaceApply?.(code, null)}
             onDrill={drill}
+            chrome={false}
             fallback={statesMap}
           />
         ) : (
