@@ -65,6 +65,9 @@ export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceAp
         stanceNote: quoteStanceNote(def.slug, CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase(), m.public_stance),
         url: m.video_url ?? null,
         videoId: m.video_id ?? null,
+        // Named only where the speaker introduced themselves on the record (#1231).
+        speakerName: m.speaker_display_name ?? null,
+        role: m.speaker_display_name ? (m.speaker_role ?? null) : null,
       }
       const list = out.get(m.state_code)
       if (!list) out.set(m.state_code, [q])

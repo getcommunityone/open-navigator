@@ -206,6 +206,8 @@
         "_s.event_decision_id in (select event_decision_id from gold.event_decision "
         "where state_code in {{states}})",
     'recent_transcribed_meeting':          "_s.state_code in {{states}}",
+    'meeting_passage_speaker':
+        "_s.video_id in (select video_id from gold.meeting_speaker_intro where state_code in {{states}})",
     'data_center_project':                 "(_s.state_code in {{states}} or _s.state_code is null)",
     'data_center_project_company':
         "_s.project_id in (select project_id from gold.data_center_project "
@@ -280,7 +282,8 @@
     'topic_meeting_lean',
     'meeting_video_kind',
     'recorded_meeting_year',
-    'segmented_meeting', 'meeting_comment', 'data_center_comment', 'data_center_comment_place'
+    'segmented_meeting', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
+    'meeting_passage_speaker'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

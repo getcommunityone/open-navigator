@@ -188,6 +188,9 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         stanceNote: quoteStanceNote(def.slug, topicWord, m.public_stance),
         url: m.video_url ?? null,
         videoId: m.video_id ?? null,
+        // Named only where the speaker introduced themselves on the record (#1231).
+        speakerName: m.speaker_display_name ?? null,
+        role: m.speaker_display_name ? (m.speaker_role ?? null) : null,
       })
     }
     return out
