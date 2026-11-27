@@ -87,8 +87,8 @@ export default function DumbbellChart({ topic, stateCode, scopeLabel, subject, i
       <div className="sc-block">
         {heading(`${d.from_year} and ${d.to_year}`)}
         <p className="sc-note">
-          Not available yet: comparing years needs the number of recorded meetings per {d.grain === 'state' ? 'state' : 'town'} in
-          both years, and none is on record for {scopeLabel}.
+          No comparison to draw for {scopeLabel} yet: either no meetings on the topic are on record for {d.from_year} or{' '}
+          {d.to_year}, or the yearly counts of recorded meetings per {d.grain === 'state' ? 'state' : 'town'} have not been loaded.
         </p>
       </div>
     )

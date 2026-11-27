@@ -223,7 +223,7 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
         </Link>
       </div>
       {/* Said once in the first screen (#1192): the basis line already carries it when the caption is a state comparison. */}
-      {!COUNTED_FROM.test(caption.basis ?? '') && (
+      {!captionQ.isPending && !COUNTED_FROM.test(caption.basis ?? '') && (
         <p className="mt-3 text-sm text-stone-500">Counted from local meeting recordings and transcripts that mention the topic.</p>
       )}
 
