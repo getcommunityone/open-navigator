@@ -153,12 +153,14 @@ def test_coverage_missing_table_is_null_not_zero(monkeypatch):
 
 # --- the per-year SQL, against a real Postgres ------------------------------------------------------------------------
 
-DSN = os.getenv(
-    "TEST_WAREHOUSE_DSN",
-    "postgresql://{u}:{p}@localhost:5433/open_navigator".format(
-        u=os.getenv("POSTGRES_USER", "postgres"), p=os.getenv("POSTGRES_PASSWORD", "password")
-    ),
-)
+# The local warehouse by its parts (no connection string in the source); TEST_WAREHOUSE_HOST etc. override.
+PG = {
+    "host": os.getenv("TEST_WAREHOUSE_HOST", "localhost"),
+    "port": int(os.getenv("TEST_WAREHOUSE_PORT", "5433")),
+    "user": os.getenv("POSTGRES_USER", "postgres"),
+    "password": os.getenv("POSTGRES_PASSWORD"),
+    "database": os.getenv("TEST_WAREHOUSE_DB", "open_navigator"),
+}
 
 FIXTURE = [
     # id, source, status today, state, appear, first_report, operating
@@ -173,7 +175,7 @@ FIXTURE = [
 
 async def _years(scope: JobClaimScope, current_year: int) -> list[dict[str, Any]]:
     try:
-        conn = await asyncpg.connect(DSN, timeout=3)
+        conn = await asyncpg.connect(**PG, timeout=3)
     except Exception as e:  # noqa: BLE001
         pytest.skip(f"no Postgres for the SQL check ({e})")
     try:
