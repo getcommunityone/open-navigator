@@ -287,7 +287,12 @@ export default function DataStory() {
     ? null
     : (splitTextAtPlace(subhead, scopePlaceName(scope)) ?? { before: 'Showing ', place: scopePlaceName(scope), after: subhead ? `. ${subhead}` : '.' })
   const scopedPositions = data.positions as DataCenterPositionsResponse | null | undefined
-  const points = storyHeroPoints(scope.stateName ? nationalPositionsQ.data : scopedPositions, scope.stateName ? scopedPositions : null, scope.stateName ? label : null)
+  // #1289: with too little on record to say which way the place leans, the editorial points ("Communities are saying no.")
+  // would claim the lean the title just declined to; the basis states the facts instead.
+  const points =
+    title.kind === 'insufficient'
+      ? []
+      : storyHeroPoints(scope.stateName ? nationalPositionsQ.data : scopedPositions, scope.stateName ? scopedPositions : null, scope.stateName ? label : null)
   const links = {
     dataCenters: `/data-centers${scopeQuery(scope)}`,
     decisions: `/browse-topics${scopeQuery(scope)}`,

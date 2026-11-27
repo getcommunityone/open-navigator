@@ -1,10 +1,13 @@
 import { useMemo } from 'react'
 import type { DataCenterPositionsResponse, PositionQuote } from '../../api/dataCenters'
-import { POSITIONS_NOT_LOADED, positionFigures, positionsCaption, positionsLoaded, type LoadState, type StoryScope } from '../../utils/dataStory'
-import { chartSpec, fmt } from '../../utils/stanceGame'
+import { POSITIONS_NOT_LOADED, figureDisplay, positionFigures, positionsCaption, positionsLoaded, type LoadState, type StoryScope } from '../../utils/dataStory'
+import { chartSpec } from '../../utils/stanceGame'
 import { Dots } from './ChartPanel'
 import { SideColumn, type Passage } from './SidesBlock'
 import CommentMetricsBlock from './CommentMetricsBlock'
+import FitDisplay from './FitDisplay'
+import { specDisplay } from '../../utils/displayFit'
+import { storyScopeLabel } from '../../utils/dataStory'
 
 interface Props {
   data: DataCenterPositionsResponse | null | undefined
@@ -63,7 +66,8 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
         {figures.map((f) => (
           <div key={f.key} data-figure={f.key} className={f.value == null ? 'is-missing' : undefined}>
             <dt>{f.label}</dt>
-            <dd>{f.value == null ? 'not recorded' : fmt(f.value)}</dd>
+            {/* "—" with "not available yet" for screen readers: no meeting reviewed, never a made-up 0 (#1289). */}
+            <dd aria-label={f.value == null ? 'not available yet' : undefined}>{figureDisplay(f.value)}</dd>
           </div>
         ))}
       </dl>
@@ -73,9 +77,10 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
         </p>
       ))}
       {spec && (
+        // The shared rule picks the form from the count (#1289): dots only for about 20–200 speakers.
         <figure className="stance-voices-fig" aria-label={spec.title}>
-          <Dots spec={spec} />
-          <figcaption className="stance-note">{spec.dotMeans}</figcaption>
+          <FitDisplay spec={spec} scopeLabel={storyScopeLabel(scope)} units={<Dots spec={spec} />} />
+          {specDisplay(spec).display.kind === 'units' && <figcaption className="stance-note">{spec.dotMeans}</figcaption>}
         </figure>
       )}
       <p className="stance-note stance-voices-caption">{positionsCaption(data, scope)}</p>

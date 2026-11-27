@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseE
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchChartData } from '../../api/stance'
-import { chartSpec, type DotGroup, type DotsSpec } from '../../utils/stanceGame'
+import { CHART_SEARCHED, chartSpec, type ChartKey, type DotGroup, type DotsSpec } from '../../utils/stanceGame'
 import { docsUrl } from '../../utils/docsLinks'
 import { GROUP_COLORS, HOUSE_STYLE } from '../../utils/houseTheme'
 import { DataTable } from '../matrix/SectionShell'
@@ -11,6 +11,8 @@ import { youtubeThumbnail } from '../../lib/youtubeThumbnail'
 import MeetingVideoModal, { type MeetingVideo } from './MeetingVideoModal'
 import UnitMatrixChart from './UnitMatrixChart'
 import TimelineChart from './TimelineChart'
+import FitDisplay from './FitDisplay'
+import { specDisplay } from '../../utils/displayFit'
 
 interface Props {
   chartKey: string
@@ -177,9 +179,47 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
   /** The caption names the mark drawn: a square in the unit matrix, a dot otherwise. */
   const mark = (t: string) => (matrix ? t.replace(/\bdots?\b/g, (w) => (w === 'dot' ? 'square' : 'squares')) : t)
 
+  const searched = CHART_SEARCHED[chartKey as ChartKey]
+  const where = scope === 'National' ? 'nationally' : `in ${scope}`
+  // The shared rule picks the figure's form from its count (#1289): only the unit chart keeps the FIG. caption and its
+  // dot-by-dot wording; a list or a sentence is the data itself, and bars carry counts, never percentages.
+  const kind = spec ? specDisplay(spec).display.kind : 'empty'
+  const chartForm = kind === 'units'
+  const table = spec && (
+    <>
+      <button
+        type="button"
+        className="folio-btn"
+        aria-expanded={open}
+        aria-controls={`stance-data-${round}`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {open ? 'Hide data table' : 'Show data table'} {open ? '↑' : '↓'}
+      </button>
+      {open && (
+        <DataTable
+          id={`stance-data-${round}`}
+          caption={`Data table: ${spec.title}, ${scope}`}
+          spec={{
+            columns: [
+              { label: 'Group' },
+              { label: spec.grandTotal != null ? 'Records' : 'Records shown', numeric: true },
+            ],
+            rows: spec.groups.map((g) => [g.label, fmt(g.total ?? g.shown)]),
+          }}
+        />
+      )}
+    </>
+  )
+  const about = (
+    <a href={docsUrl('/guides/data-stories#sources-and-limits')} target="_blank" rel="noopener noreferrer">
+      About this data
+    </a>
+  )
+
   return (
-    <figure className="stance-figure" aria-label={spec?.title ?? 'Chart'}>
-      {/* The Meetings screen (#1140): the trend line with its milestone track, above the squares. The period dumbbell moved
+    <figure className="stance-figure" aria-label={spec?.title ?? 'Chart'} data-display={kind}>
+      {/* The Meetings screen (#1140): the trend line with its milestone track, above the records. The period dumbbell moved
           to the Overview, the first screen after the cover (#1192), so it is not drawn here again. */}
       {chartKey === 'meeting-mentions' && !view && enabled && (
         <TimelineChart topic={topic} stateCode={stateCode} city={city} scopeLabel={scope} subject="data centers" idBase={`stance-${round}`} />
@@ -190,53 +230,42 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
         </p>
       ) : !spec ? (
         <div className="stance-nodata" role="status">
-          <p>{q.isError ? 'This chart could not be loaded right now.' : 'No data available for this chart'}</p>
+          {q.isError ? (
+            <p>This chart could not be loaded right now.</p>
+          ) : (
+            <>
+              <p>No recorded {searched?.items ?? 'records'} yet {where}.</p>
+              {searched && <p className="stance-note">Searched: {searched.searched}.</p>}
+            </>
+          )}
           {emptyExtra}
         </div>
-      ) : matrix ? (
-        <UnitMatrixChart spec={spec} chartKey={chartKey} placeGrain={stateCode ? 'town' : 'state'} idBase={`stance-${round}`} scopeLabel={scope} />
+      ) : chartForm ? (
+        matrix ? (
+          <UnitMatrixChart spec={spec} chartKey={chartKey} placeGrain={stateCode ? 'town' : 'state'} idBase={`stance-${round}`} scopeLabel={scope} />
+        ) : (
+          <Dots spec={spec} />
+        )
       ) : (
-        <Dots spec={spec} />
+        <FitDisplay spec={spec} scopeLabel={scope} units={null} barsExtra={table} />
       )}
-      <figcaption className="folio-fig">
-        <b>FIG. {fig}</b> — {spec ? `${spec.title}, ${scope}.` : `${scope}.`}
-        {spec && mark(` ${spec.dotMeans} ${hasVideos ? 'Hover or focus a dot to preview the meeting; select it to play the recording from the quoted moment.' : hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`)}
-        {spec && ` Source: ${spec.source}.`}
-        {spec?.note && ` ${spec.note}`}
-        {spec && chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'}
-        {spec && stateName == null && ' National figures, because no state is chosen.'}{' '}
-        <a href={docsUrl('/guides/data-stories#sources-and-limits')} target="_blank" rel="noopener noreferrer">
-          About this data
-        </a>
-      </figcaption>
-      {spec && (
-        <>
-          <button
-            type="button"
-            className="folio-btn"
-            aria-expanded={open}
-            aria-controls={`stance-data-${round}`}
-            onClick={() => setOpen((o) => !o)}
-          >
-            {open ? 'Hide data table' : 'Show data table'} {open ? '↑' : '↓'}
-          </button>
-          {open && (
-            <DataTable
-              id={`stance-data-${round}`}
-              caption={`Data table: ${spec.title}, ${scope}`}
-              spec={{
-                columns: [
-                  { label: 'Group' },
-                  { label: spec.grandTotal != null ? 'Records' : 'Records shown', numeric: true },
-                  { label: spec.grandTotal != null ? 'Share' : 'Share (not known)', numeric: true },
-                  { label: 'Dots drawn', numeric: true },
-                ],
-                rows: spec.groups.map((g) => [g.label, fmt(g.total ?? g.shown), g.share != null ? `${g.share}%` : '—', fmt(g.shown)]),
-              }}
-            />
-          )}
-        </>
+      {spec && chartForm && (
+        <figcaption className="folio-fig">
+          <b>FIG. {fig}</b> — {`${spec.title}, ${scope}.`}
+          {mark(` ${spec.dotMeans} ${hasVideos ? 'Hover or focus a dot to preview the meeting; select it to play the recording from the quoted moment.' : hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`)}
+          {` Source: ${spec.source}.`}
+          {spec.note && ` ${spec.note}`}
+          {chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'}
+          {stateName == null && ' National figures, because no state is chosen.'} {about}
+        </figcaption>
       )}
+      {spec && !chartForm && (
+        <p className="stance-note stance-fit-source">
+          Source: {spec.source}.{spec.note && ` ${spec.note}`}
+          {chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'} {about}
+        </p>
+      )}
+      {spec && chartForm && table}
     </figure>
   )
 }
