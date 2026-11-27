@@ -174,8 +174,11 @@ export interface TopicStates {
   newest: TopicMeeting[]
 }
 
-/** Meetings per state for a curated topic, and each state's newest passage (#1013). */
-export async function fetchTopicStates(topicId: number, params: { state?: string } = {}): Promise<TopicStates> {
+/** Meetings per state for a curated topic, and each state's newest passage(s) (#1013, #1357). */
+export async function fetchTopicStates(
+  topicId: number,
+  params: { state?: string; quotes_per_state?: number } = {},
+): Promise<TopicStates> {
   const res = await api.get<TopicStates>(`/topics/${topicId}/states`, { params })
   return res.data
 }

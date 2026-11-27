@@ -85,6 +85,7 @@ function mapState(page, sel, readoutSel) {
       return {
         cards: cards.length,
         place: card?.querySelector('.qcard-where')?.textContent ?? null,
+        quote: card?.querySelector('.qcard-quote')?.textContent?.trim() ?? null,
         iframes: document.querySelectorAll('.map-hover-card iframe').length,
         src: card?.querySelector('iframe')?.getAttribute('src') ?? null,
         playBtn: !!card?.querySelector('.qcard-play-btn'),
@@ -271,6 +272,32 @@ async function desktop(ctx) {
   await home.waitForSelector(`${sel} rect[data-state]`, { timeout: 60_000 })
   console.log('\nDesktop 1440x900 / (home)')
   await hoverChecks(home, sel, 'p.mt-1', 'TX', 'VA', 'home')
+  // Moving across different bands/boxes within Texas switches the meeting card (#1357).
+  const txSpread = await home.evaluate(
+    ([sel, visible]) => {
+      const svg = eval(visible)(sel)
+      const list = [...(svg?.querySelectorAll('rect[data-state="TX"]') ?? [])]
+        .map((el) => {
+          const b = el.getBoundingClientRect()
+          return { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width }
+        })
+        .filter((p) => p.w >= 1)
+        .sort((a, b) => a.x - b.x || a.y - b.y)
+      if (list.length < 3) return null
+      return [list[0], list[Math.floor(list.length / 2)], list[list.length - 1]]
+    },
+    [sel, VISIBLE],
+  )
+  if (txSpread) {
+    const seenCards = new Set()
+    for (const pt of txSpread) {
+      await home.mouse.move(pt.x, pt.y)
+      await home.waitForTimeout(350)
+      const st = await mapState(home, sel, 'p.mt-1')
+      seenCards.add(`${st.place ?? ''}|${st.quote ?? ''}|${st.src ?? ''}`)
+    }
+    ok(seenCards.size > 1, `hovering across TX boxes switches the meeting panel (${seenCards.size} distinct cards)`)
+  } else ok(false, 'TX has multiple boxes on the home map')
   // A click on Alabama opens the Alabama story (the owner's report: it didn't).
   let hp = await statePoints(home, sel)
   await home.mouse.move(hp.AL.x - 40, hp.AL.y, { steps: 4 })

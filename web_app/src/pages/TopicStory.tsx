@@ -30,6 +30,7 @@ import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { useStoryScope } from '../hooks/useStoryScope'
 import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesMap'
+import { stanceFromPublicLean } from '../utils/mapQuote'
 import TimelineChart from '../components/stance/TimelineChart'
 import DumbbellChart from '../components/stance/DumbbellChart'
 import PlaceControl from '../components/stance/PlaceControl'
@@ -167,8 +168,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
 
   // The map always shows the whole country (each state its own count); the headline and lists follow the scope.
   const national = useQuery({
-    queryKey: ['topic-story', def.topicId, 'states'],
-    queryFn: () => fetchTopicStates(def.topicId),
+    queryKey: ['topic-story', def.topicId, 'states', 3],
+    queryFn: () => fetchTopicStates(def.topicId, { quotes_per_state: 3 }),
     staleTime: 5 * 60_000,
   })
   // The four-colour split (#1127): the AI reading of each state's meetings, national like the map.
@@ -193,6 +194,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       if (!out.has(m.state_code)) out.set(m.state_code, list)
       list.push({
         place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
+        band: stanceFromPublicLean(m.public_stance),
         text: m.excerpt,
         date: m.date ?? null,
         meeting: m.title ?? null,

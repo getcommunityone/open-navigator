@@ -28,6 +28,7 @@ import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { isCurrentPage } from '../../utils/currentPage'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
+import { pickBoxQuote } from '../../utils/mapQuote'
 import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
 export interface StateMarker {
@@ -51,6 +52,8 @@ export interface StateQuote {
   place: string
   /** A speaker's recorded side, when the quote is a speaker's own words (#995); absent for a meeting passage. */
   side?: 'for' | 'against' | 'question' | null
+  /** Optional map-band stance for meeting passages (e.g. topic stories' public_stance, #1357) without setting a speaker side badge. */
+  band?: Stance | null
   /** The speaker's name as served ("Rob D."), when one was heard. */
   speakerName?: string | null
   /** The speaker's role on record ("Resident"), when given. */
@@ -197,9 +200,13 @@ interface Box {
   code: string | null
   /** Index among its state's boxes, sorted left to right. */
   rank: number
+  /** Total boxes belonging to this state. */
+  stateCount: number
   side: Stance | null
   /** Index among its state's boxes in the same side's band. */
   bandRank: number
+  /** Total boxes in the same side's band within this state. */
+  bandCount: number
 }
 
 /**
@@ -272,11 +279,16 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       // Left to right, then top to bottom, so each side fills one contiguous band of the state.
       const sorted = [...ds].sort((a, b) => a.x - b.x || a.y - b.y)
       const sides = bandSides(code ? stanceBy.get(code) : undefined, sorted.length)
+      const bandTotals: Partial<Record<Stance, number>> = {}
+      for (const side of sides) {
+        if (side) bandTotals[side] = (bandTotals[side] ?? 0) + 1
+      }
       const seen: Partial<Record<Stance, number>> = {}
       sorted.forEach((d, rank) => {
         const side = sides[rank] ?? null
         const bandRank = side ? (seen[side] = (seen[side] ?? -1) + 1) : rank
-        out.push({ x: d.x, y: d.y, code, rank, side, bandRank })
+        const bandCount = side ? (bandTotals[side] ?? sorted.length) : sorted.length
+        out.push({ x: d.x, y: d.y, code, rank, stateCount: sorted.length, side, bandRank, bandCount })
       })
     }
     return out
@@ -337,15 +349,10 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
 
   const shown = hover != null ? boxes[hover] : undefined
   const shownCode = shown?.code ?? null
-  // The card (#1277): one passage per state, the same wherever the mouse is in it, so its recording keeps playing while the
-  // pointer moves over the state's boxes. A named speaker's own words ("Rob D.") first, else the state's first passage (the
-  // order #1230 chose). Desktop only: a phone has no card.
-  let quote: StateQuote | undefined
-  if (!touch && shown && shownCode) {
-    const all = quotes?.get(shownCode) ?? []
-    const named = all.filter((q) => q.speakerName)
-    quote = (named.length ? named : all)[0]
-  }
+  // The card (#1277, #1357): moving across a state's stance bands or zones walks through its real speaker/meeting
+  // passages (named speakers first, matching the hovered band when available) in contiguous zones so small mouse moves
+  // keep the current recording playing while moving to another band or part of the state swaps cleanly. Desktop only.
+  const quote = !touch && shown && shownCode ? pickBoxQuote(shown, quotes?.get(shownCode) ?? []) : undefined
   const shownFeat = shownCode ? grid.feats.find((f) => STATE_FIPS_TO_CODE[f.id] === shownCode) : undefined
   // Autoplay only for the mouse, and not for a reader who asked for less motion or data: then the still image and a play button.
   const inlineVideo = keyNav.keyed || prefersStillMedia() ? 'click' : 'autoplay'
@@ -488,9 +495,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               data-active={active ? '' : undefined}
               fill={colorOf(b)}
               opacity={muted ? (shownCode ? 0.45 : 0.7) : 1}
-              // The whole hovered state stands out (#1277), so it reads as one thing to click.
+              // The whole hovered state stands out (#1277), with the hovered box itself crisp so per-meeting moves read (#1357).
               stroke={active ? '#1c1917' : undefined}
-              strokeWidth={active ? grid.step * 0.075 : undefined}
+              strokeWidth={i === hover ? grid.step * 0.16 : active ? grid.step * 0.06 : undefined}
               style={{ cursor: b.code ? 'pointer' : 'default' }}
               onMouseEnter={
                 touch || !b.code
@@ -498,7 +505,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                   : () => {
                       keepCard()
                       keyNav.pointed()
-                      setHover(firstBox.get(b.code!) ?? i)
+                      setHover(i)
                     }
               }
               onClick={() => onBox(i)}
