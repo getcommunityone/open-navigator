@@ -35,6 +35,7 @@ Examples::
 from __future__ import annotations
 
 import argparse
+import functools
 import os
 import random
 import re
@@ -126,6 +127,14 @@ def channel_folder(row: dict[str, Any]) -> str:
     return f"{state}/{leaf}" if state else leaf
 
 
+def _channel_id_suffix(row: dict[str, Any]) -> str:
+    """``_<channel id, lower, alnum, 24 chars>``: how a legacy channel folder name ends."""
+    id_clean = re.sub(r"[^a-z0-9]", "", (row.get("channel_id") or "").strip().lower())[
+        :24
+    ]
+    return f"_{id_clean}" if id_clean else ""
+
+
 def _date_str(row: dict[str, Any]) -> str:
     d = row.get("meeting_date")
     return d.strftime("%Y-%m-%d") if isinstance(d, date) else "unknown-date"
@@ -158,13 +167,26 @@ def scope_sql(scope: str) -> str:
             ) u
             GROUP BY video_id
         ),
-        y AS (
+        y0 AS (
             SELECT DISTINCT ON (video_id)
-                video_id, video_url, title, event_date, channel_id, jurisdiction_name, state_code,
-                duration_minutes, audio_file_path, audio_downloaded_at
+                video_id, video_url, title, event_date, channel_id, jurisdiction_name, state_code
             FROM bronze.bronze_event_youtube
+            WHERE video_id IN (SELECT video_id FROM s)
             ORDER BY video_id, duration_minutes DESC NULLS LAST
-        )
+        ),
+        -- Tracking can sit on any duplicate row for a video_id: aggregate, never pick one row.
+        t AS (
+            SELECT
+                video_id,
+                max(duration_minutes) AS duration_minutes,
+                max(audio_downloaded_at) AS audio_downloaded_at,
+                (array_agg(audio_file_path ORDER BY audio_downloaded_at DESC NULLS LAST)
+                    FILTER (WHERE audio_file_path IS NOT NULL))[1] AS audio_file_path
+            FROM bronze.bronze_event_youtube
+            WHERE video_id IN (SELECT video_id FROM s)
+            GROUP BY video_id
+        ),
+        y AS (SELECT * FROM y0 JOIN t USING (video_id))
         SELECT
             s.video_id,
             COALESCE(y.video_url, 'https://www.youtube.com/watch?v=' || s.video_id) AS video_url,
@@ -179,7 +201,7 @@ def scope_sql(scope: str) -> str:
             y.audio_file_path,
             y.audio_downloaded_at
         FROM s
-        JOIN y USING (video_id)
+        LEFT JOIN y USING (video_id)
         LEFT JOIN public.meeting_video_kind k USING (video_id)
         LEFT JOIN LATERAL (
             SELECT channel_title FROM bronze.bronze_events_channels ch
@@ -213,14 +235,13 @@ def estimate(
 
 
 class Target(Protocol):
+    """Where audio is stored. ``listing`` maps relpath -> bytes (audio files only)."""
+
     kind: str
 
-    def listing(
-        self,
-    ) -> dict[str, int]: ...  # relpath -> size in bytes (audio files only)
-    def put(
-        self, local: Path, relpath: str, *, move: bool
-    ) -> int: ...  # returns stored size
+    def listing(self) -> dict[str, int]: ...
+    def put(self, local: Path, relpath: str, *, move: bool) -> int: ...
+    def remove(self, relpath: str) -> None: ...
     def display(self, relpath: str) -> str: ...
 
 
@@ -271,21 +292,21 @@ class OneDriveTarget:
                 files[path] = int(size)
         return files
 
+    def _rclone(self, *argv: str) -> str:
+        proc = subprocess.run(
+            [self.rclone, *argv], capture_output=True, text=True, check=False
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"rclone {argv[0]} failed: {proc.stderr.strip()[:500]}")
+        return proc.stdout
+
     def put(self, local: Path, relpath: str, *, move: bool) -> int:
         dest = self._path(relpath)
-        subprocess.run(
-            [self.rclone, "copyto", str(local), dest],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        proc = subprocess.run(
-            [self.rclone, "lsf", "--format", "s", dest],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return int(proc.stdout.strip() or 0)
+        self._rclone("copyto", str(local), dest)
+        return int(self._rclone("lsf", "--format", "s", dest).strip() or 0)
+
+    def remove(self, relpath: str) -> None:
+        self._rclone("deletefile", self._path(relpath))
 
     def display(self, relpath: str) -> str:
         return self._path(relpath)
@@ -309,6 +330,9 @@ class LocalTarget:
         else:
             shutil.copy2(local, dest)
         return dest.stat().st_size
+
+    def remove(self, relpath: str) -> None:
+        (self.output_dir / relpath).unlink(missing_ok=True)
 
     def display(self, relpath: str) -> str:
         return str(self.output_dir / relpath)
@@ -374,11 +398,16 @@ class Inventory:
                     or loc.relpath.endswith("/" + rel)
                 ):
                     hits.append(loc)
-        if row.get("title"):
+        channel_suffix = _channel_id_suffix(row)
+        if row.get("title") and channel_suffix:
             for d in {row.get("meeting_date"), row.get("event_date")} - {None}:
-                hits.extend(
-                    self._by_stem.get(legacy_stem({**row, "meeting_date": d}), [])
-                )
+                for loc in self._by_stem.get(
+                    legacy_stem({**row, "meeting_date": d}), []
+                ):
+                    # Same date + title is common across towns: the legacy folder must be this channel's.
+                    parent = loc.relpath.rsplit("/", 1)[0] if "/" in loc.relpath else ""
+                    if parent.rsplit("/", 1)[-1].endswith(channel_suffix):
+                        hits.append(loc)
         unique: dict[tuple[str, str, str], Location] = {
             (h.kind, h.root, h.relpath): h for h in hits
         }
@@ -459,7 +488,9 @@ def ydl_options(out_stem: Path, kbps: int, cookies: Path | None) -> dict[str, An
     return opts
 
 
-def download_audio(url: str, out_stem: Path, kbps: int, cookies: Path | None) -> Path:
+def download_audio(
+    url: str, out_stem: Path, kbps: int, cookies: Path | None, *, transcode: bool = True
+) -> Path:
     """Download one video's audio to ``<out_stem>.opus``; raise ``Blocked`` on a 403/429/bot check."""
     import yt_dlp
 
@@ -478,9 +509,7 @@ def download_audio(url: str, out_stem: Path, kbps: int, cookies: Path | None) ->
     out = out_stem.with_suffix(".opus")
     if not out.is_file():
         raise RuntimeError(f"yt-dlp finished but {out.name} is missing")
-    if os.environ.get("AUDIO_NO_TRANSCODE", "").lower() in ("1", "true", "yes"):
-        return out
-    return transcode_if_needed(out, kbps)
+    return transcode_if_needed(out, kbps) if transcode else out
 
 
 def audio_bitrate_kbps(path: Path) -> float | None:
@@ -579,6 +608,18 @@ def record(conn, video_id: str, path: str, size_bytes: int) -> None:
     """Stamp the bronze tracking columns and the inventory. ``conn=None`` (``--no-record``) skips it."""
     if conn is None:
         return
+    try:
+        _record(conn, video_id, path, size_bytes)
+    except Exception as exc:
+        conn.rollback()  # keep the connection usable for the next video
+        raise RecordError(f"stored at {path} but not recorded: {exc}") from exc
+
+
+class RecordError(RuntimeError):
+    """The file is stored but the bronze tracking write failed."""
+
+
+def _record(conn, video_id: str, path: str, size_bytes: int) -> None:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -591,12 +632,20 @@ def record(conn, video_id: str, path: str, size_bytes: int) -> None:
             (path, round(size_bytes / 1_048_576, 2), video_id),
         )
     conn.commit()
-    record_inventory(conn, [(video_id, "target", path, size_bytes)])
+    _write_inventory(conn, [(video_id, "target", path, size_bytes)])
 
 
 def record_inventory(conn, items: list[tuple[str, str, str, int]]) -> None:
     if conn is None or not items:
         return
+    try:
+        _write_inventory(conn, items)
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _write_inventory(conn, items: list[tuple[str, str, str, int]]) -> None:
     from psycopg2.extras import execute_values
 
     with conn.cursor() as cur:
@@ -637,11 +686,30 @@ class RunStats:
     done: int = 0
     failed: int = 0
     uploaded_existing: int = 0
+    not_recorded: int = 0
     bytes_uploaded: int = 0
 
 
-def report_plan(p: Plan, total: int, kbps: int) -> None:
+def store_verified(target: Target, local: Path, relpath: str, *, move: bool) -> int:
+    """Store ``local`` at ``relpath``; on a size mismatch remove our copy so it never counts as held."""
+    expected = local.stat().st_size
+    stored = target.put(local, relpath, move=move)
+    if stored != expected:
+        try:
+            target.remove(relpath)
+        finally:
+            raise RuntimeError(
+                f"size mismatch: local {expected} vs stored {stored}; removed"
+            )
+    return stored
+
+
+def report_plan(p: Plan, total: int, kbps: int, *, target_checked: bool = True) -> None:
     rest = estimate(p.download, kbps)
+    if not target_checked:
+        logger.warning(
+            "The target folder was not listed: 'left to download' is an upper bound until it is."
+        )
     logger.info(
         "In scope {:,} · held on target {:,} · held locally (upload, no download) {:,} · "
         "tracked in bronze only {:,} · left to download {:,} (~{:,} h, ~{} GB)",
@@ -673,7 +741,11 @@ def run(
     for row, loc in p.on_target:
         path = target.display(loc.relpath)
         if row.get("audio_file_path") != path:
-            record(conn, row["video_id"], path, loc.size)
+            try:
+                record(conn, row["video_id"], path, loc.size)
+            except RecordError as exc:
+                stats.not_recorded += 1
+                logger.error("  {}", str(exc)[:300])
 
     for (
         row,
@@ -682,15 +754,14 @@ def run(
         relpath = loc.relpath if row["video_id"] in loc.relpath else target_relpath(row)
         src = Path(loc.root) / loc.relpath
         try:
-            stored = target.put(src, relpath, move=False)
-            if stored != src.stat().st_size:
-                raise RuntimeError(
-                    f"size mismatch: local {src.stat().st_size} vs stored {stored}"
-                )
-            record(conn, row["video_id"], target.display(relpath), stored)
+            stored = store_verified(target, src, relpath, move=False)
             stats.uploaded_existing += 1
             stats.bytes_uploaded += stored
             logger.success("  uploaded existing {} → {}", src.name, relpath)
+            record(conn, row["video_id"], target.display(relpath), stored)
+        except RecordError as exc:
+            stats.not_recorded += 1
+            logger.error("  {}", str(exc)[:300])
         except Exception as exc:  # noqa: BLE001 — one failed upload must not end the run
             stats.failed += 1
             logger.error("  upload of existing {} failed: {}", src, str(exc)[:300])
@@ -706,13 +777,7 @@ def run(
             local = downloader(
                 row["video_url"], workdir / row["video_id"], kbps, cookies
             )
-            local_size = local.stat().st_size
-            stored = target.put(local, relpath, move=True)
-            if stored != local_size:
-                raise RuntimeError(
-                    f"size mismatch: local {local_size} vs stored {stored}"
-                )
-            record(conn, row["video_id"], target.display(relpath), stored)
+            stored = store_verified(target, local, relpath, move=True)
             stats.done += 1
             stats.bytes_uploaded += stored
             blocks_in_row = 0
@@ -724,6 +789,10 @@ def run(
                 stats.failed,
                 stats.bytes_uploaded / 1e9,
             )
+            record(conn, row["video_id"], target.display(relpath), stored)
+        except RecordError as exc:
+            stats.not_recorded += 1
+            logger.error("  {}", str(exc)[:300])
         except Blocked as exc:
             stats.failed += 1
             blocks_in_row += 1
@@ -827,8 +896,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = p.parse_args(argv)
     if args.data_centers_2026:
         args.scope, args.year = "data-centers", 2026
-    if args.no_transcode:
-        os.environ["AUDIO_NO_TRANSCODE"] = "1"
     return args
 
 
@@ -879,9 +946,15 @@ def main(argv: list[str] | None = None) -> int:
         [str(d) for d in local_dirs],
     )
     p = plan(rows, inv)
-    report_plan(p, len(rows), args.opus_bitrate)
+    report_plan(p, len(rows), args.opus_bitrate, target_checked=target_checked)
+    missing = sum(1 for r in rows if not r.get("title") and not r.get("channel_id"))
+    if missing:
+        logger.warning(
+            "{:,} in-scope videos have no bronze_event_youtube row (cannot be stamped)",
+            missing,
+        )
     store = None if args.no_record else conn
-    if target_checked:
+    if target_checked and not args.dry_run:
         save_inventory(store, p)
 
     if args.dry_run:
@@ -910,12 +983,15 @@ def main(argv: list[str] | None = None) -> int:
         sleep_seconds=args.sleep_seconds,
         max_blocks=args.max_blocks,
         temp_root=temp_root,
+        downloader=functools.partial(download_audio, transcode=not args.no_transcode),
     )
     logger.success(
-        "Finished: downloaded {} · uploaded existing {} · failed {} · {:.2f} GB uploaded",
+        "Finished: downloaded {} · uploaded existing {} · failed {} · stored but not recorded {} · "
+        "{:.2f} GB uploaded",
         stats.done,
         stats.uploaded_existing,
         stats.failed,
+        stats.not_recorded,
         stats.bytes_uploaded / 1e9,
     )
     return 0

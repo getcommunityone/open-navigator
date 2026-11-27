@@ -44,7 +44,9 @@ owner's exception for this scope. It does not widen the rule anywhere else.
   run (exit code 3). Never retry harder.
 - **No rotating proxies, no Webshare,** no identity spoofing beyond what yt-dlp needs to work (its
   default client headers, the existing `youtube_cookies.txt` if it already exists, the EJS solver). No
-  new accounts or new cookies. YouTube is reached only through the VPN guard
+  new accounts or new cookies. The cookies file is a signed-in YouTube session, so using it is part of
+  the exception the owner accepted ("use the repo's existing cookies file only if it already exists").
+  yt-dlp sends its default browser-style headers; the EJS solver is fetched from GitHub at run time. YouTube is reached only through the VPN guard
   ([#488](https://github.com/getcommunityone/open-navigator/issues/488)).
 - **Audio only,** re-encoded to 64 kbps Opus (about 28 MB per hour).
 - **Public government meetings only.**

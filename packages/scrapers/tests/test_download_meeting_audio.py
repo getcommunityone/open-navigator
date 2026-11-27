@@ -83,7 +83,9 @@ def test_video_id_in_any_filename_counts_as_held():
 
 
 def test_legacy_name_and_tracked_path_match():
-    legacy = "nd/x_uc/2026-01-05_GFPS School Board Meeting (January 5th, 2026).opus"
+    legacy = (
+        "nd/x_ucabc123/2026-01-05_GFPS School Board Meeting (January 5th, 2026).opus"
+    )
     assert dma.plan([_row()], _inv(target=[legacy])).on_target
     tracked = _row(title=None, audio_file_path="al/mobile_uc/2026-05-05_x.opus")
     assert dma.plan(
@@ -98,10 +100,11 @@ def test_tracked_without_file_is_skipped_not_downloaded():
 
 def test_local_only_is_uploaded_not_downloaded(tmp_path: Path):
     src_root = tmp_path / "cache"
-    (src_root / "nd").mkdir(parents=True)
+    (src_root / "nd" / "gfps_ucabc123").mkdir(parents=True)
     src = (
         src_root
         / "nd"
+        / "gfps_ucabc123"
         / "2026-01-05_GFPS School Board Meeting (January 5th, 2026).opus"
     )
     src.write_bytes(b"x" * 100)
@@ -176,3 +179,103 @@ def test_successful_download_moves_temp_file_and_cleans_up(tmp_path: Path):
     )
     assert stats.done == 1 and stats.bytes_uploaded == 50
     assert not list(tmp_path.glob("audio_*"))
+
+
+def test_legacy_name_in_another_channel_is_not_held():
+    other = "va/some_town_ucother999/2026-01-05_GFPS School Board Meeting (January 5th, 2026).opus"
+    p = dma.plan([_row()], _inv(local=[other]))
+    assert p.download and not p.upload_local
+
+
+def test_legacy_name_in_same_channel_folder_is_held():
+    same = "nd/whatever_slug_ucabc123/2026-01-05_GFPS School Board Meeting (January 5th, 2026).opus"
+    assert dma.plan([_row()], _inv(local=[same])).upload_local
+
+
+class _ShortTarget(dma.LocalTarget):
+    """Reports one byte fewer than written, to exercise the size check."""
+
+    def put(self, local, relpath, *, move):
+        return super().put(local, relpath, move=move) - 1
+
+
+def test_size_mismatch_removes_our_copy(tmp_path: Path):
+    def fake(url, stem, kbps, cookies):
+        out = stem.with_suffix(".opus")
+        out.write_bytes(b"z" * 40)
+        return out
+
+    out_dir = tmp_path / "out"
+    stats = dma.run(
+        dma.plan([_row()], dma.Inventory()),
+        _ShortTarget(out_dir),
+        None,
+        limit=1,
+        kbps=64,
+        cookies=None,
+        sleep_seconds=0,
+        max_blocks=3,
+        temp_root=tmp_path,
+        downloader=fake,
+        sleeper=lambda s: None,
+    )
+    assert stats.failed == 1 and stats.done == 0
+    assert not list(out_dir.rglob("*.opus"))  # a bad copy never counts as held next run
+
+
+class _FailingConn:
+    def __init__(self):
+        self.rolled_back = 0
+
+    def cursor(self):
+        raise RuntimeError("permission denied")
+
+    def rollback(self):
+        self.rolled_back += 1
+
+
+def test_db_failure_after_upload_rolls_back_and_continues(tmp_path: Path):
+    def fake(url, stem, kbps, cookies):
+        out = stem.with_suffix(".opus")
+        out.write_bytes(b"q" * 10)
+        return out
+
+    conn = _FailingConn()
+    rows = [_row(video_id="aaaaaaaaaaa"), _row(video_id="bbbbbbbbbbb")]
+    stats = dma.run(
+        dma.plan(rows, dma.Inventory()),
+        dma.LocalTarget(tmp_path / "out"),
+        conn,
+        limit=None,
+        kbps=64,
+        cookies=None,
+        sleep_seconds=0,
+        max_blocks=3,
+        temp_root=tmp_path,
+        downloader=fake,
+        sleeper=lambda s: None,
+    )
+    assert stats.done == 2 and stats.not_recorded == 2 and conn.rolled_back == 2
+
+
+def test_onedrive_listing_parses_rclone_output(monkeypatch):
+    class P:
+        returncode = 0
+        stdout = "123\tva/x_uc1/2026-01-05_a [abcdefghijk].opus\n9\tnotes.txt\n"
+        stderr = ""
+
+    monkeypatch.setattr(dma.subprocess, "run", lambda *a, **k: P())
+    files = dma.OneDriveTarget(
+        remote="onedrive", root="CommunityOne/youtube_audio"
+    ).listing()
+    assert files == {"va/x_uc1/2026-01-05_a [abcdefghijk].opus": 123}
+
+
+def test_onedrive_listing_missing_folder_is_empty(monkeypatch):
+    class P:
+        returncode = 3
+        stdout = ""
+        stderr = "error listing: directory not found"
+
+    monkeypatch.setattr(dma.subprocess, "run", lambda *a, **k: P())
+    assert dma.OneDriveTarget().listing() == {}
