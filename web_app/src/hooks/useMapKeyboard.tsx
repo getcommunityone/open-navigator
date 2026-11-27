@@ -5,11 +5,10 @@ export function nextMapKey<K>(keys: readonly K[], current: K | null, key: string
   if (!keys.length) return null
   const i = current == null ? -1 : keys.indexOf(current)
   switch (key) {
+    // Up/Down are left to the page, so a focused map doesn't stop keyboard scrolling.
     case 'ArrowRight':
-    case 'ArrowDown':
       return keys[i < 0 ? 0 : (i + 1) % keys.length]!
     case 'ArrowLeft':
-    case 'ArrowUp':
       return keys[i < 0 ? keys.length - 1 : (i - 1 + keys.length) % keys.length]!
     case 'Home':
       return keys[0]!
@@ -74,9 +73,10 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
       }
       return
     }
-    if ((e.key === 'Enter' || e.key === ' ') && active != null && onActivate) {
+    if ((e.key === 'Enter' || e.key === ' ') && active != null) {
+      // Always consumed while an area is shown, so a map without a story to open doesn't page the story screen instead.
       e.preventDefault()
-      onActivate(active)
+      onActivate?.(active)
       return
     }
     const k = nextMapKey(keys, active, e.key)

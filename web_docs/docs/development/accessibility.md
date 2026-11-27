@@ -51,7 +51,7 @@ The strip follows the WAI-ARIA toolbar pattern, with a **roving tabindex**:
 
 - The map's `<svg>` is **one tab stop** (`role="group"`, `aria-roledescription="map"`). Focusing it selects the
   page's scoped state, or the first area.
-- The arrow keys move between areas from west to east (`westToEast`). Each move shows the area's quote card, as
+- The ←/→ arrow keys move between areas from west to east (↑/↓ still scroll the page) (`westToEast`). Each move shows the area's quote card, as
   hovering does, and announces it through a polite live region, for example "Alabama: 12 meetings; …".
 - Enter or Space opens that area's story, where the map has one. Escape hides the card. Moving focus off the map
   and its card hides the card too.
