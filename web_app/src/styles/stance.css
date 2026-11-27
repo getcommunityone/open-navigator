@@ -3360,3 +3360,21 @@ html.stance-snap .stance-intro {
 .stance-story .stance-sentence select.stance-blank {
   field-sizing: content;
 }
+
+/* Why a story speaks for a wider place than the one asked (#1285): one plain line under the bar. */
+.story-scope-note {
+  margin: 6px 0 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--teal, #0f766e);
+  background: rgba(15, 118, 110, 0.06);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: #44403c;
+  max-width: 120ch;
+}
+
+.stance-top-note {
+  flex: 1 1 100%;
+  order: 10;
+  margin-bottom: 10px;
+}

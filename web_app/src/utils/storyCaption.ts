@@ -765,7 +765,8 @@ export function captionSubhead(caption: Caption, topicKey: string, scope: StoryS
     case 'wider_sentiment':
       // The title is the broader scope's (#1222): the line under it starts with the place in scope, which the home page
       // draws as its place control, and says why the title is the broader one. No number (the basis has them).
-      return `${storyScopeLabel(scope)} has too few meetings where the public took a side for a conclusion of its own; the title is ${caption.widerPlace ?? 'the country'}'s.`
+      // Plain words (owner, #1285): "Tuscaloosa hasn't had enough public comment on data centers to call. Showing America."
+      return `${storyScopeLabel(scope)} hasn't had enough public comment on ${topic} to call. Showing ${caption.widerPlace ?? 'the whole country'}.`
     case 'sentiment':
       return national
         ? (STORIES[topicKey]?.conclusion?.subhead ?? null)

@@ -57,11 +57,37 @@ export function headerPlaceState(
   search: URLSearchParams,
   saved: { state?: string | null; city?: string | null } | null | undefined,
 ): HeaderPlaceState {
+  // Home with National chosen (#1285, `?scope=national`): the header says National and offers the place back in one click.
+  if (isHomePath(pathname) && search.get('scope') === 'national') {
+    const back = headerPlace(search, saved)
+    return back ? { kind: 'national-saved', saved: back } : { kind: 'national' }
+  }
   if (!isScopeAwarePath(pathname)) return { kind: 'town', place: headerPlace(search, saved) }
   const fromUrl = headerPlace(search, null)
   if (fromUrl) return { kind: 'scoped', place: fromUrl }
   const savedPlace = headerPlace(new URLSearchParams(), saved)
   return savedPlace ? { kind: 'national-saved', saved: savedPlace } : { kind: 'national' }
+}
+
+const isHomePath = (pathname: string) => (pathname.replace(/\/+$/, '') || '/') === '/'
+
+/**
+ * The query string for the header's one-click National (#1285). On home the place stays (it's the reader's town) and
+ * `scope=national` is added; on a scoped page the place is dropped, so the label, the URL and the data go national together.
+ * Null when there is nothing to reset.
+ */
+export function searchForNational(pathname: string, search: URLSearchParams, hasTown: boolean): URLSearchParams | null {
+  const next = new URLSearchParams(search)
+  next.delete('page')
+  if (isHomePath(pathname)) {
+    if (!hasTown || next.get('scope') === 'national') return null
+    next.set('scope', 'national')
+    return next
+  }
+  if (!next.has('state') && !next.has('city')) return null
+  next.delete('state')
+  next.delete('city')
+  return next
 }
 
 /** "Tuscaloosa, AL", or "AL" for a state-only place. */
@@ -77,6 +103,7 @@ export function searchAfterPick(pathname: string, search: URLSearchParams, loc: 
   const next = new URLSearchParams(search)
   next.delete('state')
   next.delete('city')
+  next.delete('scope')
   const st = (loc.state ?? '').trim().toUpperCase()
   if (pathname !== '/' && STATE_CODES.includes(st)) {
     next.set('state', st)

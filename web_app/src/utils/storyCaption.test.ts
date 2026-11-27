@@ -265,7 +265,7 @@ describe('the title says what the map shows (#1182)', () => {
     expect(c.basis).toMatch(/^Tuscaloosa, Alabama talked about data centers in 2 meetings\. .*In 283 meetings across 32 states, /)
     // The line under the title starts with the place in scope (the home page draws it as the place control), no number.
     expect(captionSubhead(c, 'data-centers', tus)).toBe(
-      "Tuscaloosa, Alabama has too few meetings where the public took a side for a conclusion of its own; the title is America's.",
+      "Tuscaloosa, Alabama hasn't had enough public comment on data centers to call. Showing America.",
     )
     const s = pickCaption('data-centers', facts({ meetings: 71, lean_meetings: 71, public_against_meetings: 6, wider: [NATIONAL_RED] }, al), al)
     expect(captionText(s, 'data centers')).toBe('America hates data centers.')
