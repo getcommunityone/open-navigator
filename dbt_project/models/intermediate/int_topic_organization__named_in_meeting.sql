@@ -59,7 +59,8 @@ passage as (
     select
         d.topic_id, d.video_id, d.state_code, d.city, d.event_date, d.video_url, d.place_name, r.rx,
         1                                                                as passage_no,
-        lower(regexp_replace(k.evidence_passage, '</?mark>', '', 'g'))  as passage_text
+        -- As the transcript has it (matching is case-insensitive), so the quote shown is verbatim.
+        regexp_replace(k.evidence_passage, '</?mark>', '', 'g')         as passage_text
     from topic_doc as d
     inner join topic_rx as r on r.topic_id = d.topic_id
     inner join {{ ref('topic_transcript_link') }} as k on k.topic_id = d.topic_id and k.video_id = d.video_id
@@ -153,22 +154,26 @@ matched as (
 ),
 
 verified as (
-    select * from matched where passage_text ~ name_rx
+    select * from matched where passage_text ~* name_rx
 )
 
 select distinct on (v.topic_id, v.master_org_id)
     v.topic_id::integer                                                    as topic_id,
     v.master_org_id::text                                                  as master_org_id,
-    -- The name in <mark>, and the topic's words too unless the name holds them (no nested marks).
-    (case when v.passage_text ~ ('(' || v.name_rx || ')') and lower(v.org_name) ~ ('\m' || v.rx || '\M')
-          then regexp_replace(trim(v.passage_text), '(' || v.name_rx || ')', '<mark>\1</mark>', 'g')
-          else regexp_replace(
-                   regexp_replace(trim(v.passage_text), '(\m' || v.rx || '\M)', '<mark>\1</mark>', 'g'),
-                   '(' || replace(v.name_rx, '\W+', '(?:\W+|</?mark>)+') || ')', '<mark>\1</mark>', 'g')
-     end)::text                                                            as match_text,
+    -- The name in <mark>, and the topic's words too unless that would nest marks (then the name alone).
+    (case when both_marked ~ '<mark>[^<]*<mark>' or both_marked ~ '</mark>[^<]*</mark>' then name_marked else both_marked end)::text
+                                                                           as match_text,
     v.video_id::text                                                       as match_video_id,
     v.video_url::text                                                      as match_source_url,
     v.event_date::date                                                     as match_date,
     v.place_name::text                                                     as match_place
-from verified as v
+from (
+    select
+        vv.*,
+        regexp_replace(trim(vv.passage_text), '(' || vv.name_rx || ')', '<mark>\1</mark>', 'gi')        as name_marked,
+        regexp_replace(
+            regexp_replace(trim(vv.passage_text), '(' || vv.name_rx || ')', '<mark>\1</mark>', 'gi'),
+            '(\m' || vv.rx || '\M)(?![^<]*</mark>)', '<mark>\1</mark>', 'gi')                       as both_marked
+    from verified as vv
+) as v
 order by v.topic_id, v.master_org_id, v.event_date desc nulls last, v.video_id

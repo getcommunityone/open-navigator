@@ -65,7 +65,10 @@ name_hits as (
 
 mission_hits as (
     select r.topic_id, n.master_org_id, 'keyword_in_mission'::text as match_method,
-           regexp_replace(left(m.mission, 1000), '(' || r.pattern || ')', '<mark>\1</mark>', 'gi') as match_text, r.side
+           regexp_replace(
+               case when length(m.mission) <= 1000 then m.mission
+                    else substr(m.mission, greatest(1, regexp_instr(m.mission, r.pattern, 1, 1, 0, 'i') - 300), 1000) end,
+               '(' || r.pattern || ')', '<mark>\1</mark>', 'gi') as match_text, r.side
     from rules as r
     inner join mission as m on m.mission ~* r.pattern
     inner join nonprofit as n on n.ein = m.ein
