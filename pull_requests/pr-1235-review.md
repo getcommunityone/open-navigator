@@ -5,7 +5,7 @@ title: "fix(stories): Concerns dumbbell draws on phones, and story charts get th
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 0a5ea9a5acb64764d486d1c41a8a8f87afeb0f4a
+head_sha: b444fbbeeae83079b93504dc6f3d984a153ec5ad
 verdict: approve
 ---
 
@@ -18,6 +18,7 @@ Automated review (#648) for PR #1235 on `fix/1228-chart-motion`. Heuristic rubri
 
 ## Scope of Change
 
+- `pull_requests/pr-1235-review.md`
 - `web_app/src/components/stance/DumbbellRows.tsx`
 - `web_app/src/components/stance/TimelineChart.tsx`
 - `web_app/src/components/stance/UnitMatrixChart.tsx`
@@ -29,7 +30,7 @@ Automated review (#648) for PR #1235 on `fix/1228-chart-motion`. Heuristic rubri
 
 ## CI Status
 
-See the PR checks on `0a5ea9a5acb6`.
+See the PR checks on `b444fbbeeae8`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
