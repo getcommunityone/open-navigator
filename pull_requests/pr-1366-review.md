@@ -4,9 +4,9 @@ branch: feat/1346-story-nonprofits
 title: "feat(stories): Who's working on this \u2014 the scope's nonprofits on a topic story"
 author: jcbowyer
 reviewed_at: 2026-11-27
-reviewer: github-actions
+reviewer: claude (read-only reviewer subagent + author verification)
 head_sha: 6392d17136cb150a5f176d9ac751e119570cb6c2
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: feat(stories): Who's working on this — the scope's nonprofits on a topic story
@@ -53,12 +53,14 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+- Inherited from #1365 (lower-cased quote, nested marks): fixed in the mart. The panel renders `match_text` with `highlightSnippet`.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- Fixed: for a name match the marked name was never shown. The panel now quotes `match_text` for every method except the IRS category.
+- Checked: the scope label and the query move together (TopicStory is state-grain and passes the state only; DataStory passes the city and labels it), hooks run before any return, and list keys are `master_org_id`.
+- Fixed during the Playwright pass: on a phone, `useScreenFit` hid the list behind "More" because the count bars came first. The list now comes first and three rows show.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: no blocking findings. The should-fix items were fixed on the branch.
