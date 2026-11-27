@@ -475,6 +475,11 @@ outputPorts:
   contractId: open-navigator-public-topic_organization
   type: table
   description: The nonprofits tied to each curated topic (#1345).
+- name: organization_event
+  version: 1.0.0
+  contractId: open-navigator-public-organization_event
+  type: table
+  description: Upcoming events nonprofits publish on their own websites (schema.org Event or iCal), one row per event (#1347).
 - name: company_grant
   version: 1.0.0
   contractId: open-navigator-public-company_grant
