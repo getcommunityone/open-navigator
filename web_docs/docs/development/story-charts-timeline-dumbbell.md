@@ -95,6 +95,28 @@ Hollow circle = earlier year, filled dot = later year, line violet for a rise an
 (true minus sign). Sort by later, by change or by earlier (`sortDumbbell`); rows slide to their new rank. The first 12
 rows are drawn, with "Show all". Each row is focusable with a full spoken label; **Show data table** lists every row.
 
+The drawing is `web_app/src/components/stance/DumbbellRows.tsx` (presentational: rows of `{key, label, a, b, right,
+negative, ariaLabel, tip}`); `DumbbellChart` (places, year against year) and `ConcernsDumbbell` both use it. A row with
+`a: null` is drawn as a single filled dot on a stem from zero.
+
+### Concerns dumbbell (#1209)
+
+The Data Center Story's Concerns screen compares the place with the nation, from `GET /api/data-centers/concerns`
+(`public.area_concern`). `area_concern` has no per-year counts, so a year-against-year comparison is not possible, and
+its `objection_count` is the area's total objections repeated on every concern row (`share = mentions / all objections
+in the area`), so there is no per-concern share of objections either.
+
+- **State or city:** hollow dot = the concern's share of all national concern mentions, filled dot = its share of the
+  place's mentions, right column = the difference in percentage points. Sort **By [place]**, **By difference**,
+  **Nationally** (`sortConcernRows`). Title: "What [place] raises about data centers, compared with the nation".
+- **National:** one filled dot per concern, its share of all mentions, with a line saying why there is no second value.
+- Shares are computed in the browser from `mention_count` over every mention in the scope, the same way for the place
+  and the nation (the API's `share` column means different things at the two grains).
+- Concerns with fewer than `MIN_PLACE_MENTIONS` (2) mentions in the place, zero included, are left out; they still count
+  in the denominator, and the note names them.
+- The rows: `buildConcernRows` in `web_app/src/utils/concernDumbbell.ts`, tested in `concernDumbbell.test.ts`. The
+  screen's headline (#1139/#1147) is unchanged.
+
 ## Unit matrix
 
 One square per listed record, never per estimate. Groupings come from real fields on each record (`Dot.facets`):
