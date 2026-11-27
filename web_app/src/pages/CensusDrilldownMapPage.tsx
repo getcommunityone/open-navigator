@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { fetchStaticJson } from '../utils/fetchStaticJson'
+import { fetchStaticJson, isServedDataFile } from '../utils/fetchStaticJson'
 import { feature as topoFeature } from 'topojson-client'
 import { geoCentroid, geoContains } from 'd3-geo'
 import {
@@ -82,20 +82,8 @@ function fips2(raw) {
   return s.length <= 2 ? s.padStart(2, '0') : s.slice(-2).padStart(2, '0')
 }
 
-/**
- * Treat a fetch response as "real JSON" only if the server actually labels it
- * that way. Vite's dev server serves the SPA shell (200 + text/html) for any
- * unmatched path under public/, which would otherwise pose as a successful
- * 200 to vintage-fallback loops and short-circuit them on r.json() parse.
- */
 /** Touch / narrow screens get tap-first map behaviour and the collapsed bottom sheet (#1238). */
 const TOUCH_MAP_QUERY = '(max-width: 760px), (hover: none)'
-
-function isJsonResponse(r: Response): boolean {
-  if (r.status === 404) return false
-  const ct = r.headers.get('content-type') ?? ''
-  return ct.includes('json') || ct.includes('geo+json')
-}
 
 interface CensusMetric {
   slug: string
@@ -435,12 +423,10 @@ export default function CensusDrilldownMapPage() {
       const candidates = [displayVintage, ...vintages.slice().reverse().filter((v) => v !== displayVintage)]
       for (const v of candidates) {
         const r = await fetch(`/data/census-map/${v}/place_${selectedStateFips}.geojson`)
-        // Treat "not really there" the same as 404. Vite's dev server serves
-        // the SPA shell (200 + text/html) for any unmatched path under public/,
-        // so a missing per-vintage file would otherwise short-circuit the
-        // fallback to a vintage that *is* exported.
-        if (!isJsonResponse(r)) continue
-        if (!r.ok) throw new Error('place geojson')
+        // Treat "not really there" the same as 404: the SPA shell (200 +
+        // text/html) stands in for a missing per-vintage file. Don't demand a
+        // json content type: prod serves .geojson as octet-stream (#1266).
+        if (!isServedDataFile(r.status, r.headers.get('content-type'))) continue
         return r.json()
       }
       return null
@@ -479,8 +465,7 @@ export default function CensusDrilldownMapPage() {
       const candidates = [displayVintage, ...vintages.slice().reverse().filter((v) => v !== displayVintage)]
       for (const v of candidates) {
         const r = await fetch(`/data/census-map/${v}/zcta_metrics_${selectedStateFips}.json`)
-        if (!isJsonResponse(r)) continue
-        if (!r.ok) throw new Error('zcta metrics')
+        if (!isServedDataFile(r.status, r.headers.get('content-type'))) continue
         return r.json()
       }
       return null

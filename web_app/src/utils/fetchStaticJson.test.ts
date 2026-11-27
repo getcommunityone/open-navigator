@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchStaticJson, StaticDataMissingError } from './fetchStaticJson'
+import { fetchStaticJson, isServedDataFile, StaticDataMissingError } from './fetchStaticJson'
 
 const respond = (body: string, init: ResponseInit) => vi.stubGlobal('fetch', vi.fn(async () => new Response(body, init)))
 
@@ -24,5 +24,30 @@ describe('fetchStaticJson', () => {
   it('treats a broken file as missing', async () => {
     respond('{"vintage":', { status: 200, headers: { 'content-type': 'application/json' } })
     await expect(fetchStaticJson('/data/x.json')).rejects.toBeInstanceOf(StaticDataMissingError)
+  })
+})
+
+describe('isServedDataFile (#1266)', () => {
+  it('accepts a real file whatever json-ish or generic type the server gives it', () => {
+    expect(isServedDataFile(200, 'application/json')).toBe(true)
+    expect(isServedDataFile(200, 'application/geo+json')).toBe(true)
+    // Production (Python static server) has no .geojson mime entry.
+    expect(isServedDataFile(200, 'application/octet-stream')).toBe(true)
+    expect(isServedDataFile(200, null)).toBe(true)
+  })
+
+  it('rejects the app page served in place of a missing file', () => {
+    expect(isServedDataFile(200, 'text/html; charset=utf-8')).toBe(false)
+    expect(isServedDataFile(200, 'TEXT/HTML')).toBe(false)
+  })
+
+  it('rejects error statuses', () => {
+    expect(isServedDataFile(404, 'application/json')).toBe(false)
+    expect(isServedDataFile(500, 'application/octet-stream')).toBe(false)
+  })
+
+  it('lets fetchStaticJson read a file served as octet-stream', async () => {
+    respond('{"type":"FeatureCollection","features":[]}', { status: 200, headers: { 'content-type': 'application/octet-stream' } })
+    expect(await fetchStaticJson('/data/census-map/2022/place_01.geojson')).toEqual({ type: 'FeatureCollection', features: [] })
   })
 })

@@ -12,10 +12,16 @@ client revalidates on *every* request. ``CachedStaticFiles`` stamps a
 CDN can serve the cached copy while refreshing in the background.
 """
 
+import mimetypes
 from typing import Any, MutableMapping
 
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
+
+# Python's mimetypes table has no ``.geojson`` entry, so StaticFiles served the
+# per-state place shapes as ``application/octet-stream`` and the census map
+# skipped them as "not a JSON file" (#1266). Register the IANA type.
+mimetypes.add_type("application/geo+json", ".geojson")
 
 
 class CachedStaticFiles(StaticFiles):
