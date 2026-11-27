@@ -555,18 +555,14 @@ TRANSCRIPT_SQL = """
 
 
 def _dsn(explicit: str | None = None) -> str:
-    """``--dsn``, else ``OPEN_NAVIGATOR_DATABASE_URL`` / ``DATABASE_URL`` (Postgres), else the local warehouse.
-
-    Neon is never chosen here: a URL that names neon.tech is refused.
-    """
+    """``--dsn``, else ``OPEN_NAVIGATOR_DATABASE_URL`` / ``DATABASE_URL`` (Postgres). Neon is refused."""
     for candidate in (explicit, os.environ.get("OPEN_NAVIGATOR_DATABASE_URL"), os.environ.get("DATABASE_URL")):
         url = (candidate or "").strip()
-        if url.startswith(("postgresql://", "postgres://")):
+        if url.startswith(("postgresql:", "postgres:")):
             if "neon.tech" in url:
                 raise SystemExit("Refusing to write comment segments to Neon; use the local warehouse.")
             return url
-    password = os.environ.get("POSTGRES_PASSWORD") or "password"
-    return f"postgresql://postgres:{password}@localhost:5433/open_navigator"
+    raise SystemExit("Set OPEN_NAVIGATOR_DATABASE_URL (the local warehouse) or pass --dsn.")
 
 
 def load_cues(cur: Any, video_ids: Sequence[str]) -> dict[str, list[Cue]]:
@@ -657,7 +653,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument("--year", type=int, help="only meetings in this year (default: all years)")
     scope.add_argument("--video-id", action="append", help="segment only these meetings (repeatable)")
-    parser.add_argument("--dsn", help="Postgres URL (default: OPEN_NAVIGATOR_DATABASE_URL, else local 5433)")
+    parser.add_argument("--dsn", help="Postgres URL (default: OPEN_NAVIGATOR_DATABASE_URL)")
     parser.add_argument("--dry-run", action="store_true", help="segment and report; write nothing")
     parser.add_argument("--show", type=int, default=0, help="log the first N comments found")
     parser.add_argument("--workers", type=int, default=max((os.cpu_count() or 2) - 2, 1), help="segmenting processes")
