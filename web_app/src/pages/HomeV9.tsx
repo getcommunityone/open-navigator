@@ -79,6 +79,8 @@ html { scroll-behavior: smooth; }
 .v9 .home-story-drill { margin: 10px 0 0; font-size: 13.5px; color: #57534e; }
 .v9 .home-story-drill strong { color: #1c1917; }
 .v9 .home-story-map { position: relative; }
+/* The state's county map (#1307) fits the first screen like the national map: capped by height, centred. */
+.v9 .home-story-map .stance-map-svg { max-height: min(56vh, 520px); width: auto; max-width: 100%; margin: 0 auto; }
 /* The map never pushes the card past one screen (#1176): capped by height, kept centred at its aspect ratio. */
 .v9 .home-story-map > svg, .v9 .home-story-map svg[role="img"] { max-height: min(60vh, 560px); width: auto; max-width: 100%; margin: 0 auto; }
 .v9 .home-topics { margin-top: 22px; border: 1px solid #e7e5e4; border-radius: 14px; background: #fff; }
