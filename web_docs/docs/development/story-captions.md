@@ -11,6 +11,33 @@ caption for every topic: lead with disagreement where it is high-volume, and oth
 differ. Only the data-center story had a conclusion ("America hates data centers."); the rest said "X talked about Y in N
 meetings." or showed a fixed blurb.
 
+## Decision (27 Nov 2026, #1224): the selected place gets its own title from 5 meetings, and the topic is always a control
+
+The owner, on a phone at `/stories/data-centers?state=AL`, where the title read "America hates data centers." while
+Alabama was selected:
+
+> "If Alabama is selected, it should say Alabama hates, with the opportunity to change, and should be able to change data
+> centers; now only 1 option."
+
+`pickCaption` now has a lower tier between "hates" and the broader fallback. The titles stay the short conclusion
+(the decision below), and the place word is the inline place control:
+
+| Meetings where the public spoke (the place's own AI reading) | Title |
+|---|---|
+| At least the `HATES_MIN_MEETINGS` floor (10 in a state, 50 nationally, 3 in a city), majority against, a "hates" topic | "[Alabama] hates data centers." (unchanged) |
+| At least the floor, otherwise | "[Ohio] mostly favors gun limits." / "… is split on …" (unchanged) |
+| `LEAN_MIN_MEETINGS` (5) up to the floor, more than half on one side | "[Alabama] mostly opposes data centers." / "[Ohio] mostly favors gun limits.": the topic's own words (`againstTitle` / `forTitle`), never "hates" |
+| 5 up to the floor, no side over half | "[Ohio] is split on gun control." |
+| Under 5 | Today's fallback: the nearest broader conclusion as the title, the place's own facts in the basis, its place control in the subhead |
+
+The basis line carries the count ("Most meetings were against data centers: 6 of 8 where the public spoke."). "Hates" on
+the place's own hand-counted speakers (rule a) still outranks the lower tier.
+
+The topic in the title is always a control (`withTopicBlank`): on the topic phrase when the words name it, otherwise in
+brackets before the full stop ("Ohio mostly favors gun limits (gun control ▾)."). It lists every live story, the Data
+Center Story and each topic story (`storyTopicOptions`), never a coming-soon topic, the same list on every story page.
+Choosing one opens that story on its Overview with `?state=&city=` kept (`storyStartHref`).
+
 ## Decision (26 Nov 2026, #1234): the title is the short conclusion only, no "AI reading" text
 
 **This decision overrides the title wording in the older sections below** (#1182 "America hates data centers; Tuscaloosa,
@@ -256,6 +283,7 @@ available — for positions on each of our topics, and state the conclusion summ
 
 | Constant | Value | Why |
 |----------|-------|-----|
+| `LEAN_MIN_MEETINGS` | 5 | Meetings where the public spoke before a place gets its own "mostly …" or "is split" title below the hates floor (owner, 27 Nov 2026). Five is a handful of separate meetings, not one night; it never says "hates". A city's floor is already 3, so it is unchanged. |
 | `HATES_MIN_MEETINGS` | 50 national, 10 state, 3 city | Confident public-against meetings before "hates" leads. Fifty across the country, ten in a state and three in one place are each a pattern, not one heated night. Nationally 283 data-center meetings pass; Georgia 37; Arizona 14. |
 | conclusion gate | ratio 2, 10 speakers | Unchanged from #989 (`STORIES['data-centers'].conclusion`): counted speakers against at least twice for, at least 10 speakers. Either it or the AI count is enough for (a). |
 | `DISAGREEMENT_MIN_MEETINGS` | 10 | Ten separate meetings where officials sided against the public. Nationally 23 data-center meetings pass (10 states), but (a) leads there. |

@@ -82,11 +82,73 @@ The fields come from `GET /api/data-centers/meeting-mentions` as nullable `meeti
 
 A story or a challenge needs meeting recordings or transcripts behind it. Figure-only data, such as census measures, is shown under Explore.
 
-Every curated topic with at least one linked meeting has a live story at `/stories/<query_id>` ([#1133](https://github.com/getcommunityone/open-navigator/issues/1133)). The list is read at runtime from `GET /api/topics` (curated topics with a meeting count above 0, `utils/topicStories.ts`), so a topic added later goes live with no code change. `/stories/data-centers` stays on the Data Center Story (`DataStory`); every other slug is told by `TopicStory`: its caption (#1125), the map of meetings per state with each state's map quote (a public meeting where the public took a side when there is one, [#1230](https://github.com/getcommunityone/open-navigator/issues/1230)), what was said and what was decided. On the home **Browse topics** strip a tile is live when its topic has meetings, and selecting it shows that topic's story card above, keeping the place. Flock and license plate readers share one topic and one tile. **Starting a nonprofit** links to its guide. A tile whose topic has no meetings on record (Insurance shopping until #1079 has data) says "Coming soon". Bike lanes has its own curated topic (100007, [#1162](https://github.com/getcommunityone/open-navigator/issues/1162)) and goes live after the next seed and rebuild finds meetings for it. A curated topic with meetings that has no tile of its own gets a plain one, most meetings first, before the guides. At the end of a story, **Next story** walks the same live list. Within a story, a screen whose figures are not from recordings or transcripts (for the Data Center Story, sites on record and projects on record) is marked "For context" with its source named, and is never the story's headline claim. The opener's large counts lead with the transcript-based ones and show counts from other sources after them with their source.
+Every curated topic with at least one linked meeting has a live story at `/stories/<query_id>` ([#1133](https://github.com/getcommunityone/open-navigator/issues/1133)). The list is read at runtime from `GET /api/topics` (curated topics with a meeting count above 0, `utils/topicStories.ts`), so a topic added later goes live with no code change. `/stories/data-centers` stays on the Data Center Story (`DataStory`); every other slug is told by `TopicStory`, screen by screen in the same format as the Data Center Story since [#1224](https://github.com/getcommunityone/open-navigator/issues/1224) (see [Topic stories, screen by screen](#topic-stories-screen-by-screen-1224)); the map's quote for each state is a public meeting where the public took a side when there is one ([#1230](https://github.com/getcommunityone/open-navigator/issues/1230)). On the home **Browse topics** strip a tile is live when its topic has meetings, and selecting it shows that topic's story card above, keeping the place. Flock and license plate readers share one topic and one tile. **Starting a nonprofit** links to its guide. A tile whose topic has no meetings on record (Insurance shopping until #1079 has data) says "Coming soon". Bike lanes has its own curated topic (100007, [#1162](https://github.com/getcommunityone/open-navigator/issues/1162)) and goes live after the next seed and rebuild finds meetings for it. A curated topic with meetings that has no tile of its own gets a plain one, most meetings first, before the guides. At the end of a story, **Next story** walks the same live list. Within a story, a screen whose figures are not from recordings or transcripts (for the Data Center Story, sites on record and projects on record) is marked "For context" with its source named, and is never the story's headline claim. The opener's large counts lead with the transcript-based ones and show counts from other sources after them with their source.
 
-Every topic story's map is the home box map with the same four-entry legend ([#1127](https://github.com/getcommunityone/open-navigator/issues/1127)). For topics other than data centers the colours come from the **AI reading of meetings** (`topic_meeting_lean`, [#1126](https://github.com/getcommunityone/open-navigator/issues/1126)), served by `GET /api/topics/{topic_id}/state-map` as distinct meetings per state, in each topic's own words since [#1200](https://github.com/getcommunityone/open-navigator/issues/1200): against (muted red, e.g. **Want limits on short-term rentals**, **Opposed the gun proposal**, **Against the courts**), for (teal, e.g. **Want to allow short-term rentals**, **Backed the gun proposal**, **For the courts**), **Split** (plum: the public spoke but was divided, or the AI could not tell which way) and **No AI reading yet, or the public didn't speak on it** (grey, darker = more meetings). The note under the map says what "for" means for the topic, and the data table adds a **Public didn't speak on it** column. A state's boxes are split in bands by those meeting counts, never by counted speakers, and the caption, hover card and data table say "AI reading of N meetings". Until the reading exists for a topic, the endpoint answers `available: false` and the map is grey with the note "No AI reading of these meetings yet; states show meetings only"; a failed request leaves the plain meetings map and claims no stance. Choosing a state (`?state=`) highlights it on the national map; the county drill-down the Data Center Story has needs a jurisdiction on each topic meeting and is tracked separately.
+Every topic story's map is the home box map with the same four-entry legend ([#1127](https://github.com/getcommunityone/open-navigator/issues/1127)). For topics other than data centers the colours come from the **AI reading of meetings** (`topic_meeting_lean`, [#1126](https://github.com/getcommunityone/open-navigator/issues/1126)), served by `GET /api/topics/{topic_id}/state-map` as distinct meetings per state, in each topic's own words since [#1200](https://github.com/getcommunityone/open-navigator/issues/1200): against (muted red, e.g. **Want limits on short-term rentals**, **Opposed the gun proposal**, **Against the courts**), for (teal, e.g. **Want to allow short-term rentals**, **Backed the gun proposal**, **For the courts**), **Split** (plum: the public spoke but was divided, or the AI could not tell which way) and **No AI reading yet, or the public didn't speak on it** (grey, darker = more meetings). The note under the map says what "for" means for the topic, and the data table adds a **Public didn't speak on it** column. A state's boxes are split in bands by those meeting counts, never by counted speakers, and the caption, hover card and data table say "AI reading of N meetings". Until the reading exists for a topic, the endpoint answers `available: false` and the map is grey with the note "No AI reading of these meetings yet; states show meetings only"; a failed request leaves the plain meetings map and claims no stance. Choosing a state (`?state=`) highlights it on the national map and narrows the whole story to it. The county drill-down and box transition the Data Center Story has (#1195) need meeting counts by county, which the topic endpoints do not serve, so topic stories stay at state level and the Overview says so under the map.
 
 On the home hero, **Start the story** and the next-story button stick to the bottom of the screen until their own place scrolls into view, so they are always reachable ([#1174](https://github.com/getcommunityone/open-navigator/issues/1174)). The desktop hover card ends with "Click to open the story for [state] →". The map's cards prefer a named speaker's own words ("Rob D.", never a full surname): the home map asks `GET /api/data-centers/positions?per_state=3` for up to three quotes per state and side, and named speakers rank first.
+
+## Topic stories, screen by screen (#1224)
+
+Owner, 26 Nov 2026: "All the stories should have horizontal scroll drill down with swipe like data center." Every topic
+story (`/stories/guns`, `/stories/pickleball`, `/stories/water-fluoridation` and the rest) is now told one screen at a
+time on the Data Center Story's screen machine (`components/stance/useStoryScreens.ts`), each screen drawn with the same
+frame (`components/stance/StoryScreenFrame.tsx`), with `?screen=` deep links and the keys.
+
+**Layout** (owner, 27 Nov 2026: "a right Next green button at bottom right always visible. The two buttons is
+confusing."):
+
+- **Close (×)** at the top right of the story's bar, the same box on every screen; it goes home keeping the scope
+  (`/?state=CA`), and **Escape** does the same (`components/stance/StoryClose.tsx`). There is no "← Data stories" crumb
+  and no "Showing: … · National only" row: the place changes only through the title's place blank.
+- **One green Next →** fixed at the bottom right of every screen (`components/stance/StoryNextButton.tsx`). On the cover
+  it starts the story; on a screen it goes to the next one; on the last screen it becomes a quiet **Done** that closes the
+  story. There is no Start / Next story pair on the cover and no "Next story" button anywhere: readers pick the next story
+  on home.
+- **Back**: inline at the bottom of each screen's left column on a wide screen; at the left of the phone's bottom bar,
+  beside the progress dots, from the second screen on.
+- **Progress**: the segments in the top bar on a wide screen (each a button, "3 of 6: Who spoke"), the dots in the phone
+  bar.
+- `web_app/e2e/story-next.check.mjs` steps every screen at Pixel 7, iPhone 13 and 1440×900 (Next, a segment, a swipe) and
+  checks Next and Close stay at the same spots.
+
+| Screen (`?screen=`) | Shows | Left out when |
+| --- | --- | --- |
+| Overview (`overview`) | The caption (#1125) and the national state box map in the topic's AI-reading colours and position words (#1200); a state's boxes open the story for that state. | Never. |
+| Over time (`timeline`) | The trend line with its milestone track and the period dumbbell (#1140). | No meetings on record in scope. |
+| Who spoke (`positions`) | The public's position in the meetings the AI read, one bar per position in the topic's words (against, for, split, didn't speak on it), with the headline's conclusion (majority, split, or too few). Meetings, never counted speakers. | No AI reading served for the scope. |
+| Companies (`companies`) | The platforms named in the record (topics with a companies list, today short-term rentals). | No company named in scope; topics without a list never have it. |
+| What was said (`said`) | Meeting passages, newest first, quoted from the transcript with the matched words marked; **Show more meetings**. | No meetings in scope. |
+| Decisions (`decided`) | Decisions whose record mentions the topic, with **See all**. | None in scope. |
+| Recap (`recap`) | The scope's counts and small text links on (every decision, Browse topics, all stories); Next becomes **Done**. | Never. |
+
+A screen left out is not a step, a segment or a Next target, and the cover says which ones and why ("Not in this story
+for Ohio: decisions (none on record)."). While a screen's data loads it stays and says so; a failed request says it could
+not be loaded. The single "unit matrix by who spoke" is not drawn for topics: the topic endpoints serve the AI reading as
+counts per scope, not one record per meeting.
+
+**Title controls** (owner, 27 Nov 2026): the place word in the title is the place control, and the topic is a control
+that lists every live story (the Data Center Story and each topic story, never a coming-soon topic), the same list on
+every story; choosing one opens it on its Overview with the place kept. With a state selected, the title names that state
+from 5 meetings where its public spoke ("Alabama mostly opposes data centers."); see
+[Story captions](../development/story-captions.md).
+
+**Scope.** Topic stories are at state grain (`?state=`; city grain is #1186). Picking a city in the place dialog applies
+its state, and the cover says the city on its own isn't available yet, so the label never names a scope the data doesn't
+have. At a state the title leads with the place.
+
+**Titles and headlines** (owner, 2026-11-26): the header title is the short conclusion from the shared caption picker
+(`pickCaption`, #1234), with no counts and no "AI reading" text; with nothing on record it reads "California has no
+meetings on record about pickleball." Each screen's headline is a plain statement with no counts ("In California, the
+public mostly wanted the pickleball courts.", "What was decided on pickleball in California."); the numbers sit in the line
+under it. The Overview's headline says what the map shows and never repeats the header title.
+
+**Swipe.** On a touch screen a quick, mostly sideways flick moves the story (left for the next screen, right for the
+previous; from the cover it opens the first screen), through the same function as Next and the arrow keys
+(`hooks/useSwipeNav.ts`). Vertical scrolling and scroll snap are untouched, and a flick that starts on a control, a dialog
+or anything that scrolls sideways itself is left to it.
+
+Design note: [Topic stories, screen by screen](../development/topic-story-screens.md).
 
 ## The heading is a sentence
 
@@ -271,9 +333,8 @@ The map is capped at 60% of the screen height so it never pushes the card below 
 the scope line are in view for the national and a city scope, and on a phone the buttons stack full width.
 
 **The same two buttons open every story** ([#1182](https://github.com/getcommunityone/open-navigator/issues/1182)). The
-stories hub's button names its topic too. A topic story (`/stories/guns`) shows, under its title (now about 36px) and
-lede, **Start the gun control story →**, which scrolls to the story's first section (the map), and **Next story: [title] →**,
-carrying `?state=&city=`. On the Data Center Story the subhead, basis line, both buttons and the numbered points are
+stories hub's button names its topic too. Since #1224 (owner, 27 Nov 2026) a topic story's cover has no buttons of its
+own: its one green Next at the bottom right starts the story (see "Topic stories, screen by screen"). On the Data Center Story the subhead, basis line, both buttons and the numbered points are
 the story's opening screen, under the sticky title and progress bar and in normal flow, so they scroll away and the
 sticky bar shrinks to the title and progress on every later screen; **Start** goes to the Overview. The buttons share
 `web_app/src/styles/story-actions.css` (`.home-story-actions`, `.home-story-start`, `.home-story-next`); on the story
@@ -454,7 +515,7 @@ The order of live stories is the home page's: the stories registry (`STORIES` in
 
 ### Moving between screens
 
-Every screen of the record ends with a quieter **Back** at the left and the primary **Next →** at the right, the same kind of button as the hub's **Start the story** ([#964](https://github.com/getcommunityone/open-navigator/issues/964)). The button shows only "Next": the next screen's name ("Next: Who spoke up") is its accessible name and tooltip, because as the visible label it read like a heading and confused readers. Every screen uses the one nav row (`ScreenNav.tsx`, [#1138](https://github.com/getcommunityone/open-navigator/issues/1138)), including the question and last screens. On a wide screen the row is pinned to the bottom of the left column, so **Back** and **Next →** sit at the same place and size on every screen whatever the text or chart height. The first screen has no Back and keeps Next in that spot; on the last screen **See every data center record** takes Next's spot (same right edge, top and height) once you have answered. Because the inline row is always in view there, the floating bar does not appear beside it. Phones keep the row in the flow, with the bottom bar as before. `web_app/e2e/story-nav.check.mjs` checks this at 1440×900 (run it against a running app: `node e2e/story-nav.check.mjs --base http://localhost:5173`). These keys also move: PageDown, Space, down arrow and right arrow go on; PageUp, Shift+Space, up arrow and left arrow go back; Home and End jump to the first and last screen. They do nothing while focus is in a field, a select, a table or a figure that scrolls on its own. Touch scrolling is never taken over (see "How the screens move" for the wheel). The address follows the screen in view (`?screen=sites`, replacing the entry), so a shared link opens on it.
+Every screen of the record ends with a quieter **Back** at the left and the primary **Next →** at the right, the same kind of button as the hub's **Start the story** ([#964](https://github.com/getcommunityone/open-navigator/issues/964)). The button shows only "Next": the next screen's name ("Next: Who spoke up") is its accessible name and tooltip, because as the visible label it read like a heading and confused readers. Every screen uses the one nav row (`ScreenNav.tsx`, [#1138](https://github.com/getcommunityone/open-navigator/issues/1138)), including the question and last screens. On a wide screen the row is pinned to the bottom of the left column, so **Back** and **Next →** sit at the same place and size on every screen whatever the text or chart height. The first screen has no Back and keeps Next in that spot; on the last screen **See every data center record** takes Next's spot (same right edge, top and height) once you have answered. Because the inline row is always in view there, the floating bar does not appear beside it. Phones keep the row in the flow, with the bottom bar as before. `web_app/e2e/story-nav.check.mjs` checks this at 1440×900 (run it against a running app: `node e2e/story-nav.check.mjs --base http://localhost:5173`). These keys also move: PageDown, Space, down arrow and right arrow go on (on a topic story a sideways swipe does too, #1224); PageUp, Shift+Space, up arrow and left arrow go back; Home and End jump to the first and last screen. They do nothing while focus is in a field, a select, a table or a figure that scrolls on its own. Touch scrolling is never taken over (see "How the screens move" for the wheel). The address follows the screen in view (`?screen=sites`, replacing the entry), so a shared link opens on it.
 
 ### The place in scope
 

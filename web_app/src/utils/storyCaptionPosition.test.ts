@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TopicCaptionFacts } from '../api/topics'
 import type { StoryScope } from './dataStory'
-import { captionSubhead, captionText, pickCaption } from './storyCaption'
+import { captionSubhead, captionText, pickCaption, withTopicBlank } from './storyCaption'
 
 // Test stand-ins: shapes of the caption-facts response (#1200), not warehouse figures.
 const nat: StoryScope = { stateName: null, city: null }
@@ -166,5 +166,62 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
     const c = pickCaption('guns', f, nat)
     expect(c.kind).toBe('state_gap')
     expect(c.basis).not.toMatch(/AI reading/)
+  })
+})
+
+const al: StoryScope = { stateCode: 'AL', stateName: 'Alabama', city: null }
+
+describe('pickCaption (p) lower tier: the place named from 5 meetings where the public spoke (#1224, owner 2026-11-27)', () => {
+  it('a majority below the hates floor names the place with "mostly opposes", never "hates"', () => {
+    // 8 meetings where the public spoke (6 against, 2 split): under the state floor of 10 for "hates".
+    const c = pickCaption('data-centers', facts({ against: 6, for: 0, split: 2, silent: 63 }, al, { meetings: 71 }), al)
+    expect(c.kind).toBe('position')
+    expect(c.place).toBe('Alabama')
+    expect(captionText(c, 'data centers')).toBe('Alabama mostly opposes data centers.')
+    expect(c.basis).toMatch(/^Most meetings were against data centers: 6 of 8 where the public spoke\. /)
+  })
+
+  it('a majority for, in the topic words', () => {
+    const c = pickCaption('guns', facts({ against: 1, for: 5, split: 1, silent: 40 }, oh), oh)
+    expect(captionText(c, 'gun control')).toBe('Ohio mostly favors gun limits.')
+  })
+
+  it('no majority from 5 meetings is split', () => {
+    const c = pickCaption('guns', facts({ against: 2, for: 2, split: 2, silent: 40 }, oh), oh)
+    expect(captionText(c, 'gun control')).toBe('Ohio is split on gun control.')
+  })
+
+  it('under 5 meetings where the public spoke keeps the broader fallback (the place is not the title)', () => {
+    const c = pickCaption('data-centers', facts({ against: 3, for: 0, split: 1, silent: 60 }, al, { meetings: 64 }), al)
+    expect(captionText(c, 'data centers')).not.toMatch(/^Alabama mostly/)
+  })
+
+  it('at or over the floor, "hates" still leads for its topics', () => {
+    const c = pickCaption('data-centers', facts({ against: 12, for: 1, split: 1, silent: 40 }, al), al)
+    expect(captionText(c, 'data centers')).toBe('Alabama hates data centers.')
+  })
+})
+
+describe('withTopicBlank (#1224)', () => {
+  it('turns the topic phrase in the words into the topic control', () => {
+    expect(withTopicBlank([{ blank: 'place' }, ' mostly opposes data centers.'], 'data centers')).toEqual([
+      { blank: 'place' },
+      ' mostly opposes ',
+      { blank: 'topic' },
+      '.',
+    ])
+  })
+  it('names the topic in brackets when the words do not', () => {
+    expect(withTopicBlank([{ blank: 'place' }, ' mostly favors gun limits.'], 'gun control')).toEqual([
+      { blank: 'place' },
+      ' mostly favors gun limits',
+      ' (',
+      { blank: 'topic' },
+      ').',
+    ])
+  })
+  it('leaves a title that already has the control alone', () => {
+    const t = [{ blank: 'place' as const }, ' hates ', { blank: 'topic' as const }, '.']
+    expect(withTopicBlank(t, 'data centers')).toBe(t)
   })
 })
