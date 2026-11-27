@@ -1,12 +1,14 @@
 """
-Every main topic, last full year against this year (#1343) — the data behind Browse all topics (``/browse-topics/all``).
+Every major meeting topic, last full year against this year (#1343, #1361) — the data behind Browse all topics
+(``/browse-topics/all``).
 
-``GET /api/topics/yoy?state=&city=``
-    One row per curated topic (``civicsearch_topic.source = 'curated'``): distinct meetings that discussed it in the
-    last full year (``year_a``) and in this year to date (``year_b``), all recorded meetings in the same scope and years
-    (``recorded_meeting_year``), and the topic's share of them. ``data-centers`` reads ``data_center_meeting_mention``;
-    every other topic reads ``topic_transcript_link`` — the same sources as the topic story's timeline
-    (``topic_timeline.py``), so a row here matches the story's Meetings screen for the same scope.
+``GET /api/topics/yoy?state=&city=&source=``
+    One row per topic in ``civicsearch_topic`` (all 95 curated + CivicSearch topics by default, or filtered by
+    ``source=curated|civicsearch``): distinct meetings that discussed it in the last full year (``year_a``) and in
+    this year to date (``year_b``) from ``topic_meeting_year``, all recorded meetings in the same scope and years
+    (``recorded_meeting_year``), and the topic's share of them. Each row also carries ``source`` and ``has_story``
+    (whether a live story exists at ``/stories/<slug>``) so the page can surface rising or high-volume topics that
+    don't have a story yet.
 
 Everything is counted in one SQL statement; Python only shapes the rows. Nothing is defaulted:
 
@@ -49,12 +51,15 @@ tracer = trace.get_tracer(__name__)
 MIN_MEETINGS = 5
 #: A year is thin when it recorded under this share of the other year's meetings (``THIN_RATIO``, storyTimeline.ts).
 THIN_RATIO = 0.25
+VALID_SOURCES = frozenset({"curated", "civicsearch"})
 
 
 class YoyTopic(BaseModel):
     topic_id: int
-    slug: str = Field(..., description="civicsearch_topic.query_id; the story lives at /stories/<slug>.")
+    slug: str = Field(..., description="civicsearch_topic.query_id; live stories live at /stories/<slug>.")
     name: str
+    source: str = Field(..., description="civicsearch_topic.source: 'curated' or 'civicsearch'.")
+    has_story: bool = Field(..., description="True when the topic already has a live story at /stories/<slug>.")
     year_a: str
     year_b: str
     meetings_a: int = Field(..., description="Distinct meetings in the scope in year_a whose transcript discussed the topic.")
@@ -84,42 +89,45 @@ def _and(w: list[str]) -> str:
     return "".join(f" AND {x}" for x in w)
 
 
-def yoy_sql(scope: TimelineScope, ya: int, yb: int) -> tuple[str, list[Any]]:
-    """Per curated topic: meetings in each year, the scope's recorded meetings in each year, shares, and the latest
-    dated meeting in year_b. One meeting counts once per topic (DISTINCT ON video_id), dated as the timeline dates it;
-    dates after today are a wrong source date (#472) and are left out."""
+def yoy_sql(scope: TimelineScope, ya: int, yb: int, source: str | None = None) -> tuple[str, list[Any]]:
+    """Per topic in civicsearch_topic: meetings in each year from ``topic_meeting_year``, the scope's recorded
+    meetings in each year from ``recorded_meeting_year``, shares, ``has_story``, and the latest dated meeting in
+    year_b."""
     params: list[Any] = [ya, yb]
-    dc = _where(scope, "m.state_code", ("m.jurisdiction_name",), params)
-    tl = _where(scope, "l.state_code", ("l.jurisdiction_name",), params)
-    rc = _where(scope, "r.state_code", ("r.jurisdiction_name",), params)
+    mw = _where(scope, "m.state_code", ("m.jurisdiction_name",), params)
+    rw = _where(scope, "r.state_code", ("r.jurisdiction_name",), params)
     params.append(DATA_CENTERS)
     dc_slug = f"${len(params)}"
+    source_where = ""
+    if source is not None:
+        params.append(source)
+        source_where = f"WHERE c.source = ${len(params)}"
     sql = f"""
-WITH dc AS (
-    SELECT topic_id FROM civicsearch_topic WHERE query_id = {dc_slug} LIMIT 1
-), links AS (
-    SELECT DISTINCT ON (m.video_id) dc.topic_id, m.video_id, m.meeting_date AS d
-    FROM data_center_meeting_mention m CROSS JOIN dc
-    WHERE m.meeting_date >= make_date($1, 1, 1) AND m.meeting_date <= least(make_date($2, 12, 31), current_date){_and(dc)}
-    UNION ALL
-    SELECT DISTINCT ON (l.topic_id, l.video_id) l.topic_id, l.video_id, l.event_date AS d
-    FROM topic_transcript_link l
-    WHERE l.topic_id IS DISTINCT FROM (SELECT topic_id FROM dc)
-      AND l.event_date >= make_date($1, 1, 1) AND l.event_date <= least(make_date($2, 12, 31), current_date){_and(tl)}
+WITH live_ids AS (
+    SELECT DISTINCT topic_id FROM topic_transcript_link
+    UNION
+    SELECT topic_id FROM civicsearch_topic WHERE query_id = {dc_slug}
+), m_scoped AS (
+    SELECT m.topic_id, m.meeting_year, m.meetings, m.latest_meeting_date
+    FROM topic_meeting_year m
+    WHERE m.meeting_year IN ($1, $2){_and(mw)}
 ), t AS (
     SELECT topic_id,
-           count(*) FILTER (WHERE extract(year FROM d)::int = $1)::int AS meetings_a,
-           count(*) FILTER (WHERE extract(year FROM d)::int = $2)::int AS meetings_b
-    FROM links GROUP BY topic_id
+           coalesce(sum(meetings) FILTER (WHERE meeting_year = $1), 0)::int AS meetings_a,
+           coalesce(sum(meetings) FILTER (WHERE meeting_year = $2), 0)::int AS meetings_b
+    FROM m_scoped
+    GROUP BY topic_id
 ), r AS (
     SELECT coalesce(sum(r.recorded_meetings) FILTER (WHERE r.meeting_year = $1), 0)::int AS recorded_a,
            coalesce(sum(r.recorded_meetings) FILTER (WHERE r.meeting_year = $2), 0)::int AS recorded_b
     FROM recorded_meeting_year r
-    WHERE r.meeting_year IN ($1, $2){_and(rc)}
+    WHERE r.meeting_year IN ($1, $2){_and(rw)}
 ), thru AS (
-    SELECT max(d) AS through FROM links WHERE extract(year FROM d)::int = $2
+    SELECT max(latest_meeting_date) FILTER (WHERE meeting_year = $2) AS through
+    FROM m_scoped
 )
-SELECT c.topic_id, c.query_id AS slug, c.name,
+SELECT c.topic_id, c.query_id AS slug, c.name, c.source,
+       (c.source = 'curated' AND live_ids.topic_id IS NOT NULL) AS has_story,
        coalesce(t.meetings_a, 0) AS meetings_a, coalesce(t.meetings_b, 0) AS meetings_b,
        r.recorded_a, r.recorded_b,
        CASE WHEN r.recorded_a > 0 THEN round(coalesce(t.meetings_a, 0)::numeric / r.recorded_a, 6)::float8 END AS share_a,
@@ -128,7 +136,8 @@ SELECT c.topic_id, c.query_id AS slug, c.name,
 FROM civicsearch_topic c
 CROSS JOIN r CROSS JOIN thru
 LEFT JOIN t ON t.topic_id = c.topic_id
-WHERE c.source = 'curated'
+LEFT JOIN live_ids ON live_ids.topic_id = c.topic_id
+{source_where}
 ORDER BY c.topic_id
 """
     return sql, params
@@ -158,7 +167,10 @@ def shape(rows: list[dict[str, Any]], scope: TimelineScope, ya: int, yb: int) ->
         )
         topics.append(
             YoyTopic(
-                topic_id=int(r["topic_id"]), slug=r["slug"], name=r["name"], year_a=str(ya), year_b=str(yb),
+                topic_id=int(r["topic_id"]), slug=r["slug"], name=r["name"],
+                source=r.get("source") or "curated",
+                has_story=bool(r.get("has_story")),
+                year_a=str(ya), year_b=str(yb),
                 meetings_a=ma, meetings_b=mb, recorded_a=ra, recorded_b=rb,
                 share_a=r["share_a"], share_b=r["share_b"], comparable=ok,
             )
@@ -175,21 +187,27 @@ def shape(rows: list[dict[str, Any]], scope: TimelineScope, ya: int, yb: int) ->
 async def topics_yoy(
     state: str | None = Query(None, description="2-letter state code (or full name)."),
     city: str | None = Query(None, description="City; case-insensitive substring of the government's name. Needs state."),
+    source: str | None = Query(None, description="Optional filter: 'curated' or 'civicsearch'. Omit for all topics."),
 ) -> YoyResponse:
-    """Every curated topic's meetings and share of recorded meetings, last full year against this year to date.
+    """Every major topic's meetings and share of recorded meetings, last full year against this year to date.
 
     Example: ``GET /api/topics/yoy?state=GA``
     """
+    norm_source = source.strip().lower() if source is not None and source.strip() else None
+    if norm_source is not None and norm_source not in VALID_SOURCES:
+        raise HTTPException(status_code=422, detail="source must be 'curated' or 'civicsearch'.")
+
     scope = build_scope(state, city)
     yb = date.today().year
     ya = yb - 1
     with tracer.start_as_current_span("topics-yoy") as span:
         span.set_attribute("scope.state", scope.state_code or "")
         span.set_attribute("scope.city", scope.city or "")
+        span.set_attribute("source", norm_source or "all")
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
-                sql, p = yoy_sql(scope, ya, yb)
+                sql, p = yoy_sql(scope, ya, yb, norm_source)
                 rows = [dict(r) for r in await conn.fetch(sql, *p)]
         except Exception as exc:
             logger.exception("topics yoy failed")

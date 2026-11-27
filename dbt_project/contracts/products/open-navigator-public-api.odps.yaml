@@ -515,6 +515,11 @@ outputPorts:
   contractId: open-navigator-public-recorded_meeting_year
   type: table
   description: 'One row per (state_code, jurisdiction_id, jurisdiction_name, meeting_year): distinct meeting videos in event_youtube_with_jurisdiction that have a usable transcript.'
+- name: topic_meeting_year
+  version: 1.0.0
+  contractId: open-navigator-public-topic_meeting_year
+  type: table
+  description: 'One row per (topic_id, state_code, jurisdiction_name, meeting_year): distinct recorded meetings that discussed a topic in civicsearch_topic, per government and calendar year.'
 - name: segmented_meeting
   version: 1.0.0
   contractId: open-navigator-public-segmented_meeting

@@ -198,6 +198,7 @@
         "_s.video_id in (select video_id from gold.topic_transcript_link where state_code in {{states}} "
         "union select video_id from gold.data_center_meeting_mention where state_code in {{states}})",
     'recorded_meeting_year':               "_s.state_code in {{states}}",
+    'topic_meeting_year':                  "_s.state_code in {{states}}",
     'data_center_public_comment':          "_s.state_code in {{states}}",
     'data_center_decision':                "_s.state_code in {{states}}",
     'data_center_hearing_verified':        "_s.state_code in {{states}}",
@@ -286,6 +287,7 @@
     'topic_place_meeting',
     'meeting_video_kind',
     'recorded_meeting_year',
+    'topic_meeting_year',
     'segmented_meeting', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
     'meeting_passage_speaker'
 ] -%}

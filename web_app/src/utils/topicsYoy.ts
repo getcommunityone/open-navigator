@@ -1,9 +1,11 @@
-// Browse all topics (#1343): which topics can be compared, their change, and the order and labels the dumbbell draws.
-// Pure, so every rule is unit-tested (topicsYoy.test.ts). Nothing here invents a value: a topic the API marks as not
-// comparable goes to the "Too few meetings to compare" list and is never given a change.
+// Browse all topics (#1343, #1361): which topics can be compared, their change, filtering by live story vs candidate
+// topics, and the order and labels the dumbbell draws. Pure, so every rule is unit-tested (topicsYoy.test.ts). Nothing
+// here invents a value: a topic the API marks as not comparable goes to "Too few meetings to compare" and is never given a change.
 import type { YoyResponse, YoyTopic } from '../api/topicsYoy'
 
 export type YoyMetric = 'share' | 'count'
+export type YoyTopicFilter = 'all' | 'candidates' | 'stories'
+export type YoySort = 'change' | 'latest'
 
 export interface YoyRow {
   topic: YoyTopic
@@ -35,8 +37,27 @@ export function changeLabel(c: number | null): string {
   return `${pct > 0 ? '+' : '−'}${Math.abs(pct).toLocaleString('en-US')}%`
 }
 
-/** Comparable topics as rows for the metric, sorted by change (largest rise first), and the rest, by name. */
-export function splitTopics(topics: YoyTopic[], metric: YoyMetric): { rows: YoyRow[]; tooFew: YoyTopic[] } {
+export function parseTopicFilter(raw: string | null): YoyTopicFilter {
+  if (raw === 'candidates' || raw === 'stories') return raw
+  return 'all'
+}
+
+export function parseYoySort(raw: string | null): YoySort {
+  return raw === 'latest' ? 'latest' : 'change'
+}
+
+export function filterTopics(topics: YoyTopic[], filter: YoyTopicFilter): YoyTopic[] {
+  if (filter === 'candidates') return topics.filter((t) => !t.has_story)
+  if (filter === 'stories') return topics.filter((t) => t.has_story)
+  return topics
+}
+
+/** Comparable topics as rows for the metric and sort order, and the rest sorted by name. */
+export function splitTopics(
+  topics: YoyTopic[],
+  metric: YoyMetric,
+  sort: YoySort = 'change',
+): { rows: YoyRow[]; tooFew: YoyTopic[] } {
   const rows: YoyRow[] = []
   const tooFew: YoyTopic[] = []
   for (const t of topics) {
@@ -48,7 +69,11 @@ export function splitTopics(topics: YoyTopic[], metric: YoyMetric): { rows: YoyR
     const b = metric === 'share' ? t.share_b : t.meetings_b
     rows.push({ topic: t, a, b, change: relChange(a, b) })
   }
-  rows.sort((x, y) => (y.change ?? -Infinity) - (x.change ?? -Infinity) || x.topic.name.localeCompare(y.topic.name))
+  rows.sort((x, y) =>
+    sort === 'latest'
+      ? y.b - x.b || (y.change ?? -Infinity) - (x.change ?? -Infinity) || x.topic.name.localeCompare(y.topic.name)
+      : (y.change ?? -Infinity) - (x.change ?? -Infinity) || y.b - x.b || x.topic.name.localeCompare(y.topic.name),
+  )
   tooFew.sort((x, y) => x.name.localeCompare(y.name))
   return { rows, tooFew }
 }
@@ -62,4 +87,19 @@ export function scopeQuery(stateCode?: string | null, city?: string | null): str
   }
   const s = q.toString()
   return s ? `?${s}` : ''
+}
+
+/** Live stories open at `/stories/<slug>`; candidate topics open in `/browse-topics?topic_id=<id>`, keeping place. */
+export function topicDestination(
+  topic: Pick<YoyTopic, 'topic_id' | 'slug' | 'has_story'>,
+  stateCode?: string | null,
+  city?: string | null,
+): string {
+  if (topic.has_story) return `/stories/${encodeURIComponent(topic.slug)}${scopeQuery(stateCode, city)}`
+  const q = new URLSearchParams({ topic_id: String(topic.topic_id) })
+  if (stateCode) {
+    q.set('state', stateCode)
+    if (city) q.set('city', city)
+  }
+  return `/browse-topics?${q.toString()}`
 }
