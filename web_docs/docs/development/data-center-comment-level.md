@@ -13,26 +13,50 @@ Epic [#1232](https://github.com/getcommunityone/open-navigator/issues/1232) · p
 site: its terms forbid competitors' use (see `ingestion.data_centers.community_events`). Every "ours" figure comes from
 our own captions through `public.data_center_comment` and `GET /api/data-centers/comment-metrics?year=2026`.
 
-| Metric | Theirs | Ours | Why they differ |
+Measured 2026-11-27 on the local warehouse (segmenter 1.2.0): 47,578 comments in 13,682 of 18,260 topic meetings, all
+years. The 2026 data-center slice is below.
+
+| Metric | Theirs (2026) | Ours (2026) | Why they differ |
 |---|---|---|---|
-| Public comments | 10,202 | pending the first local run | see below |
-| Local governments | 417 | pending | |
-| Opposed / in favor / asked questions | 9,232 / 718 / 252 | not counted (needs phase 2 stance) | |
-| Meetings with no supporters | 658 of 898 (73%) | not counted (needs phase 2 stance) | |
-| Water use | 3,621 (36%) | pending | |
-| Quality of life | 3,388 (34%) | pending | |
-| Lack of transparency | 3,291 (33%) | pending | |
-| Limited community benefit | 1,438 | pending | |
-| Few jobs | 1,246 | pending | |
-| Taxpayer subsidies | 1,222 | pending | |
-| Comments raising 2+ concerns | 88% | pending | |
-| Google / Amazon / Meta / Microsoft | 386 / 342 / 315 / 287 | pending | |
-| OpenAI / xAI / Anthropic | 151 / 128 / 29 | pending | |
-| Elon Musk / Sam Altman / Peter Thiel | 96 / 28 / 23 | pending | |
-| Any mention of AI | 2,046 (21%) | pending | |
-| Residents / property owners / union workers | 6,832 / 542 / 183 | pending | |
-| Red vs blue, rural vs urban counties | split given | not counted (no county vote or rural-urban data in the warehouse) | |
-| Mentions per meeting since 2022-Q1 | 22× | pending | |
+| Public comments | 10,202 | **2,300** (2,020 say "data center" themselves, 280 are from the same comment period) | coverage and segmentation (below) |
+| Local governments | 417 | **230** | we have data-center captions for 333 governments in 2026, and comments were found at 230 of them |
+| Meetings | ~898 (658 + 240) | **599** with a data-center comment (976 meetings mention data centers; 771 of those had any comment segmented) | |
+| Opposed / in favor / asked questions | 9,232 / 718 / 252 | **not counted**: needs the phase 2 stance pass | |
+| Meetings with no supporters | 658 of 898 (73%) | **not counted**: needs stance | |
+| Water use | 3,621 (36%) | **1,175 (51%)** | keyword list is broad (water, wells, gallons, aquifer) |
+| Quality of life | 3,388 (34%) | **1,137 (49%)** | noise, traffic, health, pollution, generators |
+| Rushed review | listed | **614 (27%)** | |
+| Farmland / wildlife loss | listed | **575 (25%)** | |
+| Lack of transparency | 3,291 (33%) | **430 (19%)** | NDAs and secrecy are often said without these exact words |
+| Company distrust | listed | **289 (13%)** | |
+| Community character | listed | **253 (11%)** | |
+| Taxpayer subsidies | 1,222 (12%) | **249 (11%)** | close in share |
+| Property rights | listed | **174 (8%)** | |
+| Limited community benefit | 1,438 (14%) | **87 (4%)** | a model reads "what do we get out of this" better than keywords do |
+| Few jobs | 1,246 (12%) | **59 (3%)** | we only count "few / only / temporary jobs" so that pro-jobs comments don't count |
+| Electricity costs / grid (ours only) | not on their list | **450 (20%)** | |
+| Comments raising 2+ concerns | 88% | **62%** (1,434) | our comments are cut by text rules; keyword recall is lower |
+| Google / Amazon / Meta / Microsoft | 386 / 342 / 315 / 287 | **98 / 106 / 150 / 49** | same order of companies; fewer comments |
+| OpenAI / xAI / Anthropic | 151 / 128 / 29 | **28 / 11 / 7** | |
+| Elon Musk / Sam Altman / Peter Thiel | 96 / 28 / 23 | **21 / 3 / 3** (Bezos 7, Gates 3, Zuckerberg 3) | |
+| Any mention of AI | 2,046 (21%) | **501 (22%)** | the share matches |
+| Residents / property owners / union workers | 6,832 / 542 / 183 | **911 / 46 / 49** (+ advocacy groups 108, elected officials 73) | we read roles only from the introduction; many speakers give none |
+| Red vs blue, rural vs urban counties | splits given | **not counted** | no county 2024 vote or rural-urban codes in the warehouse (follow-up) |
+| Mentions per meeting, 2022-Q1 to now | 22× | meetings mentioning data centers: 22 → 646 (2026-Q2), about **29×**; passages per mentioning meeting 1.5 → 5.0, about **3.3×** | ours isn't divided by all recorded meetings, so part of the growth is our 2026 collection being denser |
+| Places named (phase 1b, ours only) | not reported | towns/cities 1,799 · counties 680 · roads 375 · neighborhoods 366 · districts 141 · schools 134 · sites 119 comments | |
+
+**Why our counts are lower.**
+
+- **Coverage.** We have captions for about 976 data-center meetings in 2026. They have about 898 meetings with
+  comments, but at 417 governments to our 333. Our 2026-Q3 is thin: 10 meetings mention data centers, against 646 in Q2,
+  because recent captions aren't loaded yet.
+- **Segmentation.** A comment is found only when the speaker introduces themselves or the chair calls them. 4,578 of
+  18,260 meetings gave no comment at all. Our average comment is 722 words, which is long for a 3-minute limit. Some
+  turns run into the next speaker's when that speaker never introduces themselves, so we under-count comments and
+  over-count concerns per comment.
+- **Keywords instead of a reader.** Concerns phrased without the listed words are missed (limited community benefit,
+  few jobs), and broad words (water, noise) catch more. Where both sides use simple words, the shares agree: AI 22% vs
+  21%, taxpayer subsidies 11% vs 12%.
 
 ## What a comment is
 
@@ -124,16 +148,25 @@ One call per comment answers every question together, so cost scales with commen
 It follows the Jev pattern (`llm.typesafe`, a fixed output schema checked against known answers). It replaces the
 per-(meeting, topic) topic-lean reads that the stories use today. It runs only on the owner's explicit yes.
 
-**Cost estimate.** Input tokens ≈ Σ(comment words) × 1.33 + about 150 prompt tokens per comment. At tonight's Jev rate
-(151.8M tokens cost $6.37, about $0.042 per 1M input tokens), the 2026 data-center set and the full topic set cost
-pending the first local run (filled from `meeting_comment.word_count`).
-`python -m ingestion.meetings.comment_segments --dry-run` gives the counts without writing anything.
+**Cost estimate** (input tokens = words × 1.33 + 150 prompt tokens per comment, at tonight's Jev rate of $6.37 for
+151.8M tokens, about $0.042 per 1M):
+
+| Comment set | Comments | Words | Input tokens | Cost |
+|---|---|---|---|---|
+| 2026 data-center comments | 2,300 | 1.66M | 2.55M | about $0.11 |
+| All 2026 comments, every topic | 20,357 | 14.1M | 21.8M | about $0.92 |
+| All comments segmented, all years | 47,578 | 88.3M | 124.6M | about $5.23 |
+
+Phase 2 would fill: opposed / in favor / question, meetings with no supporters, role × position and, once county data
+exists, the red/blue and rural/urban splits. It runs only when the owner lifts the hold.
 
 ## Follow-ups (separate issues)
 
-- County 2024 presidential results (for "heavily" red/blue at a 15-point margin) and USDA rural-urban codes. Neither
-  is in the warehouse (`bronze_localbench_*` has RUCC for a benchmark sample only), so both need a loader issue first.
-- Recorded-meetings-per-quarter denominator for a true "mentions per meeting" (today: passages per mentioning meeting).
-- Neon serving copy of the new marts (`hosting.neon.sync_public_to_neon`). Not done here: this phase writes only the local warehouse.
-- Reuse the self-introduction helpers from #1231 / PR #1245 (`ingestion.youtube.speaker_intros`) once they merge, so
-  one name cleaner serves both.
+- [#1260](https://github.com/getcommunityone/open-navigator/issues/1260): county 2024 presidential results and USDA
+  rural-urban codes, for the red/blue and rural/urban splits. Neither is in the warehouse.
+- [#1261](https://github.com/getcommunityone/open-navigator/issues/1261): split speakers who never introduce themselves
+  (the 722-word average comment).
+- [#1262](https://github.com/getcommunityone/open-navigator/issues/1262): reuse the #1231 self-introduction helpers,
+  and add a recorded-meetings-per-quarter denominator for a true "mentions per meeting".
+- A Neon serving copy of the new marts (`hosting.neon.sync_public_to_neon`) is out of scope: this phase writes only to
+  the local warehouse.

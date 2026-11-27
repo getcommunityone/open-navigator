@@ -1688,7 +1688,10 @@ export interface components {
             meetings_segmented: number;
             /** Meetings With No Supporters */
             meetings_with_no_supporters?: number | null;
-            /** Mentions Per Meeting By Quarter */
+            /**
+             * Mentions Per Meeting By Quarter
+             * @description The trend since 2022-Q1 for the place scope; it ignores `year` on purpose (it is a trend).
+             */
             mentions_per_meeting_by_quarter: components["schemas"]["QuarterItem"][];
             /**
              * Multi Concern Share

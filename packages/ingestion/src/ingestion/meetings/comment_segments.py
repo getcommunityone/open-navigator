@@ -65,9 +65,9 @@ INTRO_WORDS = 40  # intro_text keeps this many words from the introduction on
 # Self-introductions. Each pattern's group "name" is the name as heard (may be absent).
 _NAME = r"(?P<name>(?:(?:dr|mr|mrs|ms|miss)\.?\s+)?[A-Za-z][A-Za-z'\-]+(?:\s+[A-Za-z][A-Za-z'\-]+){0,2})"
 INTRO_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bmy\s+name\s+is\s+" + _NAME, re.I),
-    re.compile(r"\bmy\s+name'?s\s+" + _NAME, re.I),
-    re.compile(r"\bname\s+(?:and|&)\s+address\s+(?:is|are)\s+" + _NAME, re.I),
+    re.compile(r"\bmy\s+name\s+is\s+" + _NAME, re.IGNORECASE),
+    re.compile(r"\bmy\s+name'?s\s+" + _NAME, re.IGNORECASE),
+    re.compile(r"\bname\s+(?:and|&)\s+address\s+(?:is|are)\s+" + _NAME, re.IGNORECASE),
     re.compile(
         r"\b(?:i\s+am|i'm)\s+(?P<name>[A-Z][a-z'\-]+\s+[A-Z][a-z'\-]+)[,.]?\s+(?:and\s+)?i\s+(?:live|reside|own)\b"
     ),
@@ -81,34 +81,34 @@ _NAME_STOP = {
 _HONORIFIC = {"dr", "mr", "mrs", "ms", "miss"}
 
 CHAIR_CALL_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bnext\s+(?:speaker|up|person|card|commenter|caller)\b", re.I),
-    re.compile(r"\b(?:next|first|then)\s+(?:is|we\s+have)\s+(?:mr|mrs|ms|miss|dr)\.?\s+[A-Z]", re.I),
-    re.compile(r"\b(?:please\s+)?come\s+(?:forward|on\s+up|up\s+to\s+the\s+(?:podium|mic|microphone))\b", re.I),
-    re.compile(r"\bstate\s+your\s+(?:full\s+)?name\b", re.I),
-    re.compile(r"\byou\s+(?:have|'ll\s+have|will\s+have)\s+(?:\w+\s+)?(?:three|four|five|two|3|4|5|2)\s+minutes\b", re.I),
+    re.compile(r"\bnext\s+(?:speaker|up|person|card|commenter|caller)\b", re.IGNORECASE),
+    re.compile(r"\b(?:next|first|then)\s+(?:is|we\s+have)\s+(?:mr|mrs|ms|miss|dr)\.?\s+[A-Z]", re.IGNORECASE),
+    re.compile(r"\b(?:please\s+)?come\s+(?:forward|on\s+up|up\s+to\s+the\s+(?:podium|mic|microphone))\b", re.IGNORECASE),
+    re.compile(r"\bstate\s+your\s+(?:full\s+)?name\b", re.IGNORECASE),
+    re.compile(r"\byou\s+(?:have|'ll\s+have|will\s+have)\s+(?:\w+\s+)?(?:three|four|five|two|3|4|5|2)\s+minutes\b", re.IGNORECASE),
 )
 
 CLOSING_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\b(?:your|the)\s+time\s+(?:is\s+up|has\s+expired|has\s+run\s+out)\b", re.I),
-    re.compile(r"\btime'?s\s+up\b", re.I),
-    re.compile(r"\bwrap\s+(?:it\s+)?up\b", re.I),
-    re.compile(r"\bthank\s+you\s+for\s+your\s+(?:comments?|time\s+and\s+comments?|remarks)\b", re.I),
-    re.compile(r"\bnext\s+(?:speaker|up|person|card|commenter|caller)\b", re.I),
-    re.compile(r"\b(?:is\s+there\s+)?any\s*one\s+else\s+(?:who\s+)?(?:wish(?:es)?|wants?|would\s+like)\s+to\s+(?:speak|address)\b", re.I),
-    re.compile(r"\bclose\s+(?:the\s+)?public\s+(?:hearing|comment)\b", re.I),
-    re.compile(r"\bpublic\s+(?:hearing|comment)\s+(?:is|are)\s+(?:now\s+)?closed\b", re.I),
+    re.compile(r"\b(?:your|the)\s+time\s+(?:is\s+up|has\s+expired|has\s+run\s+out)\b", re.IGNORECASE),
+    re.compile(r"\btime'?s\s+up\b", re.IGNORECASE),
+    re.compile(r"\bwrap\s+(?:it\s+)?up\b", re.IGNORECASE),
+    re.compile(r"\bthank\s+you\s+for\s+your\s+(?:comments?|time\s+and\s+comments?|remarks)\b", re.IGNORECASE),
+    re.compile(r"\bnext\s+(?:speaker|up|person|card|commenter|caller)\b", re.IGNORECASE),
+    re.compile(r"\b(?:is\s+there\s+)?any\s*one\s+else\s+(?:who\s+)?(?:wish(?:es)?|wants?|would\s+like)\s+to\s+(?:speak|address)\b", re.IGNORECASE),
+    re.compile(r"\bclose\s+(?:the\s+)?public\s+(?:hearing|comment)\b", re.IGNORECASE),
+    re.compile(r"\bpublic\s+(?:hearing|comment)\s+(?:is|are)\s+(?:now\s+)?closed\b", re.IGNORECASE),
 )
 
 SECTION_OPEN = re.compile(
     r"\b(?:open(?:ing)?\s+(?:the\s+)?public\s+(?:hearing|comment)|public\s+comment\s+(?:period|portion|section)"
     r"|citizens?\s+(?:to\s+be\s+heard|comments?|participation)|public\s+participation|audience\s+comments?"
     r"|comments?\s+from\s+the\s+public|public\s+(?:hearing|comment)s?\s+(?:is|are)\s+(?:now\s+)?open)\b",
-    re.I,
+    re.IGNORECASE,
 )
 SECTION_CLOSE = re.compile(
     r"\b(?:close\s+(?:the\s+)?public\s+(?:hearing|comment)|public\s+(?:hearing|comment)\s+(?:is|are)\s+(?:now\s+)?closed"
     r"|(?:that\s+)?conclud(?:es|ing)\s+(?:the\s+)?public\s+(?:hearing|comment))\b",
-    re.I,
+    re.IGNORECASE,
 )
 
 # --- Personal location scrub (AGENTS.md, Privacy and data ethics) ------------------------------
@@ -129,13 +129,13 @@ _LIVE_AT = re.compile(
     r"|(?:my|our)\s+(?:home\s+|street\s+|mailing\s+)?address\s+is"
     r"|i(?:'m|\s+am)\s+located)"
     r"\s*(?:(?:right|just)\s+)?(?:at|on|off\s+of|off|along)?\s*",
-    re.I,
+    re.IGNORECASE,
 )
 # Where the home location ends: punctuation, or a word that starts the next clause.
 _LOCATION_END = re.compile(
     r"[.,;!?]|\b(?:and|in|which|for|since|so|i|been|where|near|about|is|was|we|my|but|because|across|next|with"
     r"|who|that|from|to|it|they|our|the\s+site|this|there|here)\b",
-    re.I,
+    re.IGNORECASE,
 )
 _MAX_LOCATION_WORDS = 5
 # Words that make "<number> <words> road" a measurement, not a house address ("300 acres on Ridge Road").
@@ -146,7 +146,7 @@ _NOT_STREET_WORD = (
 _HOUSE_ADDRESS = re.compile(
     r"\b\d{1,6}(?:-\d{1,4})?\s+(?:(?:[NSEW]\.?|north|south|east|west)\s+)?"
     r"(?:" + _NOT_STREET_WORD + r"[A-Za-z][A-Za-z'\-]*\s+){1,4}" + _STREET_SUFFIX + r"\b\.?",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -164,7 +164,7 @@ def _scrub_live_at(text: str) -> str:
         # important" and "our property values" don't.
         if not has_prep and "address" not in phrase and not re.match(r"\s*\d", rest):
             continue
-        if re.match(r"\s*(in|near|by|around|outside|within|close)\b", rest, re.I) and not re.search(
+        if re.match(r"\s*(in|near|by|around|outside|within|close)\b", rest, re.IGNORECASE) and not re.search(
             r"\b(at|on|off|along)\s*$", phrase
         ):
             continue
@@ -191,7 +191,7 @@ def scrub_personal_location(text: str | None) -> str | None:
 
 
 # Caption-tool notes that aren't speech.
-_NOTE = re.compile(r"\[\d+ SECONDS? PAUSE\]|<\d+ MINUTES? PASSED>|\[(?:music|applause|laughter|inaudible|snorts?)\]", re.I)
+_NOTE = re.compile(r"\[\d+ SECONDS? PAUSE\]|<\d+ MINUTES? PASSED>|\[(?:music|applause|laughter|inaudible|snorts?)\]", re.IGNORECASE)
 TURN_MARKER = ">>"
 
 
@@ -465,9 +465,7 @@ def _start_index(tokens: Sequence[Token], anchor: Anchor, floor_index: int) -> i
 def _end_index(tokens: Sequence[Token], start: int, limit: int, closing_tokens: set[int]) -> tuple[int, str]:
     """Last token (exclusive) of a comment that starts at ``start`` and may run to ``limit``."""
     t_start = tokens[start].t
-    words = 0
-    for j in range(start + 1, limit):
-        words += 1
+    for words, j in enumerate(range(start + 1, limit), start=1):
         tok = tokens[j]
         if tok.pause_before >= PAUSE_SECONDS and words >= MIN_WORDS:
             return j, "pause"

@@ -119,7 +119,8 @@ def test_cue_parsers() -> None:
 
 
 def test_home_addresses_are_scrubbed_but_public_places_kept() -> None:
-    from ingestion.meetings.comment_segments import ADDRESS_REDACTION, scrub_personal_location as scrub
+    from ingestion.meetings.comment_segments import ADDRESS_REDACTION
+    from ingestion.meetings.comment_segments import scrub_personal_location as scrub
 
     assert scrub("I live at one uh 1703 Heritage Point, Plainfield, Illinois.") == (
         f"I live at {ADDRESS_REDACTION}, Plainfield, Illinois."
@@ -142,7 +143,8 @@ def test_segmented_comment_text_never_holds_a_house_address() -> None:
 
 def test_scrub_covers_review_cases() -> None:
     """Cases from the PR #1247 review: other subjects, adverbs, home/house phrasing, lowercase, no punctuation."""
-    from ingestion.meetings.comment_segments import ADDRESS_REDACTION as R, scrub_personal_location as scrub
+    from ingestion.meetings.comment_segments import ADDRESS_REDACTION as R
+    from ingestion.meetings.comment_segments import scrub_personal_location as scrub
 
     assert scrub("We live on Ridge Road.") == f"We live on {R}."
     assert scrub("I live right on Ridge Road.") == f"I live right on {R}."
