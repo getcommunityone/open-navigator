@@ -316,6 +316,8 @@ export interface DotsSpec extends ChartBase {
   perDot: number
   /** What a dot is, in words, from `dotMeaning`. */
   dotMeans: string
+  /** Drawn from counts alone (no listed records behind the dots): nothing to list one by one (#1289). */
+  countsOnly?: boolean
 }
 /** Every chart is a dot chart: one dot is one real record, or a stated number of them. */
 export type ChartSpec = DotsSpec
@@ -374,6 +376,22 @@ export const CHART_TITLES: Record<ChartKey, string> = {
   decisions: 'Decisions on data center items, debated or taken up without debate',
   'community-events': 'Company-hosted data center meetings, by kind',
   projects: 'Data center projects, by status',
+}
+
+/**
+ * What each chart's records are called, plural, and what was searched for them: the empty state says "No recorded
+ * <items> yet" and names the search (#1289), never a row of zeros.
+ */
+export const CHART_SEARCHED: Record<ChartKey, { items: string; searched: string }> = {
+  positions: { items: 'public speakers on a data center item', searched: 'hand-counted public comment in local meeting recordings' },
+  'job-claims': { items: 'jobs claims', searched: 'claims quoted from local meeting transcripts' },
+  sites: { items: 'data center sites', searched: 'Epoch AI and the US Data Center Registry' },
+  concerns: { items: 'concerns about data centers', searched: 'concerns found in local meeting transcripts' },
+  'meeting-mentions': { items: 'meeting passages on data centers', searched: 'local meeting transcripts' },
+  'agenda-items': { items: 'agenda items on data centers', searched: 'agendas of local government meetings' },
+  decisions: { items: 'decisions on data centers', searched: 'decisions in local meeting recordings' },
+  'community-events': { items: 'company-hosted data center meetings', searched: 'news and company announcements' },
+  projects: { items: 'data center projects', searched: 'curated announcements and Epoch AI' },
 }
 
 /** The overview's figure: the meetings count, drawn as dots. */
@@ -468,6 +486,7 @@ function countChart(
     grandTotal,
     perDot,
     dotMeans: dotMeaning(perDot, unit),
+    countsOnly: true,
   }
 }
 

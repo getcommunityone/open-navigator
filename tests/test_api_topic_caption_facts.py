@@ -185,7 +185,8 @@ def dc_conn(**extra) -> _Conn:
             {"state_code": "GA", "state": "Georgia", "meetings": 118},
         ],
         "FROM data_center_meeting_position": [
-            {"for_": 3, "against": 18, "question": 1, "neutral": 7, "meetings_reviewed": 188, "states": 4}
+            {"for_": 3, "against": 18, "question": 1, "neutral": 7, "meetings_reviewed": 188, "states": 4,
+             "decisions_with_tally": 12, "votes_for": 79, "votes_against": 10}
         ],
         "FROM data_center_meeting_lean": [
             {"lean_meetings": 1828, "public_against_meetings": 283, "public_against_states": 32, "public_for_meetings": 0,
@@ -200,7 +201,9 @@ def dc_conn(**extra) -> _Conn:
 def test_data_centers_reads_speakers_and_lean(get):
     d = get(dc_conn(), "data-centers").json()
     assert d["meetings"] == 1859
-    assert d["speakers"] == {"for": 3, "against": 18, "question": 1, "neutral": 7, "states": 4}
+    assert d["speakers"] == {"for": 3, "against": 18, "question": 1, "neutral": 7, "states": 4, "meetings_reviewed": 188}
+    # #1289: the recorded votes, so the stance headline can be checked against them.
+    assert d["votes"] == {"decisions": 12, "for": 79, "against": 10}
     assert d["public_against_meetings"] == 283
     assert d["public_against_states"] == 32
     assert d["public_for_meetings"] == 0  # #1200: read from public_lean for data centers too
@@ -214,8 +217,18 @@ def test_data_centers_missing_marts_are_null(get):
     d = get(conn, "data-centers", {"state": "GA"}).json()
     assert d["meetings"] == 118
     assert d["speakers"] is None
+    assert d["votes"] is None
     assert d["lean_meetings"] is None and d["disagreement_meetings"] is None
     assert d["states"][0]["population"] is None
+
+
+def test_data_centers_reviewed_no_votes(get):
+    """#1289: meetings reviewed with no tally give 0 decisions (a real 0); votes stay 0, never null sums."""
+    row = {"for_": 0, "against": 0, "question": 0, "neutral": 0, "meetings_reviewed": 24, "states": 0,
+           "decisions_with_tally": 0, "votes_for": None, "votes_against": None}
+    d = get(dc_conn(routes={"FROM data_center_meeting_position": [row]}), "data-centers", {"state": "AL"}).json()
+    assert d["speakers"]["meetings_reviewed"] == 24
+    assert d["votes"] == {"decisions": 0, "for": 0, "against": 0}
 
 
 def test_lean_sql_scopes():

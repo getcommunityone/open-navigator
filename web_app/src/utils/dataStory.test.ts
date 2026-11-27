@@ -12,6 +12,7 @@ import {
   distinctHeadline,
   positionFigures,
   positionsCaption,
+  figureDisplay,
   scopeQuery,
   screenText,
   statsScopeNote,
@@ -279,6 +280,22 @@ describe('who spoke up', () => {
       expect(t.failed).toBe(false)
     }
   })
+  it('no speakers in reviewed meetings: no "From 1 meeting" sentence that reads as if someone spoke (#1289)', () => {
+    // Alabama, 2026-11-27: 24 meetings reviewed, nobody spoke, 1 decision voted 8–1 ("meetings" counts that vote's meeting).
+    const al0 = positions({ meetings: 1, meetings_reviewed: 24, speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0, decisions_with_tally: 1, votes_for: 8, votes_against: 1 })
+    const cap = positionsCaption(al0, al)!
+    expect(cap).not.toMatch(/From 1 meeting/)
+    expect(cap).toBe('No public speakers in the 24 meetings reviewed in Alabama. Votes from 1 decision with a recorded vote.')
+    // The figures are a real 0 (meetings were reviewed), never "not available".
+    expect(value(al0, 'for')).toMatchObject({ value: 0 })
+  })
+  it('speakers are "not available yet" when no meeting was reviewed, never 0 (#1289)', () => {
+    const unreviewed = positions({ meetings: 0, meetings_reviewed: 0, speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0, decisions_with_tally: 0, votes_for: null, votes_against: null })
+    for (const k of ['for', 'against', 'question']) expect(value(unreviewed, k).value).toBeNull()
+    expect(positionsCaption(unreviewed, al)).toBe('Public speakers are not available yet for Alabama: no meeting here has been reviewed.')
+    expect(figureDisplay(null)).toBe('—')
+    expect(figureDisplay(0)).toBe('0')
+  })
   it('names what is counted, the place, and where the counts come from', () => {
     expect(positionsCaption(positions(), al)).toBe(
       'Speakers at local meetings in Alabama where a data center item was discussed. From 4 meetings and 2 decisions with a recorded vote.',
@@ -369,14 +386,21 @@ describe('decisions screen when the table is not loaded (#933)', () => {
 
 describe('overview headline at a place (#1115)', () => {
   const overview = DATA_CENTER_STORY.find((s) => s.id === 'overview')!
-  const withSpeakers = (f: number, a: number, q = 0, n = 0): StoryData => ({
+  const withSpeakers = (f: number, a: number, q = 0, n = 0, votes: Partial<Record<string, number>> = {}): StoryData => ({
     ...full,
-    positions: positions({ speakers_for: f, speakers_against: a, speakers_question: q, speakers_neutral: n }),
+    positions: positions({ speakers_for: f, speakers_against: a, speakers_question: q, speakers_neutral: n, ...votes }),
   })
+  // Recorded votes that went against (#1289), so a lean against agrees with them.
+  const votedAgainst = { votes_for: 2, votes_against: 9 }
   it('says the place pushed back when two thirds or more spoke against', () => {
-    const t = screenText(overview, withSpeakers(1, 11), ready, al)
+    const t = screenText(overview, withSpeakers(1, 11, 0, 0, votedAgainst), ready, al)
     expect(t.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
     expect(t.context).toBe('A data center came up in 3 meetings. First, where are they?')
+  })
+  it('a lean opposite the recorded votes is stated as divided, with both (#1289)', () => {
+    expect(screenText(overview, withSpeakers(1, 11), ready, al).headline).toBe(
+      'Alabama was divided: 11 of 12 speakers spoke against data centers, while recorded votes went 9 for and 3 against.',
+    )
   })
   it('says the place welcomed them when two thirds or more spoke for', () => {
     expect(screenText(overview, withSpeakers(8, 2, 2), ready, tus).headline).toBe(
@@ -400,7 +424,7 @@ describe('overview headline at a place (#1115)', () => {
     // A count caption that says the same thing as the count line falls to the next line of the record.
     const same = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'volume', text: 'A data center came up in 3 meetings in Alabama' })
     expect(same.headline).not.toBe('A data center came up in 3 meetings in Alabama.')
-    const question = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'question', text: 'Should Alabama pause data centers?' })
+    const question = screenText(overview, withSpeakers(1, 11, 0, 0, votedAgainst), ready, al, null, { kind: 'question', text: 'Should Alabama pause data centers?' })
     expect(question.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
   })
   it('distinctHeadline skips a candidate equal to the title, ignoring case and punctuation', () => {
