@@ -83,4 +83,39 @@ NTEE fields that name the work (family violence shelters, homeless services, ani
 
 ## Counts
 
-See the table below, from the build of 27 Nov 2026.
+Organizations per topic and strongest method, local warehouse build of 27 Nov 2026 (`gold.topic_organization`,
+147,267 rows). The crime and safety topics are in the warehouse from the #1128 branch; on `main` their seed rows wait
+for those topics.
+
+| Topic | Total | Named in a meeting | Mission | Name | IRS category | With a side |
+|---|---:|---:|---:|---:|---:|---:|
+| Data centers | 9 | 2 | 7 | 0 | 0 | 0 |
+| Water fluoridation | 3,837 | 0 | 238 | 3,599 | 0 | 0 |
+| Short-term rentals | 46 | 3 | 3 | 40 | 0 | 0 |
+| License plate readers | 167 | 0 | 0 | 167 | 0 | 0 |
+| Guns | 3,550 | 12 | 119 | 3,419 | 0 | 317 |
+| Pickleball | 686 | 2 | 44 | 640 | 0 | 0 |
+| Bike lanes | 256 | 0 | 40 | 216 | 0 | 0 |
+| Violent crime | 6,033 | 0 | 0 | 0 | 6,033 | 0 |
+| Theft and break-ins | 3,928 | 0 | 0 | 1,267 | 2,661 | 0 |
+| Drugs and overdoses | 16,068 | 0 | 105 | 0 | 15,963 | 0 |
+| Traffic safety | 144 | 0 | 51 | 93 | 0 | 0 |
+| Police staffing | 5,273 | 0 | 0 | 5,273 | 0 | 0 |
+| Youth crime | 5,752 | 0 | 0 | 0 | 5,752 | 0 |
+| Domestic violence | 6,235 | 0 | 1,413 | 0 | 4,822 | 0 |
+| School safety | 14 | 0 | 14 | 0 | 0 | 0 |
+| Fire and EMS | 27,741 | 0 | 0 | 0 | 27,741 | 0 |
+| Parks funding | 9,503 | 0 | 0 | 2,261 | 7,242 | 0 |
+| Animal shelters | 41,999 | 0 | 0 | 6,595 | 35,404 | 0 |
+| Homelessness and shelters | 14,326 | 0 | 5,928 | 0 | 8,398 | 0 |
+| Immigration and sanctuary | 1,700 | 0 | 1,700 | 0 | 0 | 0 |
+
+The three test scopes: water fluoridation in Georgia 81 (the Georgia Dental Association and its foundation by mission,
+then dental societies by name), data centers in Virginia 1 (the Data Center Coalition, by mission), guns in Alabama 22
+(4 named in a meeting: Mothers Involved Against Gun Violence, Positive Parents Have Power, the Child Advocacy Center and
+Big Brothers Big Sisters of the Central Gulf Coast; then gun and rifle clubs by name).
+
+Named in a meeting, all 19 read: 17 are the organization named in the topic passage. Two are doubtful matches of a
+short name ("Love Inc Anchorage", "Heart of Ellsworth"); "Seattle Neighborhood Greenways" and "Atrium Health" are
+named in a passage about gun violence without being gun-policy groups, which the screen states as it is ("Named in a
+meeting on guns"), not as a position.
