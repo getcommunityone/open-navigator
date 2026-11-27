@@ -22,7 +22,7 @@ import {
 import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
-import usePrefersReducedMotion from '../../hooks/usePrefersReducedMotion'
+import { useChartReveal } from './useChartReveal'
 import { useChartWidth } from './useChartWidth'
 import './storyCharts.css'
 
@@ -32,6 +32,10 @@ const COVERAGE_NOTE =
 /** Below this width the milestone track becomes a tap list (the reference's compact breakpoint). */
 const COMPACT_W = 560
 const TAP_LIST_FIRST = 12
+/** The line's draw-in, matching `--d-4` in storyCharts.css: points and milestones are timed against it. */
+const DRAW_MS = 900
+/** Delays for `.sc-pt` / `.sc-ms-pop` (opacity, transform, fill): the entrance waits, a selection's colour change never does. */
+const popDelay = (ms: number) => `${ms}ms, ${ms}ms, 0ms`
 
 interface Props {
   topic: string
@@ -92,7 +96,6 @@ function MilestoneCard({ m }: { m: TimelineMilestone }) {
  */
 export default function TimelineChart({ topic, stateCode, city, scopeLabel, subject, idBase }: Props) {
   const q = useTopicTimeline(topic, stateCode, city)
-  const reduced = usePrefersReducedMotion()
   const { ref, width } = useChartWidth<HTMLDivElement>()
   const { bind, tip } = useTooltip()
   // null until the reader picks: the chart opens on the share when a year's count isn't comparable (#1207).
@@ -100,7 +103,6 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const [sel, setSel] = useState(-1)
   const [tableOpen, setTableOpen] = useState(false)
   const [showAll, setShowAll] = useState(false)
-  const [drawn, setDrawn] = useState(false)
   const trackRef = useRef<SVGSVGElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -118,13 +120,9 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const lanes = useMemo(() => milestoneLanes(ms), [ms])
 
   useEffect(() => setSel(defaultMarker(ms)), [ms])
-  // The line draws in once, when the chart arrives (none with reduced motion).
-  useEffect(() => {
-    if (!runs.length || reduced) return
-    setDrawn(false)
-    const t = requestAnimationFrame(() => setDrawn(true))
-    return () => cancelAnimationFrame(t)
-  }, [runs, reduced])
+  // The reference's §4.5 entrance (#1228): when the chart scrolls into view the line draws left to right, the year points
+  // pop in as it passes them and the milestone squares follow along the track. A new series (scope or mode) replays it.
+  const { ref: revealRef, revealed, reduced } = useChartReveal<SVGSVGElement>(runs)
 
   if (q.isLoading) return <p className="folio-muted" role="status">Loading the timeline…</p>
   if (q.isError) return <p className="stance-nodata" role="status">The timeline could not be loaded right now.</p>
@@ -146,6 +144,9 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   // A year's point sits at the middle of its year, so a milestone dated in that year lands under or near it.
   const xs = (pos: number) => padL + ((pos - x0) / span) * (w - padL - padR)
   const xYear = (y: number) => xs(y + 0.5)
+  // How far along the plot an x is (0 at the left edge, 1 at the right), and when the drawing line reaches it.
+  const alongFrac = (x: number) => Math.min(1, Math.max(0, (x - padL) / Math.max(1, w - padL - padR)))
+  const alongMs = (x: number) => Math.round(alongFrac(x) * (DRAW_MS - 150))
   const vmax = niceMax(Math.max(...pts.map((p) => p.value)))
   const ys = (v: number) => h - padB - (v / vmax) * (h - padT - padB)
   const ticks = [0, vmax / 2, vmax]
@@ -197,7 +198,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
         </div>
       )}
       <div ref={ref}>
-        <svg className="sc-svg" viewBox={`0 0 ${w} ${h}`} role="group" aria-label={`Trend line, ${scopeLabel}`}>
+        <svg ref={revealRef} className={`sc-svg sc-trend${revealed ? ' is-revealed' : ''}`} viewBox={`0 0 ${w} ${h}`} role="group" aria-label={`Trend line, ${scopeLabel}`}>
           {ticks.map((t) => (
             <g key={t}>
               <line x1={padL} x2={w - padR} y1={ys(t)} y2={ys(t)} stroke={t === 0 ? 'var(--ink)' : 'var(--rule)'} strokeWidth={t === 0 ? 1.5 : 1} />
@@ -220,7 +221,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
             ) : (
               <path
                 key={`${activeMode}-${piece.points[0]!.year}`}
-                className={`sc-line${drawn && !reduced ? ' is-drawing' : ''}`}
+                className={`sc-line${revealed && !reduced ? ' is-drawing' : ''}`}
                 pathLength={1}
                 d={d}
               />
@@ -246,6 +247,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
               <rect
                 key={`${activeMode}-${p.year}`}
                 className={`sc-pt sc-focusable${hollow ? ' is-hollow' : ''}`}
+                style={reduced ? undefined : { transitionDelay: popDelay(alongMs(xYear(p.year))) }}
                 x={xYear(p.year) - 3.5}
                 y={ys(p.value) - 3.5}
                 width={7}
@@ -257,7 +259,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
               />
             )
           })}
-          <text className="sc-end" x={xYear(last.year) + 9} y={ys(last.value) + 7}>
+          <text className="sc-end" style={reduced ? undefined : { transitionDelay: `${DRAW_MS}ms` }} x={xYear(last.year) + 9} y={ys(last.value) + 7}>
             {valueText(last.value)}
           </text>
         </svg>
@@ -265,7 +267,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
         {ms.length > 0 && !compact && (
           <svg
             ref={trackRef}
-            className="sc-svg"
+            className={`sc-svg sc-track${revealed ? ' is-revealed' : ''}`}
             viewBox={`0 0 ${w} ${trackH}`}
             role="group"
             aria-label={`Milestones, ${scopeLabel}: ${ms.length} dated events. Use the arrow keys to move between them.`}
@@ -305,7 +307,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
                   onFocus={() => setSel(i)}
                 >
                   <rect x={cx - 8} y={cy - 10} width={16} height={20} fill="transparent" />
-                  <rect className="sc-ms-sq" x={cx - size / 2} y={cy - size / 2} width={size} height={size} />
+                  <rect className="sc-ms-sq sc-ms-pop" style={reduced ? undefined : { transitionDelay: popDelay(DRAW_MS - 200 + Math.round(alongFrac(cx) * 500)) }} x={cx - size / 2} y={cy - size / 2} width={size} height={size} />
                 </g>
               )
             })}

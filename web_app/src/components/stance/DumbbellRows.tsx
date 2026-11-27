@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { niceMax, pctLabel } from '../../utils/storyTimeline'
 import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
-import usePrefersReducedMotion from '../../hooks/usePrefersReducedMotion'
+import { revealDelayMs } from '../../utils/folioMotion'
+import { useChartReveal } from './useChartReveal'
 import { useChartWidth } from './useChartWidth'
 import './storyCharts.css'
 
@@ -32,6 +33,8 @@ interface Props {
   /** Rows drawn before "Show all"; the button names `unitPlural`. */
   firstRows?: number
   unitPlural: string
+  /** A new value (the scope) replays the entrance; a re-sort with the same key only slides the rows. */
+  replayKey?: unknown
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -39,26 +42,15 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 /**
  * The presentational dumbbell (#1140, generalised in #1209): one row per item, hollow dot = `a`, filled dot = `b`, joined
  * by a line, the change right-aligned (warning colour when it falls), a % axis with light gridlines. Keyboard focus and a
- * tooltip per row; the reveal and re-sort motion are off under prefers-reduced-motion. Used by the places dumbbell
+ * tooltip per row. The entrance (#1228) plays when the chart scrolls into view (`useChartReveal`), and a re-sort slides the rows;
+ * both are off under prefers-reduced-motion, which draws the final state. Used by the places dumbbell
  * (`DumbbellChart`) and the Concerns screen (`ConcernsDumbbell`).
  */
-export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows = 12, unitPlural }: Props) {
-  const reduced = usePrefersReducedMotion()
+export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows = 12, unitPlural, replayKey }: Props) {
+  const { ref: revealRef, revealed, reduced } = useChartReveal<SVGSVGElement>(replayKey)
   const { ref, width } = useChartWidth<HTMLDivElement>()
   const { bind, tip } = useTooltip()
   const [all, setAll] = useState(false)
-  const [revealed, setRevealed] = useState(reduced)
-  const svgRef = useRef<SVGSVGElement>(null)
-
-  // Callers mount this only once their rows are loaded (and key it by scope), so the svg exists when the observer attaches.
-  useEffect(() => {
-    if (reduced) return setRevealed(true)
-    const el = svgRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return setRevealed(true)
-    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setRevealed(true), { threshold: 0.2 })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [reduced, rows.length])
 
   if (rows.length === 0) return null
   const single = rows.every((r) => r.a == null)
@@ -66,6 +58,7 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
   const rank = new Map(visible.map((r, i) => [r.key, i]))
 
   const w = Math.max(280, width)
+  // Phone: the label and the change share a line above the track, so the plot spans the whole width.
   const stacked = w < 460
   const rowH = stacked ? 52 : 40
   const topPad = 28
@@ -79,11 +72,14 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
   const h = topPad + visible.length * rowH + 30
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * xmax)
   const bLegendX = single || !aName ? plotL + 5 : plotL + 14 + aName.length * 6.6 + 16
+  const trackY = stacked ? 34 : 20
+  const textY = stacked ? 14 : 24
+  const tickLine = (t: number) => ({ stroke: t === 0 ? 'var(--ink)' : 'var(--rule)', strokeWidth: t === 0 ? 1.5 : 1 })
 
   return (
     <>
       <div ref={ref}>
-        <svg ref={svgRef} className="sc-svg" viewBox={`0 0 ${w} ${h}`} role="group" aria-label={ariaLabel}>
+        <svg ref={revealRef} className="sc-svg" viewBox={`0 0 ${w} ${h}`} role="group" aria-label={ariaLabel}>
           {!single && aName && (
             <>
               <circle cx={plotL + 5} cy={10} r={4.5} className="sc-dot-early" />
@@ -98,7 +94,8 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
           </text>
           {ticks.map((t, i) => (
             <g key={i}>
-              <line x1={xs(t)} x2={xs(t)} y1={topPad} y2={h - 24} stroke={t === 0 ? 'var(--ink)' : 'var(--rule)'} strokeWidth={t === 0 ? 1.5 : 1} />
+              {/* Stacked, each row draws its own short gridlines around the track, so no line crosses a label. */}
+              {!stacked && <line x1={xs(t)} x2={xs(t)} y1={topPad} y2={h - 24} {...tickLine(t)} />}
               {(i % (plotR - plotL < 240 ? 2 : 1) === 0 || i === ticks.length - 1) && (
                 <text className="sc-micro" x={xs(t)} y={h - 6} textAnchor="middle">
                   {pctLabel(t)}
@@ -106,21 +103,23 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
               )}
             </g>
           ))}
-          {rows.map((r, idx) => {
+          {rows.map((r) => {
             const at = rank.get(r.key)
             if (at == null) return null
             const y = topPad + at * rowH
-            const trackY = stacked ? 34 : 20
-            const textY = stacked ? 14 : 24
             const a = xs(r.a ?? 0)
             const b = xs(r.b)
-            const delay = reduced ? 0 : idx * 50
+            // The reference's entrance (§4.3), row by row: the hollow dot appears, the line grows from it and the filled dot
+            // rides its end to the value; then the change. Rows keep their delay by rank, so a re-sort only slides them.
+            const d = reduced ? 0 : 140 + revealDelayMs(at, visible.length)
+            const delay = (ms: number) => (reduced ? undefined : `${ms}ms`)
             return (
               <g key={r.key} className="sc-row" style={{ transform: `translate(0px, ${y}px)` }} tabIndex={0} role="img" aria-label={r.ariaLabel} {...bind(r.tip)}>
                 <rect className="sc-row-hit" x={0} y={0} width={w} height={rowH} fill="transparent" />
-                <text className={stacked ? 'sc-label sc-label-halo' : 'sc-label'} x={0} y={textY}>
+                {stacked &&
+                  ticks.map((t, i) => <line key={i} x1={xs(t)} x2={xs(t)} y1={trackY - 11} y2={trackY + 11} {...tickLine(t)} />)}
+                <text className="sc-label" x={0} y={textY}>
                   {r.label}
-                  {stacked ? `  ${r.right}` : ''}
                 </text>
                 <line
                   className={`sc-bar ${single ? 'sc-stem' : r.negative ? 'sc-down' : 'sc-up'}`}
@@ -128,17 +127,33 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
                   x2={b}
                   y1={trackY}
                   y2={trackY}
-                  style={{ transformOrigin: `${a}px ${trackY}px`, transform: revealed ? 'scaleX(1)' : 'scaleX(0)', transitionDelay: `${delay + 120}ms` }}
+                  style={{ transformOrigin: `${a}px ${trackY}px`, transform: revealed ? 'scaleX(1)' : 'scaleX(0)', transitionDelay: delay(d + 120) }}
                 />
                 {r.a != null && (
-                  <circle className="sc-dot-early" cx={a} cy={trackY} r={5} style={{ opacity: revealed ? 1 : 0, transition: reduced ? undefined : `opacity 240ms ${delay}ms` }} />
+                  <circle
+                    className="sc-dot-early sc-pop"
+                    cx={a}
+                    cy={trackY}
+                    r={5}
+                    style={{ opacity: revealed ? 1 : 0, transform: revealed ? 'scale(1)' : 'scale(0.3)', transitionDelay: delay(d) }}
+                  />
                 )}
-                <circle className="sc-dot-late" cx={b} cy={trackY} r={6} style={{ opacity: revealed ? 1 : 0, transition: reduced ? undefined : `opacity 240ms ${delay + 360}ms` }} />
-                {!stacked && (
-                  <text className={single ? 'sc-delta-flat' : r.negative ? 'sc-delta-down' : 'sc-delta-up'} x={w} y={textY} textAnchor="end">
-                    {r.right}
-                  </text>
-                )}
+                <circle
+                  className="sc-dot-late sc-ride"
+                  cx={b}
+                  cy={trackY}
+                  r={6}
+                  style={{ opacity: revealed ? 1 : 0, transform: revealed ? 'translateX(0px)' : `translateX(${(a - b).toFixed(1)}px)`, transitionDelay: delay(d + 120) }}
+                />
+                <text
+                  className={`sc-fade ${single ? 'sc-delta-flat' : r.negative ? 'sc-delta-down' : 'sc-delta-up'}`}
+                  x={w}
+                  y={textY}
+                  textAnchor="end"
+                  style={{ opacity: revealed ? 1 : 0, transitionDelay: delay(d + 600) }}
+                >
+                  {r.right}
+                </text>
               </g>
             )
           })}
