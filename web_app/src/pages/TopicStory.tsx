@@ -43,6 +43,9 @@ import LegislationMap from '../components/stance/LegislationMap'
 import LocalActionsTracker from '../components/stance/LocalActionsTracker'
 import PositionBreakdown from '../components/stance/PositionBreakdown'
 import { fetchTopicLegislation, fetchTopicLocalActions } from '../api/topicPolicy'
+import UpcomingPanel from '../components/stance/UpcomingPanel'
+import { useTopicUpcoming } from '../hooks/useTopicUpcoming'
+import { upcomingHeadline } from '../utils/topicUpcoming'
 import { actionLabels, shadeStates, STATUS_LABEL, yearSpan } from '../utils/topicPolicy'
 import '../styles/folio.css'
 import '../styles/stance.css'
@@ -245,6 +248,9 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
     retry: 1,
   })
 
+  // What's coming up (#1302): the same query (and cache entry) as the screen's panel.
+  const upcoming = useTopicUpcoming(def.slug, stateCode, null)
+
   // --- which screens the place has ---------------------------------------------------------------------------------------
   const facts = captionQ.data
   const meetingCount = facts?.meetings ?? 0
@@ -353,6 +359,21 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 meetings are not counted by county yet, so there is no county view.
               </p>
             </>
+          ),
+        }
+      case 'upcoming':
+        return {
+          headline: loadingOr(upcoming, 'upcoming list', () => upcomingHeadline(upcoming.data, topicWord, label)),
+          context:
+            'Scheduled meetings and public hearings from today on, with the agenda, livestream or notice to take part, and the state bills still open. Nothing here is estimated.',
+          right: (
+            <UpcomingPanel
+              topic={def.slug}
+              stateCode={stateCode}
+              scopeLabel={label}
+              subject={subject}
+              basePath={`/stories/${def.slug}`}
+            />
           ),
         }
       case 'timeline':

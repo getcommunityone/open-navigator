@@ -11,6 +11,10 @@ import ScopeBar from '../components/stance/ScopeBar'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import SoundToggle from '../components/stance/SoundToggle'
 import StoryScreenView from '../components/stance/StoryScreenView'
+import StoryScreenFrame from '../components/stance/StoryScreenFrame'
+import UpcomingPanel from '../components/stance/UpcomingPanel'
+import { useTopicUpcoming } from '../hooks/useTopicUpcoming'
+import { upcomingHeadline } from '../utils/topicUpcoming'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
 import StoryClose from '../components/stance/StoryClose'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
@@ -84,6 +88,9 @@ export default function DataStory() {
     staleTime: 5 * 60_000,
     retry: 1,
   })
+
+  // What's coming up (#1302), for the Coming up screen's headline; the panel reads the same cache entry.
+  const upcomingQ = useTopicUpcoming(storyId, stateCode, city)
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
@@ -431,6 +438,38 @@ export default function DataStory() {
               onNext: () => goTo(i + 1),
             }
             if (s.kind === 'question') return <QuestionScreen key={s.id} {...common} vote={vote} />
+            if (s.kind === 'upcoming') {
+              return (
+                <StoryScreenFrame
+                  key={s.id}
+                  id={s.id}
+                  index={i}
+                  active={active === i}
+                  eyebrow={s.eyebrow}
+                  headline={
+                    upcomingQ.isPending
+                      ? "Loading what's coming up…"
+                      : upcomingQ.isError
+                        ? "What's coming up could not be loaded right now."
+                        : upcomingHeadline(upcomingQ.data, story.topic, label)
+                  }
+                  context="Scheduled meetings and public hearings from today on, with the agenda, livestream or notice to take part, and the state bills still open. Nothing here is estimated."
+                  nextLabel={common.nextLabel}
+                  onNext={common.onNext}
+                  onPrev={common.onPrev}
+                  right={
+                    <UpcomingPanel
+                      topic={storyId}
+                      stateCode={stateCode}
+                      city={city}
+                      scopeLabel={label}
+                      subject={story.topic}
+                      basePath={`/stories/${storyId}`}
+                    />
+                  }
+                />
+              )
+            }
             if (s.kind === 'verdict') {
               return (
                 <VerdictScreen

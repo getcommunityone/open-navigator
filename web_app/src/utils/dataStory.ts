@@ -55,7 +55,7 @@ export interface StoryScreen {
    * readers answered (#950). `question` remains a kind for tests and any legacy screen helper; the story no longer opens on
    * it. `chart` is one dataset.
    */
-  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict'
+  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict' | 'upcoming'
   /** "For context": the screen is records about the topic that are not something said in a meeting (sites, projects). */
   kicker?: string
 }
@@ -63,6 +63,8 @@ export interface StoryScreen {
 /** The Data Center Story: overview first, then voices and the record, then the question at the end (#950). */
 export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'overview', eyebrow: 'Overview', chart: null, kind: 'overview' },
+  // What's coming up (#1302): scheduled meetings, hearings and open state bills; second, where a reader can still act.
+  { id: 'upcoming', eyebrow: 'Coming up', chart: null, kind: 'upcoming' },
   { id: 'voices', eyebrow: 'Who spoke up', chart: 'positions', kind: 'chart' },
   { id: 'sites', eyebrow: 'Sites', chart: 'sites', kind: 'chart', kicker: 'For context' },
   { id: 'projects', eyebrow: 'Proposals', chart: 'projects', kind: 'chart', kicker: 'For context' },
@@ -806,6 +808,10 @@ export function screenText(
       empty: false,
       failed: false,
     }
+  }
+  if (screen.kind === 'upcoming') {
+    // The page words this screen from its own query (utils/topicUpcoming.upcomingHeadline); this is the fallback.
+    return { headline: "What's coming up on data centers", context: '', empty: false, failed: false }
   }
   if (screen.kind === 'overview') {
     const keys = STORY_CHARTS

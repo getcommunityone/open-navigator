@@ -602,6 +602,17 @@ Every topic story (`/stories/<topic>`) has two screens after **Who spoke**, and 
 
 There is no ballot-measure chart: we have no ballot-measure data on these topics yet ([#1275](https://github.com/getcommunityone/open-navigator/issues/1275)). Rules, colours and counts: [Topic legislation map, positions and local actions](../development/topic-legislation-map.md).
 
+### Coming up, and the home page's What happens next strip (#1302)
+
+Owner, 27 Nov 2026: upcoming meetings and legislation are "where we have the greatest impact". Every story (the topic stories and the Data Center Story) has a **Coming up** screen second, right after Overview, and it always stays in the story:
+
+- **What, when, where, how to take part.** Each scheduled meeting or public hearing shows its date, the place, the title, why it is listed (the agenda names the topic; an official notice lists it; or "Agenda not posted yet. <place> discussed <topic> on <date>:"), the quoted evidence with the topic's words marked, and a link: the agenda, the meeting page, the livestream or the official notice.
+- **State bills still open**, dated by their last action and linked to OpenStates, furthest along first.
+- **Nothing upcoming.** The screen says "Nothing upcoming on record for Georgia." and links one level up (a city to its state, a state to national) with that level's count. No stand-in items.
+- **Home page.** Under the story card and its map, above Browse topics, a strip of three cards for the story and place in the URL (`?story=`, `?state=`, `?city=`): **Coming up** first and highlighted, then **Meetings** and **State bills**. Each is one real number and one line and opens that screen of the story at the same place. It scrolls sideways on a phone.
+
+How items are found, what the warehouse holds and what is left out: [What's coming up on a topic](../development/topic-upcoming.md).
+
 ## Add a story
 
 1. Add the screens to `web_app/src/utils/dataStory.ts` (a list like `DATA_CENTER_STORY`: an `id`, a short word, the dataset key and the kind; start with a `question` and a `scope` screen and end with a `verdict` screen) and a function per record screen that returns its headline and context from the endpoint's response. Add them to `screenText` and cover them in `dataStory.test.ts`, including the empty and failed cases and the banned wording.

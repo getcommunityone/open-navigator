@@ -1,0 +1,23 @@
+/* #1302: the story -> outcomes strip under the home story card. Compact: one row of small cards that scrolls sideways on a
+   phone (no page scroll), all visible on a desktop. */
+.home-outcomes { margin: 14px 0 4px; }
+.home-outcomes-h { margin: 0 0 8px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #44403c; font-weight: 600; }
+.home-outcomes-scope { color: #0f766e; }
+.home-outcomes-list { list-style: none; margin: 0; padding: 2px 2px 6px; display: grid; grid-auto-flow: column;
+  grid-auto-columns: minmax(168px, 1fr); gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.home-outcomes-list::-webkit-scrollbar { display: none; }
+.home-outcomes-list li { scroll-snap-align: start; min-width: 0; }
+.home-outcome { display: flex; flex-direction: column; gap: 2px; height: 100%; box-sizing: border-box; padding: 10px 12px;
+  border: 1px solid #e7e5e4; border-radius: 12px; background: #fff; color: #1c1917; text-decoration: none; }
+.home-outcome:hover { border-color: #0f766e; background: #f0fdfa; }
+.home-outcome:focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
+.home-outcome.is-lead { border-color: #0f766e; box-shadow: inset 0 0 0 1px #0f766e; background: #f0fdfa; }
+.home-outcome-eyebrow { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: #0f766e; }
+.home-outcome-num { font-size: 26px; line-height: 1.05; font-weight: 800; font-variant-numeric: tabular-nums; }
+.home-outcome-line { font-size: 13px; line-height: 1.35; color: #44403c; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 639px) {
+  .home-outcomes-list { grid-auto-columns: 72%; }
+  .home-outcome-num { font-size: 22px; }
+}
