@@ -26,11 +26,27 @@ sections: [Site look and navigation](../development/site-look-and-navigation.md)
 
 ## Place control
 
-`📍 Tuscaloosa, AL ▾` in the header on desktop, and at the top of the phone menu. It reads **Find your town** when no
-place is set. Nothing is hard-coded: the label is the place in the address (`?state=&city=`) when there is one, else the
-reader's saved location (`LocationContext`), else nothing.
+The place control sits in the header on desktop and at the top of the phone menu. On a page whose data follows
+`?state=&city=`, it names that page's **actual scope**
+([#1205](https://github.com/getcommunityone/open-navigator/issues/1205), CLAUDE.md scope label rule). The scope-aware
+pages are `/stories*`, `/search`, `/jurisdictions`, `/browse-topics`, `/browse-causes`, `/decisions-map`,
+`/policy-questions`, `/data-centers` and `/advocacy-topics` (`SCOPED_ROUTE_PREFIXES`).
 
-It opens `LocationPickerDialog` (`web_app/src/components/LocationPickerDialog.tsx`), the same dialog as the home page's
+| Page state | Control |
+| --- | --- |
+| `?state=&city=` in the URL | `📍 Tuscaloosa, AL ▾`, which opens the picker |
+| No place in the URL, a town saved | `📍 National · Use Tuscaloosa, AL ▾`. **Use** applies the saved town in one click, and ▾ opens the picker |
+| No place in the URL, no town saved | `📍 National · Find your town ▾` |
+
+**Use** goes through `usePlacePick`. It writes `?state=&city=`, and the page remounts on the new address, so the label,
+the URL and the page's data change together.
+
+On home, which has its own City / State / National level picker, and on pages that don't read `?state=` (settings,
+profile, jurisdiction pages and so on), the control names the reader's town instead: the URL place, else the saved
+location, else **Find your town**. Nothing is hard-coded. The rule is one pure function, `headerPlaceState(pathname,
+search, saved)` in `web_app/src/utils/headerPlace.ts`, tested in `headerPlace.test.ts`.
+
+The picker is `LocationPickerDialog` (`web_app/src/components/LocationPickerDialog.tsx`), the same dialog as the home page's
 **Find your town** button. The dialog wraps the real geocoder (`AddressLookup` → `/api/geocode/search`). It closes on
 Escape, the ✕ or a tap outside, and gives focus back to the control that opened it.
 
@@ -48,7 +64,7 @@ The dialog traps Tab and locks the page's scroll while open.
 
 ## Phone menu
 
-Below 960px the links fold into a menu behind the ☰ button.
+Below 1024px the links fold into a menu behind the ☰ button.
 
 - A full-width panel under the header, over a dimmed backdrop. The page behind it does not scroll.
 - It closes on Escape, a tap on the backdrop, the ✕, or any route change. Escape, the backdrop and the ✕ give focus back
