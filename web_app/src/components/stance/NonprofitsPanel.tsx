@@ -101,7 +101,7 @@ export default function NonprofitsPanel({ topic, stateCode, city, scopeLabel, su
           const mission = oneLine(sentenceCase(o.mission))
           const money = revenueLine(o)
           const side = sideLabel(o.side)
-          const quote = o.match_method === 'named_in_meeting' || o.match_method === 'keyword_in_mission' ? o.match_text : null
+          const quote = o.match_method === 'ntee_code' ? null : o.match_text
           return (
             <li key={o.master_org_id} className="np-item">
               <p className="np-name">

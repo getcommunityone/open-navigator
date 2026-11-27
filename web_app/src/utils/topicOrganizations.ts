@@ -55,7 +55,7 @@ export function whyListed(o: TopicOrganizationItem, topic: string): string {
     case 'keyword_in_mission':
       return 'Its 990 mission names the topic:'
     case 'keyword_in_name':
-      return 'Its name names the topic.'
+      return 'Its name names the topic:'
     case 'ntee_code':
       return `IRS category: ${o.match_text ?? o.ntee_code ?? 'a related field'}.`
     default:
