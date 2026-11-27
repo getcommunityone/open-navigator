@@ -871,6 +871,15 @@ sources:
           - name: mission
             description: "Form 990 Part 1 Line 1 - Mission & Most Significant Activities"
 
+      - name: bronze_organization_website
+        description: >
+          Nonprofits' websites as named in their latest Form 990 e-file (WebsiteAddressTxt), one row per EIN, with
+          the last crawl's status (#1347). Landed by python -m ingestion.org_events.websites / .crawl.
+      - name: bronze_organization_event
+        description: >
+          Upcoming events nonprofits publish on their own websites as schema.org Event markup or an iCal feed, one
+          row per event_key (#1347). Landed by python -m ingestion.org_events.crawl.
+
       - name: bronze_grants_gt990_schedule_i
         description: >
           GivingTuesday 990 Schedule I Part II datamart (ScheduleIPart2Grants):

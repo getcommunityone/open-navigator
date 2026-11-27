@@ -117,7 +117,7 @@ select
         when n.gt990_total_revenue is not null then 'irs_990'
         when n.revenue is not null then 'irs_bmf'
      end)::text                                                                 as revenue_source,
-    null::text                                                                  as website_url,
+    w.website_url::text                                                         as website_url,
     now()::timestamptz                                                          as built_at
 from per_org as p
 inner join best as b on b.topic_id = p.topic_id and b.master_org_id = p.master_org_id
@@ -125,4 +125,6 @@ inner join curated_topic as t on t.topic_id = p.topic_id
 inner join {{ ref('mdm_organization') }} as o on o.master_org_id = p.master_org_id
 left join {{ ref('mdm_organization_nonprofit') }} as n on n.master_org_id = p.master_org_id
 left join mission as m on m.ein = n.ein
+-- The website its latest 990 e-file names (#1347), when it has been looked up.
+left join {{ ref('stg_org_events__website') }} as w on w.ein = n.ein
 where o.state_code is not null

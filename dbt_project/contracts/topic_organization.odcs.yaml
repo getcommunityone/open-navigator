@@ -183,7 +183,7 @@ schema:
     name: website_url
     logicalType: string
     physicalType: text
-    description: The organization's website, when known (#1347).
+    description: The website its latest Form 990 e-file names (WebsiteAddressTxt), when looked up (#1347).
   - id: built_at
     name: built_at
     logicalType: timestamp

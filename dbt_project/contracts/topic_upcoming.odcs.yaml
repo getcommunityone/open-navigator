@@ -67,7 +67,7 @@ schema:
     name: kind
     logicalType: string
     physicalType: text
-    description: meeting | hearing | deadline | bill_action.
+    description: 'meeting | hearing | deadline | bill_action | event (a nonprofit event, #1347).'
     required: true
     quality:
     - type: library
@@ -78,6 +78,7 @@ schema:
         - hearing
         - deadline
         - bill_action
+        - event
       mustBe: 0
       dimension: conformity
       severity: error
@@ -85,7 +86,7 @@ schema:
     name: match_basis
     logicalType: string
     physicalType: text
-    description: 'Why the item is about the topic: agenda_text (the agenda names it), official_notice (a verified official hearing notice) or place_discussed_before (a scheduled meeting of a government whose recorded meeting discussed the topic in the two years before; prior_* name that meeting).'
+    description: 'Why the item is about the topic: agenda_text (the agenda names it), official_notice (a verified official hearing notice) or place_discussed_before (a scheduled meeting of a government whose recorded meeting discussed the topic in the two years before; prior_* name that meeting), or hosted_by_org (an event a nonprofit tied to the topic publishes on its own website, #1347).'
     required: true
     quality:
     - type: library
@@ -95,6 +96,7 @@ schema:
         - agenda_text
         - official_notice
         - place_discussed_before
+        - hosted_by_org
       mustBe: 0
       dimension: conformity
       severity: error
@@ -202,6 +204,24 @@ schema:
     logicalType: string
     physicalType: text
     description: FK to data_center_hearing for a verified hearing.
+  - id: organization_event_id
+    name: organization_event_id
+    logicalType: string
+    physicalType: text
+    description: FK to organization_event for an event a topic nonprofit publishes (hosted_by_org).
+    relationships:
+    - type: foreignKey
+      to: organization_event.odcs.yaml#/schema/organization_event/properties/organization_event_id
+  - id: host_org_name
+    name: host_org_name
+    logicalType: string
+    physicalType: text
+    description: 'hosted_by_org: the nonprofit hosting the event.'
+  - id: host_master_org_id
+    name: host_master_org_id
+    logicalType: string
+    physicalType: text
+    description: 'hosted_by_org: the host (mdm_organization.master_org_id).'
   - id: source_updated_at
     name: source_updated_at
     logicalType: timestamp
