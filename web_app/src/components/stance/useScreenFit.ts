@@ -31,7 +31,8 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
         e.removeAttribute('data-fit-zoom')
       })
     }
-    /** The panel's blocks, in order: a wrapper with several blocks counts as its blocks. */
+    /** The panel's blocks, in order: a wrapper with several blocks counts as its blocks. A <figure> (a map with its title,
+     *  key and notes) is one block: split, its title could stay while the map itself waited behind "More" (#1349). */
     /** An element the fit can hide or zoom: HTML, or a chart's own <svg> (never the shapes inside one). */
     type Block = HTMLElement | SVGSVGElement
     const isBlock = (k: Element): k is Block => k instanceof HTMLElement || k instanceof SVGSVGElement
@@ -40,7 +41,7 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
       return kids.flatMap((k) => {
         const tall = k.getBoundingClientRect().height > room
         const inner = [...k.children].filter((c) => isBlock(c) && c.getBoundingClientRect().height > 0)
-        return tall && depth < 3 && inner.length > 1 && !(k instanceof SVGElement) && !k.matches('svg, canvas, ul, ol, dl, table')
+        return tall && depth < 3 && inner.length > 1 && !(k instanceof SVGElement) && !k.matches('svg, canvas, ul, ol, dl, table, figure')
           ? blocks(k, room, depth + 1)
           : [k]
       })
@@ -68,7 +69,7 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
       // The screen's extras after the panel on a phone (statement, notes, broaden is before it and stays).
       const left = section.querySelector('.stance-left')
       for (const el of left ? [...left.children] : []) {
-        if (el instanceof HTMLElement && !el.matches('.stance-card, .stance-head, .stance-nav, .stance-broaden') && el.getBoundingClientRect().height > 0) {
+        if (el instanceof HTMLElement && !el.matches('.stance-card, .stance-head, .stance-nav, .stance-broaden, .story-summary') && el.getBoundingClientRect().height > 0) {
           el.classList.add('fit-hidden')
           hidden = true
         }
@@ -103,7 +104,8 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
         }
       })
       // Still too tall at the smallest zoom: inside it, keep its first real block and send the rest behind "More" too.
-      if (primary && primary.getBoundingClientRect().bottom - top > room) {
+      // A figure is never split (#1349): it stays whole at the smallest zoom and the screen scrolls.
+      if (primary && !primary.matches('figure') && primary.getBoundingClientRect().bottom - top > room) {
         const inner = blocks(primary, 0).filter((b) => b !== primary && b.getBoundingClientRect().height > 0)
         const firstReal = inner.findIndex((b) => !heading(b))
         inner.forEach((b, i) => {

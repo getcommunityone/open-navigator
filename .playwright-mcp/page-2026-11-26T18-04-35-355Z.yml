@@ -1,0 +1,3304 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Go to home" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: C1
+        - generic [ref=e8]:
+          - generic [ref=e9]: Open Navigator
+          - generic [ref=e10]: by CommunityOne
+      - navigation [ref=e11]:
+        - button "Data Stories" [ref=e12] [cursor=pointer]
+        - button "Search" [ref=e13] [cursor=pointer]
+        - button "How It Works" [ref=e14] [cursor=pointer]
+        - button "Impact" [ref=e15] [cursor=pointer]
+        - button "Register/Login ▾" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: Register/Login
+          - generic [ref=e19]: ▾
+  - region "America hates data centers." [ref=e346]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - paragraph [ref=e24]: Data story · The Data Center Story
+          - heading "America hates data centers." [level=1] [ref=e347]
+          - paragraph [ref=e348]: Public comments don't always match America's true sentiment, but our nation is clearly at a fever pitch of data center opposition.
+          - paragraph [ref=e349]: Of 29 speakers on record at local meetings, 18 spoke against and 3 spoke for.
+          - list "What the record shows, nationally" [ref=e350]:
+            - listitem [ref=e351]:
+              - generic [ref=e356]:
+                - paragraph [ref=e357]: "1"
+                - paragraph [ref=e358]: “Communities are saying no.”
+                - paragraph [ref=e359]: The public leaned against data centers in 283 meetings across 32 states (AI reading of meetings). Of 29 speakers counted, 18 spoke against.
+            - listitem [ref=e360]:
+              - generic [ref=e365]:
+                - paragraph [ref=e366]: "2"
+                - paragraph [ref=e367]: “Projects are being stopped.”
+                - paragraph [ref=e368]: 124 meetings tabled, denied or paused a data center (AI reading).
+            - listitem [ref=e369]:
+              - generic [ref=e373]:
+                - paragraph [ref=e374]: "3"
+                - paragraph [ref=e375]: “Officials don't always listen.”
+                - paragraph [ref=e376]: Officials sided against the public in 23 meetings across 10 states (AI reading).
+          - generic [ref=e25]:
+            - link "Start the story" [ref=e26] [cursor=pointer]:
+              - /url: /stories/data-centers
+              - text: Start the story →
+            - 'link "Next story: Short-term rentals" [ref=e27] [cursor=pointer]':
+              - /url: /stories/short-term-rentals
+              - text: "Next story: Short-term rentals →"
+        - generic [ref=e377]:
+          - img [ref=e378]:
+            - generic [ref=e379] [cursor=pointer]
+            - generic [ref=e380] [cursor=pointer]
+            - generic [ref=e381] [cursor=pointer]
+            - generic [ref=e382] [cursor=pointer]
+            - generic [ref=e383] [cursor=pointer]
+            - generic [ref=e384] [cursor=pointer]
+            - generic [ref=e385] [cursor=pointer]
+            - generic [ref=e386] [cursor=pointer]
+            - generic [ref=e387] [cursor=pointer]
+            - generic [ref=e388] [cursor=pointer]
+            - generic [ref=e389] [cursor=pointer]
+            - generic [ref=e390] [cursor=pointer]
+            - generic [ref=e391] [cursor=pointer]
+            - generic [ref=e392] [cursor=pointer]
+            - generic [ref=e393] [cursor=pointer]
+            - generic [ref=e394] [cursor=pointer]
+            - generic [ref=e395] [cursor=pointer]
+            - generic [ref=e396] [cursor=pointer]
+            - generic [ref=e397] [cursor=pointer]
+            - generic [ref=e398] [cursor=pointer]
+            - generic [ref=e399] [cursor=pointer]
+            - generic [ref=e400] [cursor=pointer]
+            - generic [ref=e401] [cursor=pointer]
+            - generic [ref=e402] [cursor=pointer]
+            - generic [ref=e403] [cursor=pointer]
+            - generic [ref=e404] [cursor=pointer]
+            - generic [ref=e405] [cursor=pointer]
+            - generic [ref=e406] [cursor=pointer]
+            - generic [ref=e407] [cursor=pointer]
+            - generic [ref=e408] [cursor=pointer]
+            - generic [ref=e409] [cursor=pointer]
+            - generic [ref=e410] [cursor=pointer]
+            - generic [ref=e411] [cursor=pointer]
+            - generic [ref=e412] [cursor=pointer]
+            - generic [ref=e413] [cursor=pointer]
+            - generic [ref=e414] [cursor=pointer]
+            - generic [ref=e415] [cursor=pointer]
+            - generic [ref=e416] [cursor=pointer]
+            - generic [ref=e417] [cursor=pointer]
+            - generic [ref=e418] [cursor=pointer]
+            - generic [ref=e419] [cursor=pointer]
+            - generic [ref=e420] [cursor=pointer]
+            - generic [ref=e421] [cursor=pointer]
+            - generic [ref=e422] [cursor=pointer]
+            - generic [ref=e423] [cursor=pointer]
+            - generic [ref=e424] [cursor=pointer]
+            - generic [ref=e425] [cursor=pointer]
+            - generic [ref=e426] [cursor=pointer]
+            - generic [ref=e427] [cursor=pointer]
+            - generic [ref=e428] [cursor=pointer]
+            - generic [ref=e429] [cursor=pointer]
+            - generic [ref=e430] [cursor=pointer]
+            - generic [ref=e431] [cursor=pointer]
+            - generic [ref=e432] [cursor=pointer]
+            - generic [ref=e433] [cursor=pointer]
+            - generic [ref=e434] [cursor=pointer]
+            - generic [ref=e435] [cursor=pointer]
+            - generic [ref=e436] [cursor=pointer]
+            - generic [ref=e437] [cursor=pointer]
+            - generic [ref=e438] [cursor=pointer]
+            - generic [ref=e439] [cursor=pointer]
+            - generic [ref=e440] [cursor=pointer]
+            - generic [ref=e441] [cursor=pointer]
+            - generic [ref=e442] [cursor=pointer]
+            - generic [ref=e443] [cursor=pointer]
+            - generic [ref=e444] [cursor=pointer]
+            - generic [ref=e445] [cursor=pointer]
+            - generic [ref=e446] [cursor=pointer]
+            - generic [ref=e447] [cursor=pointer]
+            - generic [ref=e448] [cursor=pointer]
+            - generic [ref=e449] [cursor=pointer]
+            - generic [ref=e450] [cursor=pointer]
+            - generic [ref=e451] [cursor=pointer]
+            - generic [ref=e452] [cursor=pointer]
+            - generic [ref=e453] [cursor=pointer]
+            - generic [ref=e454] [cursor=pointer]
+            - generic [ref=e455] [cursor=pointer]
+            - generic [ref=e456] [cursor=pointer]
+            - generic [ref=e457] [cursor=pointer]
+            - generic [ref=e458] [cursor=pointer]
+            - generic [ref=e459] [cursor=pointer]
+            - generic [ref=e460] [cursor=pointer]
+            - generic [ref=e461] [cursor=pointer]
+            - generic [ref=e462] [cursor=pointer]
+            - generic [ref=e463] [cursor=pointer]
+            - generic [ref=e464] [cursor=pointer]
+            - generic [ref=e465] [cursor=pointer]
+            - generic [ref=e466] [cursor=pointer]
+            - generic [ref=e467] [cursor=pointer]
+            - generic [ref=e468] [cursor=pointer]
+            - generic [ref=e469] [cursor=pointer]
+            - generic [ref=e470] [cursor=pointer]
+            - generic [ref=e471] [cursor=pointer]
+            - generic [ref=e472] [cursor=pointer]
+            - generic [ref=e473] [cursor=pointer]
+            - generic [ref=e474] [cursor=pointer]
+            - generic [ref=e475] [cursor=pointer]
+            - generic [ref=e476] [cursor=pointer]
+            - generic [ref=e477] [cursor=pointer]
+            - generic [ref=e478] [cursor=pointer]
+            - generic [ref=e479] [cursor=pointer]
+            - generic [ref=e480] [cursor=pointer]
+            - generic [ref=e481] [cursor=pointer]
+            - generic [ref=e482] [cursor=pointer]
+            - generic [ref=e483] [cursor=pointer]
+            - generic [ref=e484] [cursor=pointer]
+            - generic [ref=e485] [cursor=pointer]
+            - generic [ref=e486] [cursor=pointer]
+            - generic [ref=e487] [cursor=pointer]
+            - generic [ref=e488] [cursor=pointer]
+            - generic [ref=e489] [cursor=pointer]
+            - generic [ref=e490] [cursor=pointer]
+            - generic [ref=e491] [cursor=pointer]
+            - generic [ref=e492] [cursor=pointer]
+            - generic [ref=e493] [cursor=pointer]
+            - generic [ref=e494] [cursor=pointer]
+            - generic [ref=e495] [cursor=pointer]
+            - generic [ref=e496] [cursor=pointer]
+            - generic [ref=e497] [cursor=pointer]
+            - generic [ref=e498] [cursor=pointer]
+            - generic [ref=e499] [cursor=pointer]
+            - generic [ref=e500] [cursor=pointer]
+            - generic [ref=e501] [cursor=pointer]
+            - generic [ref=e502] [cursor=pointer]
+            - generic [ref=e503] [cursor=pointer]
+            - generic [ref=e504] [cursor=pointer]
+            - generic [ref=e505] [cursor=pointer]
+            - generic [ref=e506] [cursor=pointer]
+            - generic [ref=e507] [cursor=pointer]
+            - generic [ref=e508] [cursor=pointer]
+            - generic [ref=e509] [cursor=pointer]
+            - generic [ref=e510] [cursor=pointer]
+            - generic [ref=e511] [cursor=pointer]
+            - generic [ref=e512] [cursor=pointer]
+            - generic [ref=e513] [cursor=pointer]
+            - generic [ref=e514] [cursor=pointer]
+            - generic [ref=e515] [cursor=pointer]
+            - generic [ref=e516] [cursor=pointer]
+            - generic [ref=e517] [cursor=pointer]
+            - generic [ref=e518] [cursor=pointer]
+            - generic [ref=e519] [cursor=pointer]
+            - generic [ref=e520] [cursor=pointer]
+            - generic [ref=e521] [cursor=pointer]
+            - generic [ref=e522] [cursor=pointer]
+            - generic [ref=e523] [cursor=pointer]
+            - generic [ref=e524] [cursor=pointer]
+            - generic [ref=e525] [cursor=pointer]
+            - generic [ref=e526] [cursor=pointer]
+            - generic [ref=e527] [cursor=pointer]
+            - generic [ref=e528] [cursor=pointer]
+            - generic [ref=e529] [cursor=pointer]
+            - generic [ref=e530] [cursor=pointer]
+            - generic [ref=e531] [cursor=pointer]
+            - generic [ref=e532] [cursor=pointer]
+            - generic [ref=e533] [cursor=pointer]
+            - generic [ref=e534] [cursor=pointer]
+            - generic [ref=e535] [cursor=pointer]
+            - generic [ref=e536] [cursor=pointer]
+            - generic [ref=e537] [cursor=pointer]
+            - generic [ref=e538] [cursor=pointer]
+            - generic [ref=e539] [cursor=pointer]
+            - generic [ref=e540] [cursor=pointer]
+            - generic [ref=e541] [cursor=pointer]
+            - generic [ref=e542] [cursor=pointer]
+            - generic [ref=e543] [cursor=pointer]
+            - generic [ref=e544] [cursor=pointer]
+            - generic [ref=e545] [cursor=pointer]
+            - generic [ref=e546] [cursor=pointer]
+            - generic [ref=e547] [cursor=pointer]
+            - generic [ref=e548] [cursor=pointer]
+            - generic [ref=e549] [cursor=pointer]
+            - generic [ref=e550] [cursor=pointer]
+            - generic [ref=e551] [cursor=pointer]
+            - generic [ref=e552] [cursor=pointer]
+            - generic [ref=e553] [cursor=pointer]
+            - generic [ref=e554] [cursor=pointer]
+            - generic [ref=e555] [cursor=pointer]
+            - generic [ref=e556] [cursor=pointer]
+            - generic [ref=e557] [cursor=pointer]
+            - generic [ref=e558] [cursor=pointer]
+            - generic [ref=e559] [cursor=pointer]
+            - generic [ref=e560] [cursor=pointer]
+            - generic [ref=e561] [cursor=pointer]
+            - generic [ref=e562] [cursor=pointer]
+            - generic [ref=e563] [cursor=pointer]
+            - generic [ref=e564] [cursor=pointer]
+            - generic [ref=e565] [cursor=pointer]
+            - generic [ref=e566] [cursor=pointer]
+            - generic [ref=e567] [cursor=pointer]
+            - generic [ref=e568] [cursor=pointer]
+            - generic [ref=e569] [cursor=pointer]
+            - generic [ref=e570] [cursor=pointer]
+            - generic [ref=e571] [cursor=pointer]
+            - generic [ref=e572] [cursor=pointer]
+            - generic [ref=e573] [cursor=pointer]
+            - generic [ref=e574] [cursor=pointer]
+            - generic [ref=e575] [cursor=pointer]
+            - generic [ref=e576] [cursor=pointer]
+            - generic [ref=e577] [cursor=pointer]
+            - generic [ref=e578] [cursor=pointer]
+            - generic [ref=e579] [cursor=pointer]
+            - generic [ref=e580] [cursor=pointer]
+            - generic [ref=e581] [cursor=pointer]
+            - generic [ref=e582] [cursor=pointer]
+            - generic [ref=e583] [cursor=pointer]
+            - generic [ref=e584] [cursor=pointer]
+            - generic [ref=e585] [cursor=pointer]
+            - generic [ref=e586] [cursor=pointer]
+            - generic [ref=e587] [cursor=pointer]
+            - generic [ref=e588] [cursor=pointer]
+            - generic [ref=e589] [cursor=pointer]
+            - generic [ref=e590] [cursor=pointer]
+            - generic [ref=e591] [cursor=pointer]
+            - generic [ref=e592] [cursor=pointer]
+            - generic [ref=e593] [cursor=pointer]
+            - generic [ref=e594] [cursor=pointer]
+            - generic [ref=e595] [cursor=pointer]
+            - generic [ref=e596] [cursor=pointer]
+            - generic [ref=e597] [cursor=pointer]
+            - generic [ref=e598] [cursor=pointer]
+            - generic [ref=e599] [cursor=pointer]
+            - generic [ref=e600] [cursor=pointer]
+            - generic [ref=e601] [cursor=pointer]
+            - generic [ref=e602] [cursor=pointer]
+            - generic [ref=e603] [cursor=pointer]
+            - generic [ref=e604] [cursor=pointer]
+            - generic [ref=e605] [cursor=pointer]
+            - generic [ref=e606] [cursor=pointer]
+            - generic [ref=e607] [cursor=pointer]
+            - generic [ref=e608] [cursor=pointer]
+            - generic [ref=e609] [cursor=pointer]
+            - generic [ref=e610] [cursor=pointer]
+            - generic [ref=e611] [cursor=pointer]
+            - generic [ref=e612] [cursor=pointer]
+            - generic [ref=e613] [cursor=pointer]
+            - generic [ref=e614] [cursor=pointer]
+            - generic [ref=e615] [cursor=pointer]
+            - generic [ref=e616] [cursor=pointer]
+            - generic [ref=e617] [cursor=pointer]
+            - generic [ref=e618] [cursor=pointer]
+            - generic [ref=e619] [cursor=pointer]
+            - generic [ref=e620] [cursor=pointer]
+            - generic [ref=e621] [cursor=pointer]
+            - generic [ref=e622] [cursor=pointer]
+            - generic [ref=e623] [cursor=pointer]
+            - generic [ref=e624] [cursor=pointer]
+            - generic [ref=e625] [cursor=pointer]
+            - generic [ref=e626] [cursor=pointer]
+            - generic [ref=e627] [cursor=pointer]
+            - generic [ref=e628] [cursor=pointer]
+            - generic [ref=e629] [cursor=pointer]
+            - generic [ref=e630] [cursor=pointer]
+            - generic [ref=e631] [cursor=pointer]
+            - generic [ref=e632] [cursor=pointer]
+            - generic [ref=e633] [cursor=pointer]
+            - generic [ref=e634] [cursor=pointer]
+            - generic [ref=e635] [cursor=pointer]
+            - generic [ref=e636] [cursor=pointer]
+            - generic [ref=e637] [cursor=pointer]
+            - generic [ref=e638] [cursor=pointer]
+            - generic [ref=e639] [cursor=pointer]
+            - generic [ref=e640] [cursor=pointer]
+            - generic [ref=e641] [cursor=pointer]
+            - generic [ref=e642] [cursor=pointer]
+            - generic [ref=e643] [cursor=pointer]
+            - generic [ref=e644] [cursor=pointer]
+            - generic [ref=e645] [cursor=pointer]
+            - generic [ref=e646] [cursor=pointer]
+            - generic [ref=e647] [cursor=pointer]
+            - generic [ref=e648] [cursor=pointer]
+            - generic [ref=e649] [cursor=pointer]
+            - generic [ref=e650] [cursor=pointer]
+            - generic [ref=e651] [cursor=pointer]
+            - generic [ref=e652] [cursor=pointer]
+            - generic [ref=e653] [cursor=pointer]
+            - generic [ref=e654] [cursor=pointer]
+            - generic [ref=e655] [cursor=pointer]
+            - generic [ref=e656] [cursor=pointer]
+            - generic [ref=e657] [cursor=pointer]
+            - generic [ref=e658] [cursor=pointer]
+            - generic [ref=e659] [cursor=pointer]
+            - generic [ref=e660] [cursor=pointer]
+            - generic [ref=e661] [cursor=pointer]
+            - generic [ref=e662] [cursor=pointer]
+            - generic [ref=e663] [cursor=pointer]
+            - generic [ref=e664] [cursor=pointer]
+            - generic [ref=e665] [cursor=pointer]
+            - generic [ref=e666] [cursor=pointer]
+            - generic [ref=e667] [cursor=pointer]
+            - generic [ref=e668] [cursor=pointer]
+            - generic [ref=e669] [cursor=pointer]
+            - generic [ref=e670] [cursor=pointer]
+            - generic [ref=e671] [cursor=pointer]
+            - generic [ref=e672] [cursor=pointer]
+            - generic [ref=e673] [cursor=pointer]
+            - generic [ref=e674] [cursor=pointer]
+            - generic [ref=e675] [cursor=pointer]
+            - generic [ref=e676] [cursor=pointer]
+            - generic [ref=e677] [cursor=pointer]
+            - generic [ref=e678] [cursor=pointer]
+            - generic [ref=e679] [cursor=pointer]
+            - generic [ref=e680] [cursor=pointer]
+            - generic [ref=e681] [cursor=pointer]
+            - generic [ref=e682] [cursor=pointer]
+            - generic [ref=e683] [cursor=pointer]
+            - generic [ref=e684] [cursor=pointer]
+            - generic [ref=e685] [cursor=pointer]
+            - generic [ref=e686] [cursor=pointer]
+            - generic [ref=e687] [cursor=pointer]
+            - generic [ref=e688] [cursor=pointer]
+            - generic [ref=e689] [cursor=pointer]
+            - generic [ref=e690] [cursor=pointer]
+            - generic [ref=e691] [cursor=pointer]
+            - generic [ref=e692] [cursor=pointer]
+            - generic [ref=e693] [cursor=pointer]
+            - generic [ref=e694] [cursor=pointer]
+            - generic [ref=e695] [cursor=pointer]
+            - generic [ref=e696] [cursor=pointer]
+            - generic [ref=e697] [cursor=pointer]
+            - generic [ref=e698] [cursor=pointer]
+            - generic [ref=e699] [cursor=pointer]
+            - generic [ref=e700] [cursor=pointer]
+            - generic [ref=e701] [cursor=pointer]
+            - generic [ref=e702] [cursor=pointer]
+            - generic [ref=e703] [cursor=pointer]
+            - generic [ref=e704] [cursor=pointer]
+            - generic [ref=e705] [cursor=pointer]
+            - generic [ref=e706] [cursor=pointer]
+            - generic [ref=e707] [cursor=pointer]
+            - generic [ref=e708] [cursor=pointer]
+            - generic [ref=e709] [cursor=pointer]
+            - generic [ref=e710] [cursor=pointer]
+            - generic [ref=e711] [cursor=pointer]
+            - generic [ref=e712] [cursor=pointer]
+            - generic [ref=e713] [cursor=pointer]
+            - generic [ref=e714] [cursor=pointer]
+            - generic [ref=e715] [cursor=pointer]
+            - generic [ref=e716] [cursor=pointer]
+            - generic [ref=e717] [cursor=pointer]
+            - generic [ref=e718] [cursor=pointer]
+            - generic [ref=e719] [cursor=pointer]
+            - generic [ref=e720] [cursor=pointer]
+            - generic [ref=e721] [cursor=pointer]
+            - generic [ref=e722] [cursor=pointer]
+            - generic [ref=e723] [cursor=pointer]
+            - generic [ref=e724] [cursor=pointer]
+            - generic [ref=e725] [cursor=pointer]
+            - generic [ref=e726] [cursor=pointer]
+            - generic [ref=e727] [cursor=pointer]
+            - generic [ref=e728] [cursor=pointer]
+            - generic [ref=e729] [cursor=pointer]
+            - generic [ref=e730] [cursor=pointer]
+            - generic [ref=e731] [cursor=pointer]
+            - generic [ref=e732] [cursor=pointer]
+            - generic [ref=e733] [cursor=pointer]
+            - generic [ref=e734] [cursor=pointer]
+            - generic [ref=e735] [cursor=pointer]
+            - generic [ref=e736] [cursor=pointer]
+            - generic [ref=e737] [cursor=pointer]
+            - generic [ref=e738] [cursor=pointer]
+            - generic [ref=e739] [cursor=pointer]
+            - generic [ref=e740] [cursor=pointer]
+            - generic [ref=e741] [cursor=pointer]
+            - generic [ref=e742] [cursor=pointer]
+            - generic [ref=e743] [cursor=pointer]
+            - generic [ref=e744] [cursor=pointer]
+            - generic [ref=e745] [cursor=pointer]
+            - generic [ref=e746] [cursor=pointer]
+            - generic [ref=e747] [cursor=pointer]
+            - generic [ref=e748] [cursor=pointer]
+            - generic [ref=e749] [cursor=pointer]
+            - generic [ref=e750] [cursor=pointer]
+            - generic [ref=e751] [cursor=pointer]
+            - generic [ref=e752] [cursor=pointer]
+            - generic [ref=e753] [cursor=pointer]
+            - generic [ref=e754] [cursor=pointer]
+            - generic [ref=e755] [cursor=pointer]
+            - generic [ref=e756] [cursor=pointer]
+            - generic [ref=e757] [cursor=pointer]
+            - generic [ref=e758] [cursor=pointer]
+            - generic [ref=e759] [cursor=pointer]
+            - generic [ref=e760] [cursor=pointer]
+            - generic [ref=e761] [cursor=pointer]
+            - generic [ref=e762] [cursor=pointer]
+            - generic [ref=e763] [cursor=pointer]
+            - generic [ref=e764] [cursor=pointer]
+            - generic [ref=e765] [cursor=pointer]
+            - generic [ref=e766] [cursor=pointer]
+            - generic [ref=e767] [cursor=pointer]
+            - generic [ref=e768] [cursor=pointer]
+            - generic [ref=e769] [cursor=pointer]
+            - generic [ref=e770] [cursor=pointer]
+            - generic [ref=e771] [cursor=pointer]
+            - generic [ref=e772] [cursor=pointer]
+            - generic [ref=e773] [cursor=pointer]
+            - generic [ref=e774] [cursor=pointer]
+            - generic [ref=e775] [cursor=pointer]
+            - generic [ref=e776] [cursor=pointer]
+            - generic [ref=e777] [cursor=pointer]
+            - generic [ref=e778] [cursor=pointer]
+            - generic [ref=e779] [cursor=pointer]
+            - generic [ref=e780] [cursor=pointer]
+            - generic [ref=e781] [cursor=pointer]
+            - generic [ref=e782] [cursor=pointer]
+            - generic [ref=e783] [cursor=pointer]
+            - generic [ref=e784] [cursor=pointer]
+            - generic [ref=e785] [cursor=pointer]
+            - generic [ref=e786] [cursor=pointer]
+            - generic [ref=e787] [cursor=pointer]
+            - generic [ref=e788] [cursor=pointer]
+            - generic [ref=e789] [cursor=pointer]
+            - generic [ref=e790] [cursor=pointer]
+            - generic [ref=e791] [cursor=pointer]
+            - generic [ref=e792] [cursor=pointer]
+            - generic [ref=e793] [cursor=pointer]
+            - generic [ref=e794] [cursor=pointer]
+            - generic [ref=e795] [cursor=pointer]
+            - generic [ref=e796] [cursor=pointer]
+            - generic [ref=e797] [cursor=pointer]
+            - generic [ref=e798] [cursor=pointer]
+            - generic [ref=e799] [cursor=pointer]
+            - generic [ref=e800] [cursor=pointer]
+            - generic [ref=e801] [cursor=pointer]
+            - generic [ref=e802] [cursor=pointer]
+            - generic [ref=e803] [cursor=pointer]
+            - generic [ref=e804] [cursor=pointer]
+            - generic [ref=e805] [cursor=pointer]
+            - generic [ref=e806] [cursor=pointer]
+            - generic [ref=e807] [cursor=pointer]
+            - generic [ref=e808] [cursor=pointer]
+            - generic [ref=e809] [cursor=pointer]
+            - generic [ref=e810] [cursor=pointer]
+            - generic [ref=e811] [cursor=pointer]
+            - generic [ref=e812] [cursor=pointer]
+            - generic [ref=e813] [cursor=pointer]
+            - generic [ref=e814] [cursor=pointer]
+            - generic [ref=e815] [cursor=pointer]
+            - generic [ref=e816] [cursor=pointer]
+            - generic [ref=e817] [cursor=pointer]
+            - generic [ref=e818] [cursor=pointer]
+            - generic [ref=e819] [cursor=pointer]
+            - generic [ref=e820] [cursor=pointer]
+            - generic [ref=e821] [cursor=pointer]
+            - generic [ref=e822] [cursor=pointer]
+            - generic [ref=e823] [cursor=pointer]
+            - generic [ref=e824] [cursor=pointer]
+            - generic [ref=e825] [cursor=pointer]
+            - generic [ref=e826] [cursor=pointer]
+            - generic [ref=e827] [cursor=pointer]
+            - generic [ref=e828] [cursor=pointer]
+            - generic [ref=e829] [cursor=pointer]
+            - generic [ref=e830] [cursor=pointer]
+            - generic [ref=e831] [cursor=pointer]
+            - generic [ref=e832] [cursor=pointer]
+            - generic [ref=e833] [cursor=pointer]
+            - generic [ref=e834] [cursor=pointer]
+            - generic [ref=e835] [cursor=pointer]
+            - generic [ref=e836] [cursor=pointer]
+            - generic [ref=e837] [cursor=pointer]
+            - generic [ref=e838] [cursor=pointer]
+            - generic [ref=e839] [cursor=pointer]
+            - generic [ref=e840] [cursor=pointer]
+            - generic [ref=e841] [cursor=pointer]
+            - generic [ref=e842] [cursor=pointer]
+            - generic [ref=e843] [cursor=pointer]
+            - generic [ref=e844] [cursor=pointer]
+            - generic [ref=e845] [cursor=pointer]
+            - generic [ref=e846] [cursor=pointer]
+            - generic [ref=e847] [cursor=pointer]
+            - generic [ref=e848] [cursor=pointer]
+            - generic [ref=e849] [cursor=pointer]
+            - generic [ref=e850] [cursor=pointer]
+            - generic [ref=e851] [cursor=pointer]
+            - generic [ref=e852] [cursor=pointer]
+            - generic [ref=e853] [cursor=pointer]
+            - generic [ref=e854] [cursor=pointer]
+            - generic [ref=e855] [cursor=pointer]
+            - generic [ref=e856] [cursor=pointer]
+            - generic [ref=e857] [cursor=pointer]
+            - generic [ref=e858] [cursor=pointer]
+            - generic [ref=e859] [cursor=pointer]
+            - generic [ref=e860] [cursor=pointer]
+            - generic [ref=e861] [cursor=pointer]
+            - generic [ref=e862] [cursor=pointer]
+            - generic [ref=e863] [cursor=pointer]
+            - generic [ref=e864] [cursor=pointer]
+            - generic [ref=e865] [cursor=pointer]
+            - generic [ref=e866] [cursor=pointer]
+            - generic [ref=e867] [cursor=pointer]
+            - generic [ref=e868] [cursor=pointer]
+            - generic [ref=e869] [cursor=pointer]
+            - generic [ref=e870] [cursor=pointer]
+            - generic [ref=e871] [cursor=pointer]
+            - generic [ref=e872] [cursor=pointer]
+            - generic [ref=e873] [cursor=pointer]
+            - generic [ref=e874] [cursor=pointer]
+            - generic [ref=e875] [cursor=pointer]
+            - generic [ref=e876] [cursor=pointer]
+            - generic [ref=e877] [cursor=pointer]
+            - generic [ref=e878] [cursor=pointer]
+            - generic [ref=e879] [cursor=pointer]
+            - generic [ref=e880] [cursor=pointer]
+            - generic [ref=e881] [cursor=pointer]
+            - generic [ref=e882] [cursor=pointer]
+            - generic [ref=e883] [cursor=pointer]
+            - generic [ref=e884] [cursor=pointer]
+            - generic [ref=e885] [cursor=pointer]
+            - generic [ref=e886] [cursor=pointer]
+            - generic [ref=e887] [cursor=pointer]
+            - generic [ref=e888] [cursor=pointer]
+            - generic [ref=e889] [cursor=pointer]
+            - generic [ref=e890] [cursor=pointer]
+            - generic [ref=e891] [cursor=pointer]
+            - generic [ref=e892] [cursor=pointer]
+            - generic [ref=e893] [cursor=pointer]
+            - generic [ref=e894] [cursor=pointer]
+            - generic [ref=e895] [cursor=pointer]
+            - generic [ref=e896] [cursor=pointer]
+            - generic [ref=e897] [cursor=pointer]
+            - generic [ref=e898] [cursor=pointer]
+            - generic [ref=e899] [cursor=pointer]
+            - generic [ref=e900] [cursor=pointer]
+            - generic [ref=e901] [cursor=pointer]
+            - generic [ref=e902] [cursor=pointer]
+            - generic [ref=e903] [cursor=pointer]
+            - generic [ref=e904] [cursor=pointer]
+            - generic [ref=e905] [cursor=pointer]
+            - generic [ref=e906] [cursor=pointer]
+            - generic [ref=e907] [cursor=pointer]
+            - generic [ref=e908] [cursor=pointer]
+            - generic [ref=e909] [cursor=pointer]
+            - generic [ref=e910] [cursor=pointer]
+            - generic [ref=e911] [cursor=pointer]
+            - generic [ref=e912] [cursor=pointer]
+            - generic [ref=e913] [cursor=pointer]
+            - generic [ref=e914] [cursor=pointer]
+            - generic [ref=e915] [cursor=pointer]
+            - generic [ref=e916] [cursor=pointer]
+            - generic [ref=e917] [cursor=pointer]
+            - generic [ref=e918] [cursor=pointer]
+            - generic [ref=e919] [cursor=pointer]
+            - generic [ref=e920] [cursor=pointer]
+            - generic [ref=e921] [cursor=pointer]
+            - generic [ref=e922] [cursor=pointer]
+            - generic [ref=e923] [cursor=pointer]
+            - generic [ref=e924] [cursor=pointer]
+            - generic [ref=e925] [cursor=pointer]
+            - generic [ref=e926] [cursor=pointer]
+            - generic [ref=e927] [cursor=pointer]
+            - generic [ref=e928] [cursor=pointer]
+            - generic [ref=e929] [cursor=pointer]
+            - generic [ref=e930] [cursor=pointer]
+            - generic [ref=e931] [cursor=pointer]
+            - generic [ref=e932] [cursor=pointer]
+            - generic [ref=e933] [cursor=pointer]
+            - generic [ref=e934] [cursor=pointer]
+            - generic [ref=e935] [cursor=pointer]
+            - generic [ref=e936] [cursor=pointer]
+            - generic [ref=e937] [cursor=pointer]
+            - generic [ref=e938] [cursor=pointer]
+            - generic [ref=e939] [cursor=pointer]
+            - generic [ref=e940] [cursor=pointer]
+            - generic [ref=e941] [cursor=pointer]
+            - generic [ref=e942] [cursor=pointer]
+            - generic [ref=e943] [cursor=pointer]
+            - generic [ref=e944] [cursor=pointer]
+            - generic [ref=e945] [cursor=pointer]
+            - generic [ref=e946] [cursor=pointer]
+            - generic [ref=e947] [cursor=pointer]
+            - generic [ref=e948] [cursor=pointer]
+            - generic [ref=e949] [cursor=pointer]
+            - generic [ref=e950] [cursor=pointer]
+            - generic [ref=e951] [cursor=pointer]
+            - generic [ref=e952] [cursor=pointer]
+            - generic [ref=e953] [cursor=pointer]
+            - generic [ref=e954] [cursor=pointer]
+            - generic [ref=e955] [cursor=pointer]
+            - generic [ref=e956] [cursor=pointer]
+            - generic [ref=e957] [cursor=pointer]
+            - generic [ref=e958] [cursor=pointer]
+            - generic [ref=e959] [cursor=pointer]
+            - generic [ref=e960] [cursor=pointer]
+            - generic [ref=e961] [cursor=pointer]
+            - generic [ref=e962] [cursor=pointer]
+            - generic [ref=e963] [cursor=pointer]
+            - generic [ref=e964] [cursor=pointer]
+            - generic [ref=e965] [cursor=pointer]
+            - generic [ref=e966] [cursor=pointer]
+            - generic [ref=e967] [cursor=pointer]
+            - generic [ref=e968] [cursor=pointer]
+            - generic [ref=e969] [cursor=pointer]
+            - generic [ref=e970] [cursor=pointer]
+            - generic [ref=e971] [cursor=pointer]
+            - generic [ref=e972] [cursor=pointer]
+            - generic [ref=e973] [cursor=pointer]
+            - generic [ref=e974] [cursor=pointer]
+            - generic [ref=e975] [cursor=pointer]
+            - generic [ref=e976] [cursor=pointer]
+            - generic [ref=e977] [cursor=pointer]
+            - generic [ref=e978] [cursor=pointer]
+            - generic [ref=e979] [cursor=pointer]
+            - generic [ref=e980] [cursor=pointer]
+            - generic [ref=e981] [cursor=pointer]
+            - generic [ref=e982] [cursor=pointer]
+            - generic [ref=e983] [cursor=pointer]
+            - generic [ref=e984] [cursor=pointer]
+            - generic [ref=e985] [cursor=pointer]
+            - generic [ref=e986] [cursor=pointer]
+            - generic [ref=e987] [cursor=pointer]
+            - generic [ref=e988] [cursor=pointer]
+            - generic [ref=e989] [cursor=pointer]
+            - generic [ref=e990] [cursor=pointer]
+            - generic [ref=e991] [cursor=pointer]
+            - generic [ref=e992] [cursor=pointer]
+            - generic [ref=e993] [cursor=pointer]
+            - generic [ref=e994] [cursor=pointer]
+            - generic [ref=e995] [cursor=pointer]
+            - generic [ref=e996] [cursor=pointer]
+            - generic [ref=e997] [cursor=pointer]
+            - generic [ref=e998] [cursor=pointer]
+            - generic [ref=e999] [cursor=pointer]
+            - generic [ref=e1000] [cursor=pointer]
+            - generic [ref=e1001] [cursor=pointer]
+            - generic [ref=e1002] [cursor=pointer]
+            - generic [ref=e1003] [cursor=pointer]
+            - generic [ref=e1004] [cursor=pointer]
+            - generic [ref=e1005] [cursor=pointer]
+            - generic [ref=e1006] [cursor=pointer]
+            - generic [ref=e1007] [cursor=pointer]
+            - generic [ref=e1008] [cursor=pointer]
+            - generic [ref=e1009] [cursor=pointer]
+            - generic [ref=e1010] [cursor=pointer]
+            - generic [ref=e1011] [cursor=pointer]
+            - generic [ref=e1012] [cursor=pointer]
+            - generic [ref=e1013] [cursor=pointer]
+            - generic [ref=e1014] [cursor=pointer]
+            - generic [ref=e1015] [cursor=pointer]
+            - generic [ref=e1016] [cursor=pointer]
+            - generic [ref=e1017] [cursor=pointer]
+            - generic [ref=e1018] [cursor=pointer]
+            - generic [ref=e1019] [cursor=pointer]
+            - generic [ref=e1020] [cursor=pointer]
+            - generic [ref=e1021] [cursor=pointer]
+            - generic [ref=e1022] [cursor=pointer]
+            - generic [ref=e1023] [cursor=pointer]
+            - generic [ref=e1024] [cursor=pointer]
+            - generic [ref=e1025] [cursor=pointer]
+            - generic [ref=e1026] [cursor=pointer]
+            - generic [ref=e1027] [cursor=pointer]
+            - generic [ref=e1028] [cursor=pointer]
+            - generic [ref=e1029] [cursor=pointer]
+            - generic [ref=e1030] [cursor=pointer]
+            - generic [ref=e1031] [cursor=pointer]
+            - generic [ref=e1032] [cursor=pointer]
+            - generic [ref=e1033] [cursor=pointer]
+            - generic [ref=e1034] [cursor=pointer]
+            - generic [ref=e1035] [cursor=pointer]
+            - generic [ref=e1036] [cursor=pointer]
+            - generic [ref=e1037] [cursor=pointer]
+            - generic [ref=e1038] [cursor=pointer]
+            - generic [ref=e1039] [cursor=pointer]
+            - generic [ref=e1040] [cursor=pointer]
+            - generic [ref=e1041] [cursor=pointer]
+            - generic [ref=e1042] [cursor=pointer]
+            - generic [ref=e1043] [cursor=pointer]
+            - generic [ref=e1044] [cursor=pointer]
+            - generic [ref=e1045] [cursor=pointer]
+            - generic [ref=e1046] [cursor=pointer]
+            - generic [ref=e1047] [cursor=pointer]
+            - generic [ref=e1048] [cursor=pointer]
+            - generic [ref=e1049] [cursor=pointer]
+            - generic [ref=e1050] [cursor=pointer]
+            - generic [ref=e1051] [cursor=pointer]
+            - generic [ref=e1052] [cursor=pointer]
+            - generic [ref=e1053] [cursor=pointer]
+            - generic [ref=e1054] [cursor=pointer]
+            - generic [ref=e1055] [cursor=pointer]
+            - generic [ref=e1056] [cursor=pointer]
+            - generic [ref=e1057] [cursor=pointer]
+            - generic [ref=e1058] [cursor=pointer]
+            - generic [ref=e1059] [cursor=pointer]
+            - generic [ref=e1060] [cursor=pointer]
+            - generic [ref=e1061] [cursor=pointer]
+            - generic [ref=e1062] [cursor=pointer]
+            - generic [ref=e1063] [cursor=pointer]
+            - generic [ref=e1064] [cursor=pointer]
+            - generic [ref=e1065] [cursor=pointer]
+            - generic [ref=e1066] [cursor=pointer]
+            - generic [ref=e1067] [cursor=pointer]
+            - generic [ref=e1068] [cursor=pointer]
+            - generic [ref=e1069] [cursor=pointer]
+            - generic [ref=e1070] [cursor=pointer]
+            - generic [ref=e1071] [cursor=pointer]
+            - generic [ref=e1072] [cursor=pointer]
+            - generic [ref=e1073] [cursor=pointer]
+            - generic [ref=e1074] [cursor=pointer]
+            - generic [ref=e1075] [cursor=pointer]
+            - generic [ref=e1076] [cursor=pointer]
+            - generic [ref=e1077] [cursor=pointer]
+            - generic [ref=e1078] [cursor=pointer]
+            - generic [ref=e1079] [cursor=pointer]
+            - generic [ref=e1080] [cursor=pointer]
+            - generic [ref=e1081] [cursor=pointer]
+            - generic [ref=e1082] [cursor=pointer]
+            - generic [ref=e1083] [cursor=pointer]
+            - generic [ref=e1084] [cursor=pointer]
+            - generic [ref=e1085] [cursor=pointer]
+            - generic [ref=e1086] [cursor=pointer]
+            - generic [ref=e1087] [cursor=pointer]
+            - generic [ref=e1088] [cursor=pointer]
+            - generic [ref=e1089] [cursor=pointer]
+            - generic [ref=e1090] [cursor=pointer]
+            - generic [ref=e1091] [cursor=pointer]
+            - generic [ref=e1092] [cursor=pointer]
+            - generic [ref=e1093] [cursor=pointer]
+            - generic [ref=e1094] [cursor=pointer]
+            - generic [ref=e1095] [cursor=pointer]
+            - generic [ref=e1096] [cursor=pointer]
+            - generic [ref=e1097] [cursor=pointer]
+            - generic [ref=e1098] [cursor=pointer]
+            - generic [ref=e1099] [cursor=pointer]
+            - generic [ref=e1100] [cursor=pointer]
+            - generic [ref=e1101] [cursor=pointer]
+            - generic [ref=e1102] [cursor=pointer]
+            - generic [ref=e1103] [cursor=pointer]
+            - generic [ref=e1104] [cursor=pointer]
+            - generic [ref=e1105] [cursor=pointer]
+            - generic [ref=e1106] [cursor=pointer]
+            - generic [ref=e1107] [cursor=pointer]
+            - generic [ref=e1108] [cursor=pointer]
+            - generic [ref=e1109] [cursor=pointer]
+            - generic [ref=e1110] [cursor=pointer]
+            - generic [ref=e1111] [cursor=pointer]
+            - generic [ref=e1112] [cursor=pointer]
+            - generic [ref=e1113] [cursor=pointer]
+            - generic [ref=e1114] [cursor=pointer]
+            - generic [ref=e1115] [cursor=pointer]
+            - generic [ref=e1116] [cursor=pointer]
+            - generic [ref=e1117] [cursor=pointer]
+            - generic [ref=e1118] [cursor=pointer]
+            - generic [ref=e1119] [cursor=pointer]
+            - generic [ref=e1120] [cursor=pointer]
+            - generic [ref=e1121] [cursor=pointer]
+            - generic [ref=e1122] [cursor=pointer]
+            - generic [ref=e1123] [cursor=pointer]
+            - generic [ref=e1124] [cursor=pointer]
+            - generic [ref=e1125] [cursor=pointer]
+            - generic [ref=e1126] [cursor=pointer]
+            - generic [ref=e1127] [cursor=pointer]
+            - generic [ref=e1128] [cursor=pointer]
+            - generic [ref=e1129] [cursor=pointer]
+            - generic [ref=e1130] [cursor=pointer]
+            - generic [ref=e1131] [cursor=pointer]
+            - generic [ref=e1132] [cursor=pointer]
+            - generic [ref=e1133] [cursor=pointer]
+            - generic [ref=e1134] [cursor=pointer]
+            - generic [ref=e1135] [cursor=pointer]
+            - generic [ref=e1136] [cursor=pointer]
+            - generic [ref=e1137] [cursor=pointer]
+            - generic [ref=e1138] [cursor=pointer]
+            - generic [ref=e1139] [cursor=pointer]
+            - generic [ref=e1140] [cursor=pointer]
+            - generic [ref=e1141] [cursor=pointer]
+            - generic [ref=e1142] [cursor=pointer]
+            - generic [ref=e1143] [cursor=pointer]
+            - generic [ref=e1144] [cursor=pointer]
+            - generic [ref=e1145] [cursor=pointer]
+            - generic [ref=e1146] [cursor=pointer]
+            - generic [ref=e1147] [cursor=pointer]
+            - generic [ref=e1148] [cursor=pointer]
+            - generic [ref=e1149] [cursor=pointer]
+            - generic [ref=e1150] [cursor=pointer]
+            - generic [ref=e1151] [cursor=pointer]
+            - generic [ref=e1152] [cursor=pointer]
+            - generic [ref=e1153] [cursor=pointer]
+            - generic [ref=e1154] [cursor=pointer]
+            - generic [ref=e1155] [cursor=pointer]
+            - generic [ref=e1156] [cursor=pointer]
+            - generic [ref=e1157] [cursor=pointer]
+            - generic [ref=e1158] [cursor=pointer]
+            - generic [ref=e1159] [cursor=pointer]
+            - generic [ref=e1160] [cursor=pointer]
+            - generic [ref=e1161] [cursor=pointer]
+            - generic [ref=e1162] [cursor=pointer]
+            - generic [ref=e1163] [cursor=pointer]
+            - generic [ref=e1164] [cursor=pointer]
+            - generic [ref=e1165] [cursor=pointer]
+            - generic [ref=e1166] [cursor=pointer]
+            - generic [ref=e1167] [cursor=pointer]
+            - generic [ref=e1168] [cursor=pointer]
+            - generic [ref=e1169] [cursor=pointer]
+            - generic [ref=e1170] [cursor=pointer]
+            - generic [ref=e1171] [cursor=pointer]
+            - generic [ref=e1172] [cursor=pointer]
+            - generic [ref=e1173] [cursor=pointer]
+            - generic [ref=e1174] [cursor=pointer]
+            - generic [ref=e1175] [cursor=pointer]
+            - generic [ref=e1176] [cursor=pointer]
+            - generic [ref=e1177] [cursor=pointer]
+            - generic [ref=e1178] [cursor=pointer]
+            - generic [ref=e1179] [cursor=pointer]
+            - generic [ref=e1180] [cursor=pointer]
+            - generic [ref=e1181] [cursor=pointer]
+            - generic [ref=e1182] [cursor=pointer]
+            - generic [ref=e1183] [cursor=pointer]
+            - generic [ref=e1184] [cursor=pointer]
+            - generic [ref=e1185] [cursor=pointer]
+            - generic [ref=e1186] [cursor=pointer]
+            - generic [ref=e1187] [cursor=pointer]
+            - generic [ref=e1188] [cursor=pointer]
+            - generic [ref=e1189] [cursor=pointer]
+            - generic [ref=e1190] [cursor=pointer]
+            - generic [ref=e1191] [cursor=pointer]
+            - generic [ref=e1192] [cursor=pointer]
+            - generic [ref=e1193] [cursor=pointer]
+            - generic [ref=e1194] [cursor=pointer]
+            - generic [ref=e1195] [cursor=pointer]
+            - generic [ref=e1196] [cursor=pointer]
+            - generic [ref=e1197] [cursor=pointer]
+            - generic [ref=e1198] [cursor=pointer]
+            - generic [ref=e1199] [cursor=pointer]
+            - generic [ref=e1200] [cursor=pointer]
+            - generic [ref=e1201] [cursor=pointer]
+            - generic [ref=e1202] [cursor=pointer]
+            - generic [ref=e1203] [cursor=pointer]
+            - generic [ref=e1204] [cursor=pointer]
+            - generic [ref=e1205] [cursor=pointer]
+            - generic [ref=e1206] [cursor=pointer]
+            - generic [ref=e1207] [cursor=pointer]
+            - generic [ref=e1208] [cursor=pointer]
+            - generic [ref=e1209] [cursor=pointer]
+            - generic [ref=e1210] [cursor=pointer]
+            - generic [ref=e1211] [cursor=pointer]
+            - generic [ref=e1212] [cursor=pointer]
+            - generic [ref=e1213] [cursor=pointer]
+            - generic [ref=e1214] [cursor=pointer]
+            - generic [ref=e1215] [cursor=pointer]
+            - generic [ref=e1216] [cursor=pointer]
+            - generic [ref=e1217] [cursor=pointer]
+            - generic [ref=e1218] [cursor=pointer]
+            - generic [ref=e1219] [cursor=pointer]
+            - generic [ref=e1220] [cursor=pointer]
+            - generic [ref=e1221] [cursor=pointer]
+            - generic [ref=e1222] [cursor=pointer]
+            - generic [ref=e1223] [cursor=pointer]
+            - generic [ref=e1224] [cursor=pointer]
+            - generic [ref=e1225] [cursor=pointer]
+            - generic [ref=e1226] [cursor=pointer]
+            - generic [ref=e1227] [cursor=pointer]
+            - generic [ref=e1228] [cursor=pointer]
+            - generic [ref=e1229] [cursor=pointer]
+            - generic [ref=e1230] [cursor=pointer]
+            - generic [ref=e1231] [cursor=pointer]
+            - generic [ref=e1232] [cursor=pointer]
+            - generic [ref=e1233] [cursor=pointer]
+            - generic [ref=e1234] [cursor=pointer]
+            - generic [ref=e1235] [cursor=pointer]
+            - generic [ref=e1236] [cursor=pointer]
+            - generic [ref=e1237] [cursor=pointer]
+            - generic [ref=e1238] [cursor=pointer]
+            - generic [ref=e1239] [cursor=pointer]
+            - generic [ref=e1240] [cursor=pointer]
+            - generic [ref=e1241] [cursor=pointer]
+            - generic [ref=e1242] [cursor=pointer]
+            - generic [ref=e1243] [cursor=pointer]
+            - generic [ref=e1244] [cursor=pointer]
+            - generic [ref=e1245] [cursor=pointer]
+            - generic [ref=e1246] [cursor=pointer]
+            - generic [ref=e1247] [cursor=pointer]
+            - generic [ref=e1248] [cursor=pointer]
+            - generic [ref=e1249] [cursor=pointer]
+            - generic [ref=e1250] [cursor=pointer]
+            - generic [ref=e1251] [cursor=pointer]
+            - generic [ref=e1252] [cursor=pointer]
+            - generic [ref=e1253] [cursor=pointer]
+            - generic [ref=e1254] [cursor=pointer]
+            - generic [ref=e1255] [cursor=pointer]
+            - generic [ref=e1256] [cursor=pointer]
+            - generic [ref=e1257] [cursor=pointer]
+            - generic [ref=e1258] [cursor=pointer]
+            - generic [ref=e1259] [cursor=pointer]
+            - generic [ref=e1260] [cursor=pointer]
+            - generic [ref=e1261] [cursor=pointer]
+            - generic [ref=e1262] [cursor=pointer]
+            - generic [ref=e1263] [cursor=pointer]
+            - generic [ref=e1264] [cursor=pointer]
+            - generic [ref=e1265] [cursor=pointer]
+            - generic [ref=e1266] [cursor=pointer]
+            - generic [ref=e1267] [cursor=pointer]
+            - generic [ref=e1268] [cursor=pointer]
+            - generic [ref=e1269] [cursor=pointer]
+            - generic [ref=e1270] [cursor=pointer]
+            - generic [ref=e1271] [cursor=pointer]
+            - generic [ref=e1272] [cursor=pointer]
+            - generic [ref=e1273] [cursor=pointer]
+            - generic [ref=e1274] [cursor=pointer]
+            - generic [ref=e1275] [cursor=pointer]
+            - generic [ref=e1276] [cursor=pointer]
+            - generic [ref=e1277] [cursor=pointer]
+            - generic [ref=e1278] [cursor=pointer]
+            - generic [ref=e1279] [cursor=pointer]
+            - generic [ref=e1280] [cursor=pointer]
+            - generic [ref=e1281] [cursor=pointer]
+            - generic [ref=e1282] [cursor=pointer]
+            - generic [ref=e1283] [cursor=pointer]
+            - generic [ref=e1284] [cursor=pointer]
+            - generic [ref=e1285] [cursor=pointer]
+            - generic [ref=e1286] [cursor=pointer]
+            - generic [ref=e1287] [cursor=pointer]
+            - generic [ref=e1288] [cursor=pointer]
+            - generic [ref=e1289] [cursor=pointer]
+            - generic [ref=e1290] [cursor=pointer]
+            - generic [ref=e1291] [cursor=pointer]
+            - generic [ref=e1292] [cursor=pointer]
+            - generic [ref=e1293] [cursor=pointer]
+            - generic [ref=e1294] [cursor=pointer]
+            - generic [ref=e1295] [cursor=pointer]
+            - generic [ref=e1296] [cursor=pointer]
+            - generic [ref=e1297] [cursor=pointer]
+            - generic [ref=e1298] [cursor=pointer]
+            - generic [ref=e1299] [cursor=pointer]
+            - generic [ref=e1300] [cursor=pointer]
+            - generic [ref=e1301] [cursor=pointer]
+            - generic [ref=e1302] [cursor=pointer]
+            - generic [ref=e1303] [cursor=pointer]
+            - generic [ref=e1304] [cursor=pointer]
+            - generic [ref=e1305] [cursor=pointer]
+            - generic [ref=e1306] [cursor=pointer]
+            - generic [ref=e1307] [cursor=pointer]
+            - generic [ref=e1308] [cursor=pointer]
+            - generic [ref=e1309] [cursor=pointer]
+            - generic [ref=e1310] [cursor=pointer]
+            - generic [ref=e1311] [cursor=pointer]
+            - generic [ref=e1312] [cursor=pointer]
+            - generic [ref=e1313] [cursor=pointer]
+            - generic [ref=e1314] [cursor=pointer]
+            - generic [ref=e1315] [cursor=pointer]
+            - generic [ref=e1316] [cursor=pointer]
+            - generic [ref=e1317] [cursor=pointer]
+            - generic [ref=e1318] [cursor=pointer]
+            - generic [ref=e1319] [cursor=pointer]
+            - generic [ref=e1320] [cursor=pointer]
+            - generic [ref=e1321] [cursor=pointer]
+            - generic [ref=e1322] [cursor=pointer]
+            - generic [ref=e1323] [cursor=pointer]
+            - generic [ref=e1324] [cursor=pointer]
+            - generic [ref=e1325] [cursor=pointer]
+            - generic [ref=e1326] [cursor=pointer]
+            - generic [ref=e1327] [cursor=pointer]
+            - generic [ref=e1328] [cursor=pointer]
+            - generic [ref=e1329] [cursor=pointer]
+            - generic [ref=e1330] [cursor=pointer]
+            - generic [ref=e1331] [cursor=pointer]
+            - generic [ref=e1332] [cursor=pointer]
+            - generic [ref=e1333] [cursor=pointer]
+            - generic [ref=e1334] [cursor=pointer]
+            - generic [ref=e1335] [cursor=pointer]
+            - generic [ref=e1336] [cursor=pointer]
+            - generic [ref=e1337] [cursor=pointer]
+            - generic [ref=e1338] [cursor=pointer]
+            - generic [ref=e1339] [cursor=pointer]
+            - generic [ref=e1340] [cursor=pointer]
+            - generic [ref=e1341] [cursor=pointer]
+            - generic [ref=e1342] [cursor=pointer]
+            - generic [ref=e1343] [cursor=pointer]
+            - generic [ref=e1344] [cursor=pointer]
+            - generic [ref=e1345] [cursor=pointer]
+            - generic [ref=e1346] [cursor=pointer]
+            - generic [ref=e1347] [cursor=pointer]
+            - generic [ref=e1348] [cursor=pointer]
+            - generic [ref=e1349] [cursor=pointer]
+            - generic [ref=e1350] [cursor=pointer]
+            - generic [ref=e1351] [cursor=pointer]
+            - generic [ref=e1352] [cursor=pointer]
+            - generic [ref=e1353] [cursor=pointer]
+            - generic [ref=e1354] [cursor=pointer]
+            - generic [ref=e1355] [cursor=pointer]
+            - generic [ref=e1356] [cursor=pointer]
+            - generic [ref=e1357] [cursor=pointer]
+            - generic [ref=e1358] [cursor=pointer]
+            - generic [ref=e1359] [cursor=pointer]
+            - generic [ref=e1360] [cursor=pointer]
+            - generic [ref=e1361] [cursor=pointer]
+            - generic [ref=e1362] [cursor=pointer]
+            - generic [ref=e1363] [cursor=pointer]
+            - generic [ref=e1364] [cursor=pointer]
+            - generic [ref=e1365] [cursor=pointer]
+            - generic [ref=e1366] [cursor=pointer]
+            - generic [ref=e1367] [cursor=pointer]
+            - generic [ref=e1368] [cursor=pointer]
+            - generic [ref=e1369] [cursor=pointer]
+            - generic [ref=e1370] [cursor=pointer]
+            - generic [ref=e1371] [cursor=pointer]
+            - generic [ref=e1372] [cursor=pointer]
+            - generic [ref=e1373] [cursor=pointer]
+            - generic [ref=e1374] [cursor=pointer]
+            - generic [ref=e1375] [cursor=pointer]
+            - generic [ref=e1376] [cursor=pointer]
+            - generic [ref=e1377] [cursor=pointer]
+            - generic [ref=e1378] [cursor=pointer]
+            - generic [ref=e1379] [cursor=pointer]
+            - generic [ref=e1380] [cursor=pointer]
+            - generic [ref=e1381] [cursor=pointer]
+            - generic [ref=e1382] [cursor=pointer]
+            - generic [ref=e1383] [cursor=pointer]
+            - generic [ref=e1384] [cursor=pointer]
+            - generic [ref=e1385] [cursor=pointer]
+            - generic [ref=e1386] [cursor=pointer]
+            - generic [ref=e1387] [cursor=pointer]
+            - generic [ref=e1388] [cursor=pointer]
+            - generic [ref=e1389] [cursor=pointer]
+            - generic [ref=e1390] [cursor=pointer]
+            - generic [ref=e1391] [cursor=pointer]
+            - generic [ref=e1392] [cursor=pointer]
+            - generic [ref=e1393] [cursor=pointer]
+            - generic [ref=e1394] [cursor=pointer]
+            - generic [ref=e1395] [cursor=pointer]
+            - generic [ref=e1396] [cursor=pointer]
+            - generic [ref=e1397] [cursor=pointer]
+            - generic [ref=e1398] [cursor=pointer]
+            - generic [ref=e1399] [cursor=pointer]
+            - generic [ref=e1400] [cursor=pointer]
+            - generic [ref=e1401] [cursor=pointer]
+            - generic [ref=e1402] [cursor=pointer]
+            - generic [ref=e1403] [cursor=pointer]
+            - generic [ref=e1404] [cursor=pointer]
+            - generic [ref=e1405] [cursor=pointer]
+            - generic [ref=e1406] [cursor=pointer]
+            - generic [ref=e1407] [cursor=pointer]
+            - generic [ref=e1408] [cursor=pointer]
+            - generic [ref=e1409] [cursor=pointer]
+            - generic [ref=e1410] [cursor=pointer]
+            - generic [ref=e1411] [cursor=pointer]
+            - generic [ref=e1412] [cursor=pointer]
+            - generic [ref=e1413] [cursor=pointer]
+            - generic [ref=e1414] [cursor=pointer]
+            - generic [ref=e1415] [cursor=pointer]
+            - generic [ref=e1416] [cursor=pointer]
+            - generic [ref=e1417] [cursor=pointer]
+            - generic [ref=e1418] [cursor=pointer]
+            - generic [ref=e1419] [cursor=pointer]
+            - generic [ref=e1420] [cursor=pointer]
+            - generic [ref=e1421] [cursor=pointer]
+            - generic [ref=e1422] [cursor=pointer]
+            - generic [ref=e1423] [cursor=pointer]
+            - generic [ref=e1424] [cursor=pointer]
+            - generic [ref=e1425] [cursor=pointer]
+            - generic [ref=e1426] [cursor=pointer]
+            - generic [ref=e1427] [cursor=pointer]
+            - generic [ref=e1428] [cursor=pointer]
+            - generic [ref=e1429] [cursor=pointer]
+            - generic [ref=e1430] [cursor=pointer]
+            - generic [ref=e1431] [cursor=pointer]
+            - generic [ref=e1432] [cursor=pointer]
+            - generic [ref=e1433] [cursor=pointer]
+            - generic [ref=e1434] [cursor=pointer]
+            - generic [ref=e1435] [cursor=pointer]
+            - generic [ref=e1436] [cursor=pointer]
+            - generic [ref=e1437] [cursor=pointer]
+            - generic [ref=e1438] [cursor=pointer]
+            - generic [ref=e1439] [cursor=pointer]
+            - generic [ref=e1440] [cursor=pointer]
+            - generic [ref=e1441] [cursor=pointer]
+            - generic [ref=e1442] [cursor=pointer]
+            - generic [ref=e1443] [cursor=pointer]
+            - generic [ref=e1444] [cursor=pointer]
+            - generic [ref=e1445] [cursor=pointer]
+            - generic [ref=e1446] [cursor=pointer]
+            - generic [ref=e1447] [cursor=pointer]
+            - generic [ref=e1448] [cursor=pointer]
+            - generic [ref=e1449] [cursor=pointer]
+            - generic [ref=e1450] [cursor=pointer]
+            - generic [ref=e1451] [cursor=pointer]
+            - generic [ref=e1452] [cursor=pointer]
+            - generic [ref=e1453] [cursor=pointer]
+            - generic [ref=e1454] [cursor=pointer]
+            - generic [ref=e1455] [cursor=pointer]
+            - generic [ref=e1456] [cursor=pointer]
+            - generic [ref=e1457] [cursor=pointer]
+            - generic [ref=e1458] [cursor=pointer]
+            - generic [ref=e1459] [cursor=pointer]
+            - generic [ref=e1460] [cursor=pointer]
+            - generic [ref=e1461] [cursor=pointer]
+            - generic [ref=e1462] [cursor=pointer]
+            - generic [ref=e1463] [cursor=pointer]
+            - generic [ref=e1464] [cursor=pointer]
+            - generic [ref=e1465] [cursor=pointer]
+            - generic [ref=e1466] [cursor=pointer]
+            - generic [ref=e1467] [cursor=pointer]
+            - generic [ref=e1468] [cursor=pointer]
+            - generic [ref=e1469] [cursor=pointer]
+            - generic [ref=e1470] [cursor=pointer]
+            - generic [ref=e1471] [cursor=pointer]
+            - generic [ref=e1472] [cursor=pointer]
+            - generic [ref=e1473] [cursor=pointer]
+            - generic [ref=e1474] [cursor=pointer]
+            - generic [ref=e1475] [cursor=pointer]
+            - generic [ref=e1476] [cursor=pointer]
+            - generic [ref=e1477] [cursor=pointer]
+            - generic [ref=e1478] [cursor=pointer]
+            - generic [ref=e1479] [cursor=pointer]
+            - generic [ref=e1480] [cursor=pointer]
+            - generic [ref=e1481] [cursor=pointer]
+            - generic [ref=e1482] [cursor=pointer]
+            - generic [ref=e1483] [cursor=pointer]
+            - generic [ref=e1484] [cursor=pointer]
+            - generic [ref=e1485] [cursor=pointer]
+            - generic [ref=e1486] [cursor=pointer]
+            - generic [ref=e1487] [cursor=pointer]
+            - generic [ref=e1488] [cursor=pointer]
+            - generic [ref=e1489] [cursor=pointer]
+            - generic [ref=e1490] [cursor=pointer]
+            - generic [ref=e1491] [cursor=pointer]
+            - generic [ref=e1492] [cursor=pointer]
+            - generic [ref=e1493] [cursor=pointer]
+            - generic [ref=e1494] [cursor=pointer]
+            - generic [ref=e1495] [cursor=pointer]
+            - generic [ref=e1496] [cursor=pointer]
+            - generic [ref=e1497] [cursor=pointer]
+            - generic [ref=e1498] [cursor=pointer]
+            - generic [ref=e1499] [cursor=pointer]
+            - generic [ref=e1500] [cursor=pointer]
+            - generic [ref=e1501] [cursor=pointer]
+            - generic [ref=e1502] [cursor=pointer]
+            - generic [ref=e1503] [cursor=pointer]
+            - generic [ref=e1504] [cursor=pointer]
+            - generic [ref=e1505] [cursor=pointer]
+            - generic [ref=e1506] [cursor=pointer]
+            - generic [ref=e1507] [cursor=pointer]
+            - generic [ref=e1508] [cursor=pointer]
+            - generic [ref=e1509] [cursor=pointer]
+            - generic [ref=e1510] [cursor=pointer]
+            - generic [ref=e1511] [cursor=pointer]
+            - generic [ref=e1512] [cursor=pointer]
+            - generic [ref=e1513] [cursor=pointer]
+            - generic [ref=e1514] [cursor=pointer]
+            - generic [ref=e1515] [cursor=pointer]
+            - generic [ref=e1516] [cursor=pointer]
+            - generic [ref=e1517] [cursor=pointer]
+            - generic [ref=e1518] [cursor=pointer]
+            - generic [ref=e1519] [cursor=pointer]
+            - generic [ref=e1520] [cursor=pointer]
+            - generic [ref=e1521] [cursor=pointer]
+            - generic [ref=e1522] [cursor=pointer]
+            - generic [ref=e1523] [cursor=pointer]
+            - generic [ref=e1524] [cursor=pointer]
+            - generic [ref=e1525] [cursor=pointer]
+            - generic [ref=e1526] [cursor=pointer]
+            - generic [ref=e1527] [cursor=pointer]
+            - generic [ref=e1528] [cursor=pointer]
+            - generic [ref=e1529] [cursor=pointer]
+            - generic [ref=e1530] [cursor=pointer]
+            - generic [ref=e1531] [cursor=pointer]
+            - generic [ref=e1532] [cursor=pointer]
+            - generic [ref=e1533] [cursor=pointer]
+            - generic [ref=e1534] [cursor=pointer]
+            - generic [ref=e1535] [cursor=pointer]
+            - generic [ref=e1536] [cursor=pointer]
+            - generic [ref=e1537] [cursor=pointer]
+            - generic [ref=e1538] [cursor=pointer]
+            - generic [ref=e1539] [cursor=pointer]
+            - generic [ref=e1540] [cursor=pointer]
+            - generic [ref=e1541] [cursor=pointer]
+            - generic [ref=e1542] [cursor=pointer]
+            - generic [ref=e1543] [cursor=pointer]
+            - generic [ref=e1544] [cursor=pointer]
+            - generic [ref=e1545] [cursor=pointer]
+            - generic [ref=e1546] [cursor=pointer]
+            - generic [ref=e1547] [cursor=pointer]
+            - generic [ref=e1548] [cursor=pointer]
+            - generic [ref=e1549] [cursor=pointer]
+            - generic [ref=e1550] [cursor=pointer]
+            - generic [ref=e1551] [cursor=pointer]
+            - generic [ref=e1552] [cursor=pointer]
+            - generic [ref=e1553] [cursor=pointer]
+            - generic [ref=e1554] [cursor=pointer]
+            - generic [ref=e1555] [cursor=pointer]
+            - generic [ref=e1556] [cursor=pointer]
+            - generic [ref=e1557] [cursor=pointer]
+            - generic [ref=e1558] [cursor=pointer]
+            - generic [ref=e1559] [cursor=pointer]
+            - generic [ref=e1560] [cursor=pointer]
+            - generic [ref=e1561] [cursor=pointer]
+            - generic [ref=e1562] [cursor=pointer]
+            - generic [ref=e1563] [cursor=pointer]
+            - generic [ref=e1564] [cursor=pointer]
+            - generic [ref=e1565] [cursor=pointer]
+            - generic [ref=e1566] [cursor=pointer]
+            - generic [ref=e1567] [cursor=pointer]
+            - generic [ref=e1568] [cursor=pointer]
+            - generic [ref=e1569] [cursor=pointer]
+            - generic [ref=e1570] [cursor=pointer]
+            - generic [ref=e1571] [cursor=pointer]
+            - generic [ref=e1572] [cursor=pointer]
+            - generic [ref=e1573] [cursor=pointer]
+            - generic [ref=e1574] [cursor=pointer]
+            - generic [ref=e1575] [cursor=pointer]
+            - generic [ref=e1576] [cursor=pointer]
+            - generic [ref=e1577] [cursor=pointer]
+            - generic [ref=e1578] [cursor=pointer]
+            - generic [ref=e1579] [cursor=pointer]
+            - generic [ref=e1580] [cursor=pointer]
+            - generic [ref=e1581] [cursor=pointer]
+            - generic [ref=e1582] [cursor=pointer]
+            - generic [ref=e1583] [cursor=pointer]
+            - generic [ref=e1584] [cursor=pointer]
+            - generic [ref=e1585] [cursor=pointer]
+            - generic [ref=e1586] [cursor=pointer]
+            - generic [ref=e1587] [cursor=pointer]
+            - generic [ref=e1588] [cursor=pointer]
+            - generic [ref=e1589] [cursor=pointer]
+            - generic [ref=e1590] [cursor=pointer]
+            - generic [ref=e1591] [cursor=pointer]
+            - generic [ref=e1592] [cursor=pointer]
+            - generic [ref=e1593] [cursor=pointer]
+            - generic [ref=e1594] [cursor=pointer]
+            - generic [ref=e1595] [cursor=pointer]
+            - generic [ref=e1596] [cursor=pointer]
+            - generic [ref=e1597] [cursor=pointer]
+            - generic [ref=e1598] [cursor=pointer]
+            - generic [ref=e1599] [cursor=pointer]
+            - generic [ref=e1600] [cursor=pointer]
+            - generic [ref=e1601] [cursor=pointer]
+            - generic [ref=e1602] [cursor=pointer]
+            - generic [ref=e1603] [cursor=pointer]
+            - generic [ref=e1604] [cursor=pointer]
+            - generic [ref=e1605] [cursor=pointer]
+            - generic [ref=e1606] [cursor=pointer]
+            - generic [ref=e1607] [cursor=pointer]
+            - generic [ref=e1608] [cursor=pointer]
+            - generic [ref=e1609] [cursor=pointer]
+            - generic [ref=e1610] [cursor=pointer]
+            - generic [ref=e1611] [cursor=pointer]
+            - generic [ref=e1612] [cursor=pointer]
+            - generic [ref=e1613] [cursor=pointer]
+            - generic [ref=e1614] [cursor=pointer]
+            - generic [ref=e1615] [cursor=pointer]
+            - generic [ref=e1616] [cursor=pointer]
+            - generic [ref=e1617] [cursor=pointer]
+            - generic [ref=e1618] [cursor=pointer]
+            - generic [ref=e1619] [cursor=pointer]
+            - generic [ref=e1620] [cursor=pointer]
+            - generic [ref=e1621] [cursor=pointer]
+            - generic [ref=e1622] [cursor=pointer]
+            - generic [ref=e1623] [cursor=pointer]
+            - generic [ref=e1624] [cursor=pointer]
+            - generic [ref=e1625] [cursor=pointer]
+            - generic [ref=e1626] [cursor=pointer]
+            - generic [ref=e1627] [cursor=pointer]
+            - generic [ref=e1628] [cursor=pointer]
+            - generic [ref=e1629] [cursor=pointer]
+            - generic [ref=e1630] [cursor=pointer]
+            - generic [ref=e1631] [cursor=pointer]
+            - generic [ref=e1632] [cursor=pointer]
+            - generic [ref=e1633] [cursor=pointer]
+            - generic [ref=e1634] [cursor=pointer]
+            - generic [ref=e1635] [cursor=pointer]
+            - generic [ref=e1636] [cursor=pointer]
+            - generic [ref=e1637] [cursor=pointer]
+            - generic [ref=e1638] [cursor=pointer]
+            - generic [ref=e1639] [cursor=pointer]
+            - generic [ref=e1640] [cursor=pointer]
+            - generic [ref=e1641] [cursor=pointer]
+            - generic [ref=e1642] [cursor=pointer]
+            - generic [ref=e1643] [cursor=pointer]
+            - generic [ref=e1644] [cursor=pointer]
+            - generic [ref=e1645] [cursor=pointer]
+            - generic [ref=e1646] [cursor=pointer]
+            - generic [ref=e1647] [cursor=pointer]
+            - generic [ref=e1648] [cursor=pointer]
+            - generic [ref=e1649] [cursor=pointer]
+            - generic [ref=e1650] [cursor=pointer]
+            - generic [ref=e1651] [cursor=pointer]
+            - generic [ref=e1652] [cursor=pointer]
+            - generic [ref=e1653] [cursor=pointer]
+            - generic [ref=e1654] [cursor=pointer]
+            - generic [ref=e1655] [cursor=pointer]
+            - generic [ref=e1656] [cursor=pointer]
+            - generic [ref=e1657] [cursor=pointer]
+            - generic [ref=e1658] [cursor=pointer]
+            - generic [ref=e1659] [cursor=pointer]
+            - generic [ref=e1660] [cursor=pointer]
+            - generic [ref=e1661] [cursor=pointer]
+            - generic [ref=e1662] [cursor=pointer]
+            - generic [ref=e1663] [cursor=pointer]
+            - generic [ref=e1664] [cursor=pointer]
+            - generic [ref=e1665] [cursor=pointer]
+            - generic [ref=e1666] [cursor=pointer]
+            - generic [ref=e1667] [cursor=pointer]
+            - generic [ref=e1668] [cursor=pointer]
+            - generic [ref=e1669] [cursor=pointer]
+            - generic [ref=e1670] [cursor=pointer]
+            - generic [ref=e1671] [cursor=pointer]
+            - generic [ref=e1672] [cursor=pointer]
+            - generic [ref=e1673] [cursor=pointer]
+            - generic [ref=e1674] [cursor=pointer]
+            - generic [ref=e1675] [cursor=pointer]
+            - generic [ref=e1676] [cursor=pointer]
+            - generic [ref=e1677] [cursor=pointer]
+            - generic [ref=e1678] [cursor=pointer]
+            - generic [ref=e1679] [cursor=pointer]
+            - generic [ref=e1680] [cursor=pointer]
+            - generic [ref=e1681] [cursor=pointer]
+            - generic [ref=e1682] [cursor=pointer]
+            - generic [ref=e1683] [cursor=pointer]
+            - generic [ref=e1684] [cursor=pointer]
+            - generic [ref=e1685] [cursor=pointer]
+            - generic [ref=e1686] [cursor=pointer]
+            - generic [ref=e1687] [cursor=pointer]
+            - generic [ref=e1688] [cursor=pointer]
+            - generic [ref=e1689] [cursor=pointer]
+            - generic [ref=e1690] [cursor=pointer]
+            - generic [ref=e1691] [cursor=pointer]
+            - generic [ref=e1692] [cursor=pointer]
+            - generic [ref=e1693] [cursor=pointer]
+            - generic [ref=e1694] [cursor=pointer]
+            - generic [ref=e1695] [cursor=pointer]
+            - generic [ref=e1696] [cursor=pointer]
+            - generic [ref=e1697] [cursor=pointer]
+            - generic [ref=e1698] [cursor=pointer]
+            - generic [ref=e1699] [cursor=pointer]
+            - generic [ref=e1700] [cursor=pointer]
+            - generic [ref=e1701] [cursor=pointer]
+            - generic [ref=e1702] [cursor=pointer]
+            - generic [ref=e1703] [cursor=pointer]
+            - generic [ref=e1704] [cursor=pointer]
+            - generic [ref=e1705] [cursor=pointer]
+            - generic [ref=e1706] [cursor=pointer]
+            - generic [ref=e1707] [cursor=pointer]
+            - generic [ref=e1708] [cursor=pointer]
+            - generic [ref=e1709] [cursor=pointer]
+            - generic [ref=e1710] [cursor=pointer]
+            - generic [ref=e1711] [cursor=pointer]
+            - generic [ref=e1712] [cursor=pointer]
+            - generic [ref=e1713] [cursor=pointer]
+            - generic [ref=e1714] [cursor=pointer]
+            - generic [ref=e1715] [cursor=pointer]
+            - generic [ref=e1716] [cursor=pointer]
+            - generic [ref=e1717] [cursor=pointer]
+            - generic [ref=e1718] [cursor=pointer]
+            - generic [ref=e1719] [cursor=pointer]
+            - generic [ref=e1720] [cursor=pointer]
+            - generic [ref=e1721] [cursor=pointer]
+            - generic [ref=e1722] [cursor=pointer]
+            - generic [ref=e1723] [cursor=pointer]
+            - generic [ref=e1724] [cursor=pointer]
+            - generic [ref=e1725] [cursor=pointer]
+            - generic [ref=e1726] [cursor=pointer]
+            - generic [ref=e1727] [cursor=pointer]
+            - generic [ref=e1728] [cursor=pointer]
+            - generic [ref=e1729] [cursor=pointer]
+            - generic [ref=e1730] [cursor=pointer]
+            - generic [ref=e1731] [cursor=pointer]
+            - generic [ref=e1732] [cursor=pointer]
+            - generic [ref=e1733] [cursor=pointer]
+            - generic [ref=e1734] [cursor=pointer]
+            - generic [ref=e1735] [cursor=pointer]
+            - generic [ref=e1736] [cursor=pointer]
+            - generic [ref=e1737] [cursor=pointer]
+            - generic [ref=e1738] [cursor=pointer]
+            - generic [ref=e1739] [cursor=pointer]
+            - generic [ref=e1740] [cursor=pointer]
+            - generic [ref=e1741] [cursor=pointer]
+            - generic [ref=e1742] [cursor=pointer]
+            - generic [ref=e1743] [cursor=pointer]
+            - generic [ref=e1744] [cursor=pointer]
+            - generic [ref=e1745] [cursor=pointer]
+            - generic [ref=e1746] [cursor=pointer]
+            - generic [ref=e1747] [cursor=pointer]
+            - generic [ref=e1748] [cursor=pointer]
+            - generic [ref=e1749] [cursor=pointer]
+            - generic [ref=e1750] [cursor=pointer]
+            - generic [ref=e1751] [cursor=pointer]
+            - generic [ref=e1752] [cursor=pointer]
+            - generic [ref=e1753] [cursor=pointer]
+            - generic [ref=e1754] [cursor=pointer]
+            - generic [ref=e1755] [cursor=pointer]
+            - generic [ref=e1756] [cursor=pointer]
+            - generic [ref=e1757] [cursor=pointer]
+            - generic [ref=e1758] [cursor=pointer]
+            - generic [ref=e1759] [cursor=pointer]
+            - generic [ref=e1760] [cursor=pointer]
+            - generic [ref=e1761] [cursor=pointer]
+            - generic [ref=e1762] [cursor=pointer]
+            - generic [ref=e1763] [cursor=pointer]
+            - generic [ref=e1764] [cursor=pointer]
+            - generic [ref=e1765] [cursor=pointer]
+            - generic [ref=e1766] [cursor=pointer]
+            - generic [ref=e1767] [cursor=pointer]
+            - generic [ref=e1768] [cursor=pointer]
+            - generic [ref=e1769] [cursor=pointer]
+            - generic [ref=e1770] [cursor=pointer]
+            - generic [ref=e1771] [cursor=pointer]
+            - generic [ref=e1772] [cursor=pointer]
+            - generic [ref=e1773] [cursor=pointer]
+            - generic [ref=e1774] [cursor=pointer]
+            - generic [ref=e1775] [cursor=pointer]
+            - generic [ref=e1776] [cursor=pointer]
+            - generic [ref=e1777] [cursor=pointer]
+            - generic [ref=e1778] [cursor=pointer]
+            - generic [ref=e1779] [cursor=pointer]
+            - generic [ref=e1780] [cursor=pointer]
+            - generic [ref=e1781] [cursor=pointer]
+            - generic [ref=e1782] [cursor=pointer]
+            - generic [ref=e1783] [cursor=pointer]
+            - generic [ref=e1784] [cursor=pointer]
+            - generic [ref=e1785] [cursor=pointer]
+            - generic [ref=e1786] [cursor=pointer]
+            - generic [ref=e1787] [cursor=pointer]
+            - generic [ref=e1788] [cursor=pointer]
+            - generic [ref=e1789] [cursor=pointer]
+            - generic [ref=e1790] [cursor=pointer]
+            - generic [ref=e1791] [cursor=pointer]
+            - generic [ref=e1792] [cursor=pointer]
+            - generic [ref=e1793] [cursor=pointer]
+            - generic [ref=e1794] [cursor=pointer]
+            - generic [ref=e1795] [cursor=pointer]
+            - generic [ref=e1796] [cursor=pointer]
+            - generic [ref=e1797] [cursor=pointer]
+            - generic [ref=e1798] [cursor=pointer]
+            - generic [ref=e1799] [cursor=pointer]
+            - generic [ref=e1800] [cursor=pointer]
+            - generic [ref=e1801] [cursor=pointer]
+            - generic [ref=e1802] [cursor=pointer]
+            - generic [ref=e1803] [cursor=pointer]
+            - generic [ref=e1804] [cursor=pointer]
+            - generic [ref=e1805] [cursor=pointer]
+            - generic [ref=e1806] [cursor=pointer]
+            - generic [ref=e1807] [cursor=pointer]
+            - generic [ref=e1808] [cursor=pointer]
+            - generic [ref=e1809] [cursor=pointer]
+            - generic [ref=e1810] [cursor=pointer]
+            - generic [ref=e1811] [cursor=pointer]
+            - generic [ref=e1812] [cursor=pointer]
+            - generic [ref=e1813] [cursor=pointer]
+            - generic [ref=e1814] [cursor=pointer]
+            - generic [ref=e1815] [cursor=pointer]
+            - generic [ref=e1816] [cursor=pointer]
+            - generic [ref=e1817] [cursor=pointer]
+            - generic [ref=e1818] [cursor=pointer]
+            - generic [ref=e1819] [cursor=pointer]
+            - generic [ref=e1820] [cursor=pointer]
+            - generic [ref=e1821] [cursor=pointer]
+            - generic [ref=e1822] [cursor=pointer]
+            - generic [ref=e1823] [cursor=pointer]
+            - generic [ref=e1824] [cursor=pointer]
+            - generic [ref=e1825] [cursor=pointer]
+            - generic [ref=e1826] [cursor=pointer]
+            - generic [ref=e1827] [cursor=pointer]
+            - generic [ref=e1828] [cursor=pointer]
+            - generic [ref=e1829] [cursor=pointer]
+            - generic [ref=e1830] [cursor=pointer]
+            - generic [ref=e1831] [cursor=pointer]
+            - generic [ref=e1832] [cursor=pointer]
+            - generic [ref=e1833] [cursor=pointer]
+            - generic [ref=e1834] [cursor=pointer]
+            - generic [ref=e1835] [cursor=pointer]
+            - generic [ref=e1836] [cursor=pointer]
+            - generic [ref=e1837] [cursor=pointer]
+            - generic [ref=e1838] [cursor=pointer]
+            - generic [ref=e1839] [cursor=pointer]
+            - generic [ref=e1840] [cursor=pointer]
+            - generic [ref=e1841] [cursor=pointer]
+            - generic [ref=e1842] [cursor=pointer]
+            - generic [ref=e1843] [cursor=pointer]
+            - generic [ref=e1844] [cursor=pointer]
+            - generic [ref=e1845] [cursor=pointer]
+            - generic [ref=e1846] [cursor=pointer]
+            - generic [ref=e1847] [cursor=pointer]
+            - generic [ref=e1848] [cursor=pointer]
+            - generic [ref=e1849] [cursor=pointer]
+            - generic [ref=e1850] [cursor=pointer]
+            - generic [ref=e1851] [cursor=pointer]
+            - generic [ref=e1852] [cursor=pointer]
+            - generic [ref=e1853] [cursor=pointer]
+            - generic [ref=e1854] [cursor=pointer]
+            - generic [ref=e1855] [cursor=pointer]
+            - generic [ref=e1856] [cursor=pointer]
+            - generic [ref=e1857] [cursor=pointer]
+            - generic [ref=e1858] [cursor=pointer]
+            - generic [ref=e1859] [cursor=pointer]
+            - generic [ref=e1860] [cursor=pointer]
+            - generic [ref=e1861] [cursor=pointer]
+            - generic [ref=e1862] [cursor=pointer]
+            - generic [ref=e1863] [cursor=pointer]
+            - generic [ref=e1864] [cursor=pointer]
+            - generic [ref=e1865] [cursor=pointer]
+            - generic [ref=e1866] [cursor=pointer]
+            - generic [ref=e1867] [cursor=pointer]
+            - generic [ref=e1868] [cursor=pointer]
+            - generic [ref=e1869] [cursor=pointer]
+            - generic [ref=e1870] [cursor=pointer]
+            - generic [ref=e1871] [cursor=pointer]
+            - generic [ref=e1872] [cursor=pointer]
+            - generic [ref=e1873] [cursor=pointer]
+            - generic [ref=e1874] [cursor=pointer]
+            - generic [ref=e1875] [cursor=pointer]
+            - generic [ref=e1876] [cursor=pointer]
+            - generic [ref=e1877] [cursor=pointer]
+            - generic [ref=e1878] [cursor=pointer]
+            - generic [ref=e1879] [cursor=pointer]
+            - generic [ref=e1880] [cursor=pointer]
+            - generic [ref=e1881] [cursor=pointer]
+            - generic [ref=e1882] [cursor=pointer]
+            - generic [ref=e1883] [cursor=pointer]
+            - generic [ref=e1884] [cursor=pointer]
+            - generic [ref=e1885] [cursor=pointer]
+            - generic [ref=e1886] [cursor=pointer]
+            - generic [ref=e1887] [cursor=pointer]
+            - generic [ref=e1888] [cursor=pointer]
+            - generic [ref=e1889] [cursor=pointer]
+            - generic [ref=e1890] [cursor=pointer]
+            - generic [ref=e1891] [cursor=pointer]
+            - generic [ref=e1892] [cursor=pointer]
+            - generic [ref=e1893] [cursor=pointer]
+            - generic [ref=e1894] [cursor=pointer]
+            - generic [ref=e1895] [cursor=pointer]
+            - generic [ref=e1896] [cursor=pointer]
+            - generic [ref=e1897] [cursor=pointer]
+            - generic [ref=e1898] [cursor=pointer]
+            - generic [ref=e1899] [cursor=pointer]
+            - generic [ref=e1900] [cursor=pointer]
+            - generic [ref=e1901] [cursor=pointer]
+            - generic [ref=e1902] [cursor=pointer]
+            - generic [ref=e1903] [cursor=pointer]
+            - generic [ref=e1904] [cursor=pointer]
+            - generic [ref=e1905] [cursor=pointer]
+            - generic [ref=e1906] [cursor=pointer]
+            - generic [ref=e1907] [cursor=pointer]
+            - generic [ref=e1908] [cursor=pointer]
+            - generic [ref=e1909] [cursor=pointer]
+            - generic [ref=e1910] [cursor=pointer]
+            - generic [ref=e1911] [cursor=pointer]
+            - generic [ref=e1912] [cursor=pointer]
+            - generic [ref=e1913] [cursor=pointer]
+            - generic [ref=e1914] [cursor=pointer]
+            - generic [ref=e1915] [cursor=pointer]
+            - generic [ref=e1916] [cursor=pointer]
+            - generic [ref=e1917] [cursor=pointer]
+            - generic [ref=e1918] [cursor=pointer]
+            - generic [ref=e1919] [cursor=pointer]
+            - generic [ref=e1920] [cursor=pointer]
+            - generic [ref=e1921] [cursor=pointer]
+            - generic [ref=e1922] [cursor=pointer]
+            - generic [ref=e1923] [cursor=pointer]
+            - generic [ref=e1924] [cursor=pointer]
+            - generic [ref=e1925] [cursor=pointer]
+            - generic [ref=e1926] [cursor=pointer]
+            - generic [ref=e1927] [cursor=pointer]
+            - generic [ref=e1928] [cursor=pointer]
+            - generic [ref=e1929] [cursor=pointer]
+            - generic [ref=e1930] [cursor=pointer]
+            - generic [ref=e1931] [cursor=pointer]
+            - generic [ref=e1932] [cursor=pointer]
+            - generic [ref=e1933] [cursor=pointer]
+            - generic [ref=e1934] [cursor=pointer]
+            - generic [ref=e1935] [cursor=pointer]
+            - generic [ref=e1936] [cursor=pointer]
+            - generic [ref=e1937] [cursor=pointer]
+            - generic [ref=e1938] [cursor=pointer]
+            - generic [ref=e1939] [cursor=pointer]
+            - generic [ref=e1940] [cursor=pointer]
+            - generic [ref=e1941] [cursor=pointer]
+            - generic [ref=e1942] [cursor=pointer]
+            - generic [ref=e1943] [cursor=pointer]
+            - generic [ref=e1944] [cursor=pointer]
+            - generic [ref=e1945] [cursor=pointer]
+            - generic [ref=e1946] [cursor=pointer]
+            - generic [ref=e1947] [cursor=pointer]
+            - generic [ref=e1948] [cursor=pointer]
+            - generic [ref=e1949] [cursor=pointer]
+            - generic [ref=e1950] [cursor=pointer]
+            - generic [ref=e1951] [cursor=pointer]
+            - generic [ref=e1952] [cursor=pointer]
+            - generic [ref=e1953] [cursor=pointer]
+            - generic [ref=e1954] [cursor=pointer]
+            - generic [ref=e1955] [cursor=pointer]
+            - generic [ref=e1956] [cursor=pointer]
+            - generic [ref=e1957] [cursor=pointer]
+            - generic [ref=e1958] [cursor=pointer]
+            - generic [ref=e1959] [cursor=pointer]
+            - generic [ref=e1960] [cursor=pointer]
+            - generic [ref=e1961] [cursor=pointer]
+            - generic [ref=e1962] [cursor=pointer]
+            - generic [ref=e1963] [cursor=pointer]
+            - generic [ref=e1964] [cursor=pointer]
+            - generic [ref=e1965] [cursor=pointer]
+            - generic [ref=e1966] [cursor=pointer]
+            - generic [ref=e1967] [cursor=pointer]
+            - generic [ref=e1968] [cursor=pointer]
+            - generic [ref=e1969] [cursor=pointer]
+            - generic [ref=e1970] [cursor=pointer]
+            - generic [ref=e1971] [cursor=pointer]
+            - generic [ref=e1972] [cursor=pointer]
+            - generic [ref=e1973] [cursor=pointer]
+            - generic [ref=e1974] [cursor=pointer]
+            - generic [ref=e1975] [cursor=pointer]
+            - generic [ref=e1976] [cursor=pointer]
+            - generic [ref=e1977] [cursor=pointer]
+            - generic [ref=e1978] [cursor=pointer]
+            - generic [ref=e1979] [cursor=pointer]
+            - generic [ref=e1980] [cursor=pointer]
+            - generic [ref=e1981] [cursor=pointer]
+            - generic [ref=e1982] [cursor=pointer]
+            - generic [ref=e1983] [cursor=pointer]
+            - generic [ref=e1984] [cursor=pointer]
+            - generic [ref=e1985] [cursor=pointer]
+            - generic [ref=e1986] [cursor=pointer]
+            - generic [ref=e1987] [cursor=pointer]
+            - generic [ref=e1988] [cursor=pointer]
+            - generic [ref=e1989] [cursor=pointer]
+            - generic [ref=e1990] [cursor=pointer]
+            - generic [ref=e1991] [cursor=pointer]
+            - generic [ref=e1992] [cursor=pointer]
+            - generic [ref=e1993] [cursor=pointer]
+            - generic [ref=e1994] [cursor=pointer]
+            - generic [ref=e1995] [cursor=pointer]
+            - generic [ref=e1996] [cursor=pointer]
+            - generic [ref=e1997] [cursor=pointer]
+            - generic [ref=e1998] [cursor=pointer]
+            - generic [ref=e1999] [cursor=pointer]
+            - generic [ref=e2000] [cursor=pointer]
+            - generic [ref=e2001] [cursor=pointer]
+            - generic [ref=e2002] [cursor=pointer]
+            - generic [ref=e2003] [cursor=pointer]
+            - generic [ref=e2004] [cursor=pointer]
+            - generic [ref=e2005] [cursor=pointer]
+            - generic [ref=e2006] [cursor=pointer]
+            - generic [ref=e2007] [cursor=pointer]
+            - generic [ref=e2008] [cursor=pointer]
+            - generic [ref=e2009] [cursor=pointer]
+            - generic [ref=e2010] [cursor=pointer]
+            - generic [ref=e2011] [cursor=pointer]
+            - generic [ref=e2012] [cursor=pointer]
+            - generic [ref=e2013] [cursor=pointer]
+            - generic [ref=e2014] [cursor=pointer]
+            - generic [ref=e2015] [cursor=pointer]
+            - generic [ref=e2016] [cursor=pointer]
+            - generic [ref=e2017] [cursor=pointer]
+            - generic [ref=e2018] [cursor=pointer]
+            - generic [ref=e2019] [cursor=pointer]
+            - generic [ref=e2020] [cursor=pointer]
+            - generic [ref=e2021] [cursor=pointer]
+            - generic [ref=e2022] [cursor=pointer]
+            - generic [ref=e2023] [cursor=pointer]
+            - generic [ref=e2024] [cursor=pointer]
+            - generic [ref=e2025] [cursor=pointer]
+            - generic [ref=e2026] [cursor=pointer]
+            - generic [ref=e2027] [cursor=pointer]
+            - generic [ref=e2028] [cursor=pointer]
+            - generic [ref=e2029] [cursor=pointer]
+            - generic [ref=e2030] [cursor=pointer]
+            - generic [ref=e2031] [cursor=pointer]
+            - generic [ref=e2032] [cursor=pointer]
+            - generic [ref=e2033] [cursor=pointer]
+            - generic [ref=e2034] [cursor=pointer]
+            - generic [ref=e2035] [cursor=pointer]
+            - generic [ref=e2036] [cursor=pointer]
+            - generic [ref=e2037] [cursor=pointer]
+            - generic [ref=e2038] [cursor=pointer]
+            - generic [ref=e2039] [cursor=pointer]
+            - generic [ref=e2040] [cursor=pointer]
+            - generic [ref=e2041] [cursor=pointer]
+            - generic [ref=e2042] [cursor=pointer]
+            - generic [ref=e2043] [cursor=pointer]
+            - generic [ref=e2044] [cursor=pointer]
+            - generic [ref=e2045] [cursor=pointer]
+            - generic [ref=e2046] [cursor=pointer]
+            - generic [ref=e2047] [cursor=pointer]
+            - generic [ref=e2048] [cursor=pointer]
+            - generic [ref=e2049] [cursor=pointer]
+            - generic [ref=e2050] [cursor=pointer]
+            - generic [ref=e2051] [cursor=pointer]
+            - generic [ref=e2052] [cursor=pointer]
+            - generic [ref=e2053] [cursor=pointer]
+            - generic [ref=e2054] [cursor=pointer]
+            - generic [ref=e2055] [cursor=pointer]
+            - generic [ref=e2056] [cursor=pointer]
+            - generic [ref=e2057] [cursor=pointer]
+            - generic [ref=e2058] [cursor=pointer]
+            - generic [ref=e2059] [cursor=pointer]
+            - generic [ref=e2060] [cursor=pointer]
+            - generic [ref=e2061] [cursor=pointer]
+            - generic [ref=e2062] [cursor=pointer]
+            - generic [ref=e2063] [cursor=pointer]
+            - generic [ref=e2064] [cursor=pointer]
+            - generic [ref=e2065] [cursor=pointer]
+            - generic [ref=e2066] [cursor=pointer]
+            - generic [ref=e2067] [cursor=pointer]
+            - generic [ref=e2068] [cursor=pointer]
+            - generic [ref=e2069] [cursor=pointer]
+            - generic [ref=e2070] [cursor=pointer]
+            - generic [ref=e2071] [cursor=pointer]
+            - generic [ref=e2072] [cursor=pointer]
+            - generic [ref=e2073] [cursor=pointer]
+            - generic [ref=e2074] [cursor=pointer]
+            - generic [ref=e2075] [cursor=pointer]
+            - generic [ref=e2076] [cursor=pointer]
+            - generic [ref=e2077] [cursor=pointer]
+            - generic [ref=e2078] [cursor=pointer]
+            - generic [ref=e2079] [cursor=pointer]
+            - generic [ref=e2080] [cursor=pointer]
+            - generic [ref=e2081] [cursor=pointer]
+            - generic [ref=e2082] [cursor=pointer]
+            - generic [ref=e2083] [cursor=pointer]
+            - generic [ref=e2084] [cursor=pointer]
+            - generic [ref=e2085] [cursor=pointer]
+            - generic [ref=e2086] [cursor=pointer]
+            - generic [ref=e2087] [cursor=pointer]
+            - generic [ref=e2088] [cursor=pointer]
+            - generic [ref=e2089] [cursor=pointer]
+            - generic [ref=e2090] [cursor=pointer]
+            - generic [ref=e2091] [cursor=pointer]
+            - generic [ref=e2092] [cursor=pointer]
+            - generic [ref=e2093] [cursor=pointer]
+            - generic [ref=e2094] [cursor=pointer]
+            - generic [ref=e2095] [cursor=pointer]
+            - generic [ref=e2096] [cursor=pointer]
+            - generic [ref=e2097] [cursor=pointer]
+            - generic [ref=e2098] [cursor=pointer]
+            - generic [ref=e2099] [cursor=pointer]
+            - generic [ref=e2100] [cursor=pointer]
+            - generic [ref=e2101] [cursor=pointer]
+            - generic [ref=e2102] [cursor=pointer]
+            - generic [ref=e2103] [cursor=pointer]
+            - generic [ref=e2104] [cursor=pointer]
+            - generic [ref=e2105] [cursor=pointer]
+            - generic [ref=e2106] [cursor=pointer]
+            - generic [ref=e2107] [cursor=pointer]
+            - generic [ref=e2108] [cursor=pointer]
+            - generic [ref=e2109] [cursor=pointer]
+            - generic [ref=e2110] [cursor=pointer]
+            - generic [ref=e2111] [cursor=pointer]
+            - generic [ref=e2112] [cursor=pointer]
+            - generic [ref=e2113] [cursor=pointer]
+            - generic [ref=e2114] [cursor=pointer]
+            - generic [ref=e2115] [cursor=pointer]
+            - generic [ref=e2116] [cursor=pointer]
+            - generic [ref=e2117] [cursor=pointer]
+            - generic [ref=e2118] [cursor=pointer]
+            - generic [ref=e2119] [cursor=pointer]
+            - generic [ref=e2120] [cursor=pointer]
+            - generic [ref=e2121] [cursor=pointer]
+            - generic [ref=e2122] [cursor=pointer]
+            - generic [ref=e2123] [cursor=pointer]
+            - generic [ref=e2124] [cursor=pointer]
+            - generic [ref=e2125] [cursor=pointer]
+            - generic [ref=e2126] [cursor=pointer]
+            - generic [ref=e2127] [cursor=pointer]
+            - generic [ref=e2128] [cursor=pointer]
+            - generic [ref=e2129] [cursor=pointer]
+            - generic [ref=e2130] [cursor=pointer]
+            - generic [ref=e2131] [cursor=pointer]
+            - generic [ref=e2132] [cursor=pointer]
+            - generic [ref=e2133] [cursor=pointer]
+            - generic [ref=e2134] [cursor=pointer]
+            - generic [ref=e2135] [cursor=pointer]
+            - generic [ref=e2136] [cursor=pointer]
+            - generic [ref=e2137] [cursor=pointer]
+            - generic [ref=e2138] [cursor=pointer]
+            - generic [ref=e2139] [cursor=pointer]
+            - generic [ref=e2140] [cursor=pointer]
+            - generic [ref=e2141] [cursor=pointer]
+            - generic [ref=e2142] [cursor=pointer]
+            - generic [ref=e2143] [cursor=pointer]
+            - generic [ref=e2144] [cursor=pointer]
+            - generic [ref=e2145] [cursor=pointer]
+            - generic [ref=e2146] [cursor=pointer]
+            - generic [ref=e2147] [cursor=pointer]
+            - generic [ref=e2148] [cursor=pointer]
+            - generic [ref=e2149] [cursor=pointer]
+            - generic [ref=e2150] [cursor=pointer]
+            - generic [ref=e2151] [cursor=pointer]
+            - generic [ref=e2152] [cursor=pointer]
+            - generic [ref=e2153] [cursor=pointer]
+            - generic [ref=e2154] [cursor=pointer]
+            - generic [ref=e2155] [cursor=pointer]
+            - generic [ref=e2156] [cursor=pointer]
+            - generic [ref=e2157] [cursor=pointer]
+            - generic [ref=e2158] [cursor=pointer]
+            - generic [ref=e2159] [cursor=pointer]
+            - generic [ref=e2160] [cursor=pointer]
+            - generic [ref=e2161] [cursor=pointer]
+            - generic [ref=e2162] [cursor=pointer]
+            - generic [ref=e2163] [cursor=pointer]
+            - generic [ref=e2164] [cursor=pointer]
+            - generic [ref=e2165] [cursor=pointer]
+            - generic [ref=e2166] [cursor=pointer]
+            - generic [ref=e2167] [cursor=pointer]
+            - generic [ref=e2168] [cursor=pointer]
+            - generic [ref=e2169] [cursor=pointer]
+            - generic [ref=e2170] [cursor=pointer]
+            - generic [ref=e2171] [cursor=pointer]
+            - generic [ref=e2172] [cursor=pointer]
+            - generic [ref=e2173] [cursor=pointer]
+            - generic [ref=e2174] [cursor=pointer]
+            - generic [ref=e2175] [cursor=pointer]
+            - generic [ref=e2176] [cursor=pointer]
+            - generic [ref=e2177] [cursor=pointer]
+            - generic [ref=e2178] [cursor=pointer]
+            - generic [ref=e2179] [cursor=pointer]
+            - generic [ref=e2180] [cursor=pointer]
+            - generic [ref=e2181] [cursor=pointer]
+            - generic [ref=e2182] [cursor=pointer]
+            - generic [ref=e2183] [cursor=pointer]
+            - generic [ref=e2184] [cursor=pointer]
+            - generic [ref=e2185] [cursor=pointer]
+            - generic [ref=e2186] [cursor=pointer]
+            - generic [ref=e2187] [cursor=pointer]
+            - generic [ref=e2188] [cursor=pointer]
+            - generic [ref=e2189] [cursor=pointer]
+            - generic [ref=e2190] [cursor=pointer]
+            - generic [ref=e2191] [cursor=pointer]
+            - generic [ref=e2192] [cursor=pointer]
+            - generic [ref=e2193] [cursor=pointer]
+            - generic [ref=e2194] [cursor=pointer]
+            - generic [ref=e2195] [cursor=pointer]
+            - generic [ref=e2196] [cursor=pointer]
+            - generic [ref=e2197] [cursor=pointer]
+            - generic [ref=e2198] [cursor=pointer]
+            - generic [ref=e2199] [cursor=pointer]
+            - generic [ref=e2200] [cursor=pointer]
+            - generic [ref=e2201] [cursor=pointer]
+            - generic [ref=e2202] [cursor=pointer]
+            - generic [ref=e2203] [cursor=pointer]
+            - generic [ref=e2204] [cursor=pointer]
+            - generic [ref=e2205] [cursor=pointer]
+            - generic [ref=e2206] [cursor=pointer]
+            - generic [ref=e2207] [cursor=pointer]
+            - generic [ref=e2208] [cursor=pointer]
+            - generic [ref=e2209] [cursor=pointer]
+            - generic [ref=e2210] [cursor=pointer]
+            - generic [ref=e2211] [cursor=pointer]
+            - generic [ref=e2212] [cursor=pointer]
+            - generic [ref=e2213] [cursor=pointer]
+            - generic [ref=e2214] [cursor=pointer]
+            - generic [ref=e2215] [cursor=pointer]
+            - generic [ref=e2216] [cursor=pointer]
+            - generic [ref=e2217] [cursor=pointer]
+            - generic [ref=e2218] [cursor=pointer]
+            - generic [ref=e2219] [cursor=pointer]
+            - generic [ref=e2220] [cursor=pointer]
+            - generic [ref=e2221] [cursor=pointer]
+            - generic [ref=e2222] [cursor=pointer]
+            - generic [ref=e2223] [cursor=pointer]
+            - generic [ref=e2224] [cursor=pointer]
+            - generic [ref=e2225] [cursor=pointer]
+            - generic [ref=e2226] [cursor=pointer]
+            - generic [ref=e2227] [cursor=pointer]
+            - generic [ref=e2228] [cursor=pointer]
+            - generic [ref=e2229] [cursor=pointer]
+            - generic [ref=e2230] [cursor=pointer]
+            - generic [ref=e2231] [cursor=pointer]
+            - generic [ref=e2232] [cursor=pointer]
+            - generic [ref=e2233] [cursor=pointer]
+            - generic [ref=e2234] [cursor=pointer]
+            - generic [ref=e2235] [cursor=pointer]
+            - generic [ref=e2236] [cursor=pointer]
+            - generic [ref=e2237] [cursor=pointer]
+            - generic [ref=e2238] [cursor=pointer]
+            - generic [ref=e2239] [cursor=pointer]
+            - generic [ref=e2240] [cursor=pointer]
+            - generic [ref=e2241] [cursor=pointer]
+            - generic [ref=e2242] [cursor=pointer]
+            - generic [ref=e2243] [cursor=pointer]
+            - generic [ref=e2244] [cursor=pointer]
+            - generic [ref=e2245] [cursor=pointer]
+            - generic [ref=e2246] [cursor=pointer]
+            - generic [ref=e2247] [cursor=pointer]
+            - generic [ref=e2248] [cursor=pointer]
+            - generic [ref=e2249] [cursor=pointer]
+            - generic [ref=e2250] [cursor=pointer]
+            - generic [ref=e2251] [cursor=pointer]
+            - generic [ref=e2252] [cursor=pointer]
+            - generic [ref=e2253] [cursor=pointer]
+            - generic [ref=e2254] [cursor=pointer]
+            - generic [ref=e2255] [cursor=pointer]
+            - generic [ref=e2256] [cursor=pointer]
+            - generic [ref=e2257] [cursor=pointer]
+            - generic [ref=e2258] [cursor=pointer]
+            - generic [ref=e2259] [cursor=pointer]
+            - generic [ref=e2260] [cursor=pointer]
+            - generic [ref=e2261] [cursor=pointer]
+            - generic [ref=e2262] [cursor=pointer]
+            - generic [ref=e2263] [cursor=pointer]
+            - generic [ref=e2264] [cursor=pointer]
+            - generic [ref=e2265] [cursor=pointer]
+            - generic [ref=e2266] [cursor=pointer]
+            - generic [ref=e2267] [cursor=pointer]
+            - generic [ref=e2268] [cursor=pointer]
+            - generic [ref=e2269] [cursor=pointer]
+            - generic [ref=e2270] [cursor=pointer]
+            - generic [ref=e2271] [cursor=pointer]
+            - generic [ref=e2272] [cursor=pointer]
+            - generic [ref=e2273] [cursor=pointer]
+            - generic [ref=e2274] [cursor=pointer]
+            - generic [ref=e2275] [cursor=pointer]
+            - generic [ref=e2276] [cursor=pointer]
+            - generic [ref=e2277] [cursor=pointer]
+            - generic [ref=e2278] [cursor=pointer]
+            - generic [ref=e2279] [cursor=pointer]
+            - generic [ref=e2280] [cursor=pointer]
+            - generic [ref=e2281] [cursor=pointer]
+            - generic [ref=e2282] [cursor=pointer]
+            - generic [ref=e2283] [cursor=pointer]
+            - generic [ref=e2284] [cursor=pointer]
+            - generic [ref=e2285] [cursor=pointer]
+            - generic [ref=e2286] [cursor=pointer]
+            - generic [ref=e2287] [cursor=pointer]
+            - generic [ref=e2288] [cursor=pointer]
+            - generic [ref=e2289] [cursor=pointer]
+            - generic [ref=e2290] [cursor=pointer]
+            - generic [ref=e2291] [cursor=pointer]
+            - generic [ref=e2292] [cursor=pointer]
+            - generic [ref=e2293] [cursor=pointer]
+            - generic [ref=e2294] [cursor=pointer]
+            - generic [ref=e2295] [cursor=pointer]
+            - generic [ref=e2296] [cursor=pointer]
+            - generic [ref=e2297] [cursor=pointer]
+            - generic [ref=e2298] [cursor=pointer]
+            - generic [ref=e2299] [cursor=pointer]
+            - generic [ref=e2300] [cursor=pointer]
+            - generic [ref=e2301] [cursor=pointer]
+            - generic [ref=e2302] [cursor=pointer]
+            - generic [ref=e2303] [cursor=pointer]
+            - generic [ref=e2304] [cursor=pointer]
+            - generic [ref=e2305] [cursor=pointer]
+            - generic [ref=e2306] [cursor=pointer]
+            - generic [ref=e2307] [cursor=pointer]
+            - generic [ref=e2308] [cursor=pointer]
+            - generic [ref=e2309] [cursor=pointer]
+            - generic [ref=e2310] [cursor=pointer]
+            - generic [ref=e2311] [cursor=pointer]
+            - generic [ref=e2312] [cursor=pointer]
+            - generic [ref=e2313] [cursor=pointer]
+            - generic [ref=e2314] [cursor=pointer]
+            - generic [ref=e2315] [cursor=pointer]
+            - generic [ref=e2316] [cursor=pointer]
+            - generic [ref=e2317] [cursor=pointer]
+            - generic [ref=e2318] [cursor=pointer]
+            - generic [ref=e2319] [cursor=pointer]
+            - generic [ref=e2320] [cursor=pointer]
+            - generic [ref=e2321] [cursor=pointer]
+            - generic [ref=e2322] [cursor=pointer]
+            - generic [ref=e2323] [cursor=pointer]
+            - generic [ref=e2324] [cursor=pointer]
+            - generic [ref=e2325] [cursor=pointer]
+            - generic [ref=e2326] [cursor=pointer]
+            - generic [ref=e2327] [cursor=pointer]
+            - generic [ref=e2328] [cursor=pointer]
+            - generic [ref=e2329] [cursor=pointer]
+            - generic [ref=e2330] [cursor=pointer]
+            - generic [ref=e2331] [cursor=pointer]
+            - generic [ref=e2332] [cursor=pointer]
+            - generic [ref=e2333] [cursor=pointer]
+            - generic [ref=e2334] [cursor=pointer]
+            - generic [ref=e2335] [cursor=pointer]
+            - generic [ref=e2336] [cursor=pointer]
+            - generic [ref=e2337] [cursor=pointer]
+            - generic [ref=e2338] [cursor=pointer]
+            - generic [ref=e2339] [cursor=pointer]
+            - generic [ref=e2340] [cursor=pointer]
+            - generic [ref=e2341] [cursor=pointer]
+            - generic [ref=e2342] [cursor=pointer]
+            - generic [ref=e2343] [cursor=pointer]
+            - generic [ref=e2344] [cursor=pointer]
+            - generic [ref=e2345] [cursor=pointer]
+            - generic [ref=e2346] [cursor=pointer]
+            - generic [ref=e2347] [cursor=pointer]
+            - generic [ref=e2348] [cursor=pointer]
+            - generic [ref=e2349] [cursor=pointer]
+            - generic [ref=e2350] [cursor=pointer]
+            - generic [ref=e2351] [cursor=pointer]
+            - generic [ref=e2352] [cursor=pointer]
+            - generic [ref=e2353] [cursor=pointer]
+            - generic [ref=e2354] [cursor=pointer]
+            - generic [ref=e2355] [cursor=pointer]
+            - generic [ref=e2356] [cursor=pointer]
+            - generic [ref=e2357] [cursor=pointer]
+            - generic [ref=e2358] [cursor=pointer]
+            - generic [ref=e2359] [cursor=pointer]
+            - generic [ref=e2360] [cursor=pointer]
+            - generic [ref=e2361] [cursor=pointer]
+            - generic [ref=e2362] [cursor=pointer]
+            - generic [ref=e2363] [cursor=pointer]
+            - generic [ref=e2364] [cursor=pointer]
+            - generic [ref=e2365] [cursor=pointer]
+            - generic [ref=e2366] [cursor=pointer]
+            - generic [ref=e2367] [cursor=pointer]
+            - generic [ref=e2368] [cursor=pointer]
+            - generic [ref=e2369] [cursor=pointer]
+            - generic [ref=e2370] [cursor=pointer]
+            - generic [ref=e2371] [cursor=pointer]
+            - generic [ref=e2372] [cursor=pointer]
+            - generic [ref=e2373] [cursor=pointer]
+            - generic [ref=e2374] [cursor=pointer]
+            - generic [ref=e2375] [cursor=pointer]
+            - generic [ref=e2376] [cursor=pointer]
+            - generic [ref=e2377] [cursor=pointer]
+            - generic [ref=e2378] [cursor=pointer]
+            - generic [ref=e2379] [cursor=pointer]
+            - generic [ref=e2380] [cursor=pointer]
+            - generic [ref=e2381] [cursor=pointer]
+            - generic [ref=e2382] [cursor=pointer]
+            - generic [ref=e2383] [cursor=pointer]
+            - generic [ref=e2384] [cursor=pointer]
+            - generic [ref=e2385] [cursor=pointer]
+            - generic [ref=e2386] [cursor=pointer]
+            - generic [ref=e2387] [cursor=pointer]
+            - generic [ref=e2388] [cursor=pointer]
+            - generic [ref=e2389] [cursor=pointer]
+            - generic [ref=e2390] [cursor=pointer]
+            - generic [ref=e2391] [cursor=pointer]
+            - generic [ref=e2392] [cursor=pointer]
+            - generic [ref=e2393] [cursor=pointer]
+            - generic [ref=e2394] [cursor=pointer]
+            - generic [ref=e2395] [cursor=pointer]
+            - generic [ref=e2396] [cursor=pointer]
+            - generic [ref=e2397] [cursor=pointer]
+            - generic [ref=e2398] [cursor=pointer]
+            - generic [ref=e2399] [cursor=pointer]
+            - generic [ref=e2400] [cursor=pointer]
+            - generic [ref=e2401] [cursor=pointer]
+            - generic [ref=e2402] [cursor=pointer]
+            - generic [ref=e2403] [cursor=pointer]
+            - generic [ref=e2404] [cursor=pointer]
+            - generic [ref=e2405] [cursor=pointer]
+            - generic [ref=e2406] [cursor=pointer]
+            - generic [ref=e2407] [cursor=pointer]
+            - generic [ref=e2408] [cursor=pointer]
+            - generic [ref=e2409] [cursor=pointer]
+            - generic [ref=e2410] [cursor=pointer]
+            - generic [ref=e2411] [cursor=pointer]
+            - generic [ref=e2412] [cursor=pointer]
+            - generic [ref=e2413] [cursor=pointer]
+            - generic [ref=e2414] [cursor=pointer]
+            - generic [ref=e2415] [cursor=pointer]
+            - generic [ref=e2416] [cursor=pointer]
+            - generic [ref=e2417] [cursor=pointer]
+            - generic [ref=e2418] [cursor=pointer]
+            - generic [ref=e2419] [cursor=pointer]
+            - generic [ref=e2420] [cursor=pointer]
+            - generic [ref=e2421] [cursor=pointer]
+            - generic [ref=e2422] [cursor=pointer]
+            - generic [ref=e2423] [cursor=pointer]
+            - generic [ref=e2424] [cursor=pointer]
+            - generic [ref=e2425] [cursor=pointer]
+            - generic [ref=e2426] [cursor=pointer]
+            - generic [ref=e2427] [cursor=pointer]
+            - generic [ref=e2428] [cursor=pointer]
+            - generic [ref=e2429] [cursor=pointer]
+            - generic [ref=e2430] [cursor=pointer]
+            - generic [ref=e2431] [cursor=pointer]
+            - generic [ref=e2432] [cursor=pointer]
+            - generic [ref=e2433] [cursor=pointer]
+            - generic [ref=e2434] [cursor=pointer]
+            - generic [ref=e2435] [cursor=pointer]
+            - generic [ref=e2436] [cursor=pointer]
+            - generic [ref=e2437] [cursor=pointer]
+            - generic [ref=e2438] [cursor=pointer]
+            - generic [ref=e2439] [cursor=pointer]
+            - generic [ref=e2440] [cursor=pointer]
+            - generic [ref=e2441] [cursor=pointer]
+            - generic [ref=e2442] [cursor=pointer]
+            - generic [ref=e2443] [cursor=pointer]
+            - generic [ref=e2444] [cursor=pointer]
+            - generic [ref=e2445] [cursor=pointer]
+            - generic [ref=e2446] [cursor=pointer]
+            - generic [ref=e2447] [cursor=pointer]
+            - generic [ref=e2448] [cursor=pointer]
+            - generic [ref=e2449] [cursor=pointer]
+            - generic [ref=e2450] [cursor=pointer]
+            - generic [ref=e2451] [cursor=pointer]
+            - generic [ref=e2452] [cursor=pointer]
+            - generic [ref=e2453] [cursor=pointer]
+            - generic [ref=e2454] [cursor=pointer]
+            - generic [ref=e2455] [cursor=pointer]
+            - generic [ref=e2456] [cursor=pointer]
+            - generic [ref=e2457] [cursor=pointer]
+            - generic [ref=e2458] [cursor=pointer]
+            - generic [ref=e2459] [cursor=pointer]
+            - generic [ref=e2460] [cursor=pointer]
+            - generic [ref=e2461] [cursor=pointer]
+            - generic [ref=e2462] [cursor=pointer]
+            - generic [ref=e2463] [cursor=pointer]
+            - generic [ref=e2464] [cursor=pointer]
+            - generic [ref=e2465] [cursor=pointer]
+            - generic [ref=e2466] [cursor=pointer]
+            - generic [ref=e2467] [cursor=pointer]
+            - generic [ref=e2468] [cursor=pointer]
+            - generic [ref=e2469] [cursor=pointer]
+            - generic [ref=e2470] [cursor=pointer]
+            - generic [ref=e2471] [cursor=pointer]
+            - generic [ref=e2472] [cursor=pointer]
+            - generic [ref=e2473] [cursor=pointer]
+            - generic [ref=e2474] [cursor=pointer]
+            - generic [ref=e2475] [cursor=pointer]
+            - generic [ref=e2476] [cursor=pointer]
+            - generic [ref=e2477] [cursor=pointer]
+            - generic [ref=e2478] [cursor=pointer]
+            - generic [ref=e2479] [cursor=pointer]
+            - generic [ref=e2480] [cursor=pointer]
+            - generic [ref=e2481] [cursor=pointer]
+            - generic [ref=e2482] [cursor=pointer]
+            - generic [ref=e2483] [cursor=pointer]
+            - generic [ref=e2484] [cursor=pointer]
+            - generic [ref=e2485] [cursor=pointer]
+            - generic [ref=e2486] [cursor=pointer]
+            - generic [ref=e2487] [cursor=pointer]
+            - generic [ref=e2488] [cursor=pointer]
+            - generic [ref=e2489] [cursor=pointer]
+            - generic [ref=e2490] [cursor=pointer]
+            - generic [ref=e2491] [cursor=pointer]
+            - generic [ref=e2492] [cursor=pointer]
+            - generic [ref=e2493] [cursor=pointer]
+            - generic [ref=e2494] [cursor=pointer]
+            - generic [ref=e2495] [cursor=pointer]
+            - generic [ref=e2496] [cursor=pointer]
+            - generic [ref=e2497] [cursor=pointer]
+            - generic [ref=e2498] [cursor=pointer]
+            - generic [ref=e2499] [cursor=pointer]
+            - generic [ref=e2500] [cursor=pointer]
+            - generic [ref=e2501] [cursor=pointer]
+            - generic [ref=e2502] [cursor=pointer]
+            - generic [ref=e2503] [cursor=pointer]
+            - generic [ref=e2504] [cursor=pointer]
+            - generic [ref=e2505] [cursor=pointer]
+            - generic [ref=e2506] [cursor=pointer]
+            - generic [ref=e2507] [cursor=pointer]
+            - generic [ref=e2508] [cursor=pointer]
+            - generic [ref=e2509] [cursor=pointer]
+            - generic [ref=e2510] [cursor=pointer]
+            - generic [ref=e2511] [cursor=pointer]
+            - generic [ref=e2512] [cursor=pointer]
+            - generic [ref=e2513] [cursor=pointer]
+            - generic [ref=e2514] [cursor=pointer]
+            - generic [ref=e2515] [cursor=pointer]
+            - generic [ref=e2516] [cursor=pointer]
+            - generic [ref=e2517] [cursor=pointer]
+            - generic [ref=e2518] [cursor=pointer]
+            - generic [ref=e2519] [cursor=pointer]
+            - generic [ref=e2520] [cursor=pointer]
+            - generic [ref=e2521] [cursor=pointer]
+            - generic [ref=e2522] [cursor=pointer]
+            - generic [ref=e2523] [cursor=pointer]
+            - generic [ref=e2524] [cursor=pointer]
+            - generic [ref=e2525] [cursor=pointer]
+            - generic [ref=e2526] [cursor=pointer]
+            - generic [ref=e2527] [cursor=pointer]
+            - generic [ref=e2528] [cursor=pointer]
+            - generic [ref=e2529] [cursor=pointer]
+            - generic [ref=e2530] [cursor=pointer]
+            - generic [ref=e2531] [cursor=pointer]
+            - generic [ref=e2532] [cursor=pointer]
+            - generic [ref=e2533] [cursor=pointer]
+            - generic [ref=e2534] [cursor=pointer]
+            - generic [ref=e2535] [cursor=pointer]
+            - generic [ref=e2536] [cursor=pointer]
+            - generic [ref=e2537] [cursor=pointer]
+            - generic [ref=e2538] [cursor=pointer]
+            - generic [ref=e2539] [cursor=pointer]
+            - generic [ref=e2540] [cursor=pointer]
+            - generic [ref=e2541] [cursor=pointer]
+            - generic [ref=e2542] [cursor=pointer]
+            - generic [ref=e2543] [cursor=pointer]
+            - generic [ref=e2544] [cursor=pointer]
+            - generic [ref=e2545] [cursor=pointer]
+            - generic [ref=e2546] [cursor=pointer]
+            - generic [ref=e2547] [cursor=pointer]
+            - generic [ref=e2548] [cursor=pointer]
+            - generic [ref=e2549] [cursor=pointer]
+            - generic [ref=e2550] [cursor=pointer]
+            - generic [ref=e2551] [cursor=pointer]
+            - generic [ref=e2552] [cursor=pointer]
+            - generic [ref=e2553] [cursor=pointer]
+            - generic [ref=e2554] [cursor=pointer]
+            - generic [ref=e2555] [cursor=pointer]
+            - generic [ref=e2556] [cursor=pointer]
+            - generic [ref=e2557] [cursor=pointer]
+            - generic [ref=e2558] [cursor=pointer]
+            - generic [ref=e2559] [cursor=pointer]
+            - generic [ref=e2560] [cursor=pointer]
+            - generic [ref=e2561] [cursor=pointer]
+            - generic [ref=e2562] [cursor=pointer]
+            - generic [ref=e2563] [cursor=pointer]
+            - generic [ref=e2564] [cursor=pointer]
+            - generic [ref=e2565] [cursor=pointer]
+            - generic [ref=e2566] [cursor=pointer]
+            - generic [ref=e2567] [cursor=pointer]
+            - generic [ref=e2568] [cursor=pointer]
+            - generic [ref=e2569] [cursor=pointer]
+            - generic [ref=e2570] [cursor=pointer]
+            - generic [ref=e2571] [cursor=pointer]
+            - generic [ref=e2572] [cursor=pointer]
+            - generic [ref=e2573] [cursor=pointer]
+            - generic [ref=e2574] [cursor=pointer]
+            - generic [ref=e2575] [cursor=pointer]
+            - generic [ref=e2576] [cursor=pointer]
+            - generic [ref=e2577] [cursor=pointer]
+            - generic [ref=e2578] [cursor=pointer]
+            - generic [ref=e2579] [cursor=pointer]
+            - generic [ref=e2580] [cursor=pointer]
+            - generic [ref=e2581] [cursor=pointer]
+            - generic [ref=e2582] [cursor=pointer]
+            - generic [ref=e2583] [cursor=pointer]
+            - generic [ref=e2584] [cursor=pointer]
+            - generic [ref=e2585] [cursor=pointer]
+            - generic [ref=e2586] [cursor=pointer]
+            - generic [ref=e2587] [cursor=pointer]
+            - generic [ref=e2588] [cursor=pointer]
+            - generic [ref=e2589] [cursor=pointer]
+            - generic [ref=e2590] [cursor=pointer]
+            - generic [ref=e2591] [cursor=pointer]
+            - generic [ref=e2592] [cursor=pointer]
+            - generic [ref=e2593] [cursor=pointer]
+            - generic [ref=e2594] [cursor=pointer]
+            - generic [ref=e2595] [cursor=pointer]
+            - generic [ref=e2596] [cursor=pointer]
+            - generic [ref=e2597] [cursor=pointer]
+            - generic [ref=e2598] [cursor=pointer]
+            - generic [ref=e2599] [cursor=pointer]
+            - generic [ref=e2600] [cursor=pointer]
+            - generic [ref=e2601] [cursor=pointer]
+            - generic [ref=e2602] [cursor=pointer]
+            - generic [ref=e2603] [cursor=pointer]
+            - generic [ref=e2604] [cursor=pointer]
+            - generic [ref=e2605] [cursor=pointer]
+            - generic [ref=e2606] [cursor=pointer]
+            - generic [ref=e2607] [cursor=pointer]
+            - generic [ref=e2608] [cursor=pointer]
+            - generic [ref=e2609] [cursor=pointer]
+            - generic [ref=e2610] [cursor=pointer]
+            - generic [ref=e2611] [cursor=pointer]
+            - generic [ref=e2612] [cursor=pointer]
+            - generic [ref=e2613] [cursor=pointer]
+            - generic [ref=e2614] [cursor=pointer]
+            - generic [ref=e2615] [cursor=pointer]
+            - generic [ref=e2616] [cursor=pointer]
+            - generic [ref=e2617] [cursor=pointer]
+            - generic [ref=e2618] [cursor=pointer]
+          - paragraph [ref=e2619]: 50 states with at least one meeting where a data center came up. Hover a box to read what was said; click to open that state’s story.
+          - list "Legend" [ref=e2620]:
+            - listitem [ref=e2621]: Spoke against
+            - listitem [ref=e2623]: Spoke for
+            - listitem [ref=e2625]: No side
+            - listitem [ref=e2627]: Public leaned against (AI reading of meetings)
+            - listitem [ref=e2629]: Meetings, no stance on record (darker = more meetings)
+          - paragraph [ref=e2631]: Split by 29 speakers on record in 4 states; other states show meetings only. The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.
+          - group [ref=e2632]:
+            - generic "Show data table" [ref=e2633] [cursor=pointer]
+      - navigation "Browse topics" [ref=e30]:
+        - generic [ref=e31]:
+          - paragraph [ref=e32]: Browse topics
+          - link "All data stories" [ref=e33] [cursor=pointer]:
+            - /url: /stories
+        - generic [ref=e36]:
+          - button "Previous topics" [disabled]
+          - list [ref=e37]:
+            - listitem [ref=e38]:
+              - button "Data centers AI reading · In 23 meetings across America, officials backed data centers while the public pushed back. Showing above" [pressed] [ref=e2634] [cursor=pointer]:
+                - generic [ref=e44]:
+                  - generic [ref=e45]: Data centers
+                  - generic [ref=e46]: AI reading · In 23 meetings across America, officials backed data centers while the public pushed back.
+                  - generic [ref=e47]: Showing above
+            - listitem [ref=e48]:
+              - button "Short-term rentals California took up short-term rentals in 570 meetings, more than any other state. Show this story" [ref=e2635] [cursor=pointer]:
+                - generic [ref=e54]:
+                  - generic [ref=e55]: Short-term rentals
+                  - generic [ref=e56]: California took up short-term rentals in 570 meetings, more than any other state.
+                  - generic [ref=e57]: Show this story →
+            - listitem [ref=e58]:
+              - button "Flock California weighed Flock and plate-reader cameras in 228 meetings, more than twice any other state. Coming soon · See companies" [ref=e2636] [cursor=pointer]:
+                - generic [ref=e64]:
+                  - generic [ref=e65]: Flock
+                  - generic [ref=e66]: California weighed Flock and plate-reader cameras in 228 meetings, more than twice any other state.
+                  - generic [ref=e67]: Coming soon · See companies
+            - listitem [ref=e68]:
+              - button "Guns South Dakota took up guns in 239 meetings, the most per resident of any state. Coming soon · See companies" [ref=e2637] [cursor=pointer]:
+                - generic [ref=e73]:
+                  - generic [ref=e74]: Guns
+                  - generic [ref=e75]: South Dakota took up guns in 239 meetings, the most per resident of any state.
+                  - generic [ref=e76]: Coming soon · See companies
+            - listitem [ref=e77]:
+              - button "License plate readers California weighed license plate readers in 228 meetings, more than twice any other state. Coming soon · See companies" [ref=e2638] [cursor=pointer]:
+                - generic [ref=e85]:
+                  - generic [ref=e86]: License plate readers
+                  - generic [ref=e87]: California weighed license plate readers in 228 meetings, more than twice any other state.
+                  - generic [ref=e88]: Coming soon · See companies
+            - listitem [ref=e89]:
+              - button "Pickleball California brought up pickleball in 446 meetings, more than any other state. Coming soon · See companies" [ref=e2639] [cursor=pointer]:
+                - generic [ref=e99]:
+                  - generic [ref=e100]: Pickleball
+                  - generic [ref=e101]: California brought up pickleball in 446 meetings, more than any other state.
+                  - generic [ref=e102]: Coming soon · See companies
+            - listitem [ref=e103]:
+              - generic [ref=e111]:
+                - generic [ref=e112]: Bike lanes
+                - generic [ref=e113]: California took up bicycle transportation in 687 meetings, more than any other state.
+                - generic [ref=e114]: Coming soon
+            - listitem [ref=e115]:
+              - generic [ref=e123]:
+                - generic [ref=e124]: Starting a nonprofit
+                - generic [ref=e125]: Every step, filing and fee to start one, state by state.
+                - generic [ref=e126]: Coming soon
+            - listitem [ref=e127]:
+              - generic [ref=e133]:
+                - generic [ref=e134]: Insurance shopping
+                - generic [ref=e135]: Are you paying too much? What regulators publish, made simple.
+                - generic [ref=e136]: Coming soon
+          - button "Next topics" [ref=e137] [cursor=pointer]
+        - generic [ref=e140]:
+          - button "Topics page 1 of 2" [ref=e141] [cursor=pointer]
+          - button "Topics page 2 of 2" [ref=e142] [cursor=pointer]
+        - region "Companies named · Data centers · National" [ref=e143]:
+          - heading "Companies named · Data centers · National" [level=3] [ref=e144]
+          - list [ref=e2640]:
+            - listitem [ref=e2641]:
+              - paragraph [ref=e2642]:
+                - link "Google" [ref=e2643] [cursor=pointer]:
+                  - /url: /organizations/e2896795d6e8faef13b807ed5597bcd1
+                - generic [ref=e2644]: · Alphabet Inc
+              - paragraph [ref=e2645]:
+                - link "92 meetings" [ref=e2646] [cursor=pointer]:
+                  - /url: /search?q=Google&sort=date_desc
+              - blockquote [ref=e2647]:
+                - text: “centers operating in the state of Arizona today. And if you go online, you
+                - mark [ref=e2648]: Google
+                - text: and you look for complaints or issues with those data centers, there's only”
+                - generic [ref=e2649]:
+                  - text: Casa Grande, AZ · Nov 12, 2026 ·
+                  - link "Watch ↗" [ref=e2650] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=wHnYgt7IukY&t=5044s
+            - listitem [ref=e2651]:
+              - paragraph [ref=e2652]:
+                - link "Meta" [ref=e2653] [cursor=pointer]:
+                  - /url: /organizations/6acca127a138d807cc8c498bc8c1f150
+                - generic [ref=e2654]: · Facebook, Meta Campus, Meta Data Center
+              - paragraph [ref=e2655]:
+                - link "82 meetings" [ref=e2656] [cursor=pointer]:
+                  - /url: /search?q=Facebook&sort=date_desc
+              - blockquote [ref=e2657]:
+                - text: “pressure on taxes. So the one thing um I know we all look at
+                - mark [ref=e2658]: Facebook
+                - text: these days when we're um looking at these things or at least ... just pulled some of these things that have been floating around on
+                - mark [ref=e2659]: Facebook
+                - text: in the last several days. Um you know better than being a waste and an eyesore”
+                - generic [ref=e2660]:
+                  - text: Casa Grande, AZ · Nov 12, 2026 ·
+                  - link "Watch ↗" [ref=e2661] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=wHnYgt7IukY&t=2602s
+            - listitem [ref=e2662]:
+              - paragraph [ref=e2663]:
+                - link "Microsoft" [ref=e2664] [cursor=pointer]:
+                  - /url: /organizations/414672f119a004700e020ef6deef1745
+              - paragraph [ref=e2665]:
+                - link "81 meetings" [ref=e2666] [cursor=pointer]:
+                  - /url: /search?q=Microsoft&sort=date_desc
+              - blockquote [ref=e2667]:
+                - text: “want it. Um and then you have Indiana Connects running videos funded by Amazon,
+                - mark [ref=e2668]: Microsoft
+                - text: ", Google, and Meta. So there's a it's pro data center, right”"
+                - generic [ref=e2669]:
+                  - text: Jasper County, IN · Jun 15, 2026 ·
+                  - link "Watch ↗" [ref=e2670] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=Ddbvdv466HU&t=3482s
+            - listitem [ref=e2671]:
+              - paragraph [ref=e2672]:
+                - link "Amazon" [ref=e2673] [cursor=pointer]:
+                  - /url: /organizations/5a734420e032a38b18f1bc6780a4471f
+                - generic [ref=e2674]: · AWS, Amazon Web Services
+              - paragraph [ref=e2675]:
+                - link "73 meetings" [ref=e2676] [cursor=pointer]:
+                  - /url: /search?q=Amazon&sort=date_desc
+              - blockquote [ref=e2677]:
+                - text: “link communities in the US with other parts of the world. Places like the
+                - mark [ref=e2678]: Amazon
+                - text: where I conduct my research. Building data centers has increased devastation in the
+                - mark [ref=e2679]: Amazon
+                - text: ”
+                - generic [ref=e2680]:
+                  - text: Amherst Town, MA · Nov 12, 2026 ·
+                  - link "Watch ↗" [ref=e2681] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=uEmgNKAk55U&t=7242s
+            - listitem [ref=e2682]:
+              - paragraph [ref=e2683]:
+                - text: QTS
+                - generic [ref=e2684]: · QTS Realty, Quality Technology Services
+              - paragraph [ref=e2685]:
+                - link "23 meetings" [ref=e2686] [cursor=pointer]:
+                  - /url: /search?q=QTS&sort=date_desc
+              - blockquote [ref=e2687]:
+                - text: “server. Now, we're talking about these mega like the hyperenter that
+                - mark [ref=e2688]: QTS
+                - text: wants to put in. you know, they're huge and you can get some frequencies from”
+                - generic [ref=e2689]:
+                  - text: Alburnett, IA · Jul 9, 2026 ·
+                  - link "Watch ↗" [ref=e2690] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=C3VKv1-Q9bA&t=8294s
+            - listitem [ref=e2691]:
+              - paragraph [ref=e2692]:
+                - link "Oracle" [ref=e2693] [cursor=pointer]:
+                  - /url: /organizations/ff4be7ed78b15800c2642e602fc78e33
+                - generic [ref=e2694]: · Oracle Cloud, Oracle Corporation, Oracle Data Center
+              - paragraph [ref=e2695]:
+                - link "14 meetings" [ref=e2696] [cursor=pointer]:
+                  - /url: /search?q=Data&sort=date_desc
+              - blockquote [ref=e2697]:
+                - text: “same or not?
+                - mark [ref=e2698]: Data
+                - text: centers have served companies like Palanteer, Amazon and
+                - mark [ref=e2699]: Oracle
+                - text: and they amass millions of statistics of people here and all over the world”
+                - generic [ref=e2700]:
+                  - text: Rocky Mount, NC · May 11, 2026 ·
+                  - link "Watch ↗" [ref=e2701] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=9MRTNINIz1s&t=1270s
+            - listitem [ref=e2702]:
+              - paragraph [ref=e2703]:
+                - link "xAI" [ref=e2704] [cursor=pointer]:
+                  - /url: /organizations/945e26e075942b68e65a6f41134e2de2
+                - generic [ref=e2705]: · SpaceXAI
+              - paragraph [ref=e2706]:
+                - link "7 meetings" [ref=e2707] [cursor=pointer]:
+                  - /url: /search?q=XAI&sort=date_desc
+              - blockquote [ref=e2708]:
+                - text: “data centers and the environmental racism that we've seen in Memphis with uh
+                - mark [ref=e2709]: XAI
+                - text: and I have major concerns about a data center um being built at Fisk”
+                - generic [ref=e2710]:
+                  - text: Nashville-Davidson metropolitan government (balance), TN · Jun 2, 2026 ·
+                  - link "Watch ↗" [ref=e2711] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=p1OBg8f11eU&t=1080s
+            - listitem [ref=e2712]:
+              - paragraph [ref=e2713]:
+                - link "OpenAI" [ref=e2714] [cursor=pointer]:
+                  - /url: /organizations/94dca8a1ed4b9d7dd979f96f7db3b336
+              - paragraph [ref=e2715]:
+                - link "6 meetings" [ref=e2716] [cursor=pointer]:
+                  - /url: /search?q=OpenAI&sort=date_desc
+              - blockquote [ref=e2717]:
+                - text: “priority. There's also the issue of water consumption. To generate one email,
+                - mark [ref=e2718]: OpenAI
+                - text: "'s GBT4 can use as many as three bottles of water. By 2028, it's expected”"
+                - generic [ref=e2719]:
+                  - text: Baltimore, MD · May 7, 2026 ·
+                  - link "Watch ↗" [ref=e2720] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=IemEM0uac34&t=3496s
+            - listitem [ref=e2721]:
+              - paragraph [ref=e2722]:
+                - link "Anthropic" [ref=e2723] [cursor=pointer]:
+                  - /url: /organizations/1f199242b0db2e08df3da40ba6713d51
+              - paragraph [ref=e2724]:
+                - link "5 meetings" [ref=e2725] [cursor=pointer]:
+                  - /url: /search?q=Anthropic&sort=date_desc
+              - blockquote [ref=e2726]:
+                - text: “headwinds. We are seeing the cost uh show itself as a sign. Um
+                - mark [ref=e2727]: Anthropic
+                - text: ”
+                - generic [ref=e2728]:
+                  - text: Albany, CA · Oct 28, 2026 ·
+                  - link "Watch ↗" [ref=e2729] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=oI_vqtPjKd8&t=706s
+            - listitem [ref=e2730]:
+              - paragraph [ref=e2731]: Hillwood
+              - paragraph [ref=e2732]:
+                - link "4 meetings" [ref=e2733] [cursor=pointer]:
+                  - /url: /search?q=Hillwood&sort=date_desc
+                - text: · 1 decision
+              - blockquote [ref=e2734]:
+                - text: “exception, and a variance. I'm pleased to present this application on behalf of
+                - mark [ref=e2735]: Hillwood
+                - text: . Um,
+                - mark [ref=e2736]: Hillwood
+                - text: is a national developer. They have great experience developing industrial properties throughout ... property outlined in yellow on the left hand or west side of your screen.
+                - mark [ref=e2737]: Hillwood
+                - text: has another industrial development that you'll see outlined in yellow on the right, which”
+                - generic [ref=e2738]:
+                  - text: Spalding County, GA · Apr 28, 2026 ·
+                  - link "Watch ↗" [ref=e2739] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=LGJDZSrSoBU&t=2082s
+            - listitem [ref=e2740]:
+              - paragraph [ref=e2741]: PowerHouse Data Centers
+              - paragraph [ref=e2742]:
+                - link "4 meetings" [ref=e2743] [cursor=pointer]:
+                  - /url: /search?q=data&sort=date_desc
+                - text: · 1 decision
+              - blockquote [ref=e2744]:
+                - text: “this is a
+                - mark [ref=e2745]: data
+                - text: center campus. With this application, Hillwood has teamed up with
+                - mark [ref=e2746]: Powerhouse
+                - text: .
+                - mark [ref=e2747]: Powerhouse
+                - text: is a best-in-class developer of
+                - mark [ref=e2748]: data
+                - mark [ref=e2749]: centers
+                - text: throughout the country”
+                - generic [ref=e2750]:
+                  - text: Spalding County, GA · Apr 28, 2026 ·
+                  - link "Watch ↗" [ref=e2751] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=LGJDZSrSoBU&t=2082s
+            - listitem [ref=e2752]:
+              - paragraph [ref=e2753]:
+                - text: Digital Realty
+                - generic [ref=e2754]: · Digital Realty Trust
+              - paragraph [ref=e2755]:
+                - link "4 meetings" [ref=e2756] [cursor=pointer]:
+                  - /url: /search?q=DIGITAL&sort=date_desc
+              - blockquote [ref=e2757]:
+                - text: “ABOUT MOVING FORWARD BECAUSE AS NOTED IN THE LOCAL DATA CENTER, THE ONE
+                - mark [ref=e2758]: DIGITAL
+                - mark [ref=e2759]: REALTY
+                - text: ", IT RUNS OUR FIRST RESPONDERS. IT SUPPORTS OUR FIRST RESPONDERS. I THINK THAT”"
+                - generic [ref=e2760]:
+                  - text: Seattle, WA · Jun 9, 2026 ·
+                  - link "Watch ↗" [ref=e2761] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=EZSgjP9TW5Y&t=5423s
+            - listitem [ref=e2762]:
+              - paragraph [ref=e2763]:
+                - text: Aligned Data Centers
+                - generic [ref=e2764]: · Aligned Energy
+              - paragraph [ref=e2765]:
+                - link "2 meetings" [ref=e2766] [cursor=pointer]:
+                  - /url: /search?q=aligned&sort=date_desc
+              - blockquote [ref=e2767]:
+                - text: “have many uh tenant finish permits in the near future it's a
+                - mark [ref=e2768]: aligned
+                - mark [ref=e2769]: energy
+                - text: they call project miramar it's at the old fairchild semiconductor just southbound 90th ... that is 241 000 square feet next this is an overhead of
+                - mark [ref=e2770]: aligned
+                - mark [ref=e2771]: energy
+                - text: you can see the old building to the right that has had many millions”
+                - generic [ref=e2772]:
+                  - text: West Jordan, UT · Nov 4, 2020 ·
+                  - link "Watch ↗" [ref=e2773] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=08sgxl1ay6Y
+            - listitem [ref=e2774]:
+              - paragraph [ref=e2775]:
+                - link "Applied Digital" [ref=e2776] [cursor=pointer]:
+                  - /url: /organizations/6a5f0d5f426094985ee995a83c706ce0
+                - generic [ref=e2777]: · APLD, Applied Digital Corporation
+              - paragraph [ref=e2778]:
+                - link "1 meeting" [ref=e2779] [cursor=pointer]:
+                  - /url: /search?q=Applied&sort=date_desc
+              - blockquote [ref=e2780]:
+                - text: “bring in someone who is growing data centers in North Dakota. That is
+                - mark [ref=e2781]: Applied
+                - mark [ref=e2782]: Digital
+                - text: . So we'd invite people to come to the Chevron facility there”
+                - generic [ref=e2783]:
+                  - text: Minot, ND · May 4, 2026 ·
+                  - link "Watch ↗" [ref=e2784] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=6uzXNC9YoHw&t=973s
+            - listitem [ref=e2785]:
+              - paragraph [ref=e2786]:
+                - link "CoreWeave" [ref=e2787] [cursor=pointer]:
+                  - /url: /organizations/dc6f165a4b26e1628e6ca84af527dbff
+              - paragraph [ref=e2788]:
+                - link "1 meeting" [ref=e2789] [cursor=pointer]:
+                  - /url: /search?q=Coreweave&sort=date_desc
+              - blockquote [ref=e2790]:
+                - text: “center. And so the enduser is a multi multi-billion dollar publicly traded company,
+                - mark [ref=e2791]: Coreweave
+                - text: . Um, and they actually they they are a $3.7 billion inducement. So I I want”
+                - generic [ref=e2792]:
+                  - text: Clayton County, GA · May 12, 2026 ·
+                  - link "Watch ↗" [ref=e2793] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=QAi2jR6bmAw&t=1652s
+            - listitem [ref=e2794]:
+              - paragraph [ref=e2795]: Vantage Data Centers
+              - paragraph [ref=e2796]:
+                - link "1 meeting" [ref=e2797] [cursor=pointer]:
+                  - /url: /search?q=Vantage&sort=date_desc
+              - blockquote [ref=e2798]:
+                - text: “pollution. Harvard, along with the Piedmont Environmental Council, completed an analysis of the
+                - mark [ref=e2799]: Vantage
+                - mark [ref=e2800]: data
+                - mark [ref=e2801]: centers
+                - text: in Loudoun County, Virginia. Population in 2025 was 449,749 versus Paulding County”
+                - generic [ref=e2802]:
+                  - text: Paulding County, GA · Jun 23, 2026 ·
+                  - link "Watch ↗" [ref=e2803] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=4tLk3Mc5wv4&t=2526s
+          - paragraph [ref=e2804]: "Not named in any meeting on record: Cipher Mining, Compass Datacenters, Core42, Cursor, CyrusOne, Equinix, G42, Nebius, STACK Infrastructure, SoftBank, Switch, Tract."
+  - main [ref=e146]:
+    - generic [ref=e147]:
+      - heading "Search your community" [level=2] [ref=e148]
+      - generic [ref=e149]:
+        - generic [ref=e150]: 📍 Live in
+        - generic [ref=e151]:
+          - link "Seattle, WA" [ref=e152] [cursor=pointer]:
+            - /url: /search?state=WA&city=Seattle
+          - text: ·
+        - generic [ref=e153]:
+          - link "Boston, MA" [ref=e154] [cursor=pointer]:
+            - /url: /search?state=MA&city=Boston
+          - text: ·
+        - generic [ref=e155]:
+          - link "Atlanta, GA" [ref=e156] [cursor=pointer]:
+            - /url: /search?state=GA&city=Atlanta
+          - text: ·
+        - link "Tuscaloosa, AL" [ref=e158] [cursor=pointer]:
+          - /url: /search?state=AL&city=Tuscaloosa
+        - generic [ref=e159]: — more cities coming soon
+      - generic [ref=e161]:
+        - button "Search category" [ref=e162] [cursor=pointer]:
+          - text: All
+          - generic [aria-hidden] [ref=e163]: ▾
+        - textbox "Search topics, people, organizations, or causes" [ref=e164]
+        - button "Location level" [ref=e165] [cursor=pointer]:
+          - text: 📍 the U.S.
+          - generic [aria-hidden] [ref=e166]: ▾
+        - button "Search" [ref=e167] [cursor=pointer]: 🔍
+      - generic [ref=e2805]:
+        - generic [ref=e2806]: 🔥 Trending questions · Nationwide
+        - generic [ref=e2807]:
+          - link "Should we allow new data centers?" [ref=e2808] [cursor=pointer]:
+            - /url: /policy-questions?question_id=f7001f99695ccecb1e8df4ab0ee721fd
+          - link "Should we allow short-term rentals?" [ref=e2809] [cursor=pointer]:
+            - /url: /policy-questions?question_id=5d4b7f1129e5f621ebd564cee31da0de
+          - link "Should we build bike lanes and paths?" [ref=e2810] [cursor=pointer]:
+            - /url: /policy-questions?question_id=df5f46bc9c8a1e997a30baebd3eb068d
+          - link "Should police use automated license plate readers?" [ref=e2811] [cursor=pointer]:
+            - /url: /policy-questions?question_id=2bcea4e521fd138a9df8c8435dc91910
+          - link "Should the jurisdiction award no-bid contracts?" [ref=e2812] [cursor=pointer]:
+            - /url: /policy-questions?question_id=cc6c76b088c72341e19abfda1b6807dd
+      - generic [ref=e168]:
+        - generic [ref=e180]:
+          - button "Browse causes 113,669 meetings" [ref=e2813] [cursor=pointer]:
+            - generic [ref=e182]: Browse causes
+            - generic "113,669 meetings" [ref=e2814]: 113,669
+          - button "Show top causes" [ref=e183] [cursor=pointer]: ▾
+        - generic [ref=e175]:
+          - button "Browse topics 90,622 meetings" [ref=e2815] [cursor=pointer]:
+            - generic [ref=e177]: Browse topics
+            - generic "90,622 meetings" [ref=e2816]: 90,622
+          - button "Show top topics" [ref=e178] [cursor=pointer]: ▾
+        - generic [ref=e170]:
+          - button "Browse questions 2,033 meetings" [ref=e2817] [cursor=pointer]:
+            - generic [ref=e172]: Browse questions
+            - generic "2,033 meetings" [ref=e2818]: 2,033
+          - button "Show top questions" [ref=e173] [cursor=pointer]: ▾
+        - generic [ref=e185]:
+          - button "Browse places 130,277 meetings" [ref=e2819] [cursor=pointer]:
+            - generic [ref=e187]: Browse places
+            - generic "130,277 meetings" [ref=e2820]: 130,277
+          - button "Show top places" [ref=e188] [cursor=pointer]: ▾
+    - generic [ref=e190]:
+      - generic [ref=e191]: 💵
+      - generic [ref=e192]:
+        - generic [ref=e193]: How much of your money is on the line?
+        - generic [ref=e194]: See what you pay in local taxes, where it goes, and what it means for your grandkids. About 90 seconds.
+      - button "Show me my money →" [ref=e195] [cursor=pointer]
+    - generic [ref=e2821]:
+      - generic [ref=e2822]:
+        - generic [ref=e2823]: 🗓️
+        - generic [ref=e2824]:
+          - heading "What’s New" [level=2] [ref=e2825]
+          - generic [ref=e2826]: The most recent meetings, including ones not yet analyzed · 📍 the U.S.
+      - generic [ref=e2828]:
+        - button "Previous story" [disabled]
+        - button "Next story" [ref=e2829] [cursor=pointer]
+        - generic [ref=e2832]:
+          - 'link "Streaming LIVE: Aurora Electoral Board Meeting | 11-24-2026 🗓️ What''s New Not yet analyzed 3 days ago Streaming LIVE: Aurora Electoral Board Meeting | 11-24-2026 Aurora, IL · 3 days ago Save story" [ref=e2834] [cursor=pointer]':
+            - generic [ref=e2835]:
+              - generic [ref=e2845]:
+                - generic [ref=e2846]: Aurora, IL
+                - generic [ref=e2847]: Nov 24, 2026
+              - 'img "Streaming LIVE: Aurora Electoral Board Meeting | 11-24-2026" [ref=e2848]'
+            - generic [ref=e2850]:
+              - generic [ref=e2851]:
+                - generic [ref=e2852]:
+                  - generic [ref=e2853]:
+                    - generic [ref=e2854]: 🗓️
+                    - text: What's New
+                  - generic [ref=e2855]: Not yet analyzed
+                - generic [ref=e2856]: 3 days ago
+              - 'heading "Streaming LIVE: Aurora Electoral Board Meeting | 11-24-2026" [level=3] [ref=e2857]'
+              - generic [ref=e2858]:
+                - generic [ref=e2859]: Aurora, IL
+                - generic [ref=e2860]: ·
+                - generic [ref=e2861]: 3 days ago
+                - button "Save story" [ref=e2862]
+          - link "November 24, 2026 Public Works & Utilities Committee Meeting 🗓️ What's New Not yet analyzed 3 days ago November 24, 2026 Public Works & Utilities Committee Meeting Adams County, WI · 3 days ago Save story" [ref=e2866] [cursor=pointer]:
+            - generic [ref=e2867]:
+              - generic [ref=e2877]:
+                - generic [ref=e2878]: Adams County, WI
+                - generic [ref=e2879]: Nov 24, 2026
+              - img "November 24, 2026 Public Works & Utilities Committee Meeting" [ref=e2880]
+            - generic [ref=e2882]:
+              - generic [ref=e2883]:
+                - generic [ref=e2884]:
+                  - generic [ref=e2885]:
+                    - generic [ref=e2886]: 🗓️
+                    - text: What's New
+                  - generic [ref=e2887]: Not yet analyzed
+                - generic [ref=e2888]: 3 days ago
+              - heading "November 24, 2026 Public Works & Utilities Committee Meeting" [level=3] [ref=e2889]
+              - generic [ref=e2890]:
+                - generic [ref=e2891]: Adams County, WI
+                - generic [ref=e2892]: ·
+                - generic [ref=e2893]: 3 days ago
+                - button "Save story" [ref=e2894]
+          - 'link "Streaming LIVE: Aurora Electoral Board Meeting | 11-24-2026 🗓️ What''s New Not yet analyzed 3 days ago Streaming LIVE: Aurora Electoral Board Meeting | 11-24-2026 Aurora, IL · 3 days ago Save story" [ref=e2898] [cursor=pointer]':
+            - generic [ref=e2899]:
+              - generic [ref=e2909]:
+                - generic [ref=e2910]: Aurora, IL
+                - generic [ref=e2911]: Nov 24, 2026
+              - 'img "Streaming LIVE: Aurora Electoral Board Meeting | 11-24-2026" [ref=e2912]'
+            - generic [ref=e2914]:
+              - generic [ref=e2915]:
+                - generic [ref=e2916]:
+                  - generic [ref=e2917]:
+                    - generic [ref=e2918]: 🗓️
+                    - text: What's New
+                  - generic [ref=e2919]: Not yet analyzed
+                - generic [ref=e2920]: 3 days ago
+              - 'heading "Streaming LIVE: Aurora Electoral Board Meeting | 11-24-2026" [level=3] [ref=e2921]'
+              - generic [ref=e2922]:
+                - generic [ref=e2923]: Aurora, IL
+                - generic [ref=e2924]: ·
+                - generic [ref=e2925]: 3 days ago
+                - button "Save story" [ref=e2926]
+          - 'link "Streaming LIVE: Aurora Infrastructure and Technology Committee Meeting | 11-23-2026 🗓️ What''s New Not yet analyzed 4 days ago Streaming LIVE: Aurora Infrastructure and Technology Committee Meeting | 11-23-2026 Mentions · Data centers need as much especially over at the police department where the where the data center room is there. Um we we have drawn down the load. We be able to get actual usage based Aurora, IL · 4 days ago Save story" [ref=e2930] [cursor=pointer]':
+            - generic [ref=e2931]:
+              - generic [ref=e2938]:
+                - generic [ref=e2939]: Aurora, IL
+                - generic [ref=e2940]: Nov 23, 2026
+              - 'img "Streaming LIVE: Aurora Infrastructure and Technology Committee Meeting | 11-23-2026" [ref=e2941]'
+            - generic [ref=e2943]:
+              - generic [ref=e2944]:
+                - generic [ref=e2945]:
+                  - generic [ref=e2946]:
+                    - generic [ref=e2947]: 🗓️
+                    - text: What's New
+                  - generic [ref=e2948]: Not yet analyzed
+                - generic [ref=e2949]: 4 days ago
+              - 'heading "Streaming LIVE: Aurora Infrastructure and Technology Committee Meeting | 11-23-2026" [level=3] [ref=e2950]'
+              - paragraph [ref=e2951]: Mentions · Data centers
+              - paragraph [ref=e2952]:
+                - text: need as much especially over at the police department where the where the
+                - mark [ref=e2953]: data
+                - mark [ref=e2954]: center
+                - text: room is there. Um we we have drawn down the load. We be able to get actual usage based
+              - generic [ref=e2955]:
+                - generic [ref=e2956]: Aurora, IL
+                - generic [ref=e2957]: ·
+                - generic [ref=e2958]: 4 days ago
+                - button "Save story" [ref=e2959]
+          - link "Study Session of the Aurora City Council, November 23, 2026 🗓️ What's New Not yet analyzed 4 days ago Study Session of the Aurora City Council, November 23, 2026 Mentions · Data centers will move forward. Item number 6B uh imposing a temporary moratorium on new data centers in defined areas in the city of Aurora. Um, Council Member Gardner cannot be here uh tonight … then for the rest of the city it puts a moratorum in place on new data centers uh on accepting applications for new data centers until uh September uh 2027. Uh questions, >> mayor Aurora, CO · 4 days ago Save story" [ref=e2963] [cursor=pointer]:
+            - generic [ref=e2964]:
+              - generic [ref=e2971]:
+                - generic [ref=e2972]: Aurora, CO
+                - generic [ref=e2973]: Nov 23, 2026
+              - img "Study Session of the Aurora City Council, November 23, 2026" [ref=e2974]
+            - generic [ref=e2976]:
+              - generic [ref=e2977]:
+                - generic [ref=e2978]:
+                  - generic [ref=e2979]:
+                    - generic [ref=e2980]: 🗓️
+                    - text: What's New
+                  - generic [ref=e2981]: Not yet analyzed
+                - generic [ref=e2982]: 4 days ago
+              - heading "Study Session of the Aurora City Council, November 23, 2026" [level=3] [ref=e2983]
+              - paragraph [ref=e2984]: Mentions · Data centers
+              - paragraph [ref=e2985]:
+                - text: will move forward. Item number 6B uh imposing a temporary moratorium on new
+                - mark [ref=e2986]: data
+                - mark [ref=e2987]: centers
+                - text: in defined areas in the city of Aurora. Um, Council Member Gardner cannot be here uh tonight … then for the rest of the city it puts a moratorum in place on new
+                - mark [ref=e2988]: data
+                - mark [ref=e2989]: centers
+                - text: uh on accepting applications for new
+                - mark [ref=e2990]: data
+                - mark [ref=e2991]: centers
+                - text: until uh September uh 2027. Uh questions, >> mayor
+              - generic [ref=e2992]:
+                - generic [ref=e2993]: Aurora, CO
+                - generic [ref=e2994]: ·
+                - generic [ref=e2995]: 4 days ago
+                - button "Save story" [ref=e2996]
+          - link "2026 Whatcom Literacy Council Annual Breakfast featuring Nancy Pearl 🗓️ What's New Not yet analyzed 6 days ago 2026 Whatcom Literacy Council Annual Breakfast featuring Nancy Pearl Bellingham, WA · 6 days ago Save story" [ref=e3000] [cursor=pointer]:
+            - generic [ref=e3001]:
+              - generic [ref=e3011]:
+                - generic [ref=e3012]: Bellingham, WA
+                - generic [ref=e3013]: Nov 21, 2026
+              - img "2026 Whatcom Literacy Council Annual Breakfast featuring Nancy Pearl" [ref=e3014]
+            - generic [ref=e3016]:
+              - generic [ref=e3017]:
+                - generic [ref=e3018]:
+                  - generic [ref=e3019]:
+                    - generic [ref=e3020]: 🗓️
+                    - text: What's New
+                  - generic [ref=e3021]: Not yet analyzed
+                - generic [ref=e3022]: 6 days ago
+              - heading "2026 Whatcom Literacy Council Annual Breakfast featuring Nancy Pearl" [level=3] [ref=e3023]
+              - generic [ref=e3024]:
+                - generic [ref=e3025]: Bellingham, WA
+                - generic [ref=e3026]: ·
+                - generic [ref=e3027]: 6 days ago
+                - button "Save story" [ref=e3028]
+        - generic [ref=e3031]:
+          - button "Go to story 1" [ref=e3032] [cursor=pointer]
+          - button "Go to story 2" [ref=e3033] [cursor=pointer]
+          - button "Go to story 3" [ref=e3034] [cursor=pointer]
+          - button "Go to story 4" [ref=e3035] [cursor=pointer]
+          - button "Go to story 5" [ref=e3036] [cursor=pointer]
+          - button "Go to story 6" [ref=e3037] [cursor=pointer]
+    - generic [ref=e196]:
+      - generic [ref=e197]:
+        - generic [ref=e198]: 🔥
+        - generic [ref=e199]:
+          - heading "Contested" [level=2] [ref=e200]
+          - generic [ref=e201]: Split votes and heated debate among officials or residents · 📍 the U.S.
+        - generic [ref=e202]:
+          - button "Past month" [ref=e203] [cursor=pointer]
+          - button "Past 3 months" [ref=e204] [cursor=pointer]
+          - button "Past year" [ref=e205] [cursor=pointer]
+          - button "All time" [ref=e206] [cursor=pointer]
+      - generic [ref=e3038]:
+        - button "Previous story" [disabled]
+        - button "Next story" [ref=e3039] [cursor=pointer]
+        - generic [ref=e3042]:
+          - link "Jail Planning Scenarios and Behavioral Health Integration Under Discussion 🔥 Contested 8 months ago Jail Planning Scenarios and Behavioral Health Integration Under Discussion 5 Opposing views $300.0M Impact Whatcom County, WA · 8 months ago Save story" [ref=e3044] [cursor=pointer]:
+            - generic [ref=e3045]:
+              - generic [ref=e3055]:
+                - generic [ref=e3056]: Whatcom County, WA
+                - generic [ref=e3057]: Mar 24, 2026
+              - img "Jail Planning Scenarios and Behavioral Health Integration Under Discussion" [ref=e3058]
+            - generic [ref=e3060]:
+              - generic [ref=e3061]:
+                - generic [ref=e3063]:
+                  - generic [ref=e3064]: 🔥
+                  - text: Contested
+                - generic [ref=e3065]: 8 months ago
+              - heading "Jail Planning Scenarios and Behavioral Health Integration Under Discussion" [level=3] [ref=e3066]
+              - generic [ref=e3067]:
+                - generic [ref=e3068]:
+                  - generic [ref=e3069]: "5"
+                  - generic [ref=e3070]: Opposing views
+                - generic [ref=e3071]:
+                  - generic [ref=e3072]: $300.0M
+                  - generic [ref=e3073]: Impact
+              - generic [ref=e3074]:
+                - generic [ref=e3075]: Whatcom County, WA
+                - generic [ref=e3076]: ·
+                - generic [ref=e3077]: 8 months ago
+                - button "Save story" [ref=e3078]
+          - link "Variance for Accessory Building Denied Due to Tie Vote 🔥 Contested 7 months ago Variance for Accessory Building Denied Due to Tie Vote 2–2 Vote 1 Opposing views Warrick County, IN · 7 months ago Save story" [ref=e3082] [cursor=pointer]:
+            - generic [ref=e3083]:
+              - generic [ref=e3092]:
+                - generic [ref=e3093]: Warrick County, IN
+                - generic [ref=e3094]: Apr 29, 2026
+              - img "Variance for Accessory Building Denied Due to Tie Vote" [ref=e3095]
+            - generic [ref=e3097]:
+              - generic [ref=e3098]:
+                - generic [ref=e3100]:
+                  - generic [ref=e3101]: 🔥
+                  - text: Contested
+                - generic [ref=e3102]: 7 months ago
+              - heading "Variance for Accessory Building Denied Due to Tie Vote" [level=3] [ref=e3103]
+              - generic [ref=e3104]:
+                - generic [ref=e3105]:
+                  - generic [ref=e3106]: 2–2
+                  - generic [ref=e3107]: Vote
+                - generic [ref=e3108]:
+                  - generic [ref=e3109]: "1"
+                  - generic [ref=e3110]: Opposing views
+              - generic [ref=e3111]:
+                - generic [ref=e3112]: Warrick County, IN
+                - generic [ref=e3113]: ·
+                - generic [ref=e3114]: 7 months ago
+                - button "Save story" [ref=e3115]
+          - link "Council Reviews and Provides Feedback on Comprehensive Plan Draft 🔥 Contested 8 months ago Council Reviews and Provides Feedback on Comprehensive Plan Draft 5 Opposing views Sedro-Woolley, WA · 8 months ago Save story" [ref=e3119] [cursor=pointer]:
+            - generic [ref=e3120]:
+              - generic [ref=e3130]:
+                - generic [ref=e3131]: Sedro-Woolley, WA
+                - generic [ref=e3132]: Apr 1, 2026
+              - img "Council Reviews and Provides Feedback on Comprehensive Plan Draft" [ref=e3133]
+            - generic [ref=e3135]:
+              - generic [ref=e3136]:
+                - generic [ref=e3138]:
+                  - generic [ref=e3139]: 🔥
+                  - text: Contested
+                - generic [ref=e3140]: 8 months ago
+              - heading "Council Reviews and Provides Feedback on Comprehensive Plan Draft" [level=3] [ref=e3141]
+              - generic [ref=e3143]:
+                - generic [ref=e3144]: "5"
+                - generic [ref=e3145]: Opposing views
+              - generic [ref=e3146]:
+                - generic [ref=e3147]: Sedro-Woolley, WA
+                - generic [ref=e3148]: ·
+                - generic [ref=e3149]: 8 months ago
+                - button "Save story" [ref=e3150]
+          - link "Driveway Spacing Waiver Appeal Fails on Tie Vote Amid Safety and Access Debates 🔥 Contested 9 months ago Driveway Spacing Waiver Appeal Fails on Tie Vote Amid Safety and Access Debates 3–3 Vote 2 Opposing views Auburn, AL · 9 months ago Save story" [ref=e3154] [cursor=pointer]:
+            - generic [ref=e3155]:
+              - generic [ref=e3165]:
+                - generic [ref=e3166]: Auburn, AL
+                - generic [ref=e3167]: Mar 12, 2026
+              - img "Driveway Spacing Waiver Appeal Fails on Tie Vote Amid Safety and Access Debates" [ref=e3168]
+            - generic [ref=e3170]:
+              - generic [ref=e3171]:
+                - generic [ref=e3173]:
+                  - generic [ref=e3174]: 🔥
+                  - text: Contested
+                - generic [ref=e3175]: 9 months ago
+              - heading "Driveway Spacing Waiver Appeal Fails on Tie Vote Amid Safety and Access Debates" [level=3] [ref=e3176]
+              - generic [ref=e3177]:
+                - generic [ref=e3178]:
+                  - generic [ref=e3179]: 3–3
+                  - generic [ref=e3180]: Vote
+                - generic [ref=e3181]:
+                  - generic [ref=e3182]: "2"
+                  - generic [ref=e3183]: Opposing views
+              - generic [ref=e3184]:
+                - generic [ref=e3185]: Auburn, AL
+                - generic [ref=e3186]: ·
+                - generic [ref=e3187]: 9 months ago
+                - button "Save story" [ref=e3188]
+          - link "Town Charter Amendment regarding department head appointments 🔥 Contested 9 months ago Town Charter Amendment regarding department head appointments 2–2 Vote 1 Opposing views Bedford, MA · 9 months ago Save story" [ref=e3192] [cursor=pointer]:
+            - generic [ref=e3193]:
+              - generic [ref=e3203]:
+                - generic [ref=e3204]: Bedford, MA
+                - generic [ref=e3205]: Mar 9, 2026
+              - img "Town Charter Amendment regarding department head appointments" [ref=e3206]
+            - generic [ref=e3208]:
+              - generic [ref=e3209]:
+                - generic [ref=e3211]:
+                  - generic [ref=e3212]: 🔥
+                  - text: Contested
+                - generic [ref=e3213]: 9 months ago
+              - heading "Town Charter Amendment regarding department head appointments" [level=3] [ref=e3214]
+              - generic [ref=e3215]:
+                - generic [ref=e3216]:
+                  - generic [ref=e3217]: 2–2
+                  - generic [ref=e3218]: Vote
+                - generic [ref=e3219]:
+                  - generic [ref=e3220]: "1"
+                  - generic [ref=e3221]: Opposing views
+              - generic [ref=e3222]:
+                - generic [ref=e3223]: Bedford, MA
+                - generic [ref=e3224]: ·
+                - generic [ref=e3225]: 9 months ago
+                - button "Save story" [ref=e3226]
+          - link "Rezoning of Timberland 109 LLC property denied due to infrastructure and comprehensive plan concerns. 🔥 Contested 9 months ago Rezoning of Timberland 109 LLC property denied due to infrastructure and comprehensive plan concerns. 1–1 Vote 1 Opposing views Harris County, GA · 9 months ago Save story" [ref=e3230] [cursor=pointer]:
+            - generic [ref=e3231]:
+              - generic [ref=e3240]:
+                - generic [ref=e3241]: Harris County, GA
+                - generic [ref=e3242]: Mar 3, 2026
+              - img "Rezoning of Timberland 109 LLC property denied due to infrastructure and comprehensive plan concerns." [ref=e3243]
+            - generic [ref=e3245]:
+              - generic [ref=e3246]:
+                - generic [ref=e3248]:
+                  - generic [ref=e3249]: 🔥
+                  - text: Contested
+                - generic [ref=e3250]: 9 months ago
+              - heading "Rezoning of Timberland 109 LLC property denied due to infrastructure and comprehensive plan concerns." [level=3] [ref=e3251]
+              - generic [ref=e3252]:
+                - generic [ref=e3253]:
+                  - generic [ref=e3254]: 1–1
+                  - generic [ref=e3255]: Vote
+                - generic [ref=e3256]:
+                  - generic [ref=e3257]: "1"
+                  - generic [ref=e3258]: Opposing views
+              - generic [ref=e3259]:
+                - generic [ref=e3260]: Harris County, GA
+                - generic [ref=e3261]: ·
+                - generic [ref=e3262]: 9 months ago
+                - button "Save story" [ref=e3263]
+        - generic [ref=e3266]:
+          - button "Go to story 1" [ref=e3267] [cursor=pointer]
+          - button "Go to story 2" [ref=e3268] [cursor=pointer]
+          - button "Go to story 3" [ref=e3269] [cursor=pointer]
+          - button "Go to story 4" [ref=e3270] [cursor=pointer]
+          - button "Go to story 5" [ref=e3271] [cursor=pointer]
+          - button "Go to story 6" [ref=e3272] [cursor=pointer]
+    - generic [ref=e209]:
+      - generic [ref=e210]:
+        - generic [ref=e211]: 🤨
+        - generic [ref=e212]:
+          - heading "Raised Eyebrows" [level=2] [ref=e213]
+          - generic [ref=e214]: Unusual patterns — sole-source contracts, reversals, late additions. Manual human review recommended. · 📍 the U.S.
+      - generic [ref=e215]:
+        - generic [ref=e3273]: Manual human review recommended
+        - generic [ref=e3274]:
+          - button "Previous story" [disabled]
+          - button "Next story" [ref=e3275] [cursor=pointer]
+          - generic [ref=e3278]:
+            - link "🤨 Raised Eyebrows Human review Reserve blood program contract with Life South Community Blood Center $49,999 Amount not_to_exceed Type 0.0% under Approval limit Tuscaloosa, AL · Save story" [ref=e3280] [cursor=pointer]:
+              - generic [ref=e3282]:
+                - generic [ref=e3284]:
+                  - generic [ref=e3285]:
+                    - generic [ref=e3286]: 🤨
+                    - text: Raised Eyebrows
+                  - generic [ref=e3287]: Human review
+                - heading "Reserve blood program contract with Life South Community Blood Center" [level=3] [ref=e3288]
+                - generic [ref=e3289]:
+                  - generic [ref=e3290]:
+                    - generic [ref=e3291]: $49,999
+                    - generic [ref=e3292]: Amount
+                  - generic [ref=e3293]:
+                    - generic [ref=e3294]: not_to_exceed
+                    - generic [ref=e3295]: Type
+                  - generic [ref=e3296]:
+                    - generic [ref=e3297]: 0.0% under
+                    - generic [ref=e3298]: Approval limit
+                - generic [ref=e3299]:
+                  - generic [ref=e3300]: Tuscaloosa, AL
+                  - generic [ref=e3301]: ·
+                  - button "Save story" [ref=e3302]
+            - link "🤨 Raised Eyebrows Human review One-time purchase of 10 20-yard rolloff containers from Monmouth Solutions $49,999 Amount purchase Type 0.0% under Approval limit Bulloch County, GA · Save story" [ref=e3306] [cursor=pointer]:
+              - generic [ref=e3308]:
+                - generic [ref=e3310]:
+                  - generic [ref=e3311]:
+                    - generic [ref=e3312]: 🤨
+                    - text: Raised Eyebrows
+                  - generic [ref=e3313]: Human review
+                - heading "One-time purchase of 10 20-yard rolloff containers from Monmouth Solutions" [level=3] [ref=e3314]
+                - generic [ref=e3315]:
+                  - generic [ref=e3316]:
+                    - generic [ref=e3317]: $49,999
+                    - generic [ref=e3318]: Amount
+                  - generic [ref=e3319]:
+                    - generic [ref=e3320]: purchase
+                    - generic [ref=e3321]: Type
+                  - generic [ref=e3322]:
+                    - generic [ref=e3323]: 0.0% under
+                    - generic [ref=e3324]: Approval limit
+                - generic [ref=e3325]:
+                  - generic [ref=e3326]: Bulloch County, GA
+                  - generic [ref=e3327]: ·
+                  - button "Save story" [ref=e3328]
+            - link "🤨 Raised Eyebrows Human review Purchase of Chevrolet police package Tahoe with emergency equipment $49,992 Amount cost Type 0.02% under Approval limit Marshall County, AL · Save story" [ref=e3332] [cursor=pointer]:
+              - generic [ref=e3334]:
+                - generic [ref=e3336]:
+                  - generic [ref=e3337]:
+                    - generic [ref=e3338]: 🤨
+                    - text: Raised Eyebrows
+                  - generic [ref=e3339]: Human review
+                - heading "Purchase of Chevrolet police package Tahoe with emergency equipment" [level=3] [ref=e3340]
+                - generic [ref=e3341]:
+                  - generic [ref=e3342]:
+                    - generic [ref=e3343]: $49,992
+                    - generic [ref=e3344]: Amount
+                  - generic [ref=e3345]:
+                    - generic [ref=e3346]: cost
+                    - generic [ref=e3347]: Type
+                  - generic [ref=e3348]:
+                    - generic [ref=e3349]: 0.02% under
+                    - generic [ref=e3350]: Approval limit
+                - generic [ref=e3351]:
+                  - generic [ref=e3352]: Marshall County, AL
+                  - generic [ref=e3353]: ·
+                  - button "Save story" [ref=e3354]
+            - link "🤨 Raised Eyebrows Human review Drug Task Force appropriation request $49,939 Amount annual Type 0.12% under Approval limit Sylacauga, AL · Save story" [ref=e3358] [cursor=pointer]:
+              - generic [ref=e3360]:
+                - generic [ref=e3362]:
+                  - generic [ref=e3363]:
+                    - generic [ref=e3364]: 🤨
+                    - text: Raised Eyebrows
+                  - generic [ref=e3365]: Human review
+                - heading "Drug Task Force appropriation request" [level=3] [ref=e3366]
+                - generic [ref=e3367]:
+                  - generic [ref=e3368]:
+                    - generic [ref=e3369]: $49,939
+                    - generic [ref=e3370]: Amount
+                  - generic [ref=e3371]:
+                    - generic [ref=e3372]: annual
+                    - generic [ref=e3373]: Type
+                  - generic [ref=e3374]:
+                    - generic [ref=e3375]: 0.12% under
+                    - generic [ref=e3376]: Approval limit
+                - generic [ref=e3377]:
+                  - generic [ref=e3378]: Sylacauga, AL
+                  - generic [ref=e3379]: ·
+                  - button "Save story" [ref=e3380]
+            - link "🤨 Raised Eyebrows Human review Drug Task Force annual appropriation request $49,939 Amount appropriation_requ Type 0.12% under Approval limit Sylacauga, AL · Save story" [ref=e3384] [cursor=pointer]:
+              - generic [ref=e3386]:
+                - generic [ref=e3388]:
+                  - generic [ref=e3389]:
+                    - generic [ref=e3390]: 🤨
+                    - text: Raised Eyebrows
+                  - generic [ref=e3391]: Human review
+                - heading "Drug Task Force annual appropriation request" [level=3] [ref=e3392]
+                - generic [ref=e3393]:
+                  - generic [ref=e3394]:
+                    - generic [ref=e3395]: $49,939
+                    - generic [ref=e3396]: Amount
+                  - generic [ref=e3397]:
+                    - generic [ref=e3398]: appropriation_requ
+                    - generic [ref=e3399]: Type
+                  - generic [ref=e3400]:
+                    - generic [ref=e3401]: 0.12% under
+                    - generic [ref=e3402]: Approval limit
+                - generic [ref=e3403]:
+                  - generic [ref=e3404]: Sylacauga, AL
+                  - generic [ref=e3405]: ·
+                  - button "Save story" [ref=e3406]
+            - link "🤨 Raised Eyebrows Human review ALEA grant for barricades $49,892 Amount grant_funding Type 0.22% under Approval limit Unknown · Save story" [ref=e3410] [cursor=pointer]:
+              - generic [ref=e3412]:
+                - generic [ref=e3414]:
+                  - generic [ref=e3415]:
+                    - generic [ref=e3416]: 🤨
+                    - text: Raised Eyebrows
+                  - generic [ref=e3417]: Human review
+                - heading "ALEA grant for barricades" [level=3] [ref=e3418]
+                - generic [ref=e3419]:
+                  - generic [ref=e3420]:
+                    - generic [ref=e3421]: $49,892
+                    - generic [ref=e3422]: Amount
+                  - generic [ref=e3423]:
+                    - generic [ref=e3424]: grant_funding
+                    - generic [ref=e3425]: Type
+                  - generic [ref=e3426]:
+                    - generic [ref=e3427]: 0.22% under
+                    - generic [ref=e3428]: Approval limit
+                - generic [ref=e3429]:
+                  - generic [ref=e3430]: Unknown
+                  - generic [ref=e3431]: ·
+                  - button "Save story" [ref=e3432]
+          - generic [ref=e3435]:
+            - button "Go to story 1" [ref=e3436] [cursor=pointer]
+            - button "Go to story 2" [ref=e3437] [cursor=pointer]
+            - button "Go to story 3" [ref=e3438] [cursor=pointer]
+            - button "Go to story 4" [ref=e3439] [cursor=pointer]
+            - button "Go to story 5" [ref=e3440] [cursor=pointer]
+            - button "Go to story 6" [ref=e3441] [cursor=pointer]
+    - generic [ref=e218]:
+      - generic [ref=e219]: 💵
+      - generic [ref=e220]: Money Moves · loading…
+  - generic [ref=e222]:
+    - generic [ref=e223]:
+      - heading "How it works" [level=2] [ref=e224]
+      - paragraph [ref=e225]: Take real action on local issues — starting with your personal impact. Choose a cause, make a plan, find help when someone needs direct support, track the decisions that matter, and build on open data.
+    - generic [ref=e226]:
+      - generic [ref=e227]: Step 0 · Why should I care? Personal Impact
+      - paragraph [ref=e228]: Local decisions shape your taxes, schools, safety, and your family's future — whether you engage or not. Doing nothing is a choice too, with real consequences for you and your children.
+      - generic [ref=e229]:
+        - button "💵 Try the cost estimator" [ref=e230] [cursor=pointer]
+        - button "📈 View income mobility trends" [ref=e231] [cursor=pointer]
+      - paragraph [ref=e232]: Scoped to your community once you confirm where home is.
+    - generic [ref=e233]:
+      - button "📍 Choose a cause, topic, place or question School Quality Property Taxes Local Schools Traffic & Roads Why are my taxes rising?" [ref=e234] [cursor=pointer]:
+        - generic [ref=e235]: 📍
+        - generic [ref=e236]: Choose a cause, topic, place or question
+        - list [ref=e237]:
+          - listitem [ref=e238]:
+            - generic [aria-hidden] [ref=e239]: ✓
+            - generic [ref=e240]: School Quality
+          - listitem [ref=e241]:
+            - generic [aria-hidden] [ref=e242]: ✓
+            - generic [ref=e243]: Property Taxes
+          - listitem [ref=e244]:
+            - generic [aria-hidden] [ref=e245]: ✓
+            - generic [ref=e246]: Local Schools
+          - listitem [ref=e247]:
+            - generic [aria-hidden] [ref=e248]: ✓
+            - generic [ref=e249]: Traffic & Roads
+          - listitem [ref=e250]:
+            - generic [aria-hidden] [ref=e251]: →
+            - generic [ref=e252]: Why are my taxes rising?
+      - button "💚 Find help & allies Find Allies on Issues Neighborhood Groups Advocacy Support Local Networks Family Resources" [ref=e253] [cursor=pointer]:
+        - generic [ref=e254]: 💚
+        - generic [ref=e255]: Find help & allies
+        - list [ref=e256]:
+          - listitem [ref=e257]:
+            - generic [aria-hidden] [ref=e258]: ✓
+            - generic [ref=e259]: Find Allies on Issues
+          - listitem [ref=e260]:
+            - generic [aria-hidden] [ref=e261]: ✓
+            - generic [ref=e262]: Neighborhood Groups
+          - listitem [ref=e263]:
+            - generic [aria-hidden] [ref=e264]: ✓
+            - generic [ref=e265]: Advocacy Support
+          - listitem [ref=e266]:
+            - generic [aria-hidden] [ref=e267]: ✓
+            - generic [ref=e268]: Local Networks
+          - listitem [ref=e269]:
+            - generic [aria-hidden] [ref=e270]: →
+            - generic [ref=e271]: Family Resources
+      - button "📊 Track decisions School Board Votes Neighborhood Changes Public Safety New Developments Near Me" [ref=e272] [cursor=pointer]:
+        - generic [ref=e273]: 📊
+        - generic [ref=e274]: Track decisions
+        - list [ref=e275]:
+          - listitem [ref=e276]:
+            - generic [aria-hidden] [ref=e277]: ✓
+            - generic [ref=e278]: School Board Votes
+          - listitem [ref=e279]:
+            - generic [aria-hidden] [ref=e280]: ✓
+            - generic [ref=e281]: Neighborhood Changes
+          - listitem [ref=e282]:
+            - generic [aria-hidden] [ref=e283]: ✓
+            - generic [ref=e284]: Public Safety
+          - listitem [ref=e285]:
+            - generic [aria-hidden] [ref=e286]: ✓
+            - generic [ref=e287]: New Developments Near Me
+      - button "🧩 Build with data Local Trends Impact Maps Easy Tools" [ref=e288] [cursor=pointer]:
+        - generic [ref=e289]: 🧩
+        - generic [ref=e290]: Build with data
+        - list [ref=e291]:
+          - listitem [ref=e292]:
+            - generic [aria-hidden] [ref=e293]: ✓
+            - generic [ref=e294]: Local Trends
+          - listitem [ref=e295]:
+            - generic [aria-hidden] [ref=e296]: ✓
+            - generic [ref=e297]: Impact Maps
+          - listitem [ref=e298]:
+            - generic [aria-hidden] [ref=e299]: →
+            - generic [ref=e300]: Easy Tools
+    - generic [ref=e301]: Ready to act? Show up at meetings · Write letters · Change the process
+  - generic [ref=e303]:
+    - generic [ref=e304]:
+      - heading "Our Impact" [level=2] [ref=e305]
+      - paragraph [ref=e306]: One platform connecting residents, leaders, and funders to what's really happening on the ground.
+      - button "📄 View Our Strategic Plan" [ref=e307] [cursor=pointer]
+    - generic [ref=e308]:
+      - heading "Our Mission" [level=3] [ref=e309]
+      - paragraph [ref=e310]: "CommunityOne: One Map for Every Community"
+      - paragraph [ref=e311]: Every person deserves to find the help they need and have a voice in the decisions that shape their lives. But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+      - paragraph [ref=e312]: CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
+      - button "Start Exploring →" [ref=e313] [cursor=pointer]
+  - region "Every local decision, in one place." [ref=e314]:
+    - heading "Every local decision, in one place." [level=2] [ref=e315]
+    - paragraph [ref=e316]: Search the meetings, votes, spending, and debates shaping your community.Free, forever.
+  - contentinfo [ref=e317]:
+    - generic [ref=e318]:
+      - generic [ref=e319]:
+        - navigation "Site" [ref=e320]:
+          - link "Chat & Contact" [ref=e321] [cursor=pointer]:
+            - /url: /chat
+          - link "Privacy Policy" [ref=e322] [cursor=pointer]:
+            - /url: http://localhost:3000/docs/legal/privacy-policy
+          - link "Terms of Service" [ref=e323] [cursor=pointer]:
+            - /url: http://localhost:3000/docs/legal/terms-of-service
+          - link "Data Provider Terms" [ref=e324] [cursor=pointer]:
+            - /url: http://localhost:3000/docs/legal/data-provider-terms
+        - navigation "CommunityOne on social media" [ref=e325]:
+          - link "Instagram" [ref=e326] [cursor=pointer]:
+            - /url: https://www.instagram.com/getcommunityone/
+          - link "Facebook" [ref=e329] [cursor=pointer]:
+            - /url: https://www.facebook.com/getcommunityone
+          - link "X (Twitter)" [ref=e332] [cursor=pointer]:
+            - /url: https://x.com/getcommunityone/
+          - link "LinkedIn" [ref=e335] [cursor=pointer]:
+            - /url: https://www.linkedin.com/company/getcommunityone
+          - link "YouTube" [ref=e338] [cursor=pointer]:
+            - /url: https://www.youtube.com/@getcommunityone
+          - link "Discord" [ref=e341] [cursor=pointer]:
+            - /url: https://discord.gg/uH6Dytek
+      - generic [ref=e344]:
+        - text: CommunityOne Navigator · a 501(c)(3) nonprofit ·
+        - link "EIN 42-2467803" [ref=e345] [cursor=pointer]:
+          - /url: https://projects.propublica.org/nonprofits/organizations/422467803
+        - text: · Tuscaloosa, Alabama

@@ -230,6 +230,7 @@ CIVIC_SERVING = frozenset(
         # agenda / area-concern. Read by /api/data-centers/* (#387).
         "job_claim",
         "data_center_site",
+        "data_center_site_timeline",  # #1348: one row per site, the "Over time" screen
         "data_center_agenda_item",
         "area_concern",
         # transcript passages that discuss data centers (#445); meeting docs trimmed in
@@ -274,6 +275,8 @@ CIVIC_SERVING = frozenset(
         # Recorded meetings per place and year (#1140, #1194): the story timelines and dumbbell need it to tell a real
         # zero year from a year with no recordings; small (~1 MB, one row per jurisdiction and year)
         "recorded_meeting_year",
+        # Meetings per topic, place and year (#1361): backs /api/topics/yoy for all 95 curated + CivicSearch topics (~10 MB)
+        "topic_meeting_year",
         # Which videos are real public meetings (#1240, #1258): map cards only quote these; ~1 MB, one row per video
         "meeting_video_kind",
         # Public comments and who spoke (#1286): /api/data-centers/comment-metrics and the speaker names on

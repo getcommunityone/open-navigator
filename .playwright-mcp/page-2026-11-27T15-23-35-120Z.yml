@@ -1,0 +1,60 @@
+- generic [ref=e2]:
+  - link "Skip to main content" [ref=e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e4]:
+    - banner [ref=e5]:
+      - generic [ref=e6]:
+        - link "Open Navigator by CommunityOne" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - generic [aria-hidden] [ref=e8]: C1
+          - generic [ref=e9]:
+            - generic [ref=e10]: Open Navigator
+            - generic [ref=e11]: by CommunityOne
+        - group "Place for this page" [ref=e12]:
+          - generic [aria-hidden] [ref=e13]: 📍
+          - generic [ref=e14]: National ·
+          - button "Find your town" [ref=e15] [cursor=pointer]
+          - button "Pick a town" [ref=e16] [cursor=pointer]: ▾
+        - navigation "Main" [ref=e17]:
+          - button "Data Stories" [ref=e18] [cursor=pointer]
+          - button "Places" [ref=e19] [cursor=pointer]
+          - button "Search" [ref=e20] [cursor=pointer]
+          - button "How It Works" [ref=e21] [cursor=pointer]
+          - button "Register/Login ▾" [ref=e23] [cursor=pointer]:
+            - generic [ref=e24]: Register/Login
+            - generic [ref=e25]: ▾
+    - generic [ref=e26]:
+      - main [ref=e27]:
+        - status [ref=e28]: Loading Data story…
+      - contentinfo [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - navigation "Site" [ref=e32]:
+              - link "Chat & Contact" [ref=e33] [cursor=pointer]:
+                - /url: /chat
+              - link "Impact" [ref=e34] [cursor=pointer]:
+                - /url: /#impact
+              - link "Privacy Policy" [ref=e35] [cursor=pointer]:
+                - /url: http://localhost:3000/docs/legal/privacy-policy
+              - link "Terms of Service" [ref=e36] [cursor=pointer]:
+                - /url: http://localhost:3000/docs/legal/terms-of-service
+              - link "Data Provider Terms" [ref=e37] [cursor=pointer]:
+                - /url: http://localhost:3000/docs/legal/data-provider-terms
+            - navigation "CommunityOne on social media" [ref=e38]:
+              - link "Instagram" [ref=e39] [cursor=pointer]:
+                - /url: https://www.instagram.com/getcommunityone/
+              - link "Facebook" [ref=e42] [cursor=pointer]:
+                - /url: https://www.facebook.com/getcommunityone
+              - link "X (Twitter)" [ref=e45] [cursor=pointer]:
+                - /url: https://x.com/getcommunityone/
+              - link "LinkedIn" [ref=e48] [cursor=pointer]:
+                - /url: https://www.linkedin.com/company/getcommunityone
+              - link "YouTube" [ref=e51] [cursor=pointer]:
+                - /url: https://www.youtube.com/@getcommunityone
+              - link "Discord" [ref=e54] [cursor=pointer]:
+                - /url: https://discord.gg/uH6Dytek
+          - generic [ref=e57]:
+            - text: CommunityOne Navigator · a 501(c)(3) nonprofit ·
+            - link "EIN 42-2467803" [ref=e58] [cursor=pointer]:
+              - /url: https://projects.propublica.org/nonprofits/organizations/422467803
+            - text: · Tuscaloosa, Alabama

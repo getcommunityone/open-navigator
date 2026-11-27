@@ -41,6 +41,8 @@ export interface ResolvedScope {
   meetings: number | null
   /** Why the story stepped up, in plain words; null when it speaks for the place asked. */
   reason: string | null
+  /** The same, as one short line for the sticky bar (the reason sits behind "Why?"); null when `reason` is null. */
+  short: string | null
 }
 
 const plural = (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'meeting' : 'meetings'}`
@@ -51,14 +53,27 @@ const enough = (n: number | null | undefined): n is number => n != null && n >= 
  * wider place before the numbers arrive.
  */
 export function resolveStoryScope(c: ScopeCounts): ResolvedScope {
+  const r = resolveLevel(c)
+  return { ...r, short: r.reason ? shortReason(c, r) : null }
+}
+
+/** "Showing Alabama · Tuscaloosa has too few meetings (2)": what is shown, then the one fact that moved it. */
+function shortReason(c: ScopeCounts, r: Omit<ResolvedScope, 'short'>): string {
+  const shown = r.level === 'national' ? 'the whole country' : (r.stateName ?? 'the state')
+  const asked = r.asked === 'city' ? (c.city?.trim() || 'The city') : (c.stateName ?? c.stateCode ?? 'The state')
+  const n = r.asked === 'city' ? c.cityMeetings : c.stateMeetings
+  return `Showing ${shown} · ${asked} has too few meetings${n != null ? ` (${n.toLocaleString('en-US')})` : ''}`
+}
+
+function resolveLevel(c: ScopeCounts): Omit<ResolvedScope, 'short'> {
   const stateCode = c.stateCode ?? null
   const stateName = stateCode ? (c.stateName ?? stateCode) : null
   const city = stateCode ? (c.city?.trim() || null) : null
   const asked: ScopeLevel = city ? 'city' : stateCode ? 'state' : 'national'
   const base = { asked, stateCode, stateName, city: null, county: null }
-  const national = (why: string): ResolvedScope => ({ ...base, stateCode: null, stateName: null, level: 'national', meetings: null, reason: why })
-  const stateLevel = (why: string | null): ResolvedScope => ({ ...base, level: 'state', meetings: c.stateMeetings ?? null, reason: why })
-  const stateOr = (lead: string): ResolvedScope => {
+  const national = (why: string): Omit<ResolvedScope, 'short'> => ({ ...base, stateCode: null, stateName: null, level: 'national', meetings: null, reason: why })
+  const stateLevel = (why: string | null): Omit<ResolvedScope, 'short'> => ({ ...base, level: 'state', meetings: c.stateMeetings ?? null, reason: why })
+  const stateOr = (lead: string): Omit<ResolvedScope, 'short'> => {
     if (c.stateMeetings == null || enough(c.stateMeetings)) {
       return stateLevel(`${lead}, so this shows ${stateName}${c.stateMeetings != null ? ` (${plural(c.stateMeetings)})` : ''}.`)
     }

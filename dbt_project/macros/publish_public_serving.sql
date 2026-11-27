@@ -193,10 +193,12 @@
     'data_center_meeting_position':        "_s.state_code in {{states}}",
     'data_center_meeting_lean':            "_s.state_code in {{states}}",
     'topic_meeting_lean':                  "_s.state_code in {{states}}",
+    'topic_place_meeting':                 "_s.state_code in {{states}}",
     'meeting_video_kind':
         "_s.video_id in (select video_id from gold.topic_transcript_link where state_code in {{states}} "
         "union select video_id from gold.data_center_meeting_mention where state_code in {{states}})",
     'recorded_meeting_year':               "_s.state_code in {{states}}",
+    'topic_meeting_year':                  "_s.state_code in {{states}}",
     'data_center_public_comment':          "_s.state_code in {{states}}",
     'data_center_decision':                "_s.state_code in {{states}}",
     'data_center_hearing_verified':        "_s.state_code in {{states}}",
@@ -261,7 +263,7 @@
     'policy_question_relation', 'policy_question_trend', 'question_transcript_link',
     'meeting_browse', 'meeting_topic_link', 'meeting_question_link',
     'topic_transcript_link',
-    'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
+    'job_claim', 'data_center_site', 'data_center_site_timeline', 'data_center_agenda_item', 'area_concern',
     'data_center_meeting_mention',
     'data_center_meeting_position', 'data_center_public_comment', 'data_center_decision',
     'data_center_hearing_verified',
@@ -277,13 +279,16 @@
     'topic_company', 'topic_company_mention',
     'topic_legislation_bill', 'topic_legislation_category',
     'topic_upcoming', 'meeting_bill_link',
+    'topic_organization',
     'company_grant',
     'business', 'business_mention',
     'person_government_term',
     'data_center_meeting_lean',
     'topic_meeting_lean',
+    'topic_place_meeting',
     'meeting_video_kind',
     'recorded_meeting_year',
+    'topic_meeting_year',
     'segmented_meeting', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
     'meeting_passage_speaker'
 ] -%}

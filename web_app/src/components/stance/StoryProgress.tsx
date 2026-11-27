@@ -64,6 +64,9 @@ export function NextStoryCard({ href, label, isStory, onInView }: CardProps) {
 interface BarProps {
   active: number
   count: number
+  /** One word per screen: with `onJump`, the bar reads "3 of 11 · Sites" and opens a list to jump to any screen (#1337). */
+  labels?: string[]
+  onJump?: (index: number) => void
   /** The next screen's word, for the button's accessible name. */
   nextLabel: string | null
   onNext: () => void
@@ -88,8 +91,9 @@ interface BarProps {
  * the next screen; on the last screen it becomes the way to the next story. The page leaves room for it (stance.css), so it
  * never covers the story's own controls.
  */
-export function StoryBottomBar({ active, count, nextLabel, onNext, prevLabel = null, onPrev, storyHref, storyLabel, storyIsNext, hideNext = false, withNext = true }: BarProps) {
+export function StoryBottomBar({ active, count, labels, onJump, nextLabel, onNext, prevLabel = null, onPrev, storyHref, storyLabel, storyIsNext, hideNext = false, withNext = true }: BarProps) {
   const last = isLastScreen(active, count)
+  const [listOpen, setListOpen] = useState(false)
   // Back (#1222, owner: "On phone back button is missing"): from the second screen on, never on the cover.
   const showBack = !hideNext && active > 0 && Boolean(onPrev) && Boolean(prevLabel)
   return (
@@ -99,14 +103,48 @@ export function StoryBottomBar({ active, count, nextLabel, onNext, prevLabel = n
           <span aria-hidden="true">←</span>
         </button>
       )}
-      <span className="story-bottombar-progress">
-        <span className="story-bottombar-dots" aria-hidden="true">
-          {Array.from({ length: count }, (_, i) => (
-            <span key={i} className={`story-bottombar-dot is-${dotState(i, active, count)}`} />
-          ))}
+      {onJump && labels ? (
+        <span className="story-bottombar-progress story-pager" data-testid="story-pager-wrap">
+          <button
+            type="button"
+            className="story-pager-btn"
+            data-testid="story-pager"
+            aria-haspopup="listbox"
+            aria-expanded={listOpen}
+            onClick={() => setListOpen((o) => !o)}
+          >
+            {active + 1} of {count} · {labels[active] ?? ''} <span aria-hidden="true">▴</span>
+          </button>
+          {listOpen && (
+            <ol className="story-pager-list" role="listbox" aria-label="Story screens" data-testid="story-pager-list">
+              {labels.map((name, i) => (
+                <li key={i} role="option" aria-selected={i === active}>
+                  <button
+                    type="button"
+                    className="story-pager-item"
+                    aria-current={i === active ? 'step' : undefined}
+                    onClick={() => {
+                      setListOpen(false)
+                      onJump(i)
+                    }}
+                  >
+                    <span className="story-pager-n">{i + 1}</span> {name}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
         </span>
-        <span className="story-bottombar-left">{toGoLabel(count - 1 - active)}</span>
-      </span>
+      ) : (
+        <span className="story-bottombar-progress">
+          <span className="story-bottombar-dots" aria-hidden="true">
+            {Array.from({ length: count }, (_, i) => (
+              <span key={i} className={`story-bottombar-dot is-${dotState(i, active, count)}`} />
+            ))}
+          </span>
+          <span className="story-bottombar-left">{toGoLabel(count - 1 - active)}</span>
+        </span>
+      )}
       {hideNext || !withNext ? (
         // Room for the fixed Next at the bar's right end (#1234).
         withNext ? null : <span className="story-bottombar-nextspace" aria-hidden="true" />

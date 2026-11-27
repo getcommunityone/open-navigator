@@ -1,0 +1,1500 @@
+- generic [ref=f4e3]:
+  - banner [ref=f4e4]:
+    - generic [ref=f4e5]:
+      - link "Go to home" [ref=f4e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f4e7]: C1
+        - generic [ref=f4e8]:
+          - generic [ref=f4e9]: Open Navigator
+          - generic [ref=f4e10]: by CommunityOne
+      - navigation [ref=f4e11]:
+        - button "Data Stories" [ref=f4e12] [cursor=pointer]
+        - button "Search" [ref=f4e13] [cursor=pointer]
+        - button "How It Works" [ref=f4e14] [cursor=pointer]
+        - button "Impact" [ref=f4e15] [cursor=pointer]
+        - button "Register/Login ▾" [ref=f4e17] [cursor=pointer]:
+          - generic [ref=f4e18]: Register/Login
+          - generic [ref=f4e19]: ▾
+  - generic [ref=f4e20]:
+    - main [ref=f4e21]:
+      - generic [ref=f4e52]:
+        - generic [ref=f4e53]:
+          - generic [ref=f4e54]:
+            - generic [ref=f4e55]:
+              - heading [level=1] [ref=f4e56]:
+                - text: In 11 meetings across
+                - button "Place, Georgia" [ref=f4e59] [cursor=pointer]:
+                  - text: Georgia
+                  - generic [aria-hidden]: ▾
+                - text: ", officials backed"
+                - generic [ref=f4e61]:
+                  - combobox "Topic" [ref=f4e62] [cursor=pointer]:
+                    - option "data centers" [selected]
+                  - generic [aria-hidden]: ▾
+                - text: while the public pushed back.
+              - paragraph [ref=f4e63]: "AI reading · Jev (an AI classifier) read the transcripts of 118 meetings in Georgia: the public leaned against in 37; officials sided against the public in 11. A reading of what was said, not a vote count."
+            - paragraph [ref=f4e64]:
+              - link "← Data stories" [ref=f4e65] [cursor=pointer]:
+                - /url: /stories?state=GA
+              - text: "· Showing:"
+              - generic [ref=f4e66]: Georgia
+              - button "National only" [ref=f4e67] [cursor=pointer]
+          - paragraph [ref=f4e68]: Overview
+          - generic [ref=f4e69]:
+            - button "Sound on" [pressed] [ref=f4e70] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f4e71]: ♪
+            - link "Close story" [ref=f4e73] [cursor=pointer]:
+              - /url: /?state=GA#data-stories
+              - generic [aria-hidden] [ref=f4e74]: ×
+          - generic [ref=f4e75]: Ten to go
+        - paragraph [ref=f4e89]: Overview. A data center came up in 118 meetings in Georgia.
+        - generic [ref=f4e90]:
+          - generic [ref=f4e91]:
+            - region "A data center came up in 118 meetings in Georgia." [ref=f4e93]:
+              - generic [aria-hidden]: Overview
+              - generic [ref=f4e94]:
+                - generic [ref=f4e95]:
+                  - paragraph [ref=f4e97]: Overview
+                  - generic [ref=f4e98]:
+                    - heading "A data center came up in 118 meetings in Georgia." [level=2] [ref=f4e99]:
+                      - generic [ref=f4e100]: A
+                      - generic [ref=f4e102]: data
+                      - generic [ref=f4e104]: center
+                      - generic [ref=f4e106]: came
+                      - generic [ref=f4e108]: up
+                      - generic [ref=f4e110]: in
+                      - generic [ref=f4e112]: "118"
+                      - generic [ref=f4e114]: meetings
+                      - generic [ref=f4e116]: in
+                      - generic [ref=f4e118]: Georgia.
+                    - paragraph [ref=f4e120]: First, where are they?
+                  - 'button "Next: Who spoke up" [ref=f4e122] [cursor=pointer]':
+                    - text: Next
+                    - generic [aria-hidden] [ref=f4e123]: →
+                - generic [ref=f4e124]:
+                  - status [ref=f4e125]: Loading the map…
+                  - 'generic "What the records cover: Georgia" [ref=f4e126]':
+                    - generic [ref=f4e127]:
+                      - term [ref=f4e128]: meetings where a data center came up
+                      - definition [ref=f4e129]:
+                        - generic [ref=f4e130]:
+                          - generic [ref=f4e131]: "118"
+                          - generic [aria-hidden] [ref=f4e132]:
+                            - generic [ref=f4e133]: "1"
+                            - generic [ref=f4e135]: "1"
+                            - generic [ref=f4e137]: "8"
+                    - generic [ref=f4e139]:
+                      - term [ref=f4e140]: meeting passages quoted
+                      - definition [ref=f4e141]:
+                        - generic [ref=f4e142]:
+                          - generic [ref=f4e143]: "702"
+                          - generic [aria-hidden] [ref=f4e144]:
+                            - generic [ref=f4e145]: "7"
+                            - generic [ref=f4e147]: "0"
+                            - generic [ref=f4e149]: "2"
+                    - generic [ref=f4e151]:
+                      - term [ref=f4e152]: meeting agendas that name a data center
+                      - definition [ref=f4e153]:
+                        - generic [ref=f4e154]:
+                          - generic [ref=f4e155]: "39"
+                          - generic [aria-hidden] [ref=f4e156]:
+                            - generic [ref=f4e157]: "3"
+                            - generic [ref=f4e159]: "9"
+                    - generic [ref=f4e161]:
+                      - term [ref=f4e162]: data center sites on record, from Epoch AI and the US Data Center Registry
+                      - definition [ref=f4e163]:
+                        - generic [ref=f4e164]:
+                          - generic [ref=f4e165]: "87"
+                          - generic [aria-hidden] [ref=f4e166]:
+                            - generic [ref=f4e167]: "8"
+                            - generic [ref=f4e169]: "7"
+                    - generic [ref=f4e171]:
+                      - term [ref=f4e172]: data center projects on record, from announcements and Epoch AI
+                      - definition [ref=f4e173]:
+                        - generic [ref=f4e174]:
+                          - generic [ref=f4e175]: "2"
+                          - generic [ref=f4e177]: "2"
+                  - paragraph [ref=f4e179]: Counts for Georgia.
+            - 'region "Recorded votes: 15 for and 7 against, in 4 decisions in Georgia." [ref=f4e181]':
+              - generic [ref=f4e182]:
+                - generic [ref=f4e183]:
+                  - paragraph [ref=f4e185]: Who spoke up
+                  - generic [ref=f4e186]:
+                    - 'heading "Recorded votes: 15 for and 7 against, in 4 decisions in Georgia." [level=2] [ref=f4e187]':
+                      - generic [ref=f4e188]: Recorded
+                      - generic [ref=f4e190]: "votes:"
+                      - generic [ref=f4e192]: "15"
+                      - generic [ref=f4e194]: for
+                      - generic [ref=f4e196]: and
+                      - generic [ref=f4e198]: "7"
+                      - generic [ref=f4e200]: against,
+                      - generic [ref=f4e202]: in
+                      - generic [ref=f4e204]: "4"
+                      - generic [ref=f4e206]: decisions
+                      - generic [ref=f4e208]: in
+                      - generic [ref=f4e210]: Georgia.
+                    - paragraph [ref=f4e212]: How often does it come up?
+                  - generic [ref=f4e213]:
+                    - button "Back" [ref=f4e214] [cursor=pointer]: ← Back
+                    - 'button "Next: Where" [ref=f4e215] [cursor=pointer]':
+                      - text: Next
+                      - generic [aria-hidden] [ref=f4e216]: →
+                - 'group "Recorded votes: 15 for and 7 against, in 4 decisions in Georgia." [ref=f4e218]':
+                  - generic [ref=f4e219]:
+                    - generic [ref=f4e220]:
+                      - term [ref=f4e221]: spoke for
+                      - definition [ref=f4e222]: "0"
+                    - generic [ref=f4e223]:
+                      - term [ref=f4e224]: spoke against
+                      - definition [ref=f4e225]: "0"
+                    - generic [ref=f4e226]:
+                      - term [ref=f4e227]: asked a question
+                      - definition [ref=f4e228]: "0"
+                    - generic [ref=f4e229]:
+                      - term [ref=f4e230]: votes for
+                      - definition [ref=f4e231]: "15"
+                    - generic [ref=f4e232]:
+                      - term [ref=f4e233]: votes against
+                      - definition [ref=f4e234]: "7"
+                  - paragraph [ref=f4e235]: None of the 40 meetings reviewed in Georgia had a public speaker on a data center item.
+                  - paragraph [ref=f4e236]: Speakers at local meetings in Georgia where a data center item was discussed. From 4 meetings and 4 decisions with a recorded vote.
+            - region "Where?" [ref=f4e238]:
+              - generic [aria-hidden]: Where
+              - generic [ref=f4e240]:
+                - generic [ref=f4e241]:
+                  - heading "Where?" [level=2] [ref=f4e242]
+                  - paragraph [ref=f4e245]: Pick a city, a county or a state. Or stay with the whole country.
+                - generic [ref=f4e246]:
+                  - generic [ref=f4e247]:
+                    - generic [ref=f4e248]: Show me
+                    - button "Place, Georgia" [ref=f4e250] [cursor=pointer]:
+                      - text: Georgia
+                      - generic [aria-hidden]: ▾
+                  - paragraph [ref=f4e251]: Should Georgia allow new data centers?
+                - generic [ref=f4e252]:
+                  - button "Back" [ref=f4e253] [cursor=pointer]: ← Back
+                  - 'button "Next: Sites" [ref=f4e254] [cursor=pointer]':
+                    - text: Next
+                    - generic [aria-hidden] [ref=f4e255]: →
+            - region "Of 87 data center sites in Georgia, 21 are operating, and 56 more are planned or under construction." [ref=f4e257]:
+              - generic [aria-hidden]: Sites
+              - generic [ref=f4e258]:
+                - generic [ref=f4e259]:
+                  - generic [ref=f4e260]:
+                    - paragraph [ref=f4e261]: "For context · source: Epoch AI and the US Data Center Registry"
+                    - paragraph [ref=f4e262]: Sites
+                  - generic [ref=f4e263]:
+                    - heading "Of 87 data center sites in Georgia, 21 are operating, and 56 more are planned or under construction." [level=2] [ref=f4e264]:
+                      - generic [ref=f4e265]: Of
+                      - generic [ref=f4e267]: "87"
+                      - generic [ref=f4e269]: data
+                      - generic [ref=f4e271]: center
+                      - generic [ref=f4e273]: sites
+                      - generic [ref=f4e275]: in
+                      - generic [ref=f4e277]: Georgia,
+                      - generic [ref=f4e279]: "21"
+                      - generic [ref=f4e281]: are
+                      - generic [ref=f4e283]: operating,
+                      - generic [ref=f4e285]: and
+                      - generic [ref=f4e287]: "56"
+                      - generic [ref=f4e289]: more
+                      - generic [ref=f4e291]: are
+                      - generic [ref=f4e293]: planned
+                      - generic [ref=f4e295]: or
+                      - generic [ref=f4e297]: under
+                      - generic [ref=f4e299]: construction.
+                    - paragraph [ref=f4e301]: "Also on record: 10 cancelled, per the source. What is proposed?"
+                  - region "Where do you stand?" [ref=f4e302]:
+                    - paragraph [ref=f4e303]: Where do you stand?
+                    - paragraph [ref=f4e304]: My area already has enough data centers.
+                    - 'group "Your answer: My area already has enough data centers." [ref=f4e305]':
+                      - button "Agree" [ref=f4e306] [cursor=pointer]
+                      - button "Disagree" [ref=f4e307] [cursor=pointer]
+                      - button "Not sure" [ref=f4e308] [cursor=pointer]
+                  - generic [ref=f4e309]:
+                    - button "Back" [ref=f4e310] [cursor=pointer]: ← Back
+                    - 'button "Next: Proposals" [ref=f4e311] [cursor=pointer]':
+                      - text: Next
+                      - generic [aria-hidden] [ref=f4e312]: →
+                - figure "Data center sites on record, by status" [ref=f4e314]:
+                  - generic [ref=f4e315]:
+                    - generic [ref=f4e316]:
+                      - paragraph [ref=f4e317]: Operating · 21 records · 24%
+                      - list "Operating · 21 records · 24%" [ref=f4e319]:
+                        - listitem "Microsoft Fairwater Atlanta, Georgia, 2026-06-14 (opens the source)" [ref=f4e320] [cursor=pointer]
+                        - listitem "xAI QTS Atlanta, Georgia, 2026-07-10 (opens the source)" [ref=f4e321] [cursor=pointer]
+                        - listitem "Aligned Data Centers ATL-01, Georgia, 2026-08-28 (opens the source)" [ref=f4e322] [cursor=pointer]
+                        - listitem "CoreSite AT1 - Atlanta, GA, Georgia, 2026-07-23 (opens the source)" [ref=f4e323] [cursor=pointer]
+                        - listitem "CoreSite AT2 - Marietta Data Center, Georgia, 2026-07-23 (opens the source)" [ref=f4e324] [cursor=pointer]
+                        - listitem "CyrusOne Douglasville Data Center Campus, Georgia, 2026-10-14 (opens the source)" [ref=f4e325] [cursor=pointer]
+                        - listitem "Digital Realty ATL11, Georgia, 2026-07-23 (opens the source)" [ref=f4e326] [cursor=pointer]
+                        - listitem "Digital Realty Atlanta ATL13, Georgia, 2026-07-23 (opens the source)" [ref=f4e327] [cursor=pointer]
+                        - listitem "Duos Edge AI Columbus Campus, Georgia, 2026-10-14 (opens the source)" [ref=f4e328] [cursor=pointer]
+                        - listitem "Edged Atlanta (ATL01), Georgia, 2026-08-28 (opens the source)" [ref=f4e329] [cursor=pointer]
+                        - listitem "Flexential Atlanta - Alpharetta Data Center, Georgia, 2026-09-21 (opens the source)" [ref=f4e330] [cursor=pointer]
+                        - listitem "Flexential Atlanta - Douglasville 1, Georgia, 2026-09-21 (opens the source)" [ref=f4e331] [cursor=pointer]
+                        - listitem "Flexential Atlanta - Douglasville 2, Georgia, 2026-07-23 (opens the source)" [ref=f4e332] [cursor=pointer]
+                        - listitem "Flexential Atlanta - Norcross (ATL01/02), Georgia, 2026-07-23 (opens the source)" [ref=f4e333] [cursor=pointer]
+                        - listitem "Google Douglasville Data Center, Georgia, 2026-08-08 (opens the source)" [ref=f4e334] [cursor=pointer]
+                        - listitem "Meta Newton Data Center (Stanton Springs), Georgia, 2026-08-28 (opens the source)" [ref=f4e335] [cursor=pointer]
+                        - listitem "Microsoft East Point Data Center (Ben Hill Road), Georgia, 2026-09-23 (opens the source)" [ref=f4e336] [cursor=pointer]
+                        - listitem "Microsoft Fairwater Atlanta (Azure AI Superfactory), Georgia, 2026-10-22 (opens the source)" [ref=f4e337] [cursor=pointer]
+                        - listitem "QTS Atlanta 1 (Atlanta-Metro DC1), Georgia, 2026-08-16 (opens the source)" [ref=f4e338] [cursor=pointer]
+                        - listitem "STACK ATL01 (formerly T5@Atlanta), Georgia, 2026-08-08 (opens the source)" [ref=f4e339] [cursor=pointer]
+                        - 'listitem "Switch Atlanta: The KEEP, Georgia, 2026-07-24 (opens the source)" [ref=f4e340] [cursor=pointer]'
+                    - generic [ref=f4e341]:
+                      - paragraph [ref=f4e342]: Under construction · 12 records · 14%
+                      - list "Under construction · 12 records · 14%" [ref=f4e344]:
+                        - listitem "CoreWeave Dalton II / Core Scientific Old Tilton Road Data Center, Georgia, 2026-11-04 (opens the source)" [ref=f4e345] [cursor=pointer]
+                        - listitem "DC BLOX Atlanta East Hyperscale Data Center Campus, Georgia, 2026-10-22 (opens the source)" [ref=f4e346] [cursor=pointer]
+                        - listitem "DC BLOX Atlanta West (ATL1), Georgia, 2026-10-22 (opens the source)" [ref=f4e347] [cursor=pointer]
+                        - listitem "Equinix Hampton xScale Campus (AT10x-AT13x), Georgia, 2026-10-14 (opens the source)" [ref=f4e348] [cursor=pointer]
+                        - listitem "Google LaGrange Data Center, Georgia, 2026-10-14 (opens the source)" [ref=f4e349] [cursor=pointer]
+                        - listitem "Microsoft Douglasville Data Center Campus, Georgia, 2026-10-22 (opens the source)" [ref=f4e350] [cursor=pointer]
+                        - listitem "Microsoft Palmetto Data Center, Georgia, 2026-11-04 (opens the source)" [ref=f4e351] [cursor=pointer]
+                        - listitem "QTS Project Eisenhower, Georgia, 2026-10-22 (opens the source)" [ref=f4e352] [cursor=pointer]
+                        - listitem "STACK ATL02 (Lithia Springs Campus), Georgia, 2026-10-14 (opens the source)" [ref=f4e353] [cursor=pointer]
+                        - listitem "Serverfarm Covington Data Center (Hazelbrand Road), Georgia, 2026-07-28 (opens the source)" [ref=f4e354] [cursor=pointer]
+                        - listitem "Switch KEEP 2.0 Atlanta North Campus, Georgia, 2026-10-14 (opens the source)" [ref=f4e355] [cursor=pointer]
+                        - listitem "Union City Data Center Campus (EdgeConneX / TA Realty), Georgia, 2026-09-23 (opens the source)" [ref=f4e356] [cursor=pointer]
+                    - generic [ref=f4e357]:
+                      - paragraph [ref=f4e358]: Planned · 44 records · 51%
+                      - list "Planned · 44 records · 51%" [ref=f4e360]:
+                        - listitem "1155 Powers Ferry Place Data Center (Prime Storage conversion), Georgia, 2026-09-10 (opens the source)" [ref=f4e361] [cursor=pointer]
+                        - listitem "75 South Data Center Campus, Georgia, 2026-10-14 (opens the source)" [ref=f4e362] [cursor=pointer]
+                        - listitem "AWS Butts County Data Center Campus, Georgia, 2026-08-28 (opens the source)" [ref=f4e363] [cursor=pointer]
+                        - listitem "AWS Covington Data Center (Alcovy Road), Georgia, 2026-10-14 (opens the source)" [ref=f4e364] [cursor=pointer]
+                        - listitem "Avemore Technology and Data Park, Georgia, 2026-11-04 (opens the source)" [ref=f4e365] [cursor=pointer]
+                        - listitem "Bells Ferry Road Data Center (MMM Acquisitions), Georgia, 2026-09-10 (opens the source)" [ref=f4e366] [cursor=pointer]
+                        - listitem "Bridgeport Data Center Campus, Georgia, 2026-09-10 (opens the source)" [ref=f4e367] [cursor=pointer]
+                        - listitem "Burkhalter Road Data Center (4AM Development), Georgia, 2026-11-04 (opens the source)" [ref=f4e368] [cursor=pointer]
+                        - listitem "Coosa Data Center (Project Gracie), Georgia, 2026-08-28 (opens the source)" [ref=f4e369] [cursor=pointer]
+                        - listitem "DataBank Project Indo, Georgia, 2026-10-22 (opens the source)" [ref=f4e370] [cursor=pointer]
+                        - listitem "Digital Realty Fort Gillem Data Center Campus, Georgia, 2026-10-14 (opens the source)" [ref=f4e371] [cursor=pointer]
+                        - listitem "Google Evans Data Center, Georgia, 2026-08-08 (opens the source)" [ref=f4e372] [cursor=pointer]
+                        - listitem "Hampton Technology Park, Georgia, 2026-10-14 (opens the source)" [ref=f4e373] [cursor=pointer]
+                        - listitem "High Falls Road Data Center Campus (Montana Property Group), Georgia, 2026-11-04 (opens the source)" [ref=f4e374] [cursor=pointer]
+                        - listitem "Kingston Technology Hub (Thor Equities), Georgia, 2026-10-14 (opens the source)" [ref=f4e375] [cursor=pointer]
+                        - listitem "Metter Airport Data Center Campus, Georgia, 2026-10-14 (opens the source)" [ref=f4e376] [cursor=pointer]
+                        - listitem "Microsoft Data Center Campus, Rome, GA, Georgia, 2026-10-28 (opens the source)" [ref=f4e377] [cursor=pointer]
+                        - listitem "Microsoft Tyrone Campus (Project Rita), Georgia, 2026-10-22 (opens the source)" [ref=f4e378] [cursor=pointer]
+                        - listitem "Nixon Technology Center, Georgia, 2026-10-14 (opens the source)" [ref=f4e379] [cursor=pointer]
+                        - listitem "Northern Data Maysville Data Center, Georgia, 2026-09-23 (opens the source)" [ref=f4e380] [cursor=pointer]
+                        - listitem "Oakley Real Estate Partners Brown Farm Road Data Center, Georgia, 2026-09-30 (opens the source)" [ref=f4e381] [cursor=pointer]
+                        - listitem "Pine Ridge Tech Park, Georgia, 2026-10-28 (opens the source)" [ref=f4e382] [cursor=pointer]
+                        - listitem "Project Arrowhead (Premier Data Center Development Irwin County Campus), Georgia, 2026-10-14 (opens the source)" [ref=f4e383] [cursor=pointer]
+                        - listitem "Project Azalea (Thomson Data Center Campus), Georgia, 2026-10-14 (opens the source)" [ref=f4e384] [cursor=pointer]
+                        - listitem "Project Bunkhouse (Digital Realty Data Center Campus), Georgia, 2026-11-04 (opens the source)" [ref=f4e385] [cursor=pointer]
+                        - listitem "Project Camellia (OpenAI Effingham County Campus), Georgia, 2026-11-04 (opens the source)" [ref=f4e386] [cursor=pointer]
+                        - listitem "Project Peach (CyrusOne Palmetto Data Center Campus), Georgia, 2026-11-05 (opens the source)" [ref=f4e387] [cursor=pointer]
+                        - listitem "Project Ruby (Upatoi Data Center Campus), Georgia, 2026-09-10 (opens the source)" [ref=f4e388] [cursor=pointer]
+                        - listitem "Project Sail, Prologis Data Center Campus, Georgia, 2026-11-04 (opens the source)" [ref=f4e389] [cursor=pointer]
+                        - listitem "Project Sassy (Atlas Development Rome Campus), Georgia, 2026-08-28 (opens the source)" [ref=f4e390] [cursor=pointer]
+                        - listitem "Project Splice (Cordele Technology Campus), Georgia, 2026-10-14 (opens the source)" [ref=f4e391] [cursor=pointer]
+                        - listitem "Project West (Troup County Data Center Campus), Georgia, 2026-10-28 (opens the source)" [ref=f4e392] [cursor=pointer]
+                        - listitem "Pumpkin Technology Campus, Georgia, 2026-09-23 (opens the source)" [ref=f4e393] [cursor=pointer]
+                        - listitem "QTS Project Blue Hole, Georgia, 2026-10-22 (opens the source)" [ref=f4e394] [cursor=pointer]
+                        - listitem "Sailfish Investors Social Circle Parkway Data Center, Georgia, 2026-11-04 (opens the source)" [ref=f4e395] [cursor=pointer]
+                        - listitem "Social Circle Technology Park, Georgia, 2026-10-22 (opens the source)" [ref=f4e396] [cursor=pointer]
+                        - listitem "Spalding Investments Data Center Campus (High Falls Road), Georgia, 2026-11-04 (opens the source)" [ref=f4e397] [cursor=pointer]
+                        - listitem "T5 @ Atlanta IV, Georgia, 2026-10-28 (opens the source)" [ref=f4e398] [cursor=pointer]
+                        - listitem "TA Realty East Tanners Church Road Data Center, Georgia, 2026-10-28 (opens the source)" [ref=f4e399] [cursor=pointer]
+                        - listitem "Vantage Data Centers Douglasville Campus, Georgia, 2026-08-28 (opens the source)" [ref=f4e400] [cursor=pointer]
+                        - listitem "Vantage Data Centers Westlake, Georgia, 2026-08-28 (opens the source)" [ref=f4e401] [cursor=pointer]
+                        - listitem "Wallace Jackson Data Center Campus, Georgia, 2026-11-04 (opens the source)" [ref=f4e402] [cursor=pointer]
+                        - listitem "White Oak Technology Park, Georgia, 2026-10-22 (opens the source)" [ref=f4e403] [cursor=pointer]
+                        - listitem "Winston Data Center (Waldrop Farms), Georgia, 2026-10-28 (opens the source)" [ref=f4e404] [cursor=pointer]
+                    - generic [ref=f4e405]:
+                      - paragraph [ref=f4e406]: Cancelled (per the source) · 10 records · 11%
+                      - list "Cancelled (per the source) · 10 records · 11%" [ref=f4e408]:
+                        - listitem "Atlas Development Stiles Road Data Center (Euharlee Road), Georgia, 2026-09-30 (opens the source)" [ref=f4e409] [cursor=pointer]
+                        - listitem "Bolingbroke Technology Center, Georgia, 2026-10-14 (opens the source)" [ref=f4e410] [cursor=pointer]
+                        - listitem "Liberty Road Data Center Campus (EdgeConneX), Georgia, 2026-09-10 (opens the source)" [ref=f4e411] [cursor=pointer]
+                        - listitem "Lovejoy Data Center Campus (Stillwater Development), Georgia, 2026-09-10 (opens the source)" [ref=f4e412] [cursor=pointer]
+                        - listitem "Old Elberton Road Data Center Proposal, Georgia, 2026-10-14 (opens the source)" [ref=f4e413] [cursor=pointer]
+                        - listitem "Project Bus (Atlas Development Temple Data Center Campus), Georgia, 2026-10-14 (opens the source)" [ref=f4e414] [cursor=pointer]
+                        - listitem "Project Oak Data Center (Walt Sanders Road), Georgia, 2026-11-04 (opens the source)" [ref=f4e415] [cursor=pointer]
+                        - listitem "Project Preserve (Ellenwood Data Center), Georgia, 2026-10-14 (opens the source)" [ref=f4e416] [cursor=pointer]
+                        - listitem "Project Springbank (Atlas Development Bartow County Campus), Georgia, 2026-09-30 (opens the source)" [ref=f4e417] [cursor=pointer]
+                        - listitem "Project Turbo (Gainesville Data Center), Georgia, 2026-10-14 (opens the source)" [ref=f4e418] [cursor=pointer]
+                    - paragraph [ref=f4e419]: Use the arrow keys to move between dots.
+                  - generic [ref=f4e420]:
+                    - generic [ref=f4e421]: FIG. 03
+                    - text: "— Data center sites on record, by status, Georgia. Every dot is one data center site. Select a dot to open it. Source: Epoch AI and the US Data Center Registry (base data from Compute Atlas), CC BY 4.0."
+                    - link "About this data" [ref=f4e422] [cursor=pointer]:
+                      - /url: http://localhost:3000/docs/guides/data-stories#sources-and-limits
+                  - button "Show data table ↓" [ref=f4e423] [cursor=pointer]
+            - region "Of 2 data center projects on record in Georgia, 2 are listed as operating." [ref=f4e425]:
+              - generic [aria-hidden]: Proposals
+              - generic [ref=f4e426]:
+                - generic [ref=f4e427]:
+                  - generic [ref=f4e428]:
+                    - paragraph [ref=f4e429]: "For context · source: curated announcements and Epoch AI"
+                    - paragraph [ref=f4e430]: Proposals
+                  - generic [ref=f4e431]:
+                    - heading "Of 2 data center projects on record in Georgia, 2 are listed as operating." [level=2] [ref=f4e432]:
+                      - generic [ref=f4e433]: Of
+                      - generic [ref=f4e435]: "2"
+                      - generic [ref=f4e437]: data
+                      - generic [ref=f4e439]: center
+                      - generic [ref=f4e441]: projects
+                      - generic [ref=f4e443]: "on"
+                      - generic [ref=f4e445]: record
+                      - generic [ref=f4e447]: in
+                      - generic [ref=f4e449]: Georgia,
+                      - generic [ref=f4e451]: "2"
+                      - generic [ref=f4e453]: are
+                      - generic [ref=f4e455]: listed
+                      - generic [ref=f4e457]: as
+                      - generic [ref=f4e459]: operating.
+                    - paragraph [ref=f4e461]: What gets promised in meetings?
+                  - region "Where do you stand?" [ref=f4e462]:
+                    - paragraph [ref=f4e463]: Where do you stand?
+                    - paragraph [ref=f4e464]: A data center that meets the rules should be allowed near homes.
+                    - 'group "Your answer: A data center that meets the rules should be allowed near homes." [ref=f4e465]':
+                      - button "Agree" [ref=f4e466] [cursor=pointer]
+                      - button "Disagree" [ref=f4e467] [cursor=pointer]
+                      - button "Not sure" [ref=f4e468] [cursor=pointer]
+                  - generic [ref=f4e469]:
+                    - button "Back" [ref=f4e470] [cursor=pointer]: ← Back
+                    - 'button "Next: Promises" [ref=f4e471] [cursor=pointer]':
+                      - text: Next
+                      - generic [aria-hidden] [ref=f4e472]: →
+                - figure "Data center projects, by status" [ref=f4e474]:
+                  - generic [ref=f4e475]:
+                    - generic [ref=f4e476]:
+                      - paragraph [ref=f4e477]: Operating · 2 shown
+                      - list "Operating · 2 shown" [ref=f4e479]:
+                        - listitem "Microsoft Fairwater Atlanta, GA (opens the source)" [ref=f4e480] [cursor=pointer]
+                        - listitem "xAI QTS Atlanta, GA (opens the source)" [ref=f4e481] [cursor=pointer]
+                    - paragraph [ref=f4e482]: Use the arrow keys to move between dots.
+                  - generic [ref=f4e483]:
+                    - generic [ref=f4e484]: FIG. 04
+                    - text: "— Data center projects, by status, Georgia. Every dot is one data center project. Select a dot to open it. Source: Open Navigator, curated announcements and Epoch AI."
+                    - link "About this data" [ref=f4e485] [cursor=pointer]:
+                      - /url: http://localhost:3000/docs/guides/data-stories#sources-and-limits
+                  - button "Show data table ↓" [ref=f4e486] [cursor=pointer]
+            - region "In Georgia, 24,526 people worked on payroll in the industry that includes data centers in 2024." [ref=f4e488]:
+              - generic [aria-hidden]: Promises
+              - generic [ref=f4e489]:
+                - generic [ref=f4e490]:
+                  - paragraph [ref=f4e492]: Promises
+                  - generic [ref=f4e493]:
+                    - heading "In Georgia, 24,526 people worked on payroll in the industry that includes data centers in 2024." [level=2] [ref=f4e494]:
+                      - generic [ref=f4e495]: In
+                      - generic [ref=f4e497]: Georgia,
+                      - generic [ref=f4e499]: 24,526
+                      - generic [ref=f4e501]: people
+                      - generic [ref=f4e503]: worked
+                      - generic [ref=f4e505]: "on"
+                      - generic [ref=f4e507]: payroll
+                      - generic [ref=f4e509]: in
+                      - generic [ref=f4e511]: the
+                      - generic [ref=f4e513]: industry
+                      - generic [ref=f4e515]: that
+                      - generic [ref=f4e517]: includes
+                      - generic [ref=f4e519]: data
+                      - generic [ref=f4e521]: centers
+                      - generic [ref=f4e523]: in
+                      - generic [ref=f4e525]: "2024."
+                    - paragraph [ref=f4e527]: That is down 0.8% from the year before. No jobs promises are on record in meetings here yet. What concerns come up?
+                  - region "Where do you stand?" [ref=f4e528]:
+                    - paragraph [ref=f4e529]: Where do you stand?
+                    - paragraph [ref=f4e530]: The jobs a data center brings are worth what it asks of a community.
+                    - 'group "Your answer: The jobs a data center brings are worth what it asks of a community." [ref=f4e531]':
+                      - button "Agree" [ref=f4e532] [cursor=pointer]
+                      - button "Disagree" [ref=f4e533] [cursor=pointer]
+                      - button "Not sure" [ref=f4e534] [cursor=pointer]
+                  - generic [ref=f4e535]:
+                    - button "Back" [ref=f4e536] [cursor=pointer]: ← Back
+                    - 'button "Next: Concerns" [ref=f4e537] [cursor=pointer]':
+                      - text: Next
+                      - generic [aria-hidden] [ref=f4e538]: →
+                - figure "Payroll jobs in the industry that includes data centers, 2024" [ref=f4e540]:
+                  - list [ref=f4e542]:
+                    - listitem [ref=f4e543]:
+                      - generic [ref=f4e544]: Georgia
+                      - generic [ref=f4e545]: 24,526 jobs
+                      - generic [ref=f4e546]: 2,269 employers · average pay $163,913 · -0.8% from the year before
+                    - listitem [ref=f4e547]:
+                      - generic [ref=f4e548]: United States
+                      - generic [ref=f4e549]: 483,804 jobs
+                      - generic [ref=f4e550]: 55,256 employers · average pay $194,800 · -0.5% from the year before
+                  - paragraph [ref=f4e551]:
+                    - text: "Source:"
+                    - link "BLS Quarterly Census of Employment and Wages" [ref=f4e552] [cursor=pointer]:
+                      - /url: https://data.bls.gov/cew/data/api/2024/a/industry/518210.csv
+                    - text: ", NAICS 518210 (computing infrastructure, data processing and web hosting), private employers. That industry includes data centers and is broader than them."
+                  - group [ref=f4e553]:
+                    - generic "Where data center jobs are tracked" [ref=f4e554] [cursor=pointer]
+            - 'region "Land and property and traffic are tied as the most raised concerns in meeting records in Georgia: 5 mentions each, of 87." [ref=f4e556]':
+              - generic [aria-hidden]: Concerns
+              - generic [ref=f4e557]:
+                - generic [ref=f4e558]:
+                  - paragraph [ref=f4e560]: Concerns
+                  - generic [ref=f4e561]:
+                    - 'heading "Land and property and traffic are tied as the most raised concerns in meeting records in Georgia: 5 mentions each, of 87." [level=2] [ref=f4e562]':
+                      - generic [ref=f4e563]: Land
+                      - generic [ref=f4e565]: and
+                      - generic [ref=f4e567]: property
+                      - generic [ref=f4e569]: and
+                      - generic [ref=f4e571]: traffic
+                      - generic [ref=f4e573]: are
+                      - generic [ref=f4e575]: tied
+                      - generic [ref=f4e577]: as
+                      - generic [ref=f4e579]: the
+                      - generic [ref=f4e581]: most
+                      - generic [ref=f4e583]: raised
+                      - generic [ref=f4e585]: concerns
+                      - generic [ref=f4e587]: in
+                      - generic [ref=f4e589]: meeting
+                      - generic [ref=f4e591]: records
+                      - generic [ref=f4e593]: in
+                      - generic [ref=f4e595]: "Georgia:"
+                      - generic [ref=f4e597]: "5"
+                      - generic [ref=f4e599]: mentions
+                      - generic [ref=f4e601]: each,
+                      - generic [ref=f4e603]: of
+                      - generic [ref=f4e605]: "87."
+                    - paragraph [ref=f4e607]: These count passages in meeting transcripts, not people. When does it come up?
+                  - region "Where do you stand?" [ref=f4e608]:
+                    - paragraph [ref=f4e609]: Where do you stand?
+                    - paragraph [ref=f4e610]: Water and power use should decide whether a data center is approved.
+                    - 'group "Your answer: Water and power use should decide whether a data center is approved." [ref=f4e611]':
+                      - button "Agree" [ref=f4e612] [cursor=pointer]
+                      - button "Disagree" [ref=f4e613] [cursor=pointer]
+                      - button "Not sure" [ref=f4e614] [cursor=pointer]
+                  - generic [ref=f4e615]:
+                    - button "Back" [ref=f4e616] [cursor=pointer]: ← Back
+                    - 'button "Next: Meetings" [ref=f4e617] [cursor=pointer]':
+                      - text: Next
+                      - generic [aria-hidden] [ref=f4e618]: →
+                - figure "What people raise about data centers in their meetings" [ref=f4e620]:
+                  - generic [ref=f4e621]:
+                    - generic [ref=f4e622]:
+                      - paragraph [ref=f4e623]: Land and property · 5 mentions · 6%
+                      - list "Land and property · 5 mentions · 6%" [ref=f4e625]:
+                        - listitem "1 mention" [ref=f4e626]
+                        - listitem "1 mention" [ref=f4e627]
+                        - listitem "1 mention" [ref=f4e628]
+                        - listitem "1 mention" [ref=f4e629]
+                        - listitem "1 mention" [ref=f4e630]
+                    - generic [ref=f4e631]:
+                      - paragraph [ref=f4e632]: Traffic · 5 mentions · 6%
+                      - list "Traffic · 5 mentions · 6%" [ref=f4e634]:
+                        - listitem "1 mention" [ref=f4e635]
+                        - listitem "1 mention" [ref=f4e636]
+                        - listitem "1 mention" [ref=f4e637]
+                        - listitem "1 mention" [ref=f4e638]
+                        - listitem "1 mention" [ref=f4e639]
+                    - generic [ref=f4e640]:
+                      - paragraph [ref=f4e641]: Water · 5 mentions · 6%
+                      - list "Water · 5 mentions · 6%" [ref=f4e643]:
+                        - listitem "1 mention" [ref=f4e644]
+                        - listitem "1 mention" [ref=f4e645]
+                        - listitem "1 mention" [ref=f4e646]
+                        - listitem "1 mention" [ref=f4e647]
+                        - listitem "1 mention" [ref=f4e648]
+                    - generic [ref=f4e649]:
+                      - paragraph [ref=f4e650]: Noise · 4 mentions · 5%
+                      - list "Noise · 4 mentions · 5%" [ref=f4e652]:
+                        - listitem "1 mention" [ref=f4e653]
+                        - listitem "1 mention" [ref=f4e654]
+                        - listitem "1 mention" [ref=f4e655]
+                        - listitem "1 mention" [ref=f4e656]
+                    - generic [ref=f4e657]:
+                      - paragraph [ref=f4e658]: Land and property · 3 mentions · 3%
+                      - list "Land and property · 3 mentions · 3%" [ref=f4e660]:
+                        - listitem "1 mention" [ref=f4e661]
+                        - listitem "1 mention" [ref=f4e662]
+                        - listitem "1 mention" [ref=f4e663]
+                    - generic [ref=f4e664]:
+                      - paragraph [ref=f4e665]: Noise · 3 mentions · 3%
+                      - list "Noise · 3 mentions · 3%" [ref=f4e667]:
+                        - listitem "1 mention" [ref=f4e668]
+                        - listitem "1 mention" [ref=f4e669]
+                        - listitem "1 mention" [ref=f4e670]
+                    - generic [ref=f4e671]:
+                      - paragraph [ref=f4e672]: Noise · 3 mentions · 3%
+                      - list "Noise · 3 mentions · 3%" [ref=f4e674]:
+                        - listitem "1 mention" [ref=f4e675]
+                        - listitem "1 mention" [ref=f4e676]
+                        - listitem "1 mention" [ref=f4e677]
+                    - generic [ref=f4e678]:
+                      - paragraph [ref=f4e679]: Tax breaks · 3 mentions · 3%
+                      - list "Tax breaks · 3 mentions · 3%" [ref=f4e681]:
+                        - listitem "1 mention" [ref=f4e682]
+                        - listitem "1 mention" [ref=f4e683]
+                        - listitem "1 mention" [ref=f4e684]
+                    - generic [ref=f4e685]:
+                      - paragraph [ref=f4e686]: Traffic · 3 mentions · 3%
+                      - list "Traffic · 3 mentions · 3%" [ref=f4e688]:
+                        - listitem "1 mention" [ref=f4e689]
+                        - listitem "1 mention" [ref=f4e690]
+                        - listitem "1 mention" [ref=f4e691]
+                    - generic [ref=f4e692]:
+                      - paragraph [ref=f4e693]: Traffic · 3 mentions · 3%
+                      - list "Traffic · 3 mentions · 3%" [ref=f4e695]:
+                        - listitem "1 mention" [ref=f4e696]
+                        - listitem "1 mention" [ref=f4e697]
+                        - listitem "1 mention" [ref=f4e698]
+                    - generic [ref=f4e699]:
+                      - paragraph [ref=f4e700]: Traffic · 3 mentions · 3%
+                      - list "Traffic · 3 mentions · 3%" [ref=f4e702]:
+                        - listitem "1 mention" [ref=f4e703]
+                        - listitem "1 mention" [ref=f4e704]
+                        - listitem "1 mention" [ref=f4e705]
+                    - generic [ref=f4e706]:
+                      - paragraph [ref=f4e707]: Land and property · 2 mentions · 2%
+                      - list "Land and property · 2 mentions · 2%" [ref=f4e709]:
+                        - listitem "1 mention" [ref=f4e710]
+                        - listitem "1 mention" [ref=f4e711]
+                    - generic [ref=f4e712]:
+                      - paragraph [ref=f4e713]: Noise · 2 mentions · 2%
+                      - list "Noise · 2 mentions · 2%" [ref=f4e715]:
+                        - listitem "1 mention" [ref=f4e716]
+                        - listitem "1 mention" [ref=f4e717]
+                    - generic [ref=f4e718]:
+                      - paragraph [ref=f4e719]: Pollution · 2 mentions · 2%
+                      - list "Pollution · 2 mentions · 2%" [ref=f4e721]:
+                        - listitem "1 mention" [ref=f4e722]
+                        - listitem "1 mention" [ref=f4e723]
+                    - generic [ref=f4e724]:
+                      - paragraph [ref=f4e725]: Traffic · 2 mentions · 2%
+                      - list "Traffic · 2 mentions · 2%" [ref=f4e727]:
+                        - listitem "1 mention" [ref=f4e728]
+                        - listitem "1 mention" [ref=f4e729]
+                    - generic [ref=f4e730]:
+                      - paragraph [ref=f4e731]: Traffic · 2 mentions · 2%
+                      - list "Traffic · 2 mentions · 2%" [ref=f4e733]:
+                        - listitem "1 mention" [ref=f4e734]
+                        - listitem "1 mention" [ref=f4e735]
+                    - generic [ref=f4e736]:
+                      - paragraph [ref=f4e737]: Traffic · 2 mentions · 2%
+                      - list "Traffic · 2 mentions · 2%" [ref=f4e739]:
+                        - listitem "1 mention" [ref=f4e740]
+                        - listitem "1 mention" [ref=f4e741]
+                    - generic [ref=f4e742]:
+                      - paragraph [ref=f4e743]: Water · 2 mentions · 2%
+                      - list "Water · 2 mentions · 2%" [ref=f4e745]:
+                        - listitem "1 mention" [ref=f4e746]
+                        - listitem "1 mention" [ref=f4e747]
+                    - generic [ref=f4e748]:
+                      - paragraph [ref=f4e749]: Water · 2 mentions · 2%
+                      - list "Water · 2 mentions · 2%" [ref=f4e751]:
+                        - listitem "1 mention" [ref=f4e752]
+                        - listitem "1 mention" [ref=f4e753]
+                    - generic [ref=f4e754]:
+                      - paragraph [ref=f4e755]: Water · 2 mentions · 2%
+                      - list "Water · 2 mentions · 2%" [ref=f4e757]:
+                        - listitem "1 mention" [ref=f4e758]
+                        - listitem "1 mention" [ref=f4e759]
+                    - generic [ref=f4e760]:
+                      - paragraph [ref=f4e761]: Water · 2 mentions · 2%
+                      - list "Water · 2 mentions · 2%" [ref=f4e763]:
+                        - listitem "1 mention" [ref=f4e764]
+                        - listitem "1 mention" [ref=f4e765]
+                    - generic [ref=f4e766]:
+                      - paragraph [ref=f4e767]: Electricity costs · 1 mention · 1%
+                      - list "Electricity costs · 1 mention · 1%" [ref=f4e769]:
+                        - listitem "1 mention" [ref=f4e770]
+                    - generic [ref=f4e771]:
+                      - paragraph [ref=f4e772]: Electricity costs · 1 mention · 1%
+                      - list "Electricity costs · 1 mention · 1%" [ref=f4e774]:
+                        - listitem "1 mention" [ref=f4e775]
+                    - generic [ref=f4e776]:
+                      - paragraph [ref=f4e777]: Land and property · 1 mention · 1%
+                      - list "Land and property · 1 mention · 1%" [ref=f4e779]:
+                        - listitem "1 mention" [ref=f4e780]
+                    - generic [ref=f4e781]:
+                      - paragraph [ref=f4e782]: Land and property · 1 mention · 1%
+                      - list "Land and property · 1 mention · 1%" [ref=f4e784]:
+                        - listitem "1 mention" [ref=f4e785]
+                    - generic [ref=f4e786]:
+                      - paragraph [ref=f4e787]: Land and property · 1 mention · 1%
+                      - list "Land and property · 1 mention · 1%" [ref=f4e789]:
+                        - listitem "1 mention" [ref=f4e790]
+                    - generic [ref=f4e791]:
+                      - paragraph [ref=f4e792]: Land and property · 1 mention · 1%
+                      - list "Land and property · 1 mention · 1%" [ref=f4e794]:
+                        - listitem "1 mention" [ref=f4e795]
+                    - generic [ref=f4e796]:
+                      - paragraph [ref=f4e797]: Land and property · 1 mention · 1%
+                      - list "Land and property · 1 mention · 1%" [ref=f4e799]:
+                        - listitem "1 mention" [ref=f4e800]
+                    - generic [ref=f4e801]:
+                      - paragraph [ref=f4e802]: Land and property · 1 mention · 1%
+                      - list "Land and property · 1 mention · 1%" [ref=f4e804]:
+                        - listitem "1 mention" [ref=f4e805]
+                    - generic [ref=f4e806]:
+                      - paragraph [ref=f4e807]: Noise · 1 mention · 1%
+                      - list "Noise · 1 mention · 1%" [ref=f4e809]:
+                        - listitem "1 mention" [ref=f4e810]
+                    - generic [ref=f4e811]:
+                      - paragraph [ref=f4e812]: Noise · 1 mention · 1%
+                      - list "Noise · 1 mention · 1%" [ref=f4e814]:
+                        - listitem "1 mention" [ref=f4e815]
+                    - generic [ref=f4e816]:
+                      - paragraph [ref=f4e817]: Noise · 1 mention · 1%
+                      - list "Noise · 1 mention · 1%" [ref=f4e819]:
+                        - listitem "1 mention" [ref=f4e820]
+                    - generic [ref=f4e821]:
+                      - paragraph [ref=f4e822]: Noise · 1 mention · 1%
+                      - list "Noise · 1 mention · 1%" [ref=f4e824]:
+                        - listitem "1 mention" [ref=f4e825]
+                    - generic [ref=f4e826]:
+                      - paragraph [ref=f4e827]: Noise · 1 mention · 1%
+                      - list "Noise · 1 mention · 1%" [ref=f4e829]:
+                        - listitem "1 mention" [ref=f4e830]
+                    - generic [ref=f4e831]:
+                      - paragraph [ref=f4e832]: Pollution · 1 mention · 1%
+                      - list "Pollution · 1 mention · 1%" [ref=f4e834]:
+                        - listitem "1 mention" [ref=f4e835]
+                    - generic [ref=f4e836]:
+                      - paragraph [ref=f4e837]: Pollution · 1 mention · 1%
+                      - list "Pollution · 1 mention · 1%" [ref=f4e839]:
+                        - listitem "1 mention" [ref=f4e840]
+                    - generic [ref=f4e841]:
+                      - paragraph [ref=f4e842]: Tax breaks · 1 mention · 1%
+                      - list "Tax breaks · 1 mention · 1%" [ref=f4e844]:
+                        - listitem "1 mention" [ref=f4e845]
+                    - generic [ref=f4e846]:
+                      - paragraph [ref=f4e847]: Tax breaks · 1 mention · 1%
+                      - list "Tax breaks · 1 mention · 1%" [ref=f4e849]:
+                        - listitem "1 mention" [ref=f4e850]
+                    - generic [ref=f4e851]:
+                      - paragraph [ref=f4e852]: Traffic · 1 mention · 1%
+                      - list "Traffic · 1 mention · 1%" [ref=f4e854]:
+                        - listitem "1 mention" [ref=f4e855]
+                    - generic [ref=f4e856]:
+                      - paragraph [ref=f4e857]: Traffic · 1 mention · 1%
+                      - list "Traffic · 1 mention · 1%" [ref=f4e859]:
+                        - listitem "1 mention" [ref=f4e860]
+                    - generic [ref=f4e861]:
+                      - paragraph [ref=f4e862]: Traffic · 1 mention · 1%
+                      - list "Traffic · 1 mention · 1%" [ref=f4e864]:
+                        - listitem "1 mention" [ref=f4e865]
+                    - generic [ref=f4e866]:
+                      - paragraph [ref=f4e867]: Traffic · 1 mention · 1%
+                      - list "Traffic · 1 mention · 1%" [ref=f4e869]:
+                        - listitem "1 mention" [ref=f4e870]
+                    - generic [ref=f4e871]:
+                      - paragraph [ref=f4e872]: Traffic · 1 mention · 1%
+                      - list "Traffic · 1 mention · 1%" [ref=f4e874]:
+                        - listitem "1 mention" [ref=f4e875]
+                    - generic [ref=f4e876]:
+                      - paragraph [ref=f4e877]: Water · 1 mention · 1%
+                      - list "Water · 1 mention · 1%" [ref=f4e879]:
+                        - listitem "1 mention" [ref=f4e880]
+                    - generic [ref=f4e881]:
+                      - paragraph [ref=f4e882]: Water · 1 mention · 1%
+                      - list "Water · 1 mention · 1%" [ref=f4e884]:
+                        - listitem "1 mention" [ref=f4e885]
+                    - generic [ref=f4e886]:
+                      - paragraph [ref=f4e887]: Water · 1 mention · 1%
+                      - list "Water · 1 mention · 1%" [ref=f4e889]:
+                        - listitem "1 mention" [ref=f4e890]
+                    - generic [ref=f4e891]:
+                      - paragraph [ref=f4e892]: Water · 1 mention · 1%
+                      - list "Water · 1 mention · 1%" [ref=f4e894]:
+                        - listitem "1 mention" [ref=f4e895]
+                    - generic [ref=f4e896]:
+                      - paragraph [ref=f4e897]: Water · 1 mention · 1%
+                      - list "Water · 1 mention · 1%" [ref=f4e899]:
+                        - listitem "1 mention" [ref=f4e900]
+                    - paragraph [ref=f4e901]: Use the arrow keys to move between dots.
+                  - generic [ref=f4e902]:
+                    - generic [ref=f4e903]: FIG. 06
+                    - text: "— What people raise about data centers in their meetings, Georgia. Every dot is one mention. Hover or focus a dot for details. Source: Open Navigator, concerns found in meeting transcripts."
+                    - link "About this data" [ref=f4e904] [cursor=pointer]:
+                      - /url: http://localhost:3000/docs/guides/data-stories#sources-and-limits
+                  - button "Show data table ↓" [ref=f4e905] [cursor=pointer]
+            - region "A data center came up in 118 meetings in Georgia, in 702 quoted passages." [ref=f4e907]:
+              - generic [aria-hidden]: Meetings
+              - generic [ref=f4e908]:
+                - generic [ref=f4e909]:
+                  - paragraph [ref=f4e911]: Meetings
+                  - generic [ref=f4e912]:
+                    - heading "A data center came up in 118 meetings in Georgia, in 702 quoted passages." [level=2] [ref=f4e913]:
+                      - generic [ref=f4e914]: A
+                      - generic [ref=f4e916]: data
+                      - generic [ref=f4e918]: center
+                      - generic [ref=f4e920]: came
+                      - generic [ref=f4e922]: up
+                      - generic [ref=f4e924]: in
+                      - generic [ref=f4e926]: "118"
+                      - generic [ref=f4e928]: meetings
+                      - generic [ref=f4e930]: in
+                      - generic [ref=f4e932]: Georgia,
+                      - generic [ref=f4e934]: in
+                      - generic [ref=f4e936]: "702"
+                      - generic [ref=f4e938]: quoted
+                      - generic [ref=f4e940]: passages.
+                    - paragraph [ref=f4e942]: Among the most recent 500 passages, 2026 has the most (388). What is on the agenda?
+                  - region "Where do you stand?" [ref=f4e943]:
+                    - paragraph [ref=f4e944]: Where do you stand?
+                    - paragraph [ref=f4e945]: Local officials discuss data centers enough before they vote on them.
+                    - 'group "Your answer: Local officials discuss data centers enough before they vote on them." [ref=f4e946]':
+                      - button "Agree" [ref=f4e947] [cursor=pointer]
+                      - button "Disagree" [ref=f4e948] [cursor=pointer]
+                      - button "Not sure" [ref=f4e949] [cursor=pointer]
+                  - generic [ref=f4e950]:
+                    - button "Back" [ref=f4e951] [cursor=pointer]: ← Back
+                    - 'button "Next: Agendas" [ref=f4e952] [cursor=pointer]':
+                      - text: Next
+                      - generic [aria-hidden] [ref=f4e953]: →
+                - figure "Meeting passages that mention a data center, by year" [ref=f4e955]:
+                  - generic [ref=f4e956]:
+                    - generic [ref=f4e957]:
+                      - paragraph [ref=f4e958]: 2026 · 388 shown
+                      - list "2026 · 388 shown" [ref=f4e960]:
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e961] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e962] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e963] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e964] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e965] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e966] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e967] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e968] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e969] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e970] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e971] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e972] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e973] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e974] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e975] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e976] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e977] [cursor=pointer]
+                        - listitem "Board of Commissioners Board Meeting (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e978] [cursor=pointer]
+                        - listitem "Board of Commissioners Board Meeting (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e979] [cursor=pointer]
+                        - listitem "Board of Commissioners Board Meeting (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e980] [cursor=pointer]
+                        - listitem "Board of Commissioners Board Meeting (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e981] [cursor=pointer]
+                        - listitem "Board of Commissioners Board Meeting (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e982] [cursor=pointer]
+                        - listitem "Board of Commissioners Board Meeting (06/23/2026), Paulding County, GA, 2026-06-23 (plays the recording)" [ref=f4e983] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting June 18, 2026 5:30PM, Bulloch County, GA, 2026-06-18 (plays the recording)" [ref=f4e984] [cursor=pointer]
+                        - listitem "2026.06.16 Columbia County Board of Commissioners Meeting, Columbia County, GA, 2026-06-16 (plays the recording)" [ref=f4e985] [cursor=pointer]
+                        - listitem "June 16, 2026 Commissioner's Meeting, Harris County, GA, 2026-06-16 (plays the recording)" [ref=f4e986] [cursor=pointer]
+                        - listitem "June 16, 2026 Commissioner's Meeting, Harris County, GA, 2026-06-16 (plays the recording)" [ref=f4e987] [cursor=pointer]
+                        - listitem "Planning and Zoning Commission June 16, 2026 5:30PM, Bulloch County, GA, 2026-06-16 (plays the recording)" [ref=f4e988] [cursor=pointer]
+                        - listitem "Planning and Zoning Commission June 16, 2026 5:30PM, Bulloch County, GA, 2026-06-16 (plays the recording)" [ref=f4e989] [cursor=pointer]
+                        - listitem "District 3 and District 4 Joint Town Hall || Gwinnett County, Gwinnett County, GA, 2026-06-15 (plays the recording)" [ref=f4e990] [cursor=pointer]
+                        - listitem "City Council Livestream - June 15,2026, Garden City, GA, 2026-06-15 (plays the recording)" [ref=f4e991] [cursor=pointer]
+                        - listitem "City Council Livestream - June 15,2026, Garden City, GA, 2026-06-15 (plays the recording)" [ref=f4e992] [cursor=pointer]
+                        - listitem "City Council Livestream - June 15,2026, Garden City, GA, 2026-06-15 (plays the recording)" [ref=f4e993] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e994] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e995] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e996] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e997] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e998] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e999] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1000] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1001] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1002] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1003] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1004] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1005] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1006] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1007] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1008] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1009] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1010] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1011] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1012] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1013] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1014] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1015] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1016] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1017] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1018] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1019] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1020] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1021] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1022] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1023] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1024] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1025] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1026] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1027] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1028] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1029] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1030] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1031] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1032] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1033] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1034] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1035] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1036] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1037] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1038] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1039] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1040] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1041] [cursor=pointer]
+                        - listitem "City Council Meeting 06-02-2026, Columbus, GA, 2026-06-02 (plays the recording)" [ref=f4e1042] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session - May 26, 2026, Camden County, GA, 2026-05-26 (plays the recording)" [ref=f4e1043] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session - May 26, 2026, Camden County, GA, 2026-05-26 (plays the recording)" [ref=f4e1044] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session - May 26, 2026, Camden County, GA, 2026-05-26 (plays the recording)" [ref=f4e1045] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 19, 2026 8:00AM, Bulloch County, GA, 2026-05-19 (plays the recording)" [ref=f4e1046] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 19, 2026, Camden County, GA, 2026-05-19 (plays the recording)" [ref=f4e1047] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 19, 2026, Camden County, GA, 2026-05-19 (plays the recording)" [ref=f4e1048] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 19, 2026, Camden County, GA, 2026-05-19 (plays the recording)" [ref=f4e1049] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 19, 2026, Camden County, GA, 2026-05-19 (plays the recording)" [ref=f4e1050] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 19, 2026, Camden County, GA, 2026-05-19 (plays the recording)" [ref=f4e1051] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1052] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1053] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1054] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1055] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1056] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1057] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1058] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1059] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1060] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1061] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1062] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1063] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1064] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1065] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1066] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1067] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1068] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1069] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 05-18-2026 Extraordinary Meeting 6:00pm, Spalding County, GA, 2026-05-18 (plays the recording)" [ref=f4e1070] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session - May 18, 2026, Camden County, GA, 2026-05-18 (plays the recording)" [ref=f4e1071] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session - May 18, 2026, Camden County, GA, 2026-05-18 (plays the recording)" [ref=f4e1072] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1073] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1074] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1075] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1076] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1077] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1078] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1079] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1080] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1081] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1082] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1083] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1084] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1085] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1086] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1087] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1088] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1089] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Work Session; May 12, 2026, Clayton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1090] [cursor=pointer]
+                        - listitem "Fulton County Board of Commissioners and Mayors Meeting May 12, 2026, Fulton County, GA, 2026-05-12 (plays the recording)" [ref=f4e1091] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1092] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1093] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1094] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1095] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1096] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1097] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1098] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1099] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1100] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1101] [cursor=pointer]
+                        - listitem "City Council Meeting 05-12-2026, Columbus, GA, 2026-05-12 (plays the recording)" [ref=f4e1102] [cursor=pointer]
+                        - listitem "Planning Commission Meeting May 7th, 2026, Walton County, GA, 2026-05-07 (plays the recording)" [ref=f4e1103] [cursor=pointer]
+                        - 'listitem "Atlanta City Council FY27 Budget Briefings: May 7, 2026, Atlanta, GA, 2026-05-07 (plays the recording)" [ref=f4e1104] [cursor=pointer]'
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1105] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1106] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1107] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1108] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1109] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1110] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1111] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1112] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1113] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1114] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1115] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1116] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting May 5, 2026 5:30PM, Bulloch County, GA, 2026-05-05 (plays the recording)" [ref=f4e1117] [cursor=pointer]
+                        - listitem "Board of Commissioners Meeting May 5th, 2026, Walton County, GA, 2026-05-05 (plays the recording)" [ref=f4e1118] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1119] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1120] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1121] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1122] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1123] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1124] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1125] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1126] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1127] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1128] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1129] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1130] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1131] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1132] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - May 5, 2026, Camden County, GA, 2026-05-05 (plays the recording)" [ref=f4e1133] [cursor=pointer]
+                        - listitem "May 5, 2026 Budget Work Session and Commissioner's Meeting, Harris County, GA, 2026-05-05 (plays the recording)" [ref=f4e1134] [cursor=pointer]
+                        - listitem "City Council Meeting 04-28-2026, Columbus, GA, 2026-04-28 (plays the recording)" [ref=f4e1135] [cursor=pointer]
+                        - listitem "City Council Meeting 04-28-2026, Columbus, GA, 2026-04-28 (plays the recording)" [ref=f4e1136] [cursor=pointer]
+                        - listitem "City Council Meeting 04-28-2026, Columbus, GA, 2026-04-28 (plays the recording)" [ref=f4e1137] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1138] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1139] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1140] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1141] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1142] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1143] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1144] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1145] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1146] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1147] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1148] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1149] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1150] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1151] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1152] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1153] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1154] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1155] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1156] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1157] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1158] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1159] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1160] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission April 28, 2026 6pm, Spalding County, GA, 2026-04-28 (plays the recording)" [ref=f4e1161] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1162] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1163] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1164] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1165] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1166] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1167] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1168] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1169] [cursor=pointer]
+                        - listitem "DeKalb County Finance, Audit, and Budget (FAB) Committee Meeting - April 28, 2026, DeKalb County, GA, 2026-04-28 (plays the recording)" [ref=f4e1170] [cursor=pointer]
+                        - listitem "City Council Workshop | April 23, 2026, Savannah, GA, 2026-04-23 (plays the recording)" [ref=f4e1171] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1172] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1173] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1174] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1175] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1176] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1177] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1178] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1179] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1180] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1181] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1182] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1183] [cursor=pointer]
+                        - listitem "Board of Commissioners Work Session and Regular Meeting - April 21, 2026, Camden County, GA, 2026-04-21 (plays the recording)" [ref=f4e1184] [cursor=pointer]
+                        - listitem "April 21, 2026 BOC Meeting A, Fayette County, GA, 2026-04-21 (plays the recording)" [ref=f4e1185] [cursor=pointer]
+                        - listitem "April 21, 2026 BOC Meeting A, Fayette County, GA, 2026-04-21 (plays the recording)" [ref=f4e1186] [cursor=pointer]
+                        - listitem "April 21, 2026 BOC Meeting A, Fayette County, GA, 2026-04-21 (plays the recording)" [ref=f4e1187] [cursor=pointer]
+                        - listitem "April 21, 2026 BOC Meeting A, Fayette County, GA, 2026-04-21 (plays the recording)" [ref=f4e1188] [cursor=pointer]
+                        - listitem "April 21, 2026 BOC Meeting A, Fayette County, GA, 2026-04-21 (plays the recording)" [ref=f4e1189] [cursor=pointer]
+                        - listitem "April 21, 2026 BOC Meeting A, Fayette County, GA, 2026-04-21 (plays the recording)" [ref=f4e1190] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Regular Business Meeting; April 21, 2026, Clayton County, GA, 2026-04-21 (plays the recording)" [ref=f4e1191] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Regular Business Meeting; April 21, 2026, Clayton County, GA, 2026-04-21 (plays the recording)" [ref=f4e1192] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Regular Business Meeting; April 21, 2026, Clayton County, GA, 2026-04-21 (plays the recording)" [ref=f4e1193] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Regular Business Meeting; April 21, 2026, Clayton County, GA, 2026-04-21 (plays the recording)" [ref=f4e1194] [cursor=pointer]
+                        - listitem "Clayton County Board of Commissioners Regular Business Meeting; April 21, 2026, Clayton County, GA, 2026-04-21 (plays the recording)" [ref=f4e1195] [cursor=pointer]
+                        - listitem "Bryan County Planning & Zoning Commission Meeting April 21st, 2026, Bryan County, GA, 2026-04-21 (plays the recording)" [ref=f4e1196] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting April 21, 2026 8:30AM, Bulloch County, GA, 2026-04-21 (plays the recording)" [ref=f4e1197] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 04.20.2026 Extraordinary Meeting 6pm, Spalding County, GA, 2026-04-20 (plays the recording)" [ref=f4e1198] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 04.20.2026 Extraordinary Meeting 6pm, Spalding County, GA, 2026-04-20 (plays the recording)" [ref=f4e1199] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners 04.20.2026 Extraordinary Meeting 6pm, Spalding County, GA, 2026-04-20 (plays the recording)" [ref=f4e1200] [cursor=pointer]
+                        - listitem "Community Connection Hosted by Commissioner Chakira Johnson, DeKalb County, GA, 2026-04-18 (plays the recording)" [ref=f4e1201] [cursor=pointer]
+                        - 'listitem "Clayton County: Commissioner Alaina Reaves District 1 Townhall April, Clayton County, GA, 2026-04-15 (plays the recording)" [ref=f4e1202] [cursor=pointer]'
+                        - 'listitem "Clayton County: Commissioner Alaina Reaves District 1 Townhall April, Clayton County, GA, 2026-04-15 (plays the recording)" [ref=f4e1203] [cursor=pointer]'
+                        - 'listitem "Clayton County: Commissioner Alaina Reaves District 1 Townhall April, Clayton County, GA, 2026-04-15 (plays the recording)" [ref=f4e1204] [cursor=pointer]'
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1205] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1206] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1207] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1208] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1209] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1210] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1211] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1212] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1213] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1214] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1215] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1216] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1217] [cursor=pointer]
+                        - listitem "Planning, Economic Development, and Community Services (PECS) Committee Meeting - April 14, 2026, DeKalb County, GA, 2026-04-14 (plays the recording)" [ref=f4e1218] [cursor=pointer]
+                        - listitem "Board of Commissioners Meeting April 14th, 2026, Walton County, GA, 2026-04-14 (plays the recording)" [ref=f4e1219] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1220] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1221] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1222] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1223] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1224] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1225] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1226] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1227] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1228] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1229] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1230] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1231] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1232] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1233] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1234] [cursor=pointer]
+                        - listitem "City Council Meeting 04-14-2026, Columbus, GA, 2026-04-14 (plays the recording)" [ref=f4e1235] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting April 7, 2026 5:30PM, Bulloch County, GA, 2026-04-07 (plays the recording)" [ref=f4e1236] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting April 7, 2026 5:30PM, Bulloch County, GA, 2026-04-07 (plays the recording)" [ref=f4e1237] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting April 7, 2026 5:30PM, Bulloch County, GA, 2026-04-07 (plays the recording)" [ref=f4e1238] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting April 7, 2026 5:30PM, Bulloch County, GA, 2026-04-07 (plays the recording)" [ref=f4e1239] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting April 7, 2026 5:30PM, Bulloch County, GA, 2026-04-07 (plays the recording)" [ref=f4e1240] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting April 7, 2026 5:30PM, Bulloch County, GA, 2026-04-07 (plays the recording)" [ref=f4e1241] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1242] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1243] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1244] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1245] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1246] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1247] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1248] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1249] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - April 7, 2026, Camden County, GA, 2026-04-07 (plays the recording)" [ref=f4e1250] [cursor=pointer]
+                        - listitem "Wayne County Ga. Commission Live Stream 4/6/2026, Wayne County, GA, 2026-04-06 (plays the recording)" [ref=f4e1251] [cursor=pointer]
+                        - listitem "State of District 4 Town Hall with Commissioner Holtkamp, Gwinnett County, GA, 2026-03-26 (plays the recording)" [ref=f4e1252] [cursor=pointer]
+                        - listitem "March 26, 2026 BOC Meeting A, Fayette County, GA, 2026-03-26 (plays the recording)" [ref=f4e1253] [cursor=pointer]
+                        - listitem "March 26, 2026 BOC Meeting A, Fayette County, GA, 2026-03-26 (plays the recording)" [ref=f4e1254] [cursor=pointer]
+                        - listitem "March 26, 2026 BOC Meeting A, Fayette County, GA, 2026-03-26 (plays the recording)" [ref=f4e1255] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1256] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1257] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1258] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1259] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1260] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1261] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1262] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1263] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1264] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1265] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1266] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1267] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1268] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1269] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1270] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1271] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1272] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1273] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1274] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1275] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1276] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 03-24-2026, Columbus, GA, 2026-03-24 (plays the recording)" [ref=f4e1277] [cursor=pointer]
+                        - listitem "Planning & Zoning Commission meeting Mar. 17, 2026 5:30PM, Bulloch County, GA, 2026-03-18 (plays the recording)" [ref=f4e1278] [cursor=pointer]
+                        - listitem "Planning & Zoning Commission meeting Mar. 17, 2026 5:30PM, Bulloch County, GA, 2026-03-18 (plays the recording)" [ref=f4e1279] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - March 17, 2026, Camden County, GA, 2026-03-17 (plays the recording)" [ref=f4e1280] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - March 17, 2026, Camden County, GA, 2026-03-17 (plays the recording)" [ref=f4e1281] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Special-Called Meeting 03/11/2026 6pm, Spalding County, GA, 2026-03-11 (plays the recording)" [ref=f4e1282] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Special-Called Meeting 03/11/2026 6pm, Spalding County, GA, 2026-03-11 (plays the recording)" [ref=f4e1283] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Special-Called Meeting 03/11/2026 6pm, Spalding County, GA, 2026-03-11 (plays the recording)" [ref=f4e1284] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Special-Called Meeting 03/11/2026 6pm, Spalding County, GA, 2026-03-11 (plays the recording)" [ref=f4e1285] [cursor=pointer]
+                        - listitem "March 3, 2026 Commissioner's Meeting, Harris County, GA, 2026-03-03 (plays the recording)" [ref=f4e1286] [cursor=pointer]
+                        - listitem "March 3, 2026 Commissioner's Meeting, Harris County, GA, 2026-03-03 (plays the recording)" [ref=f4e1287] [cursor=pointer]
+                        - listitem "March 3, 2026 Commissioner's Meeting, Harris County, GA, 2026-03-03 (plays the recording)" [ref=f4e1288] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - March 3, 2026, Camden County, GA, 2026-03-03 (plays the recording)" [ref=f4e1289] [cursor=pointer]
+                        - listitem "Board of Commissioners Regular Meeting - March 3, 2026, Camden County, GA, 2026-03-03 (plays the recording)" [ref=f4e1290] [cursor=pointer]
+                        - listitem "February 26 2026 BOC Meeting A, Fayette County, GA, 2026-02-26 (plays the recording)" [ref=f4e1291] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1292] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1293] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1294] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1295] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1296] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1297] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1298] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1299] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1300] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1301] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1302] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1303] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1304] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1305] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1306] [cursor=pointer]
+                        - listitem "Columbus City Council Meeting 02-24-2026, Columbus, GA, 2026-02-24 (plays the recording)" [ref=f4e1307] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1308] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1309] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1310] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1311] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1312] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1313] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1314] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1315] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1316] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1317] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1318] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1319] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1320] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1321] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Feb. 17, 2026 8:30AM, Bulloch County, GA, 2026-02-18 (plays the recording)" [ref=f4e1322] [cursor=pointer]
+                        - listitem "Atlanta City Council Regular Session Feb. 16, 2026, Atlanta, GA, 2026-02-16 (plays the recording)" [ref=f4e1323] [cursor=pointer]
+                        - listitem "Atlanta City Council Regular Session Feb. 16, 2026, Atlanta, GA, 2026-02-16 (plays the recording)" [ref=f4e1324] [cursor=pointer]
+                        - listitem "Atlanta City Council Regular Session Feb. 16, 2026, Atlanta, GA, 2026-02-16 (plays the recording)" [ref=f4e1325] [cursor=pointer]
+                        - listitem "Planning And Zoning Open House | February 10, 2026, Henry County, GA, 2026-02-10 (plays the recording)" [ref=f4e1326] [cursor=pointer]
+                        - listitem "Planning And Zoning Open House | February 10, 2026, Henry County, GA, 2026-02-10 (plays the recording)" [ref=f4e1327] [cursor=pointer]
+                        - listitem "Planning And Zoning Open House | February 10, 2026, Henry County, GA, 2026-02-10 (plays the recording)" [ref=f4e1328] [cursor=pointer]
+                        - listitem "Planning And Zoning Open House | February 10, 2026, Henry County, GA, 2026-02-10 (plays the recording)" [ref=f4e1329] [cursor=pointer]
+                        - 'listitem "Atlanta City Council Zoning Committee meeting: Feb. 9, 2026, Atlanta, GA, 2026-02-09 (plays the recording)" [ref=f4e1330] [cursor=pointer]'
+                        - listitem "Board of Commissioners meeting Feb. 3, 2026 5:30PM, Bulloch County, GA, 2026-02-04 (plays the recording)" [ref=f4e1331] [cursor=pointer]
+                        - listitem "BROOKS COUNTY BOARD OF COMMISSIONERS REGULAR MONTHLY MEETING FEB 2, 2026 IN Quitman, Georgia, Brooks County, GA, 2026-02-02 (plays the recording)" [ref=f4e1332] [cursor=pointer]
+                        - 'listitem "Atlanta City Council Zoning Committee meeting: Jan. 28, 2026, Atlanta, GA, 2026-01-28 (plays the recording)" [ref=f4e1333] [cursor=pointer]'
+                        - 'listitem "Atlanta City Council Zoning Committee meeting: Jan. 28, 2026, Atlanta, GA, 2026-01-28 (plays the recording)" [ref=f4e1334] [cursor=pointer]'
+                        - listitem "January 22, 2026 BOC Meeting A, Fayette County, GA, 2026-01-22 (plays the recording)" [ref=f4e1335] [cursor=pointer]
+                        - listitem "January 22, 2026 BOC Meeting A, Fayette County, GA, 2026-01-22 (plays the recording)" [ref=f4e1336] [cursor=pointer]
+                        - listitem "January 22, 2026 BOC Meeting A, Fayette County, GA, 2026-01-22 (plays the recording)" [ref=f4e1337] [cursor=pointer]
+                        - listitem "January 22, 2026 BOC Meeting A, Fayette County, GA, 2026-01-22 (plays the recording)" [ref=f4e1338] [cursor=pointer]
+                        - listitem "January 22, 2026 BOC Meeting A, Fayette County, GA, 2026-01-22 (plays the recording)" [ref=f4e1339] [cursor=pointer]
+                        - listitem "Board of Commissioners meeting Jan. 20, 2026 8:30AM, Bulloch County, GA, 2026-01-21 (plays the recording)" [ref=f4e1340] [cursor=pointer]
+                        - listitem "Milledgeville City Council Meeting - January 13, 2026, Milledgeville city, GA, 2026-01-13 (plays the recording)" [ref=f4e1341] [cursor=pointer]
+                        - listitem "Milledgeville City Council Meeting - January 13, 2026, Milledgeville, GA, 2026-01-13 (plays the recording)" [ref=f4e1342] [cursor=pointer]
+                        - listitem "Board of Commissioners Meeting January 6th, 2026, Walton County, GA, 2026-01-06 (plays the recording)" [ref=f4e1343] [cursor=pointer]
+                        - listitem "Board of Commissioners Meeting January 6th, 2026, Walton County, GA, 2026-01-06 (plays the recording)" [ref=f4e1344] [cursor=pointer]
+                        - listitem "Board of Commissioners Meeting January 6th, 2026, Walton County, GA, 2026-01-06 (plays the recording)" [ref=f4e1345] [cursor=pointer]
+                        - listitem "Wayne County Ga. Commission Live Stream 1/5/2026, Wayne County, GA, 2026-01-05 (plays the recording)" [ref=f4e1346] [cursor=pointer]
+                        - listitem "Wayne County Ga. Commission Live Stream 1/5/2026, Wayne County, GA, 2026-01-05 (plays the recording)" [ref=f4e1347] [cursor=pointer]
+                        - listitem "Wayne County Ga. Commission Live Stream 1/5/2026, Wayne County, GA, 2026-01-05 (plays the recording)" [ref=f4e1348] [cursor=pointer]
+                    - generic [ref=f4e1349]:
+                      - paragraph [ref=f4e1350]: 2025 · 104 shown
+                      - list "2025 · 104 shown" [ref=f4e1352]:
+                        - listitem "Board of Commissioners - Work Session (December 9, 2025), Paulding County, GA, 2025-12-09 (plays the recording)" [ref=f4e1353] [cursor=pointer]
+                        - listitem "Bryan County Commission Meeting December 9th, 2025, Bryan County, GA, 2025-12-09 (plays the recording)" [ref=f4e1354] [cursor=pointer]
+                        - listitem "Paulding County Board of Commissioners Work Session Meeting (12/09/2025), Paulding County, GA, 2025-12-09 (plays the recording)" [ref=f4e1355] [cursor=pointer]
+                        - listitem "Test, Fayette County, GA, 2025-12-05 (plays the recording)" [ref=f4e1356] [cursor=pointer]
+                        - listitem "Planning Commission Meeting - November 18th, 2025, Paulding County, GA, 2025-11-18 (plays the recording)" [ref=f4e1357] [cursor=pointer]
+                        - listitem "Planning Commission Meeting - November 18th, 2025, Paulding County, GA, 2025-11-18 (plays the recording)" [ref=f4e1358] [cursor=pointer]
+                        - listitem "Planning Commission Meeting - November 18th, 2025, Paulding County, GA, 2025-11-18 (plays the recording)" [ref=f4e1359] [cursor=pointer]
+                        - listitem "Planning Commission Meeting - November 18th, 2025, Paulding County, GA, 2025-11-18 (plays the recording)" [ref=f4e1360] [cursor=pointer]
+                        - listitem "Columbus Ga City Council Meeting 11-04-2025, Columbus, GA, 2025-11-04 (plays the recording)" [ref=f4e1361] [cursor=pointer]
+                        - listitem "Wayne County Ga. Commission Live Stream 11/3/2025, Wayne County, GA, 2025-11-03 (plays the recording)" [ref=f4e1362] [cursor=pointer]
+                        - listitem "Clayton County Board of Education Work Session | October 27, 2025, Clayton County School District, GA, 2025-10-27 (plays the recording)" [ref=f4e1363] [cursor=pointer]
+                        - listitem "City Council Workshop Meeting | October 23, 2025, Savannah, GA, 2025-10-23 (plays the recording)" [ref=f4e1364] [cursor=pointer]
+                        - listitem "City Council Workshop | October 23, 2025, Savannah, GA, 2025-10-23 (plays the recording)" [ref=f4e1365] [cursor=pointer]
+                        - listitem "October 16, 2025 Special Called Meeting -6 pm, Fayette County, GA, 2025-10-16 (plays the recording)" [ref=f4e1366] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Regular Meeting 10/06/2025, Spalding County, GA, 2025-10-06 (plays the recording)" [ref=f4e1367] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Regular Meeting 10/06/2025, Spalding County, GA, 2025-10-06 (plays the recording)" [ref=f4e1368] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Regular Meeting 10/06/2025, Spalding County, GA, 2025-10-06 (plays the recording)" [ref=f4e1369] [cursor=pointer]
+                        - listitem "Development Authority of Pickens County | September 5, 2025, Pickens County, GA, 2025-09-05 (plays the recording)" [ref=f4e1370] [cursor=pointer]
+                        - listitem "Board of Commissioners Meeting September 2nd, 2025, Walton County, GA, 2025-09-02 (plays the recording)" [ref=f4e1371] [cursor=pointer]
+                        - listitem "Board of Commissioners Meeting September 2nd, 2025, Walton County, GA, 2025-09-02 (plays the recording)" [ref=f4e1372] [cursor=pointer]
+                        - listitem "August 28, 2025 BOC Meeting A, Fayette County, GA, 2025-08-28 (plays the recording)" [ref=f4e1373] [cursor=pointer]
+                        - listitem "August 28, 2025 BOC Meeting A, Fayette County, GA, 2025-08-28 (plays the recording)" [ref=f4e1374] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1375] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1376] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1377] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1378] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1379] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1380] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1381] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1382] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1383] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1384] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1385] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1386] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1387] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1388] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1389] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1390] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- August 28, 2025 -6:00pm, Spalding County, GA, 2025-08-28 (plays the recording)" [ref=f4e1391] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission- August 26, 2025 -6:00pm, Spalding County, GA, 2025-08-26 (plays the recording)" [ref=f4e1392] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioner- Zoning Public Hearing Aug 11, 2025, Spalding County, GA, 2025-08-11 (plays the recording)" [ref=f4e1393] [cursor=pointer]
+                        - listitem "Board of Commissioners Meeting August 5th, 2025, Walton County, GA, 2025-08-05 (plays the recording)" [ref=f4e1394] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Regular Meeting, August 4, 2025, Spalding County, GA, 2025-08-04 (plays the recording)" [ref=f4e1395] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Regular Meeting, August 4, 2025, Spalding County, GA, 2025-08-04 (plays the recording)" [ref=f4e1396] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Regular Meeting, August 4, 2025, Spalding County, GA, 2025-08-04 (plays the recording)" [ref=f4e1397] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission July 29, 2025 6:00 pm, Spalding County, GA, 2025-07-29 (plays the recording)" [ref=f4e1398] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Zoning Public Meeting July 24,2025 - 6:00 pm, Spalding County, GA, 2025-07-24 (plays the recording)" [ref=f4e1399] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Zoning Public Meeting July 24,2025 - 6:00 pm, Spalding County, GA, 2025-07-24 (plays the recording)" [ref=f4e1400] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Zoning Public Meeting July 24,2025 - 6:00 pm, Spalding County, GA, 2025-07-24 (plays the recording)" [ref=f4e1401] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Zoning Public Meeting July 24,2025 - 6:00 pm, Spalding County, GA, 2025-07-24 (plays the recording)" [ref=f4e1402] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners Zoning Public Meeting July 24,2025 - 6:00 pm, Spalding County, GA, 2025-07-24 (plays the recording)" [ref=f4e1403] [cursor=pointer]
+                        - listitem "July 24, 2025 BOC Meeting A, Fayette County, GA, 2025-07-24 (plays the recording)" [ref=f4e1404] [cursor=pointer]
+                        - listitem "July 24, 2025 BOC Meeting A, Fayette County, GA, 2025-07-24 (plays the recording)" [ref=f4e1405] [cursor=pointer]
+                        - listitem "July 24, 2025 BOC Meeting A, Fayette County, GA, 2025-07-24 (plays the recording)" [ref=f4e1406] [cursor=pointer]
+                        - listitem "July 24, 2025 BOC Meeting A, Fayette County, GA, 2025-07-24 (plays the recording)" [ref=f4e1407] [cursor=pointer]
+                        - listitem "July 24, 2025 BOC Meeting A, Fayette County, GA, 2025-07-24 (plays the recording)" [ref=f4e1408] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1409] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1410] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1411] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1412] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1413] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1414] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1415] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1416] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1417] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1418] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1419] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1420] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1421] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1422] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1423] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1424] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1425] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1426] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1427] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1428] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1429] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1430] [cursor=pointer]
+                        - listitem "Spalding County Board of Commissioners- Zoning Public Hearing July 14, 2025, 6:00 pm, Spalding County, GA, 2025-07-14 (plays the recording)" [ref=f4e1431] [cursor=pointer]
+                        - listitem "Spalding County Work Session July 7, 2025 3:00 pm, Spalding County, GA, 2025-07-07 (plays the recording)" [ref=f4e1432] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1433] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1434] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1435] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1436] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1437] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1438] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1439] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1440] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1441] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1442] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1443] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1444] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1445] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1446] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1447] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1448] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1449] [cursor=pointer]
+                        - listitem "Spalding County Planning Commission June 24, 2025, at 6:00 p.m., Spalding County, GA, 2025-06-24 (plays the recording)" [ref=f4e1450] [cursor=pointer]
+                        - listitem "Wayne County Ga. Commission Live Stream 6/2/2025, Wayne County, GA, 2025-06-02 (plays the recording)" [ref=f4e1451] [cursor=pointer]
+                        - 'listitem "#Atlanta City Council Zoning Committee meeting May 28, 2025 #atlpol, Atlanta, GA, 2025-05-28 (plays the recording)" [ref=f4e1452] [cursor=pointer]'
+                        - 'listitem "#Atlanta City Council Zoning Committee meeting May 28, 2025 #atlpol, Atlanta, GA, 2025-05-28 (plays the recording)" [ref=f4e1453] [cursor=pointer]'
+                        - 'listitem "#Atlanta City Council Zoning Committee meeting May 28, 2025 #atlpol, Atlanta, GA, 2025-05-28 (plays the recording)" [ref=f4e1454] [cursor=pointer]'
+                        - listitem "Spalding County Board of Commissioners Workshop May 5, 2025, at 3:00 p.m., Spalding County, GA, 2025-05-05 (plays the recording)" [ref=f4e1455] [cursor=pointer]
+                        - listitem "March 25th 2025 Regular Board of Elections Meeting, Fayette County, GA, 2025-03-25 (plays the recording)" [ref=f4e1456] [cursor=pointer]
+                    - generic [ref=f4e1457]:
+                      - paragraph [ref=f4e1458]: 2021 · 1 shown
+                      - list "2021 · 1 shown" [ref=f4e1460]:
+                        - listitem "Milledgeville City Council Work Session - April 13, 2021, Milledgeville, GA, 2021-04-13 (plays the recording)" [ref=f4e1461] [cursor=pointer]
+                    - generic [ref=f4e1462]:
+                      - paragraph [ref=f4e1463]: Date not given · 7 shown
+                      - list "Date not given · 7 shown" [ref=f4e1465]:
+                        - listitem "2026.01.29 Columbia County Planning Commission Special Called Meeting, Columbia County, GA (plays the recording)" [ref=f4e1466] [cursor=pointer]
+                        - listitem "2026.01.29 Columbia County Planning Commission Special Called Meeting, Columbia County, GA (plays the recording)" [ref=f4e1467] [cursor=pointer]
+                        - listitem "2026.01.29 Columbia County Planning Commission Special Called Meeting, Columbia County, GA (plays the recording)" [ref=f4e1468] [cursor=pointer]
+                        - listitem "2026.01.29 Columbia County Planning Commission Special Called Meeting, Columbia County, GA (plays the recording)" [ref=f4e1469] [cursor=pointer]
+                        - listitem "2026.01.29 Columbia County Planning Commission Special Called Meeting, Columbia County, GA (plays the recording)" [ref=f4e1470] [cursor=pointer]
+                        - listitem "2026.01.29 Columbia County Planning Commission Special Called Meeting, Columbia County, GA (plays the recording)" [ref=f4e1471] [cursor=pointer]
+                        - listitem "2026.01.29 Columbia County Planning Commission Special Called Meeting, Columbia County, GA (plays the recording)" [ref=f4e1472] [cursor=pointer]
+                    - paragraph [ref=f4e1473]: Use the arrow keys to move between dots.
+                  - generic [ref=f4e1474]:
+                    - generic [ref=f4e1475]: FIG. 07
+                    - text: "— Meeting passages that mention a data center, by year, Georgia. Every dot is one meeting passage. Hover or focus a dot to preview the meeting; select it to play the recording from the quoted moment. Source: Open Navigator, passages quoted from meeting transcripts. Showing the most recent 500 of 702."
+                    - link "About this data" [ref=f4e1476] [cursor=pointer]:
+                      - /url: http://localhost:3000/docs/guides/data-stories#sources-and-limits
+                  - button "Show data table ↓" [ref=f4e1477] [cursor=pointer]
+            - region "None of the 39 meeting agendas that name a data center in Georgia is for an upcoming meeting." [ref=f4e1479]:
+              - generic [aria-hidden]: Agendas
+              - generic [ref=f4e1480]:
+                - generic [ref=f4e1481]:
+                  - paragraph [ref=f4e1483]: Agendas
+                  - generic [ref=f4e1484]:
+                    - heading "None of the 39 meeting agendas that name a data center in Georgia is for an upcoming meeting." [level=2] [ref=f4e1485]:
+                      - generic [ref=f4e1486]: None
+                      - generic [ref=f4e1488]: of
+                      - generic [ref=f4e1490]: the
+                      - generic [ref=f4e1492]: "39"
+                      - generic [ref=f4e1494]: meeting
+                      - generic [ref=f4e1496]: agendas
+                      - generic [ref=f4e1498]: that
+                      - generic [ref=f4e1500]: name
+                      - generic [ref=f4e1502]: a
+                      - generic [ref=f4e1504]: data
+                      - generic [ref=f4e1506]: center
+                      - generic [ref=f4e1508]: in
+                      - generic [ref=f4e1510]: Georgia
+                      - generic [ref=f4e1512]: is
+                      - generic [ref=f4e1514]: for
+                      - generic [ref=f4e1516]: an
+                      - generic [ref=f4e1518]: upcoming
+                      - generic [ref=f4e1520]: meeting.
+                    - paragraph [ref=f4e1522]: Upcoming means the meeting date has not passed. What did the meetings decide?
+                  - region "Where do you stand?" [ref=f4e1523]:
+                    - paragraph [ref=f4e1524]: Where do you stand?
+                    - paragraph [ref=f4e1525]: The public gets enough notice before a data center decision is made.
+                    - 'group "Your answer: The public gets enough notice before a data center decision is made." [ref=f4e1526]':
+                      - button "Agree" [ref=f4e1527] [cursor=pointer]
+                      - button "Disagree" [ref=f4e1528] [cursor=pointer]
+                      - button "Not sure" [ref=f4e1529] [cursor=pointer]
+                  - generic [ref=f4e1530]:
+                    - button "Back" [ref=f4e1531] [cursor=pointer]: ← Back
+                    - 'button "Next: Decisions" [ref=f4e1532] [cursor=pointer]':
+                      - text: Next
+                      - generic [aria-hidden] [ref=f4e1533]: →
+                - figure "Meeting agendas that mention a data center" [ref=f4e1535]:
+                  - generic [ref=f4e1536]:
+                    - generic [ref=f4e1537]:
+                      - paragraph [ref=f4e1538]: Past meetings · 39 records
+                      - list "Past meetings · 39 records" [ref=f4e1540]:
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-11-10 (opens the source)" [ref=f4e1541] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-11-05 (opens the source)" [ref=f4e1542] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-10-13 (opens the source)" [ref=f4e1543] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-10-06 (opens the source)" [ref=f4e1544] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-09-29 (opens the source)" [ref=f4e1545] [cursor=pointer]
+                        - listitem "Board of Commissioners - Special Called Meeting, DeKalb County, GA, 2026-09-22 (opens the source)" [ref=f4e1546] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-09-15 (opens the source)" [ref=f4e1547] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-09-10 (opens the source)" [ref=f4e1548] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-08-25 (opens the source)" [ref=f4e1549] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-08-18 (opens the source)" [ref=f4e1550] [cursor=pointer]
+                        - 'listitem "Board of Commissioners - This document is tentative, has not been ratified or approved by the Board of Commissioners, and is not binding on the County or any officer. Scheduled date for ratification: August 19, 2026, Fulton County, GA, 2026-08-05 (opens the source)" [ref=f4e1551] [cursor=pointer]'
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-07-14 (opens the source)" [ref=f4e1552] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-07-07 (opens the source)" [ref=f4e1553] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-06-23 (opens the source)" [ref=f4e1554] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-06-18 (opens the source)" [ref=f4e1555] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-06-09 (opens the source)" [ref=f4e1556] [cursor=pointer]
+                        - 'listitem "Board of Commissioners - This document is tentative, has not been ratified or approved by the Board of Commissioners, and is not binding on the County or any officer. Scheduled date for ratification: June 17, 2026, Fulton County, GA, 2026-06-03 (opens the source)" [ref=f4e1557] [cursor=pointer]'
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-06-02 (opens the source)" [ref=f4e1558] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-05-12 (opens the source)" [ref=f4e1559] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-05-05 (opens the source)" [ref=f4e1560] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-04-28 (opens the source)" [ref=f4e1561] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-04-21 (opens the source)" [ref=f4e1562] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-03-24 (opens the source)" [ref=f4e1563] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-03-17 (opens the source)" [ref=f4e1564] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-03-10 (opens the source)" [ref=f4e1565] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-02-26 (opens the source)" [ref=f4e1566] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-02-17 (opens the source)" [ref=f4e1567] [cursor=pointer]
+                        - 'listitem "Board of Commissioners - This document is tentative, has not been ratified or approved by the Board of Commissioners, and is not binding on the County or any officer. Scheduled date for ratification: February 18, 2026, Fulton County, GA, 2026-02-04 (opens the source)" [ref=f4e1568] [cursor=pointer]'
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2026-01-27 (opens the source)" [ref=f4e1569] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2026-01-20 (opens the source)" [ref=f4e1570] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2025-12-16 (opens the source)" [ref=f4e1571] [cursor=pointer]
+                        - listitem "Board of Commissioners - Zoning Meeting, DeKalb County, GA, 2025-11-20 (opens the source)" [ref=f4e1572] [cursor=pointer]
+                        - listitem "Planning Commission, DeKalb County, GA, 2025-11-06 (opens the source)" [ref=f4e1573] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2025-10-14 (opens the source)" [ref=f4e1574] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2025-10-07 (opens the source)" [ref=f4e1575] [cursor=pointer]
+                        - listitem "Board of Commissioners - Zoning Meeting, DeKalb County, GA, 2025-09-30 (opens the source)" [ref=f4e1576] [cursor=pointer]
+                        - listitem "Planning Commission, DeKalb County, GA, 2025-09-09 (opens the source)" [ref=f4e1577] [cursor=pointer]
+                        - listitem "Board of Commissioners, DeKalb County, GA, 2025-07-08 (opens the source)" [ref=f4e1578] [cursor=pointer]
+                        - listitem "Committee of the Whole, DeKalb County, GA, 2025-06-26 (opens the source)" [ref=f4e1579] [cursor=pointer]
+                    - paragraph [ref=f4e1580]: Use the arrow keys to move between dots.
+                  - generic [ref=f4e1581]:
+                    - generic [ref=f4e1582]: FIG. 08
+                    - text: "— Meeting agendas that mention a data center, Georgia. Every dot is one agenda item. Select a dot to open it. Source: Open Navigator, agendas of local government meetings."
+                    - link "About this data" [ref=f4e1583] [cursor=pointer]:
+                      - /url: http://localhost:3000/docs/guides/data-stories#sources-and-limits
+                  - button "Show data table ↓" [ref=f4e1584] [cursor=pointer]
+            - region "Of 16 decisions on a data center item in Georgia, 12 were debated and 4 were taken up without debate." [ref=f4e1586]:
+              - generic [aria-hidden]: Decisions
+              - generic [ref=f4e1587]:
+                - generic [ref=f4e1588]:
+                  - paragraph [ref=f4e1590]: Decisions
+                  - generic [ref=f4e1591]:
+                    - heading "Of 16 decisions on a data center item in Georgia, 12 were debated and 4 were taken up without debate." [level=2] [ref=f4e1592]:
+                      - generic [ref=f4e1593]: Of
+                      - generic [ref=f4e1595]: "16"
+                      - generic [ref=f4e1597]: decisions
+                      - generic [ref=f4e1599]: "on"
+                      - generic [ref=f4e1601]: a
+                      - generic [ref=f4e1603]: data
+                      - generic [ref=f4e1605]: center
+                      - generic [ref=f4e1607]: item
+                      - generic [ref=f4e1609]: in
+                      - generic [ref=f4e1611]: Georgia,
+                      - generic [ref=f4e1613]: "12"
+                      - generic [ref=f4e1615]: were
+                      - generic [ref=f4e1617]: debated
+                      - generic [ref=f4e1619]: and
+                      - generic [ref=f4e1621]: "4"
+                      - generic [ref=f4e1623]: were
+                      - generic [ref=f4e1625]: taken
+                      - generic [ref=f4e1627]: up
+                      - generic [ref=f4e1629]: without
+                      - generic [ref=f4e1631]: debate.
+                    - paragraph [ref=f4e1633]: Without debate means on the consent agenda or by a routine vote, and includes items that were tabled or denied. What about meetings the companies host?
+                  - generic [ref=f4e1634]:
+                    - button "Back" [ref=f4e1635] [cursor=pointer]: ← Back
+                    - 'button "Next: Your answer" [ref=f4e1636] [cursor=pointer]':
+                      - text: Next
+                      - generic [aria-hidden] [ref=f4e1637]: →
+                - figure "Decisions on data center items, debated or taken up without debate" [ref=f4e1639]:
+                  - generic [ref=f4e1640]:
+                    - generic [ref=f4e1641]:
+                      - paragraph [ref=f4e1642]: Debated · 12 records · 75%
+                      - list "Debated · 12 records · 75%" [ref=f4e1644]:
+                        - listitem "Direction to Draft Ordinance Banning Data Centers · Directed staff to draft ordinance, Camden County, GA, 2026-05-19 (opens the source)" [ref=f4e1645] [cursor=pointer]
+                        - listitem "JDA Funding Commitment Questioned Amidst Data Center Advocacy · Investigation and Discussion, Camden County, GA, 2026-05-18 (opens the source)" [ref=f4e1646] [cursor=pointer]
+                        - listitem "Data Center Ordinance Discussion Highlights Community Concerns and Best Practices · Discussion/Information Gathering, Spalding County, GA, 2026-05-18 (opens the source)" [ref=f4e1647] [cursor=pointer]
+                        - listitem "Temporary Moratorium on Data Centers Approved · Approved, Camden County, GA, 2026-05-05 (opens the source)" [ref=f4e1648] [cursor=pointer]
+                        - listitem "Data Center Moratorium and Zoning Amendment Initiated · Approved, Bulloch County, GA, 2026-05-05 (opens the source)" [ref=f4e1649] [cursor=pointer]
+                        - listitem "Data Center Campus FLUME Amendment Denied · Denied, Spalding County, GA, 2026-04-28 (opens the source)" [ref=f4e1650] [cursor=pointer]
+                        - listitem "Data Center Regulations Discussion Continues, Focus on Community Benefits and Environmental Impact · Continued Discussion, DeKalb County, GA, 2026-04-14 (opens the source)" [ref=f4e1651] [cursor=pointer]
+                        - listitem "Data Center Regulations and Baseline Assessment Deferred · Deferred, DeKalb County, GA, 2026-04-14 (opens the source)" [ref=f4e1652] [cursor=pointer]
+                        - listitem "Data Center Regulation Amendments Deferred for Further Discussion · Deferred, DeKalb County, GA, 2026-04-14 (opens the source)" [ref=f4e1653] [cursor=pointer]
+                        - listitem "Rezoning for Data Center Development Approved with Conditions · Approved with conditions, Columbia County, GA, 2026-03-05 (opens the source)" [ref=f4e1654] [cursor=pointer]
+                        - listitem "90-Day Moratorium on Data Centers Adopted · Adopted, Brooks County, GA, 2026-02-02 (opens the source)" [ref=f4e1655] [cursor=pointer]
+                        - listitem "Data Center Ordinance Approved · Approved, Wayne County, GA, 2026-01-05 (opens the source)" [ref=f4e1656] [cursor=pointer]
+                    - generic [ref=f4e1657]:
+                      - paragraph [ref=f4e1658]: Without debate · 4 records · 25%
+                      - list "Without debate · 4 records · 25%" [ref=f4e1660]:
+                        - listitem "Contact Georgia Power for Data Center Work Session · Approved, Camden County, GA, 2026-04-07 (opens the source)" [ref=f4e1661] [cursor=pointer]
+                        - 'listitem "Public Comment: Data Centers and Taxes · Noted, Camden County, GA, 2026-04-07 (opens the source)" [ref=f4e1662] [cursor=pointer]'
+                        - listitem "Table Temporary Moratorium on Data Centers · Tabled, Camden County, GA, 2026-04-07 (opens the source)" [ref=f4e1663] [cursor=pointer]
+                        - listitem "Approve resolution to impose temporary moratorium on data center permitting · Approved, Bulloch County, GA, 2026-02-17 (opens the source)" [ref=f4e1664] [cursor=pointer]
+                    - paragraph [ref=f4e1665]: Use the arrow keys to move between dots.
+                  - generic [ref=f4e1666]:
+                    - generic [ref=f4e1667]: FIG. 09
+                    - text: "— Decisions on data center items, debated or taken up without debate, Georgia. Every dot is one decision. Select a dot to open it. Source: Open Navigator, decisions recorded in local meeting recordings."
+                    - link "About this data" [ref=f4e1668] [cursor=pointer]:
+                      - /url: http://localhost:3000/docs/guides/data-stories#sources-and-limits
+                  - button "Show data table ↓" [ref=f4e1669] [cursor=pointer]
+            - region "You've seen the record. Where do you stand now?" [ref=f4e1670]:
+              - generic [aria-hidden]: Your answer
+              - generic [ref=f4e1672]:
+                - paragraph [ref=f4e1674]: After you read
+                - heading "You've seen the record. Where do you stand now?" [level=2] [ref=f4e1676]:
+                  - generic [ref=f4e1677]: You've
+                  - generic [ref=f4e1679]: seen
+                  - generic [ref=f4e1681]: the
+                  - generic [ref=f4e1683]: record.
+                  - generic [ref=f4e1685]: Where
+                  - generic [ref=f4e1687]: do
+                  - generic [ref=f4e1689]: you
+                  - generic [ref=f4e1691]: stand
+                  - generic [ref=f4e1693]: now?
+                - generic [ref=f4e1695]:
+                  - paragraph [ref=f4e1696]: Should Georgia allow new data centers?
+                  - group "Your answer after reading" [ref=f4e1697]:
+                    - button "Yes" [ref=f4e1698] [cursor=pointer]
+                    - button "No" [ref=f4e1700] [cursor=pointer]
+                    - button "Pause for now" [ref=f4e1702] [cursor=pointer]
+                  - paragraph [ref=f4e1704]: "A pause is a moratorium: no new approvals until the rules are settled."
+                - button "Back" [ref=f4e1706] [cursor=pointer]: ← Back
+          - 'link "Up next Next story: Short-term rentals" [ref=f4e1708] [cursor=pointer]':
+            - /url: /stories/short-term-rentals?state=GA
+            - generic [ref=f4e1709]: Up next
+            - generic [ref=f4e1710]: "Next story: Short-term rentals →"
+          - navigation "Story screens" [ref=f4e1711]:
+            - list [ref=f4e1712]:
+              - listitem [ref=f4e1713]:
+                - button "1. A data center came up in 118 meetings in Georgia." [ref=f4e1714] [cursor=pointer]: "1"
+              - listitem [ref=f4e1715]:
+                - 'button "2. Recorded votes: 15 for and 7 against, in 4 decisions in Georgia." [ref=f4e1716] [cursor=pointer]': "2"
+              - listitem [ref=f4e1717]:
+                - button "3. Where?" [ref=f4e1718] [cursor=pointer]: "3"
+              - listitem [ref=f4e1719]:
+                - button "4. Of 87 data center sites in Georgia, 21 are operating, and 56 more are planned or under construction." [ref=f4e1720] [cursor=pointer]: "4"
+              - listitem [ref=f4e1721]:
+                - button "5. Of 2 data center projects on record in Georgia, 2 are listed as operating." [ref=f4e1722] [cursor=pointer]: "5"
+              - listitem [ref=f4e1723]:
+                - button "6. In Georgia, 24,526 people worked on payroll in the industry that includes data centers in 2024." [ref=f4e1724] [cursor=pointer]: "6"
+              - listitem [ref=f4e1725]:
+                - 'button "7. Land and property and traffic are tied as the most raised concerns in meeting records in Georgia: 5 mentions each, of 87." [ref=f4e1726] [cursor=pointer]': "7"
+              - listitem [ref=f4e1727]:
+                - button "8. A data center came up in 118 meetings in Georgia, in 702 quoted passages." [ref=f4e1728] [cursor=pointer]: "8"
+              - listitem [ref=f4e1729]:
+                - button "9. None of the 39 meeting agendas that name a data center in Georgia is for an upcoming meeting." [ref=f4e1730] [cursor=pointer]: "9"
+              - listitem [ref=f4e1731]:
+                - button "10. Of 16 decisions on a data center item in Georgia, 12 were debated and 4 were taken up without debate." [ref=f4e1732] [cursor=pointer]: "10"
+              - listitem [ref=f4e1733]:
+                - button "11. You've seen the record. Where do you stand now?" [ref=f4e1734] [cursor=pointer]: "11"
+        - paragraph [ref=f4e1735]: "Keys: PageDown, Space or ↓ next · PageUp, Shift+Space or ↑ back · Home and End jump to the ends"
+    - contentinfo [ref=f4e23]:
+      - generic [ref=f4e24]:
+        - generic [ref=f4e25]:
+          - navigation "Site" [ref=f4e26]:
+            - link "Chat & Contact" [ref=f4e27] [cursor=pointer]:
+              - /url: /chat
+            - link "Privacy Policy" [ref=f4e28] [cursor=pointer]:
+              - /url: http://localhost:3000/docs/legal/privacy-policy
+            - link "Terms of Service" [ref=f4e29] [cursor=pointer]:
+              - /url: http://localhost:3000/docs/legal/terms-of-service
+            - link "Data Provider Terms" [ref=f4e30] [cursor=pointer]:
+              - /url: http://localhost:3000/docs/legal/data-provider-terms
+          - navigation "CommunityOne on social media" [ref=f4e31]:
+            - link "Instagram" [ref=f4e32] [cursor=pointer]:
+              - /url: https://www.instagram.com/getcommunityone/
+            - link "Facebook" [ref=f4e35] [cursor=pointer]:
+              - /url: https://www.facebook.com/getcommunityone
+            - link "X (Twitter)" [ref=f4e38] [cursor=pointer]:
+              - /url: https://x.com/getcommunityone/
+            - link "LinkedIn" [ref=f4e41] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/getcommunityone
+            - link "YouTube" [ref=f4e44] [cursor=pointer]:
+              - /url: https://www.youtube.com/@getcommunityone
+            - link "Discord" [ref=f4e47] [cursor=pointer]:
+              - /url: https://discord.gg/uH6Dytek
+        - generic [ref=f4e50]:
+          - text: CommunityOne Navigator · a 501(c)(3) nonprofit ·
+          - link "EIN 42-2467803" [ref=f4e51] [cursor=pointer]:
+            - /url: https://projects.propublica.org/nonprofits/organizations/422467803
+          - text: · Tuscaloosa, Alabama

@@ -310,6 +310,11 @@ outputPorts:
   contractId: open-navigator-public-data_center_site
   type: table
   description: One row per data center site (PK data_center_site_id), each credited to its source on the row (source, source_name, source_url, license, attribution).
+- name: data_center_site_timeline
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_site_timeline
+  type: table
+  description: 'One row per data center site (PK data_center_site_id, FK data_center_site): the year of its earliest date on record (appear_year; the registry''s announced date or Epoch AI''s first dated timeline row, appear_basis says which, appear_precision how precise), Epoch''s first operating year (operating_year, operating_is_expected when after today) and the coordinates the sources publish.'
 - name: data_center_agenda_item
   version: 1.0.0
   contractId: open-navigator-public-data_center_agenda_item
@@ -465,6 +470,11 @@ outputPorts:
   contractId: open-navigator-public-meeting_bill_link
   type: table
   description: 'The state bills a meeting names (#1314, porting #1072''s draft).'
+- name: topic_organization
+  version: 1.0.0
+  contractId: open-navigator-public-topic_organization
+  type: table
+  description: The nonprofits tied to each curated topic (#1345).
 - name: company_grant
   version: 1.0.0
   contractId: open-navigator-public-company_grant
@@ -495,6 +505,11 @@ outputPorts:
   contractId: open-navigator-public-topic_meeting_lean
   type: table
   description: One row per meeting video and topic (topic_transcript_link) with a Jev screen under the topic's current question version.
+- name: topic_place_meeting
+  version: 1.0.0
+  contractId: open-navigator-public-topic_place_meeting
+  type: table
+  description: 'One row per (topic, government): the distinct topic_transcript_link meetings whose recording is attached to that government (event_youtube_with_jurisdiction), when the government is in jurisdictions, in the link''s state, and is a county with a geoid or has coordinates.'
 - name: meeting_video_kind
   version: 1.0.0
   contractId: open-navigator-public-meeting_video_kind
@@ -505,6 +520,11 @@ outputPorts:
   contractId: open-navigator-public-recorded_meeting_year
   type: table
   description: 'One row per (state_code, jurisdiction_id, jurisdiction_name, meeting_year): distinct meeting videos in event_youtube_with_jurisdiction that have a usable transcript.'
+- name: topic_meeting_year
+  version: 1.0.0
+  contractId: open-navigator-public-topic_meeting_year
+  type: table
+  description: 'One row per (topic_id, state_code, jurisdiction_name, meeting_year): distinct recorded meetings that discussed a topic in civicsearch_topic, per government and calendar year.'
 - name: segmented_meeting
   version: 1.0.0
   contractId: open-navigator-public-segmented_meeting
