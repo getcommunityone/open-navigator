@@ -49,6 +49,11 @@ before it copies anything ([#387](https://github.com/getcommunityone/open-naviga
 The data center tables (`job_claim`, `data_center_site`, `data_center_agenda_item`, `area_concern`) are on the
 allow-list. `job_application_link` is written by the production admin screen, so it is runtime-owned and never copied.
 
+`recorded_meeting_year` (recorded meetings per place and year, about 1 MB) is on the allow-list too
+([#1194](https://github.com/getcommunityone/open-navigator/issues/1194)). The story timelines and the dumbbell use it to
+tell a real zero year from a year with no recordings; without it production draws those years as gaps. It was first
+published on November 26, 2026 with `--only recorded_meeting_year` (8,076 rows; Neon 363 MB to 364 MB).
+
 ## Decision: production serving stays on Neon (November 15, 2026)
 
 The owner decided to keep production serving on Neon and not move it to Databricks Lakebase
