@@ -679,9 +679,94 @@ async def _passage_speakers(conn: Any, link_ids: List[str]) -> dict[str, dict[st
     return {str(r["topic_transcript_link_id"]): dict(r) for r in rows}
 
 
-async def fetch_newest_per_state(conn: Any, topic_id: int, state_code: Optional[str]) -> List[Any]:
-    """Each state's map quote: real meetings, stance meetings first (#1230); the plain newest where the serving copy
-    lacks the tables that rule needs."""
+# Up to `quotes_per_state` distinct real public meetings per state (#1357): one passage per video, stance meetings first,
+# round-robin across public_stance so a state with multiple stance bands supplies a matching passage for each band.
+_TOPIC_QUOTES_PER_STATE_SQL = """
+    WITH per_video AS (
+        SELECT DISTINCT ON (l.state_code, l.video_id)
+               l.topic_transcript_link_id, l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
+               l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits,
+               CASE
+                   WHEN tml.public_lean IS NULL THEN NULL
+                   WHEN tml.public_lean = 'did_not_speak' THEN 'silent'
+                   WHEN tml.public_against THEN 'against'
+                   WHEN tml.public_for THEN 'for'
+                   ELSE 'split'
+               END AS public_stance,
+               CASE
+                   WHEN tml.public_lean IN ('mostly_opposed', 'mostly_supportive', 'mixed') THEN 0
+                   WHEN k.is_public_meeting THEN 1
+                   ELSE 2
+               END AS tier
+        FROM topic_transcript_link l
+        LEFT JOIN topic_meeting_lean tml ON tml.video_id = l.video_id AND tml.topic_id = l.topic_id
+        LEFT JOIN meeting_video_kind k ON k.video_id = l.video_id
+        WHERE l.topic_id = $1 AND l.state_code IS NOT NULL AND l.evidence_passage IS NOT NULL
+          AND ($2::text IS NULL OR l.state_code = $2::text)
+          AND k.is_public_meeting IS NOT FALSE
+        ORDER BY l.state_code, l.video_id, l.n_keyword_hits DESC, l.topic_transcript_link_id
+    ),
+    by_stance AS (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY state_code, COALESCE(public_stance, '')
+                   ORDER BY tier, event_date DESC NULLS LAST, n_keyword_hits DESC, video_id
+               ) AS stance_rn
+        FROM per_video
+    ),
+    ranked AS (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY state_code
+                   ORDER BY tier, stance_rn, event_date DESC NULLS LAST, n_keyword_hits DESC, video_id
+               ) AS state_rn
+        FROM by_stance
+    )
+    SELECT topic_transcript_link_id, video_id, event_title, event_date, state_code, state, city,
+           jurisdiction_name, video_url, evidence_passage, n_keyword_hits, public_stance
+    FROM ranked
+    WHERE state_rn <= $3
+    ORDER BY state_code, state_rn
+"""
+
+_TOPIC_QUOTES_PER_STATE_FALLBACK_SQL = """
+    WITH per_video AS (
+        SELECT DISTINCT ON (l.state_code, l.video_id)
+               l.topic_transcript_link_id, l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
+               l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits,
+               NULL::text AS public_stance
+        FROM topic_transcript_link l
+        WHERE l.topic_id = $1 AND l.state_code IS NOT NULL AND l.evidence_passage IS NOT NULL
+          AND ($2::text IS NULL OR l.state_code = $2::text)
+        ORDER BY l.state_code, l.video_id, l.n_keyword_hits DESC, l.topic_transcript_link_id
+    ),
+    ranked AS (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY state_code
+                   ORDER BY event_date DESC NULLS LAST, n_keyword_hits DESC, video_id
+               ) AS state_rn
+        FROM per_video
+    )
+    SELECT topic_transcript_link_id, video_id, event_title, event_date, state_code, state, city,
+           jurisdiction_name, video_url, evidence_passage, n_keyword_hits, public_stance
+    FROM ranked
+    WHERE state_rn <= $3
+    ORDER BY state_code, state_rn
+"""
+
+
+async def fetch_newest_per_state(
+    conn: Any, topic_id: int, state_code: Optional[str], quotes_per_state: int = 1
+) -> List[Any]:
+    """Each state's map quote(s): real meetings, stance meetings first (#1230, #1357); the plain newest where the
+    serving copy lacks the tables that rule needs."""
+    if quotes_per_state > 1:
+        try:
+            return list(await conn.fetch(_TOPIC_QUOTES_PER_STATE_SQL, topic_id, state_code, quotes_per_state))
+        except (asyncpg.exceptions.UndefinedTableError, asyncpg.exceptions.UndefinedColumnError) as e:
+            logger.warning("topic states: stance/meeting-kind tables unavailable ({}); newest passages per state", e)
+            return list(await conn.fetch(_TOPIC_QUOTES_PER_STATE_FALLBACK_SQL, topic_id, state_code, quotes_per_state))
     try:
         return list(await conn.fetch(_TOPIC_NEWEST_PER_STATE_SQL, topic_id, state_code))
     except (asyncpg.exceptions.UndefinedTableError, asyncpg.exceptions.UndefinedColumnError) as e:
@@ -796,22 +881,145 @@ async def topic_state_map(
         return TopicStanceMap(topic_id=topic_id, available=available, by_state=by_state)
 
 
+class TopicPlaceCount(BaseModel):
+    """One government's meetings on a topic in the scoped state (#1349), in the shape of the data-center map's
+    ``counts.by_place`` so ``StoryCountyMap`` reads both. The ``speakers_*`` fields carry MEETINGS as the AI read them
+    (public mostly opposed, mostly supported, split), as the state map's ``topicStanceForMap`` does: never counted
+    speakers. 0 where the government has no reading."""
+
+    jurisdiction_id: str
+    jurisdiction_name: Optional[str] = None
+    jurisdiction_type: Optional[str] = None
+    geoid: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    meetings: int
+    lean_meetings: int = 0
+    speakers_against: int = 0
+    speakers_for: int = 0
+    speakers_neutral: int = 0
+    speakers_question: int = 0
+    silent_meetings: int = 0
+    # Public-against is already a band above; only the officials-against-the-public count is carried as a lean.
+    public_against_meetings: int = 0
+    disagreement_meetings: int = 0
+
+
+class TopicPlaces(BaseModel):
+    topic_id: int
+    state_code: str
+    # Distinct meetings on the topic in the state (topic_transcript_link): the same count as /states for the state.
+    total_meetings: int
+    # Meetings whose government can't be drawn (not in jurisdictions, filed under another state, or no county geoid or
+    # coordinates): total_meetings minus the sum of by_place.meetings. The map footnotes them.
+    unplaced_meetings: int
+    # False when topic_place_meeting isn't in this database yet: the page keeps the state outline.
+    available: bool
+    by_place: List[TopicPlaceCount]
+
+
+_TOPIC_PLACES_SQL = """
+    SELECT p.jurisdiction_id, p.jurisdiction_name, p.jurisdiction_type, p.geoid, p.latitude, p.longitude,
+           p.meetings, p.lean_meetings, p.public_against_meetings, p.public_for_meetings, p.no_side_meetings,
+           p.silent_meetings, p.disagreement_meetings
+    FROM topic_place_meeting p
+    WHERE p.topic_id = $1 AND p.state_code = $2
+    ORDER BY p.meetings DESC, p.jurisdiction_id
+"""
+
+_TOPIC_STATE_TOTAL_SQL = """
+    SELECT count(DISTINCT l.video_id)::int FROM topic_transcript_link l
+    WHERE l.topic_id = $1 AND l.state_code = $2
+"""
+
+
+def shape_topic_places(topic_id: int, state_code: str, total: int, rows: Optional[List[Any]]) -> TopicPlaces:
+    """Per-government counts and the unplaced remainder. ``rows`` is None when the mart can't be read."""
+    if rows is None:
+        return TopicPlaces(
+            topic_id=topic_id, state_code=state_code, total_meetings=total, unplaced_meetings=total, available=False, by_place=[]
+        )
+    places = [
+        TopicPlaceCount(
+            jurisdiction_id=str(r["jurisdiction_id"]),
+            jurisdiction_name=r["jurisdiction_name"],
+            jurisdiction_type=r["jurisdiction_type"],
+            geoid=r["geoid"],
+            latitude=float(r["latitude"]) if r["latitude"] is not None else None,
+            longitude=float(r["longitude"]) if r["longitude"] is not None else None,
+            meetings=int(r["meetings"] or 0),
+            lean_meetings=int(r["lean_meetings"] or 0),
+            speakers_against=int(r["public_against_meetings"] or 0),
+            speakers_for=int(r["public_for_meetings"] or 0),
+            speakers_neutral=int(r["no_side_meetings"] or 0),
+            silent_meetings=int(r["silent_meetings"] or 0),
+            disagreement_meetings=int(r["disagreement_meetings"] or 0),
+        )
+        for r in rows
+        if int(r["meetings"] or 0) > 0
+    ]
+    placed = sum(p.meetings for p in places)
+    return TopicPlaces(
+        topic_id=topic_id,
+        state_code=state_code,
+        total_meetings=total,
+        unplaced_meetings=max(0, total - placed),
+        available=True,
+        by_place=places,
+    )
+
+
+@router.get("/{topic_id}/places", response_model=TopicPlaces)
+async def topic_places(
+    topic_id: int = Path(..., description="Topic id (curated topics have meeting links)."),
+    state: str = Query(..., min_length=2, max_length=2, description="2-letter state code (required: the county map is per state)."),
+) -> TopicPlaces:
+    """Meetings per government in one state for a topic story's county map (#1349): each government's geoid and
+    coordinates (a county is drawn by its geoid; a city, town or school district is placed in the county its point falls
+    in), with the AI reading of its meetings. Counts are distinct meetings from ``topic_place_meeting``; meetings that
+    can't be placed are reported as ``unplaced_meetings``, never spread or guessed."""
+    with tracer.start_as_current_span("topic-places") as span:
+        state_code = state.strip().upper()
+        span.set_attribute("topics.topic_id", topic_id)
+        span.set_attribute("topics.state", state_code)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                total = int(await conn.fetchval(_TOPIC_STATE_TOTAL_SQL, topic_id, state_code) or 0)
+                try:
+                    rows: Optional[List[Any]] = list(await conn.fetch(_TOPIC_PLACES_SQL, topic_id, state_code))
+                except asyncpg.exceptions.PostgresError as e:
+                    # Not published yet (#1349): the page keeps the state outline, never a 500.
+                    logger.warning("topic places: topic_place_meeting unavailable ({}); outline only", e)
+                    rows = None
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("topic places failed")
+            span.record_exception(exc)
+            raise HTTPException(status_code=503, detail="This topic's county map is unavailable right now.") from exc
+        out = shape_topic_places(topic_id, state_code, total, rows)
+        span.set_attribute("topics.places", len(out.by_place))
+        span.set_attribute("topics.unplaced", out.unplaced_meetings)
+        return out
+
+
 @router.get("/{topic_id}/states", response_model=TopicStates)
 async def topic_states(
     topic_id: int = Path(..., description="Topic id (curated topics have meeting links)."),
     state: Optional[str] = Query(None, description="Optional 2-letter state code."),
+    quotes_per_state: int = Query(1, ge=1, le=6, description="Max distinct meeting passages returned per state (1..6)."),
 ) -> TopicStates:
-    """Meetings per state for a curated topic, and each state's newest matched passage (#1013): the data behind a
-    topic story's map and headline. Counts are distinct meetings; nothing is estimated."""
+    """Meetings per state for a curated topic, and each state's newest matched passage(s) (#1013, #1357): the data
+    behind a topic story's map and headline. Counts are distinct meetings; nothing is estimated."""
     with tracer.start_as_current_span("topic-states") as span:
         state_code = state.strip().upper() if state and state.strip() else None
         span.set_attribute("topics.topic_id", topic_id)
         span.set_attribute("topics.state", state_code or "")
+        span.set_attribute("topics.quotes_per_state", quotes_per_state)
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 counts = await conn.fetch(_TOPIC_STATES_SQL, topic_id, state_code)
-                newest = await fetch_newest_per_state(conn, topic_id, state_code)
+                newest = await fetch_newest_per_state(conn, topic_id, state_code, quotes_per_state)
                 speakers = await _passage_speakers(
                     conn, [str(r["topic_transcript_link_id"]) for r in newest if r.get("topic_transcript_link_id")]
                 )

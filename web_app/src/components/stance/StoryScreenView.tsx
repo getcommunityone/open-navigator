@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { summaryFacts } from '../../utils/storySummary'
 import { useQuery } from '@tanstack/react-query'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
@@ -46,6 +48,8 @@ interface Props {
 /** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
 export default function StoryScreenView(p: Props) {
   const { screen, text, scope } = p
+  const phone = useMediaQuery('(max-width: 767px)')
+  const [mapOpen, setMapOpen] = useState(false)
 
   const broaden = (
     <div className="stance-broaden">
@@ -101,6 +105,9 @@ export default function StoryScreenView(p: Props) {
     (mentionsState === 'ready' && (scope.stateCode ? byPlace == null : byState == null)) ||
     (isOverview && shapes.isPending)
   const jobsData = p.data['job-claims'] as JobClaimsResponse | null | undefined
+  // Phones (#1337): the Overview opens as a one-glance summary (real facts, a map thumbnail); the full map is one tap on.
+  const summary = phone && screen.kind === 'overview' && !text.empty && !text.failed && stats.length > 0 && !mapOpen
+  const facts = summary ? summaryFacts(stats, p.data.positions as DataCenterPositionsResponse | null | undefined, scope) : []
   const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
   return (
@@ -110,8 +117,8 @@ export default function StoryScreenView(p: Props) {
       active={p.active}
       eyebrow={screen.eyebrow}
       kicker={screen.kicker ? `${screen.kicker} · source: ${contextSourceFor(screen.chart)}` : undefined}
-      headline={text.headline}
-      context={text.context}
+      headline={summary ? `At a glance: ${storyScopeLabel(scope)}` : text.headline}
+      context={summary ? '' : text.context}
       nextLabel={p.nextLabel}
       onNext={p.onNext}
       onPrev={p.onPrev}
@@ -131,6 +138,13 @@ export default function StoryScreenView(p: Props) {
           ) : screen.kind === 'overview' ? (
             // Narrowing to a state, its boxes re-form into the county map; broadening plays it back (#1195). The wrapper stays
             // mounted while the new scope's counts load, so the transition can wait for the county map.
+            <div className={summary ? 'story-summary-thumb' : undefined} data-testid={summary ? 'story-summary-thumb' : undefined}>
+            {phone && mapOpen && (
+              <button type="button" className="folio-link-btn story-summary-back" onClick={() => setMapOpen(false)}>
+                ← Summary
+              </button>
+            )}
+            <div className={summary ? 'story-summary-thumb-map' : undefined} aria-hidden={summary ? true : undefined}>
             <MapDrill
               stateCode={scope.stateCode ?? null}
               byState={byState}
@@ -189,6 +203,7 @@ export default function StoryScreenView(p: Props) {
                         scopeLabel={storyScopeLabel(scope)}
                       />
                     )}
+                    {!summary && (<>
                     {/* The period dumbbell (#1192, owner: "earlier in every story"): last year against this year, by state, or
                         by town at state scope, right under the map. It compares places, so at city scope it says where to see it. */}
                     {scope.city ? (
@@ -200,6 +215,7 @@ export default function StoryScreenView(p: Props) {
                     )}
                     <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
                     <p className="stance-note">{statsScopeNote(stats, scope)}</p>
+                    </>)}
                   </div>
                 ) : (
                   <p className="stance-nodata" role="status">
@@ -208,6 +224,13 @@ export default function StoryScreenView(p: Props) {
                 )
               }
             </MapDrill>
+            </div>
+            {summary && (
+              <button type="button" className="story-summary-open" onClick={() => setMapOpen(true)}>
+                See the map and every count →
+              </button>
+            )}
+            </div>
           ) : screen.chart === 'job-claims' && jobsData && noClaims ? (
             // No claims on record: the screen shows actual payroll jobs and where jobs are tracked instead (#1019).
             <PayrollJobsPanel data={jobsData} />
@@ -228,8 +251,15 @@ export default function StoryScreenView(p: Props) {
         </>
       }
     >
-      {p.lead}
-      {(p.question || p.said) && (
+      {summary && facts.length > 0 && (
+        <ul className="story-summary" data-testid="story-summary" aria-label={`At a glance: ${storyScopeLabel(scope)}`}>
+          {facts.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      )}
+      {!summary && p.lead}
+      {!summary && (p.question || p.said) && (
         <div className="stance-qblock">
           {p.question && (
             <p className="stance-statement" data-testid="scope-question">

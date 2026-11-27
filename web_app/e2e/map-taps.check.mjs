@@ -85,6 +85,7 @@ function mapState(page, sel, readoutSel) {
       return {
         cards: cards.length,
         place: card?.querySelector('.qcard-where')?.textContent ?? null,
+        quote: card?.querySelector('.qcard-quote')?.textContent?.trim() ?? null,
         iframes: document.querySelectorAll('.map-hover-card iframe').length,
         src: card?.querySelector('iframe')?.getAttribute('src') ?? null,
         playBtn: !!card?.querySelector('.qcard-play-btn'),
@@ -94,6 +95,7 @@ function mapState(page, sel, readoutSel) {
         lit: [...new Set(lit.map((e) => e.getAttribute('data-state')).filter(Boolean))],
         litCount: lit.length,
         outline: !!svg?.querySelector('[data-active-outline]'),
+        drillCue: svg?.querySelector('[data-hover-drill-cue]')?.textContent ?? null,
         readout: scope.querySelector(readoutSel)?.textContent ?? '',
         close: !!document.querySelector('.map-card-close'),
       }
@@ -211,6 +213,7 @@ async function hoverChecks(page, sel, readoutSel, a, b, name) {
   await page.waitForTimeout(600)
   let r = await mapState(page, sel, readoutSel)
   ok(r.lit.length === 1 && r.lit[0] === a && r.litCount > 1 && r.outline, `hover ${a}: the whole state is lit and outlined (${r.litCount} shapes)`)
+  ok(Boolean(r.drillCue && r.drillCue.includes('Click')), `  on-map drill-down pill shows ("${r.drillCue}")`)
   ok(r.cards === 1, `hover ${a}: one card (${r.cards}) · ${r.place}`)
   ok(r.offMap === true, '  the card is beside the map, not over it')
   if (r.src) {
@@ -230,7 +233,7 @@ async function hoverChecks(page, sel, readoutSel, a, b, name) {
   // The card stays a moment so the mouse can reach its link, then goes.
   await page.waitForTimeout(900)
   r = await mapState(page, sel, readoutSel)
-  ok(r.cards === 0 && r.iframes === 0, 'leaving the map removes the card and its player')
+  ok(r.cards === 0 && r.iframes === 0 && !r.drillCue, 'leaving the map removes the card, its player and the drill-down pill')
 }
 
 async function desktop(ctx) {
@@ -271,6 +274,32 @@ async function desktop(ctx) {
   await home.waitForSelector(`${sel} rect[data-state]`, { timeout: 60_000 })
   console.log('\nDesktop 1440x900 / (home)')
   await hoverChecks(home, sel, 'p.mt-1', 'TX', 'VA', 'home')
+  // Moving across different bands/boxes within Texas switches the meeting card (#1357).
+  const txSpread = await home.evaluate(
+    ([sel, visible]) => {
+      const svg = eval(visible)(sel)
+      const list = [...(svg?.querySelectorAll('rect[data-state="TX"]') ?? [])]
+        .map((el) => {
+          const b = el.getBoundingClientRect()
+          return { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width }
+        })
+        .filter((p) => p.w >= 1)
+        .sort((a, b) => a.x - b.x || a.y - b.y)
+      if (list.length < 3) return null
+      return [list[0], list[Math.floor(list.length / 2)], list[list.length - 1]]
+    },
+    [sel, VISIBLE],
+  )
+  if (txSpread) {
+    const seenCards = new Set()
+    for (const pt of txSpread) {
+      await home.mouse.move(pt.x, pt.y)
+      await home.waitForTimeout(350)
+      const st = await mapState(home, sel, 'p.mt-1')
+      seenCards.add(`${st.place ?? ''}|${st.quote ?? ''}|${st.src ?? ''}`)
+    }
+    ok(seenCards.size > 1, `hovering across TX boxes switches the meeting panel (${seenCards.size} distinct cards)`)
+  } else ok(false, 'TX has multiple boxes on the home map')
   // A click on Alabama opens the Alabama story (the owner's report: it didn't).
   let hp = await statePoints(home, sel)
   await home.mouse.move(hp.AL.x - 40, hp.AL.y, { steps: 4 })

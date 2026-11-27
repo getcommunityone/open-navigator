@@ -230,6 +230,7 @@ CIVIC_SERVING = frozenset(
         # agenda / area-concern. Read by /api/data-centers/* (#387).
         "job_claim",
         "data_center_site",
+        "data_center_site_timeline",  # #1348: one row per site, the "Over time" screen
         "data_center_agenda_item",
         "area_concern",
         # transcript passages that discuss data centers (#445); meeting docs trimmed in
