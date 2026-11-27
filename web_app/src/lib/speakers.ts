@@ -15,7 +15,7 @@ export const AVATAR_COLORS = [
   { bg: '#fdeee7', fg: '#c0432a' },
   { bg: '#eaf1f8', fg: '#2f6fb0' },
   { bg: '#efebfb', fg: '#6b5bd2' },
-  { bg: '#fbf3e2', fg: '#9a6b12' },
+  { bg: '#fbf3e2', fg: '#7a5410' },
   { bg: '#fdeef5', fg: '#b03a78' },
 ]
 

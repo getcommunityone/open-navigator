@@ -90,14 +90,14 @@ export default function MoneyMovesTeaser({
       >
         <span style={{ fontSize: 20, lineHeight: 1 }}>💵</span>
         <div style={{ flex: 1, minWidth: 0, fontSize: 14, color: '#57534e', lineHeight: 1.4 }}>
-          <span style={{ fontWeight: 700, color: '#059669' }}>Money Moves</span>
+          <span style={{ fontWeight: 700, color: '#047857' }}>Money Moves</span>
           {isLoading ? (
-            <span style={{ color: '#a8a29e' }}> · loading…</span>
+            <span style={{ color: '#78716c' }}> · loading…</span>
           ) : hasData ? (
             <>
               {' · '}
               <b style={{ color: '#0f2b2b' }}>{lens!.head_amount}</b> {lens!.head_label}
-              <span style={{ color: '#a8a29e' }}> · {lens!.count_label}</span>
+              <span style={{ color: '#78716c' }}> · {lens!.count_label}</span>
               <span style={{ color: '#78716c' }}> · 📍 {placeLabel}</span>
             </>
           ) : (
@@ -113,7 +113,7 @@ export default function MoneyMovesTeaser({
               flexShrink: 0,
               fontSize: 14,
               fontWeight: 700,
-              color: '#059669',
+              color: '#047857',
               background: '#ecfdf5',
               border: '1px solid #a7f3d0',
               borderRadius: 999,
@@ -182,7 +182,7 @@ export default function MoneyMovesTeaser({
             </button>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 14, paddingRight: 36 }}>
               <span style={{ fontSize: 20 }}>💵</span>
-              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#059669' }}>
+              <h2 className="font-display" style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#047857' }}>
                 Money Moves
               </h2>
               <span style={{ fontSize: 14, color: '#78716c' }}>

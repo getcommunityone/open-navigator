@@ -85,7 +85,8 @@ export default defineConfig({
     watch: { usePolling: true, interval: 200 },
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        // VITE_API_PROXY points a second dev server at its own API (agents, the a11y checks); 8001 is the default.
+        target: process.env.VITE_API_PROXY ?? 'http://localhost:8001',
         changeOrigin: true,
         proxyTimeout: 120_000,
         timeout: 120_000,

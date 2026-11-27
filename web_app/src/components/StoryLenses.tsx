@@ -42,7 +42,7 @@ type Tone = 'plain' | 'green' | 'amber' | 'red' | 'blue' | 'purple'
 const TONES: Record<Tone, { bg: string; fg: string }> = {
   plain: { bg: '#f3f7f6', fg: '#56635e' },
   green: { bg: '#e7f2ef', fg: '#1d6b5f' },
-  amber: { bg: '#fbf3e2', fg: '#9a6b12' },
+  amber: { bg: '#fbf3e2', fg: '#7a5410' },
   red: { bg: '#fdeeeb', fg: '#c0432a' },
   blue: { bg: '#eaf1f8', fg: '#2f6fb0' },
   purple: { bg: '#efebfb', fg: '#6b5bd2' },
@@ -387,7 +387,8 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
           <div className="flex flex-wrap items-center gap-2">
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-wide"
-              style={{ color: lens.clr, background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
+              // The lens colour, darkened for text so the pill meets WCAG AA contrast (#1146).
+              style={{ color: `color-mix(in srgb, ${lens.clr} 70%, #000)`, background: `color-mix(in srgb, ${lens.clr} 12%, #fff)` }}
             >
               <span className="text-[12px] leading-none">{lens.em}</span>
               {lens.label}
@@ -403,7 +404,7 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
               </span>
             )}
           </div>
-          <span className="shrink-0 text-[12px] text-[#8a958f]">{c.when}</span>
+          <span className="shrink-0 text-[12px] text-[#5f6b66]">{c.when}</span>
         </div>
 
         <h3
@@ -416,7 +417,7 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
         {/* Optional matched-passage excerpt (transcript snippet). Clamped so a
             long passage never blows out the tile height in the grid. */}
         {c.excerpt && c.excerptLabel && (
-          <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-wide text-[#8a958f]">
+          <p className="mb-1 truncate text-[11px] font-semibold uppercase tracking-wide text-[#5f6b66]">
             Mentions · {c.excerptLabel}
           </p>
         )}
@@ -434,7 +435,7 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
                 <div className="text-[13.5px] font-bold leading-none" style={{ color: tone.fg }}>
                   {s.v}
                 </div>
-                <div className="mt-1 text-[10.5px] font-medium leading-none text-[#8a958f]">{s.l}</div>
+                <div className="mt-1 text-[10.5px] font-medium leading-none text-[#5f6b66]">{s.l}</div>
               </div>
             )
           })}
@@ -445,7 +446,7 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
             name label, with "+N" for the remainder. Clamped so it can't blow
             out tile height. */}
         {c.speakers && c.speakers.length > 0 && (
-          <div className="mb-3 flex items-center gap-2 text-[12px] text-[#8a958f]">
+          <div className="mb-3 flex items-center gap-2 text-[12px] text-[#5f6b66]">
             <span className="flex shrink-0 items-center -space-x-1.5">
               {c.speakers.slice(0, 3).map((sp, i) => (
                 <span
@@ -468,7 +469,7 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
           </div>
         )}
 
-        <div className="mt-auto flex items-center gap-2 border-t border-[#e1ebe7] pt-2.5 text-[12px] text-[#8a958f]">
+        <div className="mt-auto flex items-center gap-2 border-t border-[#e1ebe7] pt-2.5 text-[12px] text-[#5f6b66]">
           <span className="font-semibold text-[#56635e]">{c.juris}</span>
           <span className="opacity-50">&middot;</span>
           <span>{c.when}</span>
@@ -484,7 +485,7 @@ export function StoryCard({ card: c, lens, saved, onToggleSave, onOpen }: StoryC
               e.stopPropagation()
               onToggleSave()
             }}
-            className={`ml-auto transition-colors ${saved ? 'text-[#1d6b5f]' : 'text-[#9bb8b8] hover:text-[#1a6b6b]'}`}
+            className={`ml-auto grid min-h-6 min-w-6 place-items-center transition-colors ${saved ? 'text-[#1d6b5f]' : 'text-[#5d7d7d] hover:text-[#1a6b6b]'}`}
             aria-pressed={saved}
             aria-label={saved ? 'Saved — tap to remove' : 'Save story'}
             title={saved ? 'Saved to Following' : 'Save story'}
@@ -617,17 +618,22 @@ function StoryCarousel({ cards, lens, savedKeys, onToggleSave, onOpen, cardKey }
       </div>
 
       {cards.length > 1 && (
-        <div className="mt-1 flex justify-center gap-[7px]">
+        <div className="mt-1 flex justify-center">
+          {/* Each dot sits in a 24px target (WCAG 2.2 target size, #1146); the visible dot is the inner span. */}
           {cards.map((c, i) => (
             <button
               key={cardKey(c, i)}
               type="button"
               onClick={() => scrollTo(i)}
               aria-label={`Go to story ${i + 1}`}
-              className={`h-[7px] rounded-full transition-all ${
-                i === activeIdx ? 'w-5 bg-[#1d6b5f]' : 'w-[7px] bg-[#d6e4e0]'
-              }`}
-            />
+              aria-current={i === activeIdx ? 'true' : undefined}
+              className="grid h-6 min-w-6 place-items-center rounded-full"
+            >
+              <span
+                aria-hidden="true"
+                className={`block h-[7px] rounded-full transition-all ${i === activeIdx ? 'w-5 bg-[#1d6b5f]' : 'w-[7px] bg-[#d6e4e0]'}`}
+              />
+            </button>
           ))}
         </div>
       )}
