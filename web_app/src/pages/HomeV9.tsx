@@ -80,6 +80,10 @@ html { scroll-behavior: smooth; }
 .v9 .home-story-point-title { margin: 6px 0 0; font-size: 19px; font-weight: 800; color: #1c1917; line-height: 1.3; }
 .v9 .home-story-point-line { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: #57534e; }
 .v9 .home-story-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+/* Always reachable (owner, 2026-11-26): when the points push the buttons below the fold, they stick to the bottom of
+   the screen until their own place scrolls into view, then sit there. */
+.v9 .home-story-actions { position: sticky; bottom: 0; z-index: 5; padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, #fff 78%, rgba(255,255,255,0)); }
 .v9 .home-story-actions .home-story-start { padding: 14px 28px; font-size: 17px; text-align: center; }
 .v9 .home-story-next { display: inline-block; border: 1.5px solid #0f766e; color: #0f766e; background: #fff; border-radius: 999px; padding: 13px 24px; font-size: 16px; font-weight: 700; text-decoration: none; text-align: center; }
 .v9 .home-story-next:hover { background: #f0fdfa; }

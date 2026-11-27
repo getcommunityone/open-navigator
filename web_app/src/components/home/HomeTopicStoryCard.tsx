@@ -73,7 +73,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label }: Props) 
         <p className="home-story-basis">
           {caption.basis ?? 'Counted from local meeting recordings and transcripts that mention the topic.'}
         </p>
-        <div style={{ marginTop: 18 }}>
+        <div className="home-story-actions">
           <Link to={href} className="home-story-start">
             Start the story{label === 'National' ? '' : ` for ${label}`} <span aria-hidden="true">→</span>
           </Link>
