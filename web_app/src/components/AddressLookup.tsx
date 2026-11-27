@@ -1,22 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { MapPinIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { nominatimUsStateCode } from '../utils/stateMapping'
 import { resolveZipToChoices } from '../utils/resolvePlace'
 import { useLocation as useLocationContext, type LocationData, type LocationGranularity } from '../contexts/LocationContext'
-import { LAUNCH_CITIES, isLocationCovered } from '../lib/launchCoverage'
 import { tracedFetch } from '../lib/api'
 
 interface AddressLookupProps {
   onLocationFound: (location: LocationData) => void
-  /**
-   * Called instead of onLocationFound when the resolved place isn't one of our
-   * launch cities. Provide this to take full control of the "not loaded yet" UX
-   * (e.g. block the selection and show a custom notice). When omitted,
-   * AddressLookup still applies the location but shows a built-in, non-blocking
-   * "not loaded yet" notice with the launch cities as alternatives.
-   */
-  onUncovered?: (location: LocationData) => void
   initialAddress?: string
   compact?: boolean
 }
@@ -49,7 +39,7 @@ function placeLabel(r: any): string {
   return r?.display_name || name || ''
 }
 
-export default function AddressLookup({ onLocationFound, onUncovered, initialAddress = '', compact = false }: AddressLookupProps) {
+export default function AddressLookup({ onLocationFound, initialAddress = '', compact = false }: AddressLookupProps) {
   const { clearLocation } = useLocationContext()
   // Default lookup mode is ZIP/postal code (mirrors the MoneyGameModal "where's
   // home?" gate). For people who don't know their ZIP, 'place' searches by city
@@ -67,9 +57,6 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [foundLocation, setFoundLocation] = useState<LocationData | null>(null)
-  // The picked place when it isn't a launch city — drives the built-in "not
-  // loaded yet" notice (only used when the caller didn't supply onUncovered).
-  const [uncovered, setUncovered] = useState<LocationData | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -80,27 +67,13 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
 
   // Single commit point: record the resolved place and notify the parent. Used by
   // the ZIP path, the address path, and "use my location" so they stay consistent.
-  // Coverage gate: if the place isn't a launch city, either hand off to the
-  // caller's onUncovered (full control) or apply it but show a built-in,
-  // non-blocking "not loaded yet" notice. We never silently pretend data exists.
+  // Any place can be picked (#1179): destinations show an honest empty state where we have no meetings.
   const commitLocation = (locationData: LocationData) => {
     setSuggestions([])
     setShowSuggestions(false)
     setChoices(null)
     setError(null)
 
-    if (!isLocationCovered(locationData)) {
-      if (onUncovered) {
-        onUncovered(locationData)
-        return
-      }
-      setUncovered(locationData)
-      setFoundLocation(locationData)
-      onLocationFound(locationData)
-      return
-    }
-
-    setUncovered(null)
     setFoundLocation(locationData)
     onLocationFound(locationData)
   }
@@ -144,7 +117,6 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
     setChoices(null)
     setSuggestions([])
     setShowSuggestions(false)
-    setUncovered(null)
   }
 
   // Fetch suggestions as user types
@@ -473,39 +445,6 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
     )
   }
 
-  // Built-in "not loaded yet" notice — shown when the picked place isn't a launch
-  // city and the caller didn't take over via onUncovered. Informational (the
-  // location is still applied); points the user to the cities we have loaded.
-  const uncoveredCityLabel =
-    uncovered ? [uncovered.city, uncovered.state].filter(Boolean).join(', ') : ''
-  const coverageNotice =
-    uncovered && !onUncovered ? (
-      <div
-        className="mt-4 rounded-lg border p-4"
-        style={{ borderColor: '#fcd34d', background: '#fffbeb' }}
-        role="status"
-      >
-        <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
-          🚧 We haven&apos;t loaded {uncoveredCityLabel || 'that area'} yet
-        </p>
-        <p className="mt-1 text-sm" style={{ color: '#92400e' }}>
-          Civic data for {uncoveredCityLabel || 'this location'} is on the way. In the
-          meantime, explore one of our launch cities:
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {LAUNCH_CITIES.map((c) => (
-            <Link
-              key={`${c.city}-${c.state}`}
-              to={`/search?state=${c.state}`}
-              className="rounded-full bg-white px-3 py-1.5 text-sm font-medium"
-              style={{ border: '1px solid #fcd34d', color: '#92400e' }}
-            >
-              {c.city}, {c.state}
-            </Link>
-          ))}
-        </div>
-      </div>
-    ) : null
 
   if (compact) {
     return (
@@ -565,7 +504,6 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
         {error && (
           <p className="mt-2 text-sm text-red-600">{error}</p>
         )}
-        {coverageNotice}
       </form>
     )
   }
@@ -792,7 +730,6 @@ export default function AddressLookup({ onLocationFound, onUncovered, initialAdd
       )}
 
       {/* Coverage notice: place picked but not loaded yet (non-blocking). */}
-      {coverageNotice}
 
       {/* Note: Suggestions now appear as autocomplete dropdown above */}
 

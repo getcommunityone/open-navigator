@@ -363,48 +363,59 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             {shownStance ? ` · ${shownStance}` : hasStance ? (byMeetings ? ' · no AI reading yet' : ' · no stance on record') : ''}
           </p>
           {shownLean && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#57534e' }}>{shownLean}</p>}
-          {touch ? (
-            <p style={{ margin: '6px 0 0', fontSize: 13 }}>
-              <Link to={href(shownCode)} style={{ color: '#0f766e', fontWeight: 600 }}>
-                Open the story for {stateName(shownCode)} →
-              </Link>
-            </p>
-          ) : (
-            // Say what a click does (owner, 2026-11-26): clicking a box drills into that state's story.
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
-              Click to open the story for {stateName(shownCode)} →
-            </p>
-          )}
+          {/* A real button, not a caption (#1187): the way into the state's story, on desktop and phones alike. Inline
+              styles so it looks the same on the home page and on topic stories (outside .v9). */}
+          <Link
+            to={href(shownCode)}
+            className="home-map-card-open"
+            style={{
+              display: 'block',
+              margin: '12px 0 0',
+              padding: '12px 16px',
+              minHeight: 44,
+              boxSizing: 'border-box',
+              borderRadius: 999,
+              background: '#0f766e',
+              color: '#fff',
+              fontSize: 15,
+              fontWeight: 700,
+              lineHeight: 1.3,
+              textAlign: 'center',
+              textDecoration: 'none',
+            }}
+          >
+            Open the {stateName(shownCode)} story <span aria-hidden="true">→</span>
+          </Link>
         </QuoteCard>
       )}
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
-      <p className="mt-1 min-h-[2.75rem] text-sm leading-snug text-stone-600" aria-live="off">
+      <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
           ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? '; no AI reading yet' : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap to open its story.' : 'Click to open its story.'}`
           : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
 
-      <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>
+      <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-tight text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>
         {hasStance &&
           split.length > 0 &&
           LEGEND_STANCES.map((k) => (
             <li key={k} className="inline-flex items-center gap-1">
-              <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: BOX_COLORS[k], display: 'inline-block' }} />
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: BOX_COLORS[k], display: 'inline-block' }} />
               {(byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k]}
             </li>
           ))}
         {hasLean && leanStates.length > 0 && (
           <li className="inline-flex items-center gap-1">
-            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: PUBLIC_AGAINST_COLOR, display: 'inline-block' }} />
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: PUBLIC_AGAINST_COLOR, display: 'inline-block' }} />
             {PUBLIC_AGAINST_LABEL}
           </li>
         )}
         <li className="inline-flex items-center gap-1">
           {hasStance ? (
-            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: MEETING_GREYS[2], display: 'inline-block' }} />
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: MEETING_GREYS[2], display: 'inline-block' }} />
           ) : (
-            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: MEETINGS_ONLY, display: 'inline-block' }} />
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: MEETINGS_ONLY, display: 'inline-block' }} />
           )}
           {hasStance
             ? byMeetings
@@ -413,8 +424,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             : `Meetings where ${subject} came up`}
         </li>
       </ul>
-      {hasStance && (
-        <p className="mt-1 text-xs text-stone-500">
+      {/* Compact under the map (#1187) so the first screen keeps room for Browse topics: the method note sits with the
+          data table; the legend above still names the AI reading. */}
+      <details className="mt-1 text-xs text-stone-700">
+        <summary className="cursor-pointer text-stone-600">How to read this map · data table</summary>
+        {hasStance && (
+          <p className="mt-1 text-xs text-stone-500">
           {byMeetings
             ? split.length > 0
               ? `Split by an AI reading of ${plural(speakersTotal, 'meeting', 'meetings')} in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
@@ -424,10 +439,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               : 'No speaker positions on record yet; states show meetings only.'}
           {hasLean || (byMeetings && split.length > 0) ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
         </p>
-      )}
+        )}
 
-      <details className="mt-2 text-sm text-stone-700">
-        <summary className="cursor-pointer text-stone-600">Show data table</summary>
         {listed.length === 0 ? (
           <p className="mt-1 text-stone-500">No meetings on record.</p>
         ) : (
