@@ -148,6 +148,8 @@ interface StageProps {
   /** Tap mode: the id the parent currently previews; ``null`` once the parent
    *  clears or consumes the preview (e.g. its drill button), resetting the Stage. */
   tapPreviewId?: string | null
+  /** Phone layout: the SVG fills its (tall) container and labels are sized in CSS px. */
+  compact?: boolean
 }
 
 export type StageHoverInfo = {
@@ -241,6 +243,7 @@ export default function CensusDrilldownStage({
   onHoverInfo: onHoverInfoProp,
   onTapPreview,
   tapPreviewId = null,
+  compact = false,
 }: StageProps) {
   const tapMode = !!onTapPreview
   // In tap mode hover readouts are suppressed (synthetic mouse events on tap
@@ -294,6 +297,25 @@ export default function CensusDrilldownStage({
    */
   const [zoomK, setZoomK] = useState(1)
   const gRef = useRef<SVGGElement | null>(null)
+  // Compact (phone) layout: measure the box so the viewBox can match its
+  // aspect (tall, not 975x610) and label font sizes can be set in CSS px.
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+  const [box, setBox] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    if (!compact) return
+    const el = wrapRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect()
+      setBox((b) => (Math.abs(b.w - r.width) > 1 || Math.abs(b.h - r.height) > 1 ? { w: r.width, h: r.height } : b))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [compact])
+  const measured = compact && box.w > 0 && box.h > 0
+  const vbH = measured ? Math.max(H, Math.round((W * box.h) / box.w)) : H
+  /** SVG user units per CSS px (1 on desktop, ~2.7 on a 360px phone). */
+  const pxUnit = measured ? W / box.w : 1
   const zoomBehaviorRef = useRef<ReturnType<typeof d3zoom> | null>(null)
 
   /** Cached states GeoJSON + interior mesh. */
@@ -500,8 +522,8 @@ export default function CensusDrilldownStage({
     // stage (states ~80%), so neighbours give context and it never kisses the
     // edge. The side panel is its own grid column, not an overlay, so no extra
     // inset is needed for it.
-    const pad = view === 'state' ? 0.8 : 0.72
-    const k = Math.min(150, pad / Math.max((x1 - x0) / W, (y1 - y0) / H))
+    const pad = measured ? 0.9 : view === 'state' ? 0.8 : 0.72
+    const k = Math.min(150, pad / Math.max((x1 - x0) / W, (y1 - y0) / vbH))
     const tx = W / 2 - k * ((x0 + x1) / 2)
     const ty = H / 2 - k * ((y0 + y1) / 2)
     const next = zoomIdentity.translate(tx, ty).scale(k) as ZoomTransform
@@ -520,6 +542,7 @@ export default function CensusDrilldownStage({
     countiesInState,
     zctasInCounty,
     placesInCounty,
+    vbH,
   ])
 
   // --- fill / bubble helpers (depend on viz + scale + extents) ---
@@ -559,14 +582,15 @@ export default function CensusDrilldownStage({
 
   return (
     <div
-      className="relative w-full"
+      ref={wrapRef}
+      className={`relative w-full ${compact ? 'h-full' : ''}`}
       onMouseLeave={() => onHoverInfo?.(null)}
     >
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${W} ${H}`}
+      viewBox={`0 ${(H - vbH) / 2} ${W} ${vbH}`}
       preserveAspectRatio="xMidYMid meet"
-      className="block h-auto w-full select-none"
+      className={`block w-full select-none ${compact ? 'h-full' : 'h-auto'}`}
       role="img"
       aria-label="Census drill-down map"
       onClick={(e) => {
@@ -902,7 +926,7 @@ export default function CensusDrilldownStage({
               if (!z) return null
               const c = projectedPath.centroid(f as never)
               if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
-              const fontSize = 9 / zoomK
+              const fontSize = (9 * pxUnit) / zoomK
               return (
                 <text
                   key={`zip-lbl-${z}`}
@@ -944,7 +968,7 @@ export default function CensusDrilldownStage({
               if (!short) return null
               const c = projectedPath.centroid(f as never)
               if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
-              const fontSize = 12 / zoomK
+              const fontSize = ((compact ? 11 : 12) * pxUnit) / zoomK
               return (
                 <text
                   key={`lbl-${gid}`}
@@ -979,7 +1003,7 @@ export default function CensusDrilldownStage({
               if (!countyName) return null
               const c = path.centroid(selectedCountyFeature as never)
               if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
-              const fontSize = 14 / zoomK
+              const fontSize = (14 * pxUnit) / zoomK
               return (
                 <text
                   className="county-name-label"
@@ -1036,7 +1060,7 @@ export default function CensusDrilldownStage({
               if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null
               // Counter-scale to a constant ~14px on-screen size (10px read too
               // small per user feedback). Stays readable at any zoom level.
-              const fontSize = 14 / zoomK
+              const fontSize = (14 * pxUnit) / zoomK
               return (
                 <text
                   key={`lbl-${zid}`}
