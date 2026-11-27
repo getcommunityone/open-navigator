@@ -1,58 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { dotState, isLastScreen, storyProgress } from '../../utils/storyNav'
+import { dotState, isLastScreen } from '../../utils/storyNav'
 import { toGoLabel } from '../../utils/floatingNext'
 
 // Progress through a data story and the way on to the next one (#1102). Every control here moves with the story's own
 // screen navigation (`goTo`, the same function as Next and the keys), so the landing and scroll logic stays in one place.
-
-/** A thin bar along the top of the story; its width is the share of screens reached. Decorative: the dots carry the words. */
-export function StoryTopBar({ active, count }: { active: number; count: number }) {
-  if (count <= 1) return null
-  return (
-    <div className="story-topbar" aria-hidden="true" data-testid="story-topbar">
-      <span className="story-topbar-fill" style={{ transform: `scaleX(${storyProgress(active, count)})` }} />
-    </div>
-  )
-}
-
-interface DotsProps {
-  /** One accessible name per screen (its headline or word). */
-  labels: string[]
-  active: number
-  onJump: (index: number) => void
-  /** True while the end of the story (the next-story card) is in view: the dots step aside. */
-  away?: boolean
-}
-
-/** A column of numbered dots down the left edge (wide screens): one per screen, the current one teal, click to jump. */
-export function StoryDots({ labels, active, onJump, away = false }: DotsProps) {
-  const count = labels.length
-  if (count <= 1) return null
-  return (
-    <nav className={`story-dots${away ? ' is-away' : ''}`} aria-label="Story screens">
-      <ol>
-        {labels.map((label, i) => {
-          const state = dotState(i, active, count)
-          return (
-            <li key={i}>
-              <button
-                type="button"
-                className={`story-dot is-${state}`}
-                aria-label={`${i + 1}. ${label}`}
-                title={label}
-                aria-current={state === 'now' ? 'step' : undefined}
-                onClick={() => onJump(i)}
-              >
-                {i + 1}
-              </button>
-            </li>
-          )
-        })}
-      </ol>
-    </nav>
-  )
-}
+// Wide screens show progress in the top bar's segments (ProgressPips with onJump, #1192); phones in the bottom bar here.
 
 interface CardProps {
   href: string
@@ -119,14 +72,17 @@ interface BarProps {
   storyLabel: string
   /** True when the last screen leads to another story (not the list of stories). */
   storyIsNext: boolean
+  /** True while the story's cover is in view (#1192): its Start button is the way forward there, so the bar shows progress only. */
+  hideNext?: boolean
 }
 
 /**
- * Phones (< 768px): a bar fixed to the bottom of the window with compact progress dots and one prominent Next. Next moves to
+ * Phones (< 768px): a bar fixed to the bottom of the window with compact progress dots and one prominent Next. It is the
+ * phone's only progress indicator (#1192: the top bar shows none there), and on the cover it drops Next for Start. Next moves to
  * the next screen; on the last screen it becomes the way to the next story. The page leaves room for it (stance.css), so it
  * never covers the story's own controls.
  */
-export function StoryBottomBar({ active, count, nextLabel, onNext, storyHref, storyLabel, storyIsNext }: BarProps) {
+export function StoryBottomBar({ active, count, nextLabel, onNext, storyHref, storyLabel, storyIsNext, hideNext = false }: BarProps) {
   const last = isLastScreen(active, count)
   return (
     <div className="story-bottombar" data-testid="story-bottombar">
@@ -138,7 +94,7 @@ export function StoryBottomBar({ active, count, nextLabel, onNext, storyHref, st
         </span>
         <span className="story-bottombar-left">{toGoLabel(count - 1 - active)}</span>
       </span>
-      {last ? (
+      {hideNext ? null : last ? (
         <Link to={storyHref} className="folio-btn story-bottombar-next" aria-label={storyLabel}>
           {storyIsNext ? 'Next story' : 'All stories'} <span aria-hidden="true">→</span>
         </Link>

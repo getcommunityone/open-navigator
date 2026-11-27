@@ -9,6 +9,7 @@ import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
 import StoryDotMap from './StoryDotMap'
+import DumbbellChart from './DumbbellChart'
 import StoryCountyMap from './StoryCountyMap'
 import MapDrill from './MapDrill'
 import StoryStatement from './StoryStatement'
@@ -201,6 +202,15 @@ export default function StoryScreenView(p: Props) {
                         city={scope.city}
                         scopeLabel={storyScopeLabel(scope)}
                       />
+                    )}
+                    {/* The period dumbbell (#1192, owner: "earlier in every story"): last year against this year, by state, or
+                        by town at state scope, right under the map. It compares places, so at city scope it says where to see it. */}
+                    {scope.city ? (
+                      <p className="stance-note">
+                        The year-over-year comparison is drawn by state, or by town within a state; choose All of {scope.stateName} to see it.
+                      </p>
+                    ) : (
+                      <DumbbellChart topic="data-centers" stateCode={scope.stateCode} scopeLabel={storyScopeLabel(scope)} subject="data centers" idBase={`story-${screen.id}`} />
                     )}
                     <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
                     <p className="stance-note">{statsScopeNote(stats, scope)}</p>

@@ -119,7 +119,7 @@ describe('pickCaption (c) state gap', () => {
     const c = pickCaption('short-term-rentals', facts(), nat)
     expect(c.place).toBe('California')
     expect(captionText(c, 'short-term rentals')).toBe('California took up short-term rentals in 570 meetings, more than any other state.')
-    expect(c.basis).toContain('Next: North Carolina, 317 meetings')
+    expect(c.basis).toContain('Then North Carolina, 317 meetings')
   })
 
   it('national: "more than twice" only at a ratio of 2 or more', () => {

@@ -1,11 +1,25 @@
-import { Outlet } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
 import { XMarkIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
 import SiteFooter from './SiteFooter'
 import SiteHeader from './SiteHeader'
+import { PLACE_PICK_STATE } from '../hooks/usePlacePick'
 
 export default function Layout() {
   const { authError, clearAuthError } = useAuth()
+  // A place picked in the header rewrites ?state=&city=; most pages read their scope from the URL once, on mount, so the
+  // page is remounted after that navigation commits and its label, query and results follow the new place together
+  // (#1191, CLAUDE.md). Keyed on the pick marker in history state, so in-page URL changes never remount.
+  const routerLocation = useLocation()
+  const pickedAt = (routerLocation.state as Record<string, unknown> | null)?.[PLACE_PICK_STATE]
+  const lastPick = useRef(pickedAt)
+  const [placeKey, setPlaceKey] = useState(0)
+  useEffect(() => {
+    if (pickedAt == null || pickedAt === lastPick.current) return
+    lastPick.current = pickedAt
+    setPlaceKey((k) => k + 1)
+  }, [pickedAt])
 
   return (
     <div className="min-h-screen page-bg">
@@ -42,7 +56,7 @@ export default function Layout() {
           </div>
         )}
         <main id="main-content" tabIndex={-1} className="flex min-h-0 flex-1 flex-col focus:outline-none">
-          <Outlet />
+          <Outlet key={placeKey} />
         </main>
         <SiteFooter />
       </div>

@@ -1472,20 +1472,6 @@ select.stance-blank {
   align-items: flex-start;
   gap: 8px;
 }
-/* Close (#1017): leaves the story for the home page. */
-.stance-close {
-  margin-top: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 10px;
-  font-size: 26px;
-  line-height: 1;
-  text-decoration: none;
-  color: var(--ink);
-}
 .stance-sound {
   margin-top: 0;
   display: inline-flex;
@@ -1496,7 +1482,7 @@ select.stance-blank {
 .stance-sound[aria-pressed='false'] {
   color: var(--ink-2);
 }
-/* Phones: sound is set in the site menu (#1017), so the header keeps only Close. */
+/* Phones: sound is set in the site menu (#1017). The story's one exit is the "← Data stories" crumb (#1192). */
 @media (max-width: 767px) {
   .stance-top-actions .stance-sound {
     display: none;
@@ -1857,6 +1843,39 @@ select.stance-blank {
 }
 .stance-pip.is-now {
   height: 9px;
+}
+/* The story's segments are buttons (#1192): one per screen, a 24px-tall hit area around the 5px bar, named for its screen. */
+.stance-pips.is-jump .stance-pips-row {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  height: 24px;
+}
+.stance-pips.is-jump .stance-pips-row > li {
+  flex: 1 1 0;
+  display: flex;
+  min-width: 0;
+}
+.stance-pip-btn {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.stance-pip-btn .stance-pip {
+  flex: 1 1 auto;
+}
+.stance-pip-btn:hover .stance-pip:not(.is-past):not(.is-now) {
+  background: color-mix(in srgb, var(--violet-ink) 35%, var(--rule));
+}
+.stance-pip-btn:focus-visible {
+  outline: 3px solid var(--violet-ink);
+  outline-offset: 2px;
 }
 .stance-pips-left {
   flex: 0 0 auto;
@@ -2923,87 +2942,6 @@ html.stance-snap {
 }
 
 /* --- Story progress and the next story (#1102) ----------------------------------------------------------------------- */
-/* A thin bar along the top of the story: its width is the share of screens reached. */
-.story-topbar {
-  position: fixed;
-  top: var(--hdr, 0px);
-  left: 0;
-  right: 0;
-  z-index: 45;
-  height: 3px;
-  pointer-events: none;
-  background: color-mix(in srgb, #0f766e 14%, transparent);
-}
-.story-topbar-fill {
-  display: block;
-  height: 100%;
-  background: #0f766e;
-  transform-origin: left center;
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-/* Numbered dots down the left edge, one per screen (wide screens). */
-.story-dots {
-  position: fixed;
-  left: 12px;
-  top: calc(50% + (var(--hdr, 0px) + var(--top-h, 96px)) / 2);
-  z-index: 30;
-  transform: translateY(-50%);
-}
-.story-dots ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.story-dot {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border-radius: 50%;
-  border: 1.5px solid var(--rule);
-  background: var(--paper);
-  color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, transform 200ms ease;
-}
-.story-dot.is-past {
-  border-color: color-mix(in srgb, #0f766e 55%, var(--paper));
-  color: #0f766e;
-}
-.story-dot.is-now {
-  border-color: #0f766e;
-  background: #0f766e;
-  color: #fff;
-  transform: scale(1.12);
-}
-.story-dot:hover {
-  border-color: #0f766e;
-}
-.story-dot:focus-visible {
-  outline: 3px solid var(--violet-ink);
-  outline-offset: 2px;
-}
-@media (min-width: 768px) {
-  /* Room for the dots at the left of every screen. */
-  .stance-game.stance-story[data-mode] .stance-act,
-  .stance-game.stance-story[data-mode] .stance-cover {
-    padding-left: 56px;
-  }
-}
-@media (max-width: 767px) {
-  .story-dots,
-  .story-topbar {
-    display: none;
-  }
-}
-
 /* The end of the story: a full-width card that fades in after the last screen and leads to the next story. */
 .story-next-card {
   display: flex;
@@ -3148,7 +3086,6 @@ html.stance-snap {
 }
 
 /* `.folio *` squares every corner; dots are round and the bar's Next is the primary action's pill. */
-.folio .story-dot,
 .folio .story-bottombar-dot {
   border-radius: 999px !important;
 }
@@ -3161,8 +3098,6 @@ html.stance-snap {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .story-topbar-fill,
-  .story-dot,
   .story-bottombar-dot {
     transition: none;
   }
@@ -3171,14 +3106,6 @@ html.stance-snap {
     transform: none;
     transition: opacity 400ms ease;
   }
-}
-.story-dots {
-  transition: opacity 250ms ease;
-}
-.story-dots.is-away {
-  opacity: 0;
-  pointer-events: none;
-  visibility: hidden;
 }
 
 /* #1138: on a wide screen the story's one nav row (ScreenNav) sits at the same spot on every screen: the bottom of the left

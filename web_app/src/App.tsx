@@ -63,6 +63,9 @@ import EventBillDetail from './pages/EventBillDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
 import { storyRoute } from './utils/topicStories'
+import { STORIES } from './utils/dataStory'
+import { useTopicStories } from './hooks/useTopicStories'
+import { useDocumentTitle } from './utils/useDocumentTitle'
 
 // Loaded only when its route is visited (#856): its fonts and chart code stay out of the main bundle, and a
 // failure to load it cannot blank the rest of the site.
@@ -176,6 +179,11 @@ function PlayPackRedirect() {
 /** `/stories/:storyId` (#1133): the registry's stories (data centers) on DataStory, topic slugs on TopicStory. */
 function StoryRoute() {
   const { storyId = '' } = useParams()
+  // The tab names the story's topic (#1191): the registry's topic, else the curated topic's name from the catalog.
+  const { stories } = useTopicStories()
+  const reg = STORIES[storyId]
+  const topic = reg ? reg.topic : stories[storyId]?.title
+  useDocumentTitle(topic ? `${topic.charAt(0).toUpperCase()}${topic.slice(1)} — Data story` : 'Data story')
   return storyRoute(storyId) === 'data' ? <DataStory /> : <TopicStory slug={storyId} />
 }
 
