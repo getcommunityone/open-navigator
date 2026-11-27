@@ -25,23 +25,20 @@ function inWindow(el: Element): boolean {
 export function useChartReveal<T extends Element>(replayKey?: unknown, { fallbackMs = REVEAL_FALLBACK_MS }: { fallbackMs?: number } = {}) {
   const reduced = usePrefersReducedMotion()
   const [el, setEl] = useState<T | null>(null)
-  const [revealed, setRevealed] = useState(reduced)
+  // The key the chart was last revealed for. Comparing it during render means a new key hides the chart in the same
+  // render that draws it, so a replay never flashes the final state first and never plays an exit.
+  const [revealedFor, setRevealedFor] = useState<{ key: unknown } | null>(null)
   const ref = useCallback((node: T | null) => setEl(node), [])
 
   useEffect(() => {
-    if (reduced) {
-      setRevealed(true)
-      return
-    }
-    setRevealed(false)
-    if (!el) return
+    if (reduced || !el) return
     let done = false
     let frame = 0
     const reveal = () => {
       if (done) return
       done = true
       // One frame at the start state first, so the transition has somewhere to run from.
-      frame = requestAnimationFrame(() => setRevealed(true))
+      frame = requestAnimationFrame(() => setRevealedFor({ key: replayKey }))
     }
     let io: IntersectionObserver | null = null
     if (typeof IntersectionObserver !== 'undefined') {
@@ -52,6 +49,7 @@ export function useChartReveal<T extends Element>(replayKey?: unknown, { fallbac
     let since: number | null = null
     const tick = window.setInterval(() => {
       if (done) return window.clearInterval(tick)
+      if (document.hidden) return
       if (typeof IntersectionObserver === 'undefined') return reveal()
       if (!inWindow(el)) {
         since = null
@@ -59,7 +57,7 @@ export function useChartReveal<T extends Element>(replayKey?: unknown, { fallbac
       }
       since ??= Date.now()
       if (Date.now() - since >= fallbackMs) reveal()
-    }, 300)
+    }, 500)
     return () => {
       done = true
       cancelAnimationFrame(frame)
@@ -68,7 +66,8 @@ export function useChartReveal<T extends Element>(replayKey?: unknown, { fallbac
     }
   }, [el, reduced, replayKey, fallbackMs])
 
-  return { ref, revealed: reduced || revealed, reduced }
+  const revealed = reduced || (revealedFor != null && Object.is(revealedFor.key, replayKey))
+  return { ref, revealed, reduced }
 }
 
 export default useChartReveal

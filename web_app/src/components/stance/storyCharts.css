@@ -92,8 +92,6 @@
 .sc-pop { transform-box: fill-box; transform-origin: center; transition: opacity var(--d-2, 240ms) var(--ease-out), transform 360ms var(--ease-out); }
 .sc-ride { transition: opacity var(--d-2, 240ms) var(--ease-out), transform var(--d-3, 600ms) var(--ease-out); }
 .sc-fade { transition: opacity var(--d-2, 240ms) var(--ease-out); }
-/* A stacked row's label sits over the gridlines: a paper halo keeps it legible. */
-.sc-label-halo { paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
 
 @media (prefers-reduced-motion: reduce) {
   .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq, .sc-pop, .sc-ride, .sc-fade, .sc-pt, .sc-ms-pop, .sc-end { transition: none !important; }
