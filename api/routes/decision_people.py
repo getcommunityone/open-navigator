@@ -193,6 +193,9 @@ def parse_slug(slug: str, jurisdiction_name: Optional[str] = None) -> Optional[P
         if len(name) == len(toks[start:]):
             return None  # nothing matched the place: the name's end is a guess
     name = [t for t in name if t not in _NOT_A_NAME or t in ("sr", "jr")]
+    if role_at is None and len([t for t in name if t not in ("sr", "jr")]) != 2:
+        # No role word: only a plain "first last" is safe to read as a name ("artist_murphy_entrepreneur" is not).
+        return None
     if len([t for t in name if t not in ("sr", "jr")]) > 3:
         # More than first, middle and last: the slug runs a description into the name ("former_homeless_..."), so where
         # the name ends is a guess. Left out rather than risk showing a word that isn't a name.

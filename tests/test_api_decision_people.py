@@ -51,6 +51,7 @@ def test_a_non_official_is_first_l_with_no_role():
         "robey_oshkosh",  # one word may be a surname
         "david_zumwalt_former_homeless_drug_addict_federal_way_5323515",  # a description runs into the name
         "lawrence_biloxi_2806220",  # no role word and no place to tell the name from
+        "artist_murphy_entrepreneur_federal_way",  # no role word and three words: where the name ends is a guess
     ],
 )
 def test_left_out(slug):
