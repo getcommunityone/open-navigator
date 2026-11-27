@@ -32,6 +32,7 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { STATE_CODES } from '../lib/usStates'
 import {
   chartScopeLabel,
+  contextSourceFor,
   screenText,
   scopeQuery,
   storyPlaceDisplay,
@@ -521,7 +522,7 @@ export default function DataStory() {
                   index={i}
                   active={active === i}
                   eyebrow={s.eyebrow}
-                  kicker={`${s.kicker ?? 'For context'} · source: Epoch AI and the US Data Center Registry`}
+                  kicker={`${s.kicker ?? 'For context'} · source: ${contextSourceFor(s.id)}`}
                   headline={
                     timelineQ.isPending
                       ? 'Loading data center sites over time…'

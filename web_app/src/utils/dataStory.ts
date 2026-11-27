@@ -264,7 +264,7 @@ export function landConcernNote(res: AreaConcernsResponse | null | undefined, pl
 
 /** Where a "For context" screen's figures come from (they are not from meeting recordings or transcripts), or null. */
 export function contextSourceFor(key: string | null | undefined): string | null {
-  if (key === 'sites') return 'Epoch AI and the US Data Center Registry'
+  if (key === 'sites' || key === 'over-time') return 'Epoch AI and the US Data Center Registry'
   if (key === 'projects') return 'curated announcements and Epoch AI'
   return null
 }
