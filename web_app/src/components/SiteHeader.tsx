@@ -1,4 +1,4 @@
-import HeaderPlacePhone from './HeaderPlacePhone'
+import HeaderPlaceScope from './HeaderPlaceScope'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -62,47 +62,29 @@ const HEADER_CSS = `
 .site-header .sh-navlink.active { color: ${TEAL_DARK}; }
 .site-header .sh-navlink.active::after { width: 100%; }
 .site-header .sh-nav { display: flex; gap: 22px; margin-left: auto; align-items: center; }
-.site-header .sh-place { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(13,148,136,0.3); background: rgba(13,148,136,0.06); color: ${TEAL_DARK}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-.site-header .sh-place:hover { background: rgba(13,148,136,0.12); }
-.site-header .sh-place-text { overflow: hidden; text-overflow: ellipsis; }
-.site-header .sh-place-pair { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-.site-header .sh-national { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 6px 11px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; color: #44403c; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-.site-header .sh-national:hover, .site-header .sh-national:focus-visible { border-color: ${TEAL_DARK}; color: ${TEAL_DARK}; }
 .site-header .sh-mnational { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; margin: 6px 0 4px; padding: 10px 14px; border-radius: 12px; border: 1px solid #d6d3d1; background: #fff; color: #44403c; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
-.site-header .sh-place-group { max-width: 300px; padding: 3px 4px 3px 12px; cursor: default; }
-.site-header .sh-place-group:hover { background: rgba(13,148,136,0.06); }
-.site-header .sh-place-scope { color: #57534e; font-weight: 600; }
-.site-header .sh-place-use { display: inline-flex; gap: 4px; min-width: 0; padding: 4px 8px; border: none; border-radius: 999px; background: none; color: ${TEAL_DARK}; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; }
-.site-header .sh-place-use:hover, .site-header .sh-place-more:hover { background: rgba(13,148,136,0.14); }
-.site-header .sh-place-more { padding: 4px 8px; border: none; border-left: 1px solid rgba(13,148,136,0.3); border-radius: 0 999px 999px 0; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 11px; cursor: pointer; }
 .site-header button:focus-visible, .site-header a:focus-visible { outline: 2px solid ${TEAL_DARK}; outline-offset: 2px; }
 .site-header .sh-mobile { display: none; }
-/* #1301: the phone selector (pin + ZIP, or [📍 town | National]) sits in the header row below the menu breakpoint. */
-.site-header .sh-place-phone { display: none; }
-.site-header .sh-pphone { position: relative; min-width: 0; }
+/* #1331: one segmented [📍 town | National] toggle in the header row, desktop and phone. */
 .site-header .sh-ptoggle { display: inline-flex; align-items: stretch; max-width: 100%; border: 1px solid rgba(13,148,136,0.35); border-radius: 999px; overflow: hidden; background: #fff; }
 .site-header .sh-ptoggle-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; min-width: 0; padding: 0 10px; border: none; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .site-header .sh-ptoggle-btn + .sh-ptoggle-btn { border-left: 1px solid rgba(13,148,136,0.35); }
 .site-header .sh-ptoggle-btn[aria-pressed="true"] { background: ${TEAL_DARK}; color: #fff; }
-.site-header .sh-ptoggle-text { overflow: hidden; text-overflow: ellipsis; max-width: 9.5em; }
+.site-header .sh-place-slot { display: flex; min-width: 0; max-width: 320px; }
+.site-header .sh-ptoggle-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 16em; }
+.site-header .sh-ptoggle-caret { font-size: 11px; }
+.site-header .sh-ptoggle-btn:focus-visible { outline: 2px solid ${TEAL_DARK}; outline-offset: -4px; }
+.site-header .sh-ptoggle-btn[aria-pressed="true"]:focus-visible { outline-color: #fff; }
+.site-header .sh-ptoggle-btn:not([aria-pressed="true"]):hover { background: rgba(13,148,136,0.08); }
 @media (max-width: 379px) { .site-header .sh-ptoggle-text { max-width: 6.5em; } .site-header .sh-ptoggle-btn { padding: 0 8px; } }
-.site-header .sh-pzip { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 2px 0 10px; border: 1px solid rgba(13,148,136,0.35); border-radius: 999px; background: #fff; }
-.site-header .sh-pzip-input { width: 4.6em; min-height: 36px; border: none; background: none; font: inherit; font-size: 16px; letter-spacing: .08em; color: ${INK}; outline-offset: 2px; }
-.site-header .sh-pzip-go, .site-header .sh-pzip-cancel { min-height: 40px; min-width: 40px; padding: 0 10px; border: none; border-radius: 999px; background: ${TEAL_DARK}; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-.site-header .sh-pzip-go:disabled { background: #d6d3d1; cursor: default; }
-.site-header .sh-pzip-cancel { background: none; color: #78716c; padding: 0 6px; }
-.site-header .sh-pzip-pop { position: absolute; right: 0; top: calc(100% + 6px); width: min(280px, calc(100vw - 32px)); padding: 10px; background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; box-shadow: 0 16px 32px rgba(28,25,23,0.14); z-index: 60; display: flex; flex-direction: column; gap: 6px; }
-.site-header .sh-pzip-error { margin: 0; color: #b91c1c; font-size: 14px; }
-.site-header .sh-pzip-note { margin: 0; font-size: 13px; color: #57534e; }
-.site-header .sh-pzip-choice { min-height: 40px; padding: 0 12px; border: 1px solid #d6d3d1; border-radius: 10px; background: #fff; font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes sh-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sh-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 @media (max-width: ${MENU_BREAKPOINT - 1}px) {
-  .site-header .sh-nav, .site-header .sh-place-desk { display: none; }
+  .site-header .sh-nav { display: none; }
   .site-header .sh-burger { display: grid; margin-left: auto; }
-  .site-header .sh-place-phone { display: flex; margin-left: auto; min-width: 0; }
-  .site-header .sh-place-phone + .sh-burger { margin-left: 0; }
+  .site-header .sh-place-slot { margin-left: auto; }
+  .site-header .sh-place-slot + .sh-burger { margin-left: 0; }
   .site-header .sh-mobile { display: block; }
   .site-header .sh-inner { padding-left: 16px !important; padding-right: 16px !important; gap: 12px !important; }
 }
@@ -397,56 +379,10 @@ export default function SiteHeader() {
           </div>
         </Link>
 
-        {/* Place control (#1191, #1205): the page's scope, or the reader's town on home; opens the shared picker. */}
-        {placeState.kind === 'national-saved' || placeState.kind === 'national' ? (
-          <div className="sh-place sh-place-desk sh-place-group" role="group" aria-label="Place for this page">
-            <span aria-hidden="true">📍</span>
-            <span className="sh-place-scope">National ·</span>
-            {savedLabel ? (
-              <button type="button" className="sh-place-use" onClick={applySavedTown} title={`Show this page for ${savedLabel}`}>
-                Use <span className="sh-place-text">{savedLabel}</span>
-              </button>
-            ) : (
-              <button type="button" className="sh-place-use" aria-haspopup="dialog" onClick={() => openPicker(false)}>
-                Find your town
-              </button>
-            )}
-            <button type="button" className="sh-place-more" aria-haspopup="dialog" aria-label="Pick a town" title="Pick a town" onClick={() => openPicker(false)}>
-              ▾
-            </button>
-          </div>
-        ) : (
-          <span className="sh-place-desk sh-place-pair">
-          <button
-            type="button"
-            className="sh-place"
-            aria-haspopup="dialog"
-            aria-label={
-              placeLabel
-                ? placeState.kind === 'scoped'
-                  ? `Place for this page: ${placeLabel}. Change`
-                  : `Your town: ${placeLabel}. Change`
-                : 'Find your town'
-            }
-            title={placeLabel ? 'Change the place' : 'Find your town'}
-            onClick={() => openPicker(false)}
-          >
-            <span aria-hidden="true">📍</span>
-            <span className="sh-place-text">{placeLabel ?? 'Find your town'}</span>
-            <span aria-hidden="true" style={{ fontSize: 11 }}>▾</span>
-          </button>
-          {nationalSearch && (
-            <button type="button" className="sh-national" onClick={goNational} aria-label="Show National instead" title="Show the whole country">
-              <span aria-hidden="true">×</span> National
-            </button>
-          )}
-          </span>
-        )}
-
-        {/* Phones (#1301, after #1285): the location selector stays in the header on every page, outside the menu: the
-            pin + ZIP field, or [📍 town | National] with one tap each way (it carries #1285's one-click National). */}
-        <div className="sh-place-phone">
-          <HeaderPlacePhone />
+        {/* Place control (#1191, #1205, #1331): one segmented [📍 town | National] toggle on every width; the active half
+            is the page's real scope, the town half opens the shared picker. */}
+        <div className="sh-place-slot">
+          <HeaderPlaceScope onPickPlace={() => openPicker(false)} />
         </div>
         <button
           ref={toggleRef}

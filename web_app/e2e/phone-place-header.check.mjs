@@ -1,11 +1,11 @@
-// Phone header location selector check (#1301). At phone width the header always shows the place selector, outside the
-// menu: with no town, a pin and a ZIP field; after a ZIP, a [📍 town | National] toggle that switches both ways in one
+// Header place toggle check (#1301, #1331). At phone width the header always shows the place selector, outside the
+// menu: with no town, "📍 Find your town" (opens the picker); with one, a [📍 town | National] toggle that switches both ways in one
 // tap without retyping, on Home (?scope=national) and on a story (?state=&city=). A page with no place scope shows the
 // town only.
 //
-//   node e2e/phone-place-header.check.mjs [--base http://localhost:5173] [--zip 35401] [--shots <dir>]
+//   node e2e/phone-place-header.check.mjs [--base http://localhost:5173] [--shots <dir>]
 //
-// It uses the real ZIP lookup (/api/geocode). When the ZIP spans places, it picks the first choice. Exits 1 on any failure.
+// The saved town is written to localStorage (as the picker does). Exits 1 on any failure.
 import { chromium, devices } from 'playwright'
 
 const arg = (name, dflt) => {
@@ -13,7 +13,6 @@ const arg = (name, dflt) => {
   return i > 0 ? process.argv[i + 1] : dflt
 }
 const base = arg('base', 'http://localhost:5173')
-const zip = arg('zip', '35401')
 const shots = arg('shots', null)
 let failures = 0
 const ok = (cond, msg) => {
@@ -23,30 +22,36 @@ const ok = (cond, msg) => {
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ ...devices['iPhone 13'], reducedMotion: 'reduce' })
 const page = await ctx.newPage()
-const sel = '[data-testid="header-place-phone"]'
+const sel = '[data-testid="header-place-toggle"]'
+const saved = { state: 'AL', city: 'Tuscaloosa' }
 const shot = async (name) => shots && page.screenshot({ path: `${shots}/phone-place-${name}.png`, clip: { x: 0, y: 0, width: 390, height: 200 } })
 const pressed = (side) => page.locator(`${sel} [data-side="${side}"]`).getAttribute('aria-pressed')
+const settle = (side) => page.waitForSelector(`${sel} [data-side="${side}"][aria-pressed="true"]`, { timeout: 8000 }).catch(() => {})
 const path = () => { const u = new URL(page.url()); return u.pathname + u.search }
 
 console.log(`\niPhone 13 ${base}`)
 await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 120_000 })
-ok(await page.locator(sel).isVisible(), 'the selector is in the header, outside the menu')
-ok(await page.locator(`${sel} input[aria-label="ZIP code"]`).isVisible(), 'with no town: a pin + ZIP field')
-await shot('1-zip')
-await page.locator(`${sel} input[aria-label="ZIP code"]`).fill(zip)
-await page.locator(`${sel} button[type=submit]`).click()
-await page.waitForSelector(`${sel} [data-side="place"], ${sel} .sh-pzip-choice`, { timeout: 60_000 })
-if (await page.locator(`${sel} .sh-pzip-choice`).count()) await page.locator(`${sel} .sh-pzip-choice`).first().click()
-await page.waitForSelector(`${sel} [data-side="place"]`, { timeout: 30_000 })
-const town = (await page.locator(`${sel} [data-side="place"]`).innerText()).replace('📍', '').trim()
-ok(town.length > 0 && (await pressed('place')) === 'true', `after the ZIP: the town is on (${town})`)
+ok(await page.locator(sel).isVisible(), 'the toggle is in the header, outside the menu')
+ok((await page.locator(`${sel} [data-side="place"]`).innerText()).includes('Find your town'), 'with no town: the left half reads "Find your town"')
+await shot('1-find')
+await page.locator(`${sel} [data-side="place"]`).click()
+ok(await page.locator('[role="dialog"]').isVisible(), 'and it opens the place picker')
+await page.keyboard.press('Escape')
+// A saved town (the picker writes this same key).
+await page.evaluate((loc) => localStorage.setItem('user_location', JSON.stringify(loc)), saved)
+await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 120_000 })
+const town = (await page.locator(`${sel} [data-side="place"]`).innerText()).replace('📍', '').replace('▾', '').trim()
+ok(town.includes('Tuscaloosa') && (await pressed('place')) === 'true', `a saved town: it is on (${town})`)
 await shot('2-town')
+await page.locator(`${sel} [data-side="place"]`).click()
+ok(await page.locator('[role="dialog"]').isVisible(), 'tapping the active town opens the picker')
+await page.keyboard.press('Escape')
 await page.locator(`${sel} [data-side="national"]`).click()
 await page.waitForTimeout(1200)
 ok(path().includes('scope=national') && (await pressed('national')) === 'true', `one tap to National on Home (${path()})`)
 await shot('3-home-national')
 await page.locator(`${sel} [data-side="place"]`).click()
-await page.waitForTimeout(1200)
+await settle('place')
 ok(!path().includes('scope=national') && (await pressed('place')) === 'true', `one tap back to ${town}, no retyping (${path()})`)
 await page.goto(`${base}/stories/data-centers`, { waitUntil: 'networkidle', timeout: 120_000 })
 ok((await pressed('national')) === 'true', 'a story with no place in the URL: National is on')
