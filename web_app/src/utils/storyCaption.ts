@@ -611,7 +611,8 @@ function widerPosition(
   label: string,
   level: keyof typeof HATES_MIN_MEETINGS,
 ): Caption | null {
-  for (const w of facts.wider ?? []) {
+  // #1316 (owner, 27 Nov 2026): the step-up chain ends at the state; a place never borrows the country's title.
+  for (const w of (facts.wider ?? []).filter((x) => x.level !== 'national')) {
     const c = positionCounts(w)
     if (!c) continue
     const v = positionVerdict(c, HATES_MIN_MEETINGS[w.level])
@@ -664,7 +665,8 @@ function widerSentiment(
       : ownAgainst === 0
         ? `Of its ${meetingsWord(ownRead)} read, none had a public mostly opposed.`
         : `Of its ${meetingsWord(ownRead)} read, ${fmt(ownAgainst)} had a public mostly opposed, under the ${fmt(HATES_MIN_MEETINGS[level])} a title of its own needs.`
-  for (const w of facts.wider ?? []) {
+  // #1316 (owner, 27 Nov 2026): the step-up chain ends at the state; a place never borrows the country's title.
+  for (const w of (facts.wider ?? []).filter((x) => x.level !== 'national')) {
     const against = w.public_against_meetings ?? 0
     if (against < HATES_MIN_MEETINGS[w.level]) continue
     const name = w.level === 'national' ? 'America' : (w.state ?? stateName ?? w.state_code ?? null)

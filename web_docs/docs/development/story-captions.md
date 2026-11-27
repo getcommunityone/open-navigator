@@ -11,6 +11,16 @@ caption for every topic: lead with disagreement where it is high-volume, and oth
 differ. Only the data-center story had a conclusion ("America hates data centers."); the rest said "X talked about Y in N
 meetings." or showed a fixed blurb.
 
+## Decision (27 Nov 2026, #1316): a place never borrows America's title
+
+The owner, on `/stories/license-plate-readers?state=FL`: *"If florida is selected why is it showing america map and
+national level header"*, and *"if there is not enough data to show at zip show city if not enough at city show county if
+not at county show state"*. The step-up chain ends at the state. With a state or a city chosen, `pickCaption` no longer
+uses the national entry of `facts.wider`: a thin state keeps its own title (Florida: "Florida weighed Flock and license
+plate readers in 9 meetings."), and a city may still name its state's conclusion ("Alabama hates data centers."). This
+replaces the national fallback of #1182 and #1200 for place scopes; the national page is unchanged. `TopicStory` also
+passes `zoom` to `StoryStatesMap`, so a chosen state is drawn as that state rather than the national map.
+
 ## Decision (27 Nov 2026, #1289): the stance headline agrees with the recorded votes, and needs a minimum
 
 [#1289](https://github.com/getcommunityone/open-navigator/issues/1289). The owner found the Alabama page reading
