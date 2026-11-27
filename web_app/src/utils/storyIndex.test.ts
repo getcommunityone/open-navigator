@@ -43,6 +43,8 @@ describe('storyIndexCards', () => {
       'topic-traffic-safety',
       'topic-animal-shelters',
     ])
+    // The guns card is named "Gun control" (#1237), whatever the catalog calls it.
+    expect(cards.find((c) => c.key === 'guns')!.title).toBe('Gun control')
   })
 
   it('splits live stories from coming soon: no meetings or no curated topic means no story link', () => {

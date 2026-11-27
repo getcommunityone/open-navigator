@@ -23,8 +23,8 @@ export interface QuoteCardProps {
   item?: string | null
   /** The meeting's title, for a meeting passage with no speaker. */
   meeting?: string | null
-  /** A short line on where the public stood at this meeting (#1230), e.g. "Public: Opposed the gun proposal" or
-   *  "Mentions guns; no public stance in this meeting"; none → nothing shown. */
+  /** A short line on where the public stood at this meeting (#1230), e.g. "Public: Favor gun rights" or
+   *  "Mentions gun control; no public stance in this meeting"; none → nothing shown. */
   stanceNote?: string | null
   /** The recording's YouTube id: its real thumbnail is shown. None → no image block. */
   videoId?: string | null
