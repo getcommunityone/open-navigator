@@ -69,3 +69,16 @@ tall on a 1366×768 laptop, and on a phone its town labels were 10px. The map no
 
 Measured on 27 Nov 2026 (Alabama): iPhone 13, 277×434; 1366×768, 356×558; 1440×900, 441×690. The format is unchanged:
 dots, county outlines, rings, legend and table.
+
+Follow-up the same day (owner: *"reorganize text above and below and zoom so it fits better; handle different states"*).
+The layout follows the state's shape (`TALL_ASPECT = 0.95` in `utils/mapFit.ts`):
+
+- A tall state in a figure at least 600px wide puts the title, picker, key and notes beside the map. A container query lays
+  out the inner `.stance-map-layout` grid, because a container can't query itself. The map then takes the screen's
+  height (200px reserved) and up to 60% of the width.
+- A wide state keeps a one-line title above and the key below (230px reserved).
+- On a phone (290px reserved), the header, story bar and bottom bar stay on screen, and the minimum width is 200px.
+- The highlighted city is named in the key, not in the title.
+
+Measured: AL, IN, NJ, FL, CA, TX, TN, KS, MI, NY and RI all fit at 1440×900, 1366×768 and on an iPhone 13
+(`pull_requests/assets/1309/measurements.txt`).
