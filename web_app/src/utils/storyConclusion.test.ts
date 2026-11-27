@@ -26,16 +26,16 @@ describe('storyConclusion (#989)', () => {
     const r = storyConclusion(story, { ...c(18, 3), states: 4 }, undefined, { against: 283, states: 32 })!
     expect(r.headline).toBe('America hates data centers.')
     expect(r.basis).toBe(
-      'The public leaned against data centers in 283 meetings across 32 states (AI reading of meetings). 29 speakers counted by hand in 4 states: 18 against and 3 for.',
+      'The public mostly opposed data centers in 283 meetings across 32 states (AI reading of meetings). 29 speakers counted by hand in 4 states: 18 against and 3 for.',
     )
   })
   it('passes on the meeting reading alone when the speakers do not back it', () => {
     const r = storyConclusion(story, c(2, 3), undefined, { against: 60, states: 9 })!
     expect(r.basis).toBe(
-      'The public leaned against data centers in 60 meetings across 9 states (AI reading of meetings). 13 speakers counted by hand: 3 for and 2 against.',
+      'The public mostly opposed data centers in 60 meetings across 9 states (AI reading of meetings). 13 speakers counted by hand: 3 for and 2 against.',
     )
     expect(storyConclusion(story, null, undefined, { against: 50, states: 1 })!.basis).toBe(
-      'The public leaned against data centers in 50 meetings across 1 state (AI reading of meetings).',
+      'The public mostly opposed data centers in 50 meetings across 1 state (AI reading of meetings).',
     )
   })
   it('gates the meeting reading on confident-against meetings only', () => {
@@ -46,7 +46,7 @@ describe('storyConclusion (#989)', () => {
   })
   it('uses the place gate and names the place', () => {
     const r = storyConclusion(story, null, 'in Arizona', { against: 14 })!
-    expect(r.basis).toBe('The public leaned against data centers in 14 meetings in Arizona (AI reading of meetings).')
+    expect(r.basis).toBe('The public mostly opposed data centers in 14 meetings in Arizona (AI reading of meetings).')
     expect(storyConclusion(story, null, 'in Arizona', { against: 9 })).toBeNull()
   })
 })

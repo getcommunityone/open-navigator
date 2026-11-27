@@ -35,7 +35,7 @@ export function tint(hex: string, amount: number): string {
 export const PUBLIC_AGAINST_COLOR = tint(BOX_COLORS.against, 0.45)
 /** #1117: the outline around an area where Jev read officials as siding against the public. */
 export const DISAGREEMENT_STROKE = '#1c1917'
-export const PUBLIC_AGAINST_LABEL = 'Public leaned against (AI reading of meetings)'
+export const PUBLIC_AGAINST_LABEL = 'Public mostly opposed (AI reading of meetings)'
 export const DISAGREEMENT_LABEL = 'Officials sided against the public'
 
 /** Jev's two served meeting counts for an area (#1117); missing means 0. */
@@ -47,7 +47,7 @@ export interface LeanCounts {
 const count = (n: number | null | undefined) => Math.max(0, n || 0)
 
 /**
- * The hover line for an area's AI reading, or null when both counts are 0: "AI reading: the public leaned against in 3
+ * The hover line for an area's AI reading, or null when both counts are 0: "AI reading: the public mostly opposed in 3
  * meetings; officials sided against the public in 1." Supported and mixed readings are never served, so never shown.
  */
 export function leanLine(l: LeanCounts | null | undefined): string | null {
@@ -55,7 +55,7 @@ export function leanLine(l: LeanCounts | null | undefined): string | null {
   const dis = count(l?.disagreement_meetings)
   const m = (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'meeting' : 'meetings'}`
   const parts: string[] = []
-  if (pa > 0) parts.push(`the public leaned against in ${m(pa)}`)
+  if (pa > 0) parts.push(`the public mostly opposed in ${m(pa)}`)
   if (dis > 0) parts.push(`officials sided against the public in ${m(dis)}`)
   return parts.length ? `AI reading: ${parts.join('; ')}.` : null
 }

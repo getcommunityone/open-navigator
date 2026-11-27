@@ -50,7 +50,7 @@ describe('stanceLine wording', () => {
   const s = { speakers_against: 3, speakers_for: 1, speakers_neutral: 2, speakers_question: 0 }
 
   it('says meetings and AI reading for a topic split, never speakers', () => {
-    expect(stanceLine(s, 'meetings')).toBe('AI reading of 6 meetings: 3 leaned against · 1 leaned for · 2 mixed')
+    expect(stanceLine(s, 'meetings')).toBe('AI reading of 6 meetings: 3 mostly opposed · 1 mostly supported · 2 split')
   })
 
   it('keeps the speaker wording for data centers', () => {
@@ -59,6 +59,6 @@ describe('stanceLine wording', () => {
 
   it('has the four-entry legend in both wordings', () => {
     expect(Object.values(LEGEND_LABEL)).toEqual(['Spoke against', 'Spoke for', 'No side'])
-    expect(Object.values(AI_LEGEND_LABEL)).toEqual(['Public leaned against', 'Public leaned for', 'Mixed'])
+    expect(Object.values(AI_LEGEND_LABEL)).toEqual(['Public mostly opposed', 'Public mostly supported', 'Public split'])
   })
 })

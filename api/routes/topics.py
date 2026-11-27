@@ -306,7 +306,7 @@ _TOPIC_NEWEST_PER_STATE_SQL = """
 
 
 class TopicStanceStateCount(BaseModel):
-    """One state's meetings and the AI reading of them (#1127). Lean counts are distinct meetings in
+    """One state's meetings and the AI reading of them (#1127). The counts are distinct meetings in
     ``topic_meeting_lean`` (#1126), never counted speakers; 0 where the state has no reading."""
 
     state_code: str
@@ -317,7 +317,7 @@ class TopicStanceStateCount(BaseModel):
     lean_meetings: int = 0
     public_against_meetings: int = 0
     public_for_meetings: int = 0
-    # Read as mixed: the public neither mostly for nor mostly against.
+    # Read as split: the public neither mostly supported nor mostly opposed.
     no_side_meetings: int = 0
     # The public mostly opposed while officials mostly supported it (same rule as data centers).
     disagreement_meetings: int = 0
@@ -326,7 +326,7 @@ class TopicStanceStateCount(BaseModel):
 class TopicStanceMap(BaseModel):
     topic_id: int
     # False when topic_meeting_lean isn't in this database yet or has no row for the topic: the map shows
-    # meetings only and says so. Never a 0 that would read as "nobody leaned either way".
+    # meetings only and says so. Never a 0 that would read as "the public took no side anywhere".
     available: bool
     by_state: List[TopicStanceStateCount]
 
@@ -378,7 +378,7 @@ async def topic_state_map(
     state: Optional[str] = Query(None, description="Optional 2-letter state code."),
 ) -> TopicStanceMap:
     """Meetings per state for a topic story's box map, with the AI reading of those meetings (#1127): how many the
-    public leaned against, leaned for or was mixed on, from ``topic_meeting_lean`` (#1126). Until that table has the
+    public mostly opposed, mostly supported or was split on, from ``topic_meeting_lean`` (#1126). Until that table has the
     topic, ``available`` is false and the map shows meetings only."""
     with tracer.start_as_current_span("topic-state-map") as span:
         state_code = state.strip().upper() if state and state.strip() else None

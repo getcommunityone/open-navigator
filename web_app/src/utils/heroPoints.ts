@@ -95,9 +95,9 @@ export function heroPoints(
   const pHand = place ? handCountLine(place.speakers, inPlace) : null
   const nHand = handCountLine(speakers, num(opts.speakerStates) > 0 ? ` in ${plural(num(opts.speakerStates), 'state')}` : '')
   let line1: string | null = null
-  if (pAgainst > 0) line1 = `${plural(pAgainst, 'meeting')}${inPlace} where the public leaned against (AI reading).`
+  if (pAgainst > 0) line1 = `${plural(pAgainst, 'meeting')}${inPlace} where the public mostly opposed data centers (AI reading).`
   else if (pHand) line1 = pHand
-  else if (against > 0) line1 = nat(`${plural(against, 'meeting')}${states > 0 ? ` across ${plural(states, 'state')}` : ''} where the public leaned against (AI reading).`)
+  else if (against > 0) line1 = nat(`${plural(against, 'meeting')}${states > 0 ? ` across ${plural(states, 'state')}` : ''} where the public mostly opposed data centers (AI reading).`)
   else if (nHand) line1 = nat(nHand)
   if (line1) out.push({ icon: 'quote', title: 'Communities are saying no.', line: line1 })
 

@@ -103,7 +103,7 @@ export interface StoryConclusion {
 
 /** Jev's confident readings for the scope (#1134): AI readings of meetings, not counted speakers. */
 export interface StoryLean {
-  /** Meetings where the public leaned against (P >= 0.7). */
+  /** Meetings where the public mostly opposed (P >= 0.7). */
   against: number
   /** States with such a meeting, nationally; omitted for a place. */
   states?: number | null
@@ -201,7 +201,7 @@ export function storyConclusion(
   if (leanPass) {
     const states = lean?.states ?? 0
     const where = placePhrase ? ` ${placePhrase}` : states > 0 ? ` across ${pluralN(states, 'state')}` : ''
-    parts.push(`The public leaned against ${story.topic} in ${pluralN(against, 'meeting')}${where} (AI reading of meetings).`)
+    parts.push(`The public mostly opposed ${story.topic} in ${pluralN(against, 'meeting')}${where} (AI reading of meetings).`)
   }
   const hand = counts ? handCountSentence(counts, c.side, placePhrase) : null
   if (hand) parts.push(hand)
@@ -694,7 +694,7 @@ function gatheringsText(res: CommunityEventsResponse, scope: StoryScope): Screen
   }
 }
 
-/** The share of speakers one side needs before the overview says the place leaned that way (#1115). */
+/** The share of speakers one side needs before the overview says which way the place's speakers went (#1115). */
 export const OVERVIEW_LEAN_SHARE = 2 / 3
 
 /**
