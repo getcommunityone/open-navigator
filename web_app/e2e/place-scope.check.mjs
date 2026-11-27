@@ -26,7 +26,8 @@ const look = (page) =>
     zoom: document.querySelector('.home-story-map svg[data-map="county"]') ? 'county' : null,
     pin: document.querySelector('.home-story-map [data-scope-city]') ? 'Tuscaloosa' : null,
     sub: document.querySelector('.home-story-subhead, [data-testid=home-story-scope-line]')?.textContent ?? '',
-    national: [...document.querySelectorAll('.sh-national')].find((e) => e.getClientRects().length > 0) ? true : false,
+    // Desktop: "× National"; phone: the header toggle's National side (#1301).
+    national: [...document.querySelectorAll('.sh-national, .sh-ptoggle-btn[data-side="national"][aria-pressed="false"]')].find((e) => e.getClientRects().length > 0) ? true : false,
   }))
 
 const { defaultBrowserType: _engine, ...pixel } = devices['Pixel 7']
@@ -46,7 +47,7 @@ for (const [label, opts] of [
   ok(/Tuscaloosa has (only \d+ meetings?|no meetings) on data centers, too few to call/.test(r.sub), `the subtitle says why ("${r.sub.slice(0, 90)}")`)
   ok(r.national, 'the header shows "× National"')
   if (shots) await page.screenshot({ path: `${shots}/place-${label.replace(/\W+/g, '_')}-tuscaloosa.png` })
-  await page.locator('.sh-national:visible').first().click()
+  await page.locator('.sh-national, .sh-ptoggle-btn[data-side="national"][aria-pressed="false"]').locator('visible=true').first().click()
   await page.waitForTimeout(1500)
   r = await look(page)
   ok(page.url().includes('scope=national') && r.zoom === null, `× National puts the US map back (${page.url().replace(base, '')})`)

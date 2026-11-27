@@ -113,3 +113,61 @@ export function searchAfterPick(pathname: string, search: URLSearchParams, loc: 
   next.delete('page')
   return next
 }
+
+// --- the phone header's selector (#1301) ------------------------------------------------------------------------------
+
+/** Home's National with a saved town kept (#1301): `?scope=national`, read by the home level. */
+export const SCOPE_PARAM = 'scope'
+export const SCOPE_NATIONAL = 'national'
+
+export type PhonePlaceState =
+  /** No town saved or in the address: the pin + ZIP field. */
+  | { mode: 'zip' }
+  /** A town: "[📍 Tuscaloosa, AL | National]"; `canToggle` false on a page with no place scope (the chip only). */
+  | { mode: 'toggle'; place: string; active: 'place' | 'national'; canToggle: boolean }
+
+type Saved = { state?: string | null; city?: string | null } | null | undefined
+
+/** What the phone header's selector shows on `pathname`: the ZIP field, or the town and which side is active. */
+export function phonePlaceState(pathname: string, search: URLSearchParams, saved: Saved): PhonePlaceState {
+  const fromUrl = headerPlace(search, null)
+  const savedPlace = headerPlace(new URLSearchParams(), saved)
+  const home = (pathname.replace(/\/+$/, '') || '/') === '/'
+  if (isScopeAwarePath(pathname)) {
+    const place = headerPlaceLabel(fromUrl ?? savedPlace)
+    if (!place) return { mode: 'zip' }
+    return { mode: 'toggle', place, active: fromUrl ? 'place' : 'national', canToggle: true }
+  }
+  const place = headerPlaceLabel(fromUrl ?? savedPlace)
+  if (!place) return { mode: 'zip' }
+  if (home) return { mode: 'toggle', place, active: search.get(SCOPE_PARAM) === SCOPE_NATIONAL ? 'national' : 'place', canToggle: true }
+  return { mode: 'toggle', place, active: 'place', canToggle: false }
+}
+
+/**
+ * The query string after one tap on the toggle. Scope-aware pages: National clears ?state=&city= (and the page number),
+ * the town side writes the saved town back. Home: National sets ?scope=national, the town side removes it. Other pages:
+ * unchanged. The saved town itself is never cleared, so going back needs no retyping.
+ */
+export function searchForScope(pathname: string, search: URLSearchParams, target: 'place' | 'national', saved: Saved): URLSearchParams {
+  const next = new URLSearchParams(search)
+  const home = (pathname.replace(/\/+$/, '') || '/') === '/'
+  if (isScopeAwarePath(pathname)) {
+    next.delete('state')
+    next.delete('city')
+    next.delete('page')
+    if (target === 'place') {
+      const p = headerPlace(new URLSearchParams(), saved)
+      if (p) {
+        next.set('state', p.stateCode)
+        if (p.city) next.set('city', p.city)
+      }
+    }
+    return next
+  }
+  if (home) {
+    if (target === 'national') next.set(SCOPE_PARAM, SCOPE_NATIONAL)
+    else next.delete(SCOPE_PARAM)
+  }
+  return next
+}

@@ -2,7 +2,9 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
-import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
+import { fetchTopicCaptionFacts, fetchTopicDecisions, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
+import { decisionsSummary, saidSummary } from '../utils/saidCards'
+import { DecisionPanel, SaidQuoteCard } from '../components/stance/TopicRecordCards'
 import { companySearchTerm } from '../utils/companySearchTerm'
 import { topicStanceForMap } from '../utils/topicStance'
 import { positionVerdict, quoteStanceNote, spokeOf, topicPositions } from '../utils/topicPositions'
@@ -80,13 +82,6 @@ interface PlatformCompany {
   meetings: number
   decisions: number
   newest: { title: string | null; date: string | null; jurisdiction_name: string | null; state_code: string | null; url: string | null; evidence: string | null } | null
-}
-
-interface DecisionResult {
-  title: string
-  subtitle?: string
-  description?: string
-  url?: string
 }
 
 const PAGE = 8
@@ -206,25 +201,20 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
     return out
   }, [national.data, def.slug, topicWord])
   const meetings = useInfiniteQuery({
-    queryKey: ['topic-story', def.topicId, 'meetings', stateCode ?? ''],
-    queryFn: ({ pageParam }) => fetchTopicMeetings(def.topicId, { state: stateCode ?? undefined, limit: PAGE, offset: pageParam }),
+    // People first (#1293): meetings where the public took a position, then a vote or a named person, then the rest.
+    queryKey: ['topic-story', def.topicId, 'meetings', stateCode ?? '', 'people'],
+    queryFn: ({ pageParam }) =>
+      fetchTopicMeetings(def.topicId, { state: stateCode ?? undefined, limit: PAGE, offset: pageParam, sort: 'people' }),
     initialPageParam: 0,
     getNextPageParam: (last, pages) => {
       const seen = pages.reduce((a, p) => a + p.items.length, 0)
       return seen < last.total ? seen : undefined
     },
   })
+  // Decisions on the topic and ones that only mention it (#1293): a keyword hit is not a decision on the topic.
   const decisions = useQuery({
-    queryKey: ['topic-story', def.topicId, 'decisions', stateCode ?? ''],
-    queryFn: async () => {
-      const res = await api.get('/search', {
-        params: { types: 'decisions', topic_id: def.topicId, limit: 6, sort: 'date_desc', ...(stateCode ? { state: stateCode } : {}) },
-      })
-      return {
-        total: (res.data?.type_totals?.decisions as number | undefined) ?? 0,
-        items: (res.data?.results?.decisions ?? []) as DecisionResult[],
-      }
-    },
+    queryKey: ['topic-story', def.topicId, 'decisions', stateCode ?? '', 'split'],
+    queryFn: () => fetchTopicDecisions(def.topicId, { state: stateCode ?? undefined, limit: 6 }),
   })
   // The platform companies named in this scope's meetings and decisions (#1015).
   const companies = useQuery({
@@ -495,29 +485,39 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
             </ul>
           ) : null,
         }
-      case 'said':
+      case 'said': {
+        const firstPage = meetings.data?.pages[0]
+        const summary = saidSummary(def.slug, total, firstPage?.position_counts)
+        const firstPassing = items.findIndex((m) => m.in_passing)
         return {
           headline: loadingOr(meetings, 'meetings', () => `What was said about ${topicWord} ${stateName ? `in ${stateName}` : 'across America'}.`),
-          context: `${total ? `${meetingsWord(total)}, newest first. ` : 'Newest first. '}Each passage is quoted from the meeting transcript.`,
+          context: `${total ? `${meetingsWord(total)}, those where the public took a position or a speaker is named first. ` : ''}Passages are quoted from the transcript; a position is the meeting's, as an AI read it, never the speaker's.`,
           right: (
             <>
+              {summary && (
+                <p className="topic-story-summary" data-testid="said-summary">
+                  {summary}
+                </p>
+              )}
               <ul className="topic-story-list">
-                {items.map((m) => (
-                  <li key={m.video_id} className="topic-story-item">
-                    <p className="topic-story-item-title">{m.title ?? 'Meeting'}</p>
-                    <p className="topic-story-item-meta">
-                      {[m.jurisdiction_name ?? m.city, m.state].filter(Boolean).join(', ')}
-                      {fmtDate(m.date) ? ` · ${fmtDate(m.date)}` : ''}
-                    </p>
-                    {m.excerpt && <blockquote className="topic-story-quote">“{highlightSnippet(m.excerpt)}”</blockquote>}
-                    {m.video_url && (
-                      <a href={m.video_url} target="_blank" rel="noopener noreferrer" className="topic-story-link">
-                        Watch the meeting ↗
-                      </a>
-                    )}
-                  </li>
+                {(firstPassing < 0 ? items : items.slice(0, firstPassing)).map((m) => (
+                  <SaidQuoteCard key={m.video_id} m={m} slug={def.slug} />
                 ))}
               </ul>
+              {firstPassing >= 0 && (
+                <>
+                  <h3 className="topic-story-subhead" data-testid="said-in-passing">
+                    Mentioned in passing
+                    {firstPage?.position_counts ? ` · ${meetingsWord(firstPage.position_counts.in_passing)}` : ''}
+                  </h3>
+                  <p className="stance-note">No public position, vote or named speaker on record for these meetings.</p>
+                  <ul className="topic-story-list">
+                    {items.slice(firstPassing).map((m) => (
+                      <SaidQuoteCard key={m.video_id} m={m} slug={def.slug} />
+                    ))}
+                  </ul>
+                </>
+              )}
               {meetings.hasNextPage && (
                 <button type="button" className="folio-btn" onClick={() => meetings.fetchNextPage()} disabled={meetings.isFetchingNextPage}>
                   {meetings.isFetchingNextPage ? 'Loading…' : 'Show more meetings'}
@@ -526,29 +526,31 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
             </>
           ),
         }
+      }
       case 'decided': {
         const d = decisions.data
         return {
           headline: loadingOr(decisions, 'decisions', () => `What was decided on ${topicWord} ${stateName ? `in ${stateName}` : 'across America'}.`),
-          context: d ? `${fmt(d.total)} ${d.total === 1 ? 'decision' : 'decisions'} whose record mentions the topic, newest first.` : 'Decisions whose record mentions the topic, newest first.',
+          context: d
+            ? `${decisionsSummary(d.on_topic_total, d.in_passing_total, topicWord, 'it')} A decision counts as on ${topicWord} only when its wording names the policy, or the meeting's reading backs it; anything unsure is in passing.`
+            : 'Decisions whose record mentions the topic, newest first.',
           right: d ? (
             <>
-              <ul className="topic-story-list">
-                {d.items.map((x, i) => (
-                  <li key={x.url ?? i} className="topic-story-item">
-                    {x.url ? (
-                      <Link to={x.url} className="topic-story-item-title">
-                        {x.title}
-                      </Link>
-                    ) : (
-                      <p className="topic-story-item-title">{x.title}</p>
-                    )}
-                    {x.subtitle && <p className="topic-story-item-meta">{x.subtitle}</p>}
-                    {x.description && <p className="topic-story-item-body">{highlightSnippet(x.description)}</p>}
-                  </li>
-                ))}
-              </ul>
-              {d.total > d.items.length && (
+              <DecisionPanel
+                heading={`Decisions on ${topicWord}`}
+                total={d.on_topic_total}
+                items={d.on_topic}
+                testId="decisions-on-topic"
+                lead={`${fmt(d.on_topic_total)} ${d.on_topic_total === 1 ? 'decision names' : 'decisions name'} the policy ${where}.`}
+              />
+              <DecisionPanel
+                heading={`Mentioned in passing · ${fmt(d.in_passing_total)}`}
+                total={d.in_passing_total}
+                items={d.in_passing}
+                testId="decisions-in-passing"
+                lead={`${fmt(d.in_passing_total)} ${d.in_passing_total === 1 ? 'decision only mentions' : 'decisions only mention'} it in passing ${where}.`}
+              />
+              {d.total > d.on_topic.length + d.in_passing.length && (
                 <Link to={decisionsSearch} className="topic-story-link">
                   See all {fmt(d.total)} decisions →
                 </Link>

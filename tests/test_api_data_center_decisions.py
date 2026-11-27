@@ -98,7 +98,9 @@ def test_state_scope_counts_items_and_bound_params(get) -> None:
     body = resp.json()
     assert body["scope"]["level"] == "state" and body["scope"]["state_code"] == "AL"
     assert body["available"] is True
-    assert body["counts"] == {"contested": 1, "uncontested": 1, "meetings": 2}
+    # on_topic / in_passing (#1293) classify every headline in scope: here the two items (the headline query reads them).
+    assert body["counts"] == {"contested": 1, "uncontested": 1, "meetings": 2, "on_topic": 2, "in_passing": 0}
+    assert {i["relevance"] for i in body["items"]} == {"on_topic"}
     debated, consent = body["items"]
     assert debated["contested"] is True and debated["decision_url"] == "/decisions/d1"
     assert consent["contested"] is False and consent["vote_text"] == "voice vote"
@@ -141,3 +143,20 @@ def test_limit_is_bounded(get) -> None:
 
 def test_other_errors_are_500(get) -> None:
     assert get(_Conn(error=RuntimeError("boom"))).status_code == 500
+
+
+def test_relevance_marks_a_procedural_item_in_passing(get) -> None:
+    """#1293: a decision whose headline only reshuffles the agenda is "in passing", never a decision on data centers."""
+    conn = _Conn(
+        counts=[{"contested": 1, "uncontested": 1, "meetings": 1}],
+        items=[
+            _item(),
+            _item(data_center_decision_id="u2", contested=False,
+                  headline="Agenda order changed: data center and accessory structure items swapped"),
+        ],
+    )
+    body = get(conn, {"state": "AL"}).json()
+    by = {i["data_center_decision_id"]: i for i in body["items"]}
+    assert by["d1"]["relevance"] == "on_topic"
+    assert by["u2"]["relevance"] == "in_passing"
+    assert body["counts"]["on_topic"] == 1 and body["counts"]["in_passing"] == 1
