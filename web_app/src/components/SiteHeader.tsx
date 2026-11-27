@@ -314,9 +314,9 @@ export default function SiteHeader() {
 
   // Impact moved to the footer's Site links (#1191). Chat & Contact lives in the account menu and the footer (#952).
   const active = activeNavKey(location.pathname, activeSection)
+  // Places dropped from the primary nav (#1378); /jurisdictions stays reachable from search and elsewhere.
   const navItems: { key: NavKey; label: string; onClick: () => void }[] = [
     { key: 'stories', label: 'Data Stories', onClick: () => goSection('data-stories') },
-    { key: 'places', label: 'Places', onClick: () => navigate(`/jurisdictions${carriedQuery()}`) },
     { key: 'search', label: 'Search', onClick: () => goSection('search') },
     { key: 'how', label: 'How It Works', onClick: () => goSection('how-it-works') },
   ]

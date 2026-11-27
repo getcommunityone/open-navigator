@@ -16,10 +16,9 @@ describe('activeNavKey', () => {
     expect(activeNavKey('/challenge/data-centers')).toBe('stories')
     expect(activeNavKey('/stories-old')).toBeNull()
   })
-  it('lights Places on the places list and jurisdiction pages', () => {
-    expect(activeNavKey('/jurisdictions')).toBe('places')
-    expect(activeNavKey('/jurisdiction/0177256/meetings')).toBe('places')
-    expect(activeNavKey('/jurisdiction-quality')).toBeNull()
+  it('lights nothing on Places pages (Places left the primary nav, #1378)', () => {
+    expect(activeNavKey('/jurisdictions')).toBeNull()
+    expect(activeNavKey('/jurisdiction/0177256/meetings')).toBeNull()
   })
   it('lights Search on /search only, and ignores the home section off home', () => {
     expect(activeNavKey('/search')).toBe('search')
