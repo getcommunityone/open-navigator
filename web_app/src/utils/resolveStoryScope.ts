@@ -18,9 +18,10 @@ export interface ScopeCounts {
   cityMeetings?: number | null
   /**
    * The county holding the city and its meetings. `'unavailable'` (or undefined) when the topic has no county grain: the
-   * county step is skipped and the explanation says so.
+   * county step is skipped and the explanation says so. `'unplaced'`: the topic has a county grain but the city's county
+   * isn't on record (#1321).
    */
-  county?: { name: string; meetings: number } | 'unavailable' | null
+  county?: { name: string; meetings: number } | 'unavailable' | 'unplaced' | null
   /** Meetings on record for the state (null while unknown). */
   stateMeetings?: number | null
 }
@@ -77,18 +78,21 @@ export function resolveStoryScope(c: ScopeCounts): ResolvedScope {
   }
   const lead = `${city} has ${c.cityMeetings === 0 ? 'no meetings' : `only ${plural(c.cityMeetings)}`} on ${c.topic}, too few to call`
   const county = c.county
-  if (county && county !== 'unavailable') {
+  if (county && typeof county === 'object') {
     if (enough(county.meetings)) {
       return {
         ...base,
         level: 'county',
         county: county.name,
         meetings: county.meetings,
-        reason: `${lead}, so this shows ${county.name} (${plural(county.meetings)}).`,
+        // The county's own figures aren't served yet (#1321 follow-up): the page draws the county at its state, so the
+        // reason says the state is what is shown, never that the county's data is (CLAUDE.md: label matches the data).
+        reason: `${lead}. ${county.name} has ${plural(county.meetings)}, but figures aren't broken out by county yet, so this shows ${stateName}.`,
       }
     }
     return stateOr(`${lead} (${county.name} has ${plural(county.meetings)})`)
   }
+  if (county === 'unplaced') return stateOr(`${lead}. Its county isn't on record`)
   return stateOr(`${lead}. County counts aren't on record for this topic`)
 }
 
