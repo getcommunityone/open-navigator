@@ -319,7 +319,9 @@ def test_nothing_read_is_zero_and_a_failed_read_is_null(get):
 
 def test_vote_sides_and_caption_comments(get):
     routes = {
-        "FROM data_center_decision": [{"decisions_for": 7, "decisions_against": 5, "has_side": True}],
+        "FROM data_center_decision": [
+            {"decisions_tallied": 12, "yes_votes": 79, "no_votes": 10, "decisions_for": 7, "decisions_against": 5, "has_side": True}
+        ],
         "FROM data_center_comment": [{"comments": 2822, "governments": 334}],
     }
     d = get(dc_conn(routes=routes), "data-centers").json()
@@ -327,8 +329,19 @@ def test_vote_sides_and_caption_comments(get):
     assert d["caption_comments"] == {"comments": 2822, "governments": 334}
 
 
+def test_with_sides_every_vote_count_comes_from_the_decision_mart(get):
+    routes = {
+        "FROM data_center_decision": [
+            {"decisions_tallied": 4, "yes_votes": 20, "no_votes": 3, "decisions_for": 3, "decisions_against": 1, "has_side": True}
+        ]
+    }
+    v = get(dc_conn(routes=routes), "data-centers").json()["votes"]
+    # The positions mart said 12 decisions; the decision mart (preferred analysis, no ties) has 4: one basis, one count.
+    assert v == {"decisions": 4, "for": 20, "against": 3, "decisions_for": 3, "decisions_against": 1}
+
+
 def test_vote_sides_and_comments_scope_like_the_speakers(get):
-    conn = dc_conn(routes={"FROM data_center_decision": [{"decisions_for": 1, "decisions_against": 0, "has_side": True}]})
+    conn = dc_conn(routes={"FROM data_center_decision": [{"decisions_tallied": 1, "decisions_for": 1, "decisions_against": 0, "has_side": True}]})
     get(conn, "data-centers", {"state": "AL", "city": "Tuscaloosa"})
     for marker in ("FROM data_center_decision", "FROM data_center_comment"):
         assert next(p for sql, p in conn.calls if marker in sql) == ("AL", "%Tuscaloosa%")

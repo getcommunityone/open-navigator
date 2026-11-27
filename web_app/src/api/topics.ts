@@ -103,7 +103,7 @@ export async function fetchTopicMeetings(
 }
 
 /** A decision whose record matched the topic (#1293), with its meeting and why it is on the topic or only in passing. */
-export interface TopicDecision {
+export interface TopicDecision extends DecisionPeople {
   event_decision_id: string
   title: string
   /** Matched passage, terms in <mark> (render with highlightSnippet). */
@@ -120,6 +120,25 @@ export interface TopicDecision {
   video_id?: string | null
   relevance: 'on_topic' | 'in_passing'
   relevance_basis: string
+}
+
+/** One person on a decision's side (#1320): an official by full name and reliable role, anyone else "First L.". */
+export interface DecisionPerson {
+  name: string
+  role?: string | null
+  kind: 'official' | 'resident'
+}
+
+/** Who was on each side of a decision, and its recorded vote (#1320). All optional: older servers omit them. */
+export interface DecisionPeople {
+  supported_by?: DecisionPerson[]
+  opposed_by?: DecisionPerson[]
+  spoke_on_it?: DecisionPerson[]
+  supported_view?: string | null
+  /** false: no counter view on record; null: the record has no competing views. */
+  opposition_recorded?: boolean | null
+  vote_yes?: number | null
+  vote_no?: number | null
 }
 
 export interface TopicDecisionList {

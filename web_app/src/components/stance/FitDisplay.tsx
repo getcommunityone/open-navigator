@@ -24,6 +24,11 @@ export function RecordList({ spec, showStatus }: { spec: DotsSpec; showStatus: b
                 <span>{d.title}</span>
               )}
               {meta && <span className="stance-fit-meta">{meta}</span>}
+              {d.detail?.map((line) => (
+                <span key={line} className="stance-fit-meta">
+                  {line}
+                </span>
+              ))}
             </li>
           )
         }),

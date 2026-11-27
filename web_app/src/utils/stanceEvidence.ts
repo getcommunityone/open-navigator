@@ -104,7 +104,11 @@ export function evidenceFacts(e: RecordedEvidence): string {
     const how = e.votesFor > e.votesAgainst ? 'passed' : e.votesAgainst > e.votesFor ? 'failed' : 'tied'
     votes = `One decision ${how} ${fmt(e.votesFor)}–${fmt(e.votesAgainst)}`
   } else {
-    votes = `${fmt(e.decisions)} decisions with recorded votes, ${fmt(e.votesFor)} for and ${fmt(e.votesAgainst)} against in all`
+    // #1290: "for / against" only by which way each decision went; summed votes are yes and no (a yes can be a moratorium).
+    votes =
+      e.decisionsFor != null && e.decisionsAgainst != null
+        ? `${fmt(e.decisions)} decisions with recorded votes, ${fmt(e.decisionsFor)} for and ${fmt(e.decisionsAgainst)} against`
+        : `${fmt(e.decisions)} decisions with recorded votes, ${fmt(e.votesFor)} yes and ${fmt(e.votesAgainst)} no votes in all`
   }
   const r = e.meetingsReviewed
   const comments = e.captionComments ?? 0
@@ -112,7 +116,7 @@ export function evidenceFacts(e: RecordedEvidence): string {
   if (e.speakers == null) speakers = 'public speakers are not available yet'
   else if (!r) speakers = `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} on record`
   else {
-    const where = `in ${fmt(r)} ${r === 1 ? 'meeting' : 'meetings'} reviewed`
+    const where = `in ${fmt(r)} ${r === 1 ? 'meeting' : 'meetings'} reviewed by hand`
     // #1290: our captions hold public comments, so people did speak; what's missing is which side they took.
     speakers =
       e.speakers === 0
@@ -133,8 +137,6 @@ export function voteSideClause(e: RecordedEvidence, topic: string): string {
   return `Recorded votes went the other way: ${fmt(k)} of ${fmt(d)} ${d === 1 ? 'decision' : 'decisions'} with a recorded vote went ${side} ${topic}.`
 }
 
-/** The label in front of the transcript reading, so it never reads as counted speakers (#1290). */
-export const READING_LABEL = 'Read from each meeting’s transcript, not counted by speaker:'
 
 /** "Recorded votes: 79 for and 10 against, in 12 decisions." */
 export function voteClause(e: RecordedEvidence): string {

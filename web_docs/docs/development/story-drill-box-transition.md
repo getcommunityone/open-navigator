@@ -54,3 +54,31 @@ state drill-down transition".
 - On a phone the county map is taller than the national map, so part of the flight lands below the fold.
 - In the reverse direction the county boxes briefly overlap the legend and counts under the shorter national map while
   they gather back.
+
+## Decision (27 Nov 2026, #1309): the county map fits the screen
+
+The owner liked the county dot map's format, but it didn't fit the screen. A tall state like Alabama was drawn 1,046px
+tall on a 1366×768 laptop, and on a phone its town labels were 10px. The map now fits the screen:
+
+- `.stance-map-fit` caps the map's height at the visible screen below the story bar
+  (`100svh - --map-chrome`: 210px on a laptop, 230px on a phone). The width comes from that height and the state's shape
+  (`--map-ar`), centred. A wide state such as Tennessee stays bound by the column width.
+- Town labels never render under 12px and county names never under 10.5px (`utils/mapFit.ts`, `labelUnits`), measured from
+  the width actually drawn. Labels that would then overlap are dropped by the existing rule.
+- On phones the title and the United States / state picker row are compact.
+
+Measured on 27 Nov 2026 (Alabama): iPhone 13, 277×434; 1366×768, 356×558; 1440×900, 441×690. The format is unchanged:
+dots, county outlines, rings, legend and table.
+
+Follow-up the same day (owner: *"reorganize text above and below and zoom so it fits better; handle different states"*).
+The layout follows the state's shape (`TALL_ASPECT = 0.95` in `utils/mapFit.ts`):
+
+- A tall state in a figure at least 600px wide puts the title, picker, key and notes beside the map. A container query lays
+  out the inner `.stance-map-layout` grid, because a container can't query itself. The map then takes the screen's
+  height (200px reserved) and up to 60% of the width.
+- A wide state keeps a one-line title above and the key below (230px reserved).
+- On a phone (290px reserved), the header, story bar and bottom bar stay on screen, and the minimum width is 200px.
+- The highlighted city is named in the key, not in the title.
+
+Measured: AL, IN, NJ, FL, CA, TX, TN, KS, MI, NY and RI all fit at 1440×900, 1366×768 and on an iPhone 13
+(`pull_requests/assets/1309/measurements.txt`).

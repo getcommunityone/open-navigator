@@ -25,7 +25,9 @@ each tallied vote went for the data center:
 | Motion | Passed | Failed |
 |---|---|---|
 | Pause, ban or prohibit (`moratori`, `ban`, `prohibit`, `pause` in the headline) | `against` | `for` |
-| A denial or rejection (`deny`, `denied`, `reject` in the outcome or headline) | `against` | `against` |
+| Lifting, ending, repealing or rejecting a pause or ban (with a pause word in the headline) | `for` | `against` |
+| An outcome of denied or rejected | `against` | `against` |
+| A motion to deny (`deny`, `reject` in the headline only) | `against` | `for` |
 | Anything else (approve, rezone, adopt rules, delay) | `for` | `against` |
 
 Null without a tally recording both a yes and a no count, and on a tie. Alabama's one vote ("Data Center Zoning Ordinance
@@ -54,8 +56,8 @@ against …)" (the reading) and "62 public comments at 10 local governments" (ca
   **Who spoke up** show a dash (not available yet), not 0, with "62 public comments are on record in our captions here, but
   no speaker’s side is recorded yet." 0 stays for meetings reviewed where nobody spoke and the captions hold no comment.
 - Caption comments still don't count toward the minimum: a comment with no side can't make a place lean.
-- The reading in the line under "Not enough recorded activity …" is labelled: "Read from each meeting’s transcript, not
-  counted by speaker: of 71 meetings read in Alabama, the public spoke in 8 (…)."
+- The reading in the line under "Not enough recorded activity …" names its own source (#1313): "A reading of all 71 meeting
+  transcripts found the public speaking on data centers in 8 (6 against and 2 split)."
 
 API: `GET /api/topics/{topic}/caption-facts` adds `caption_comments: {comments, governments} | null` (data centers only).
 
@@ -69,7 +71,7 @@ name.
 with `{T}`, which becomes the control: "America mostly wants [water fluoridation] ended.", "Ohio mostly favors [gun
 control].", "Arizona mostly opposes [Flock and license plate readers]." The insufficient title is "Not enough recorded
 activity on [data centers] to say." A title whose words don't name the topic leads with it ("On [gun control]: …"), never in
-brackets. `utils/storyHeadlineTopic.test.ts` checks every topic's for, against and split titles: one control, no bracket, the
+brackets (#1313 made the same fix for the insufficient title). `utils/storyHeadlineTopic.test.ts` checks every topic's for, against and split titles: one control, no bracket, the
 topic's words not repeated outside it.
 
 ## 4. Every screen fits a phone

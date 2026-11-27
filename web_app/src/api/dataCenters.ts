@@ -4,6 +4,7 @@
 // `items` array means no claims were found for the scope.
 //
 import type { components } from '../lib/api.types'
+import type { DecisionPeople } from './topics'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
 
@@ -92,7 +93,7 @@ export async function fetchDataCenterPositions(params: {
 }
 
 /** One decision a local meeting took on a data center item, debated or taken up without debate (#933). */
-export interface DataCenterDecision {
+export interface DataCenterDecision extends DecisionPeople {
   data_center_decision_id: string
   /** True: debated. False: taken up without debate (consent agenda). */
   contested: boolean

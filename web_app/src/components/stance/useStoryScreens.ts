@@ -83,6 +83,7 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   const goToRef = useRef<(i: number) => void>(() => {})
   const ready = useRef(false)
   const lastWritten = useRef<string | null>(null)
+  const lastScope = useRef<{ key: string; screen: string } | null>(null)
   const recent = useRecentWrites()
   const dialogOpenRef = useRef(false)
   const viaKeyboard = useRef(false)
@@ -190,8 +191,28 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     // When the screens change (a new place, or empty screens dropping out as data arrives), the reader stays on the
     // screen they were on, found by its id.
     // The screen the reader asked for wins over the URL and the old position when the screens rebuild under a jump (#1208).
+    // A change of place (a map pick, the place picker, the header's National) starts the story over on its first screen, unless
+    // the same change also asked for a screen in the URL: the screen left in the address belongs to the old place.
+    const placeChanged = lastScope.current !== null && lastScope.current.key !== scopeKey
+    const askedNow = lastScope.current != null && lastScope.current.screen !== screenParam
+    lastScope.current = { key: scopeKey, screen: screenParam }
+    if (placeChanged && !askedNow) {
+      intent.current = null
+      shownIds.current = []
+      const first = screens[0]?.id
+      if (first && screenParam !== first) {
+        setSp(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            next.set('screen', first)
+            return next
+          },
+          { replace: true },
+        )
+      }
+    }
     const fromIntent = intent.current ? screens.findIndex((x) => x.id === intent.current!.id) : -1
-    const fromUrl = fromIntent >= 0 ? fromIntent : storyScreenIndex(screens, screenParam)
+    const fromUrl = placeChanged && !askedNow ? 0 : fromIntent >= 0 ? fromIntent : storyScreenIndex(screens, screenParam)
     const wasOn = shownIds.current[activeRef.current]
     shownIds.current = screens.map((x) => x.id)
     const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1
@@ -239,6 +260,11 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [n, mode, scopeKey, screens])
+
+  // A new place starts every long screen at its top (its scroller keeps its old offset otherwise).
+  useEffect(() => {
+    rootRef.current?.querySelectorAll<HTMLElement>('[data-panel] .stance-grid').forEach((g) => (g.scrollTop = 0))
+  }, [scopeKey])
 
   // A screen in the URL that changed from outside (a link, the back button) moves the page.
   useEffect(() => {

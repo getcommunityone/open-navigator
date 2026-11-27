@@ -244,6 +244,8 @@ def test_decisions_endpoint_splits_and_links(get, monkeypatch):
          "body_name": "Shelby County Commission", "video_id": "abcdefghijk", "meeting_date": "2026-04-08",
          "excerpt": "from the <mark>firearms</mark> training unit"},
         {"event_decision_id": "d2", "headline": "Prohibiting felons from possessing firearms", "decision_statement": None,
+         "competing_views": '{"dominant_view": {"held_by": ["lee_busby_councilor_tuscaloosa", "scott_holmes_unknown_tuscaloosa"]}, "counter_views": []}',
+         "vote_tally": '{"yes": 7, "no": 0}', "speaker_ids": None, "jurisdiction_type": "city",
          "outcome": "Supported", "jurisdiction_name": "Tuscaloosa", "state_code": "AL", "state": "Alabama",
          "event_meeting_id": None, "body_name": None, "video_id": None, "meeting_date": None, "excerpt": None},
     ]
@@ -264,6 +266,11 @@ def test_decisions_endpoint_splits_and_links(get, monkeypatch):
     on, = body["on_topic"]
     off, = body["in_passing"]
     assert on["event_decision_id"] == "d2" and on["decision_url"] == "/decisions/d2" and on["meeting_url"] is None
+    # #1320: who supported it (an official by name and title, a resident First L.), no opposition recorded, the vote.
+    assert on["supported_by"] == [{"name": "Lee Busby", "role": "Councilor", "kind": "official"},
+                                  {"name": "Scott H.", "role": None, "kind": "resident"}]
+    assert on["opposition_recorded"] is False and (on["vote_yes"], on["vote_no"]) == (7, 0)
+    assert off["supported_by"] == [] and off["opposition_recorded"] is None
     assert off["meeting_url"] == "/meetings/7" and off["video_url"] == "https://www.youtube.com/watch?v=abcdefghijk"
     assert off["meeting_name"] == "Shelby County Commission" and off["meeting_date"] == "2026-04-08"
     assert conn.calls[0][1] == ("firearm | firearms", "AL", None)

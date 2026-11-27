@@ -11,9 +11,19 @@ caption for every topic: lead with disagreement where it is high-volume, and oth
 differ. Only the data-center story had a conclusion ("America hates data centers."); the rest said "X talked about Y in N
 meetings." or showed a fixed blurb.
 
+## Decision (27 Nov 2026, #1316): a place never borrows America's title
+
+The owner, on `/stories/license-plate-readers?state=FL`: *"If florida is selected why is it showing america map and
+national level header"*, and *"if there is not enough data to show at zip show city if not enough at city show county if
+not at county show state"*. The step-up chain ends at the state. With a state or a city chosen, `pickCaption` no longer
+uses the national entry of `facts.wider`: a thin state keeps its own title (Florida: "Florida weighed Flock and license
+plate readers in 9 meetings."), and a city may still name its state's conclusion ("Alabama hates data centers."). This
+replaces the national fallback of #1182 and #1200 for place scopes; the national page is unchanged. `TopicStory` also
+passes `zoom` to `StoryStatesMap`, so a chosen state is drawn as that state rather than the national map.
+
 ## Decision (27 Nov 2026, #1290): votes read by which way they went; speaker sources reconciled; the topic is the noun
 
-[#1290](https://github.com/getcommunityone/open-navigator/issues/1290) revises #1289 below in three places; the reasons are in
+[#1290](https://github.com/getcommunityone/open-navigator/issues/1290) revises #1289 below; the reasons are in
 [Story vote direction, speaker sources and phone fit](story-vote-direction-and-phone-fit.md).
 
 - **Votes.** The vote check reads which way each tallied vote went for the topic (`data_center_decision.vote_side`: a passed
@@ -21,10 +31,11 @@ meetings." or showed a fixed blurb.
   answers #1289's caveat below; nationally the votes are mixed (7 for, 5 against), so the title is "America hates data
   centers." again.
 - **Speakers.** Where our captions hold public comments, the facts say "no speaker’s side is recorded …, and the 62 public
-  comments in our captions are not sorted by side yet", never "no public speakers"; the transcript reading after them is
-  labelled "Read from each meeting’s transcript, not counted by speaker:".
-- **Title.** "Not enough recorded activity on [data centers] to say.", with the topic control in the sentence; every topic's
-  conclusion wording marks the topic's place (`{T}`), so no title shows the control in brackets.
+  comments in our captions are not sorted by side yet", never "no public speakers" (#1313's reading line, which names its own
+  source, follows).
+- **Title.** #1313 put the topic control in the insufficient title; #1290 does the same for every topic's conclusion wording,
+  which marks the topic's place (`{T}`), so no title shows the control in brackets ("America mostly wants [water
+  fluoridation] ended.").
 
 ## Decision (27 Nov 2026, #1289): the stance headline agrees with the recorded votes, and needs a minimum
 
@@ -57,6 +68,12 @@ After the rules below pick a caption, the scope's **recorded** activity checks i
 Caveat, stated so it can be revisited: a vote "for" means the motion passed, and a motion can itself restrict data centers
 (a moratorium or a strict ordinance). Summed votes are the owner's proxy for which way officials went until decisions carry
 a direction of their own.
+
+Update (27 Nov 2026, #1313): the title reads "Not enough recorded activity on [data centers ▾] to say.", with the topic
+as an inline control. It used to be "… to say ( ▾ )." with an empty picker in brackets. The basis names each source and its
+scope, so the two lines can't contradict: "One decision passed 8–1; no public speakers in 24 meetings reviewed by hand. A
+reading of all 71 meeting transcripts found the public speaking on data centers in 8 (6 against and 2 split)." With no
+public comment found it says so, and it adds how many meetings are not read yet.
 
 Contract: `GET /api/topics/{topic}/caption-facts` adds `speakers.meetings_reviewed` and
 `votes: {decisions, for, against} | null` (data centers only; null when no meeting in scope was reviewed).

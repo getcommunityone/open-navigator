@@ -71,29 +71,30 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
       }
       const room = Math.min(barAt, gridAt) - rightAt - MORE_ROOM
       const list = blocks(right, room).filter((b) => b.getBoundingClientRect().height > 0)
+      // The panel's first real block (not just a heading over it) always stays, zoomed down when it alone is too tall
+      // (never under MIN_ZOOM: past that it stays and the screen scrolls, never an empty panel). Blocks after it are then
+      // measured again, after the zoom, and wait behind "More" when they run under the bar.
+      const heading = (b: HTMLElement) => b.matches('p, h1, h2, h3, h4, h5, h6') && b.getBoundingClientRect().height < 60
+      let keep = list.findIndex((b) => !heading(b))
+      if (keep < 0) keep = list.length - 1
+      const primary = list[keep]
+      if (primary) {
+        const over = primary.getBoundingClientRect().bottom - top - room
+        if (over > 0 && room > 0) {
+          const h = primary.getBoundingClientRect().height
+          const z = Math.max(MIN_ZOOM, (h - over) / h)
+          primary.style.setProperty('zoom', String(Math.floor(z * 100) / 100))
+          primary.setAttribute('data-fit-zoom', '')
+          hidden = true
+        }
+      }
       list.forEach((b, i) => {
-        if (i === 0) return
+        if (i <= keep) return
         if (b.getBoundingClientRect().bottom - top > room) {
           b.classList.add('fit-hidden')
           hidden = true
         }
       })
-      const first = list[0]
-      if (first) {
-        const h = first.getBoundingClientRect().height
-        if (h > room && room > 0) {
-          const z = Math.max(MIN_ZOOM, room / h)
-          first.style.setProperty('zoom', String(Math.floor(z * 100) / 100))
-          first.setAttribute('data-fit-zoom', '')
-          if (first.getBoundingClientRect().bottom - top > room) {
-            // Still too tall at the smallest zoom: it waits behind "More" like the rest, so the screen never runs under the bar.
-            first.style.removeProperty('zoom')
-            first.removeAttribute('data-fit-zoom')
-            first.classList.add('fit-hidden')
-          }
-          hidden = true
-        }
-      }
       setHasMore(hidden)
     }
     // A re-measure after our own change lands on the same result and the same size, so the observers settle.

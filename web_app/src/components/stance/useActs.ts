@@ -251,7 +251,33 @@ export function useActs(opts: Options): ActsApi {
         const h = holds().find((x) => Math.abs(x.pos - pos) <= 8)
         if (h) o.current.onSettled(h)
       }
+      // Scrolling that belongs to something inside a screen (a long screen's own scroller, a bottom sheet) never moves the story
+      // to another screen: the reader's gesture is in a block, not on the page, so what the page does meanwhile (a chained
+      // overscroll, a sheet locking the body, a block growing) is not a screen change. Moves the reader asks for (Next, a key,
+      // a progress segment) set `programmatic` and are not held back.
+      let innerUntil = 0
+      const modalOpen = () => document.querySelector('[role="dialog"][aria-modal="true"]') != null
+      const inInner = (t: EventTarget | null): boolean => {
+        for (let el = t as HTMLElement | null; el && el !== game && el !== document.body; el = el.parentElement) {
+          if (el.getAttribute?.('role') === 'dialog') return true
+          if (el.scrollHeight <= el.clientHeight + 1) continue
+          const oy = getComputedStyle(el).overflowY
+          if (oy === 'auto' || oy === 'scroll') return true
+        }
+        return false
+      }
+      const markInner = (e: Event) => {
+        if (inInner(e.target)) innerUntil = performance.now() + 700
+      }
+      const innerEvents = ['touchstart', 'touchmove', 'touchend', 'wheel'] as const
+      if (snap) innerEvents.forEach((n) => window.addEventListener(n, markInner, { passive: true, capture: true }))
+      const heldInner = () => snap && !programmatic && (modalOpen() || performance.now() < innerUntil)
       const check = () => {
+        if (heldInner()) {
+          // Put the page back on the screen it rests on if the gesture chained out of the block and moved it.
+          if (anchor != null && Math.abs(window.scrollY - anchor) > 2 && !modalOpen()) window.scrollTo({ top: anchor, behavior: 'instant' as ScrollBehavior })
+          return
+        }
         const off = frameOffset(game)
         const line = off + window.innerHeight * 0.35
         let idx = 0
@@ -277,12 +303,13 @@ export function useActs(opts: Options): ActsApi {
         const now = performance.now()
         const quiet = now - wheelLast > 150
         wheelLast = now
-        for (let el = e.target as HTMLElement | null; el && el !== game && el !== document.body; el = el.parentElement) {
-          if (el.scrollHeight <= el.clientHeight + 1) continue
-          const oy = getComputedStyle(el).overflowY
-          if (oy !== 'auto' && oy !== 'scroll') continue
-          if (e.deltaY > 0 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0) return
+        // A modal sheet owns the wheel: the story behind it does not move. A block that scrolls keeps the wheel, at its ends too
+        // (it never hands the gesture to the page; Next, Back, the keys and a sideways swipe change the screen).
+        if (modalOpen()) {
+          e.preventDefault()
+          return
         }
+        if (inInner(e.target)) return
         const y = window.scrollY
         const hs = holds()
         const next = e.deltaY > 0 ? hs.find((h) => h.pos > y + 4) : [...hs].reverse().find((h) => h.pos < y - 4)
@@ -307,6 +334,7 @@ export function useActs(opts: Options): ActsApi {
         window.removeEventListener('scroll', check)
         window.removeEventListener('resize', check)
         window.removeEventListener('wheel', onWheel)
+        innerEvents.forEach((n) => window.removeEventListener(n, markInner, { capture: true }))
         root.classList.remove(SNAP_CLASS)
         clearStates(screens)
         api.current = { holds: () => [], goToRound: () => {}, goToReveal: () => {}, goToStop: () => {}, lock: () => {} }

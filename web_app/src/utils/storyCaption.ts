@@ -30,7 +30,7 @@
 import type { TopicCaptionFacts } from '../api/topics'
 import { countClauses } from './clauses'
 import { STORIES, storyScopeLabel, type StoryScope, type StoryTitlePart } from './dataStory'
-import { READING_LABEL, belowStanceMinimum, evidenceFacts, recordedEvidence, stanceSide, voteSide, voteSideClause } from './stanceEvidence'
+import { belowStanceMinimum, evidenceFacts, recordedEvidence, stanceSide, voteSide, voteSideClause } from './stanceEvidence'
 import { GENERIC_POSITIONS, hasTopicPositions, positionVerdict, topicPositions, type PositionCounts, type TopicPositions } from './topicPositions'
 
 // --- thresholds (story-captions.md says why) -----------------------------------------------------------------------
@@ -288,8 +288,30 @@ const STANCE_KINDS: ReadonlySet<CaptionKind> = new Set(['position', 'wider_posit
 
 /** The title for a scope with too little recorded activity for any stance (#1289). */
 export const NOT_ENOUGH_TITLE = 'Not enough recorded activity to say.'
-/** The same title with the topic as its control in the sentence (#1290): "Not enough recorded activity on [T] to say.". */
-export const NOT_ENOUGH_TEMPLATE: StoryTitlePart[] = ['Not enough recorded activity on ', T, ' to say.']
+/** The same title with the topic as its inline control (#1313): "Not enough recorded activity on [data centers ▾] to say." */
+const NOT_ENOUGH_TEMPLATE: StoryTitlePart[] = ['Not enough recorded activity on ', T, ' to say.']
+
+/**
+ * The transcript reading for a scope with too little recorded activity (#1313), naming its own source and how many meetings
+ * it covers, so it never reads as contradicting the hand count: "A reading of all 71 meeting transcripts found the public
+ * speaking on data centers in 8 (6 against and 2 split)." No zero is stated as a count.
+ */
+function readingLine(c: PositionCounts, topic: string, words: TopicPositions): string {
+  const spoke = c.against + c.for + c.split
+  const all = c.meetings != null && c.meetings <= c.read ? 'all ' : ''
+  const of = `A reading of ${all}${fmt(c.read)} meeting ${c.read === 1 ? 'transcript' : 'transcripts'}`
+  const sides = countClauses(
+    [
+      { n: c.against, text: (n) => `${fmt(n)} ${words === GENERIC_POSITIONS ? 'against' : words.against.toLowerCase().replace(/ data centers$/, '')}` },
+      { n: c.for, text: (n) => `${fmt(n)} ${words === GENERIC_POSITIONS ? 'for' : words.for.toLowerCase().replace(/ data centers$/, '')}` },
+      { n: c.split, text: (n) => `${fmt(n)} split` },
+    ],
+    { leadLarger: true },
+  )
+  const main = spoke > 0 ? `${of} found the public speaking on ${topic} in ${fmt(spoke)}${sides ? ` (${sides})` : ''}.` : `${of} found no public comment on ${topic}.`
+  const unread = c.meetings != null ? c.meetings - c.read : 0
+  return unread > 0 ? `${main} ${meetingsWord(unread)} not read yet.` : main
+}
 
 /**
  * #1289: the stance headline agrees with every kind of recorded evidence. Below the minimum it says there is not enough to
@@ -302,11 +324,7 @@ function checkAgainstRecord(c: Caption, topicKey: string, facts: TopicCaptionFac
   const place = national ? 'America' : storyScopeLabel(scope)
   if (belowStanceMinimum(e, topicKey)) {
     const own = positionCounts(facts, facts.meetings)
-    const where = national ? 'nationwide' : `in ${storyScopeLabel(scope)}`
-    // The transcript reading is labelled (#1290): its "the public spoke in 8" is about meetings read, not counted speakers.
-    const read = own ? positionBasis(own, topicPositions(topicKey), where) : ''
-    const reading = read ? `${READING_LABEL} ${read.charAt(0).toLowerCase()}${read.slice(1)}` : ''
-    // The topic control sits in the sentence (#1290): "Not enough recorded activity on [data centers ▾] to say."
+    const reading = own ? readingLine(own, CAPTION_COPY[topicKey]?.topic ?? topicKey.replace(/-/g, ' '), topicPositions(topicKey)) : ''
     return { kind: 'insufficient', template: NOT_ENOUGH_TEMPLATE, place, basis: [evidenceFacts(e), reading].filter(Boolean).join(' '), ai: Boolean(reading) }
   }
   const votes = voteSide(e)
@@ -316,7 +334,7 @@ function checkAgainstRecord(c: Caption, topicKey: string, facts: TopicCaptionFac
       kind: 'disagreement',
       template: [P, ' is divided on ', T, '.'],
       place,
-      basis: [voteSideClause(e, CAPTION_COPY[topicKey]?.topic ?? topicKey.replace(/-/g, ' ')), c.basis].filter(Boolean).join(' '),
+      basis: [c.basis, voteSideClause(e, CAPTION_COPY[topicKey]?.topic ?? topicKey.replace(/-/g, ' '))].filter(Boolean).join(' '),
       ai: c.ai,
     }
   }
@@ -620,7 +638,8 @@ function widerPosition(
   label: string,
   level: keyof typeof HATES_MIN_MEETINGS,
 ): Caption | null {
-  for (const w of facts.wider ?? []) {
+  // #1316 (owner, 27 Nov 2026): the step-up chain ends at the state; a place never borrows the country's title.
+  for (const w of (facts.wider ?? []).filter((x) => x.level !== 'national')) {
     const c = positionCounts(w)
     if (!c) continue
     const v = positionVerdict(c, HATES_MIN_MEETINGS[w.level])
@@ -673,7 +692,8 @@ function widerSentiment(
       : ownAgainst === 0
         ? `Of its ${meetingsWord(ownRead)} read, none had a public mostly opposed.`
         : `Of its ${meetingsWord(ownRead)} read, ${fmt(ownAgainst)} had a public mostly opposed, under the ${fmt(HATES_MIN_MEETINGS[level])} a title of its own needs.`
-  for (const w of facts.wider ?? []) {
+  // #1316 (owner, 27 Nov 2026): the step-up chain ends at the state; a place never borrows the country's title.
+  for (const w of (facts.wider ?? []).filter((x) => x.level !== 'national')) {
     const against = w.public_against_meetings ?? 0
     if (against < HATES_MIN_MEETINGS[w.level]) continue
     const name = w.level === 'national' ? 'America' : (w.state ?? stateName ?? w.state_code ?? null)

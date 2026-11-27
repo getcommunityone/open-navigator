@@ -30,9 +30,11 @@
     VOTE SIDE (#1290): which way a recorded vote went for the data center, so a stance headline can be checked
     against the votes. Only when the tally records both a yes and a no count; null otherwise (and on a tie). A motion
     to pause, ban or prohibit (moratorium, ban, prohibit, pause in the headline) that passes is 'against', and one
-    that fails is 'for'; a denial or rejection (denied / deny / reject in the outcome or headline) is 'against'; any
-    other motion (approve, rezone, adopt rules, delay) that passes is 'for', and one that fails is 'against'. A
-    keyword reading of the item's own words, not a model's: web_docs/docs/development/story-stance-evidence.md.
+    that fails is 'for', unless it lifts, ends, rescinds, repeals or rejects the pause (then the sign flips); an
+    outcome of denied / rejected is 'against'; a motion to deny in the headline is 'against' when it passes and 'for'
+    when it fails; any other motion (approve, rezone, adopt rules, delay) that passes is 'for', and one that fails is
+    'against'. A keyword reading of the item's own words, not a model's:
+    web_docs/docs/development/story-vote-direction-and-phone-fit.md.
     Design: web_docs/docs/development/data-center-who-spoke-up.md
 */
 
@@ -119,10 +121,18 @@ select
     d.vote_text::text                                           as vote_text,
     (case
         when d.votes_for is null or d.votes_against is null or d.votes_for = d.votes_against then null
+        -- lifting, ending or rejecting a pause or ban lets data centers proceed: the sign flips
+        when coalesce(d.headline, '') ~* '(moratori|\mban(s|ned|ning)?\M|prohibit|\mpause)'
+             and coalesce(d.headline, '') ~* '(\mlift|\mend(s|ed|ing)?\M|rescind|repeal|terminat|reject)'
+            then case when d.votes_for > d.votes_against then 'for' else 'against' end
         when coalesce(d.headline, '') ~* '(moratori|\mban(s|ned|ning)?\M|prohibit|\mpause)'
             then case when d.votes_for > d.votes_against then 'against' else 'for' end
-        when coalesce(d.outcome, '') || ' ' || coalesce(d.headline, '') ~* '(\mden(y|ies|ied)\M|reject)'
+        -- the outcome says it was denied: the result went against the data center
+        when coalesce(d.outcome, '') ~* '(\mden(y|ies|ied)\M|reject)'
             then 'against'
+        -- a motion to deny (in the headline): passing denies it, failing lets it proceed
+        when coalesce(d.headline, '') ~* '(\mden(y|ies|ied)\M|reject)'
+            then case when d.votes_for > d.votes_against then 'against' else 'for' end
         when d.votes_for > d.votes_against then 'for'
         else 'against'
     end)::text                                                  as vote_side,

@@ -47,6 +47,13 @@ Beyond counted speakers, both maps show an **AI reading** of each data center me
 Owner, 27 Nov 2026: with Tuscaloosa, AL chosen, the Overview said "A data center came up in 2 meetings in Tuscaloosa, Alabama" over the whole Alabama map, and the home map stayed national.
 
 - **5 meetings or more for a place of its own.** `resolveStoryScope` (`web_app/src/utils/resolveStoryScope.ts`, threshold `MIN_SCOPE_MEETINGS = 5`) steps up one level at a time, city → county → state → national, to the first level with 5 or more meetings on the topic. It says why in plain words, for example "Tuscaloosa has only 2 meetings on data centers, too few to call. County counts aren't on record for this topic, so this shows Alabama (71 meetings)."
+- **The county step, for data centers ([#1321](https://github.com/getcommunityone/open-navigator/issues/1321)).** A thin
+  city's county comes from the city's coordinates on record, or the saved location's county when you picked the city by
+  ZIP. Its meetings are the county government's plus those of every place inside it. Example: "Homewood has only 3
+  meetings on data centers, too few to call. Jefferson County has 14 meetings, but figures aren't broken out by county
+  yet, so this shows Alabama." Until the endpoints accept a county ([#1323](https://github.com/getcommunityone/open-navigator/issues/1323)),
+  a county level is drawn at its state and the sentence says so. When the county can't be found, it says "Its county
+  isn't on record". Other topics have no county grain and skip the step.
 - **Where the counts come from.** City and state counts come from `GET /api/topics/{topic}/caption-facts` (`meetings` for the city, `states[]` for the state). No topic serves a county grain the story's charts can be narrowed to yet, so the county step is skipped and the line says so. The helper already handles a county count when one is passed.
 - **What follows the level.** The hook `useStoryScope` (`web_app/src/hooks/useStoryScope.ts`) applies the rule on the home hero (data centers and topic cards) and on the story pages (`DataStory`, `TopicStory`). The headline, the counts, the quotes and the map then use that level. The URL keeps the reader's choice (`?state=AL&city=Tuscaloosa`). The home subtitle gives the reason. On a story page the reason sits on one line in the sticky bar under the headline.
 - **The home map zooms to the place.** With a state or city in effect, the home map draws only that state, on a finer grid. The asked city is marked at the coordinate its meeting record holds (`latitude`/`longitude` on `GET /api/data-centers/meeting-mentions?state=` place counts). When no coordinate is on record, the map says "No map location on record for `<city>`." and draws no guessed pin. With National in effect it is the full US map again.
@@ -253,6 +260,32 @@ The Data Center Story's Decisions screen uses the same rules on `data_center_dec
 **On a data center** and **Mentioned in passing** (`counts.on_topic`, `counts.in_passing` on
 `GET /api/data-centers/decisions`), a square opens the decision page, else the meeting page, else the recording, and the
 screen's line says how many are on a data center.
+
+### Who supported and opposed each decision (#1320)
+
+Owner, 27 Nov 2026, on the Guns Decisions screen: "still can't see who is saying this." Each decision card now lists the
+people the decision record names, then the recorded vote:
+
+- **Supported by: John Faile (City Councilor), Joseph Eatmon, Sr. (City Councilor), … +5** from
+  `event_decision.competing_views.dominant_view.held_by`; **Opposed by: …** from `counter_views[].held_by`. When the record
+  names supporters and lists no counter view, the card says **No opposition recorded**; a counter view with no names says
+  **Opposition recorded; no names on record**. Others the record says spoke on the item (`decision_speakers`) follow as
+  **Also spoke: …**. **Vote: 7–0** comes from `vote_tally` when it has a yes count.
+- The names come from speaker slugs such as `john_faile_councilor_tuscaloosa` (`api/routes/decision_people.py`).
+  Officials are public: a slug with an official title (councilor, mayor, commissioner, chair, chief, clerk, ...) or a name
+  matching exactly one current official of the decision's own government (`person_government`, "[place] Government", same
+  state) is shown by full name, with the official record's title, else the slug's title. A title heard only as a form of
+  address stays in the name with no role ("Chief Sky"). Everyone else is "First L." with no role, and only when a first and
+  last name are on record. Students and minors are never shown, residents are never shown for a school-board decision, and
+  a slug whose name can't be told from a description or a place is left out.
+- `GET /api/topics/{topic_id}/decisions` and `GET /api/data-centers/decisions` return `supported_by[]`, `opposed_by[]`,
+  `spoke_on_it[]` (each `{name, role, kind: official | resident}`), `supported_view`, `opposition_recorded` and
+  `vote_yes` / `vote_no`. On the Data Center Story the lines sit under each decision in the list.
+
+Local warehouse, 27 Nov 2026: of 599 decisions behind the 19 topic stories, 306 (51%) name at least one person (248 a
+supporter, 64 an opponent, 59 another speaker; 248 name at least one official), 157 say no opposition was recorded
+and 231 (39%) show a vote. Of 49 data-center decisions, 16 name someone; Alabama's 10 name no one, because their records
+carry no `held_by`.
 
 ## The heading is a sentence
 
@@ -583,7 +616,7 @@ The engine is the one the challenge uses (`web_app/src/components/stance/useActs
 
 Reduced motion is not only a setting people choose. On Android, battery saver and "Remove animations" both turn it on, so a phone in battery saver gets this version. Before #930 that version was a plain stacked page with nothing animated, which read as a page that was not working. The challenge still uses the plain `stacked` mode under reduced motion.
 
-A phone gets scroll snap, not the pinned engine. Pinning with ScrollTrigger and Lenis depends on the page's own scroll position being rewritten every frame, which fights a phone's touch momentum and the address bar changing the window height. Scroll snap is the browser's own mechanism, so momentum and the address bar are its business, and the screens are sized in `svh` so they do not jump when the bar hides. A screen whose content cannot fit scrolls inside its own block, never the page inside a screen: you scroll to the bottom of that block first, and the next swipe goes on. With a mouse wheel or trackpad on a narrow window, one wheel gesture moves exactly one screen.
+A phone gets scroll snap, not the pinned engine. Pinning with ScrollTrigger and Lenis depends on the page's own scroll position being rewritten every frame, which fights a phone's touch momentum and the address bar changing the window height. Scroll snap is the browser's own mechanism, so momentum and the address bar are its business, and the screens are sized in `svh` so they do not jump when the bar hides. A screen whose content cannot fit scrolls inside its own block, never the page inside a screen: you scroll to the bottom of that block first, and the gesture stops there: the block does not hand it on to the page (`overscroll-behavior-y: contain`), so reaching its end never changes the screen. Use Next, Back, a key, a progress segment or a sideways swipe to go on. A phone screen that fits still moves by one vertical swipe. With a mouse wheel or trackpad on a narrow window, one wheel gesture moves exactly one screen, except over a block that scrolls. A change of place (a map pick, the place picker, the header's National) starts the story over on its first screen, Overview, and writes `?screen=overview`, unless the same link names a screen; the long screens' own scrollers go back to the top. An open bottom sheet (a KPI drill-down) or dialog owns the wheel, touch and keys: the story behind it stays on its screen while it opens, scrolls and closes (`?screen=` is unchanged; `web_app/e2e/story-scroll.check.mjs`).
 
 The story's motion is calm: rises, fades and a steady filled button, with no bounce. The challenge shares the same engine and layout and adds its own livelier touches (see its page).
 
@@ -701,6 +734,17 @@ Every topic story (`/stories/<topic>`) has two screens after **Who spoke**, and 
 - **Votes** screen. Meetings where, in the AI reading, the council or board voted to move the topic forward (fluoridation: keep or start it), voted to stop or limit it (end it), or tabled or put it off: totals that double as filters, a column per year, the states with most actions, and the meetings themselves, each linked to its recording with how sure the reading was.
 
 There is no ballot-measure chart: we have no ballot-measure data on these topics yet ([#1275](https://github.com/getcommunityone/open-navigator/issues/1275)). Rules, colours and counts: [Topic legislation map, positions and local actions](../development/topic-legislation-map.md).
+
+### Coming up, and the home page's What happens next strip (#1302)
+
+Owner, 27 Nov 2026: upcoming meetings and legislation are "where we have the greatest impact". Every story (the topic stories and the Data Center Story) has a **Coming up** screen second, right after Overview, and it always stays in the story:
+
+- **What, when, where, how to take part.** Each scheduled meeting or public hearing shows its date, the place, the title, why it is listed (the agenda names the topic; an official notice lists it; or "Agenda not posted yet. Gwinnett County discussed data centers on Jun 15, 2026:"), the quoted evidence with the topic's words marked, and a link: the agenda, the meeting page, the livestream or the official notice.
+- **State bills still open**, dated by their last action and linked to OpenStates, furthest along first.
+- **Nothing upcoming.** The screen says "Nothing upcoming on record for Georgia." and links one level up (a city to its state, a state to national) with that level's count. No stand-in items.
+- **Home page.** Under the story card and its map, above Browse topics, a strip of three cards for the story and place in the URL (`?story=`, `?state=`, `?city=`): **Coming up** first and highlighted, then **Meetings** and **State bills**. Each is one real number and one line and opens that screen of the story at the same place. It scrolls sideways on a phone.
+
+How items are found, what the warehouse holds and what is left out: [What's coming up on a topic](../development/topic-upcoming.md).
 
 ## Add a story
 

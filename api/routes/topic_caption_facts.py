@@ -84,7 +84,8 @@ class CaptionVotes(BaseModel):
     against: int = Field(0, description="Votes against, summed over those decisions.")
     decisions_for: int | None = Field(
         None,
-        description="#1290: decisions whose vote went for the data center (data_center_decision.vote_side); null when "
+        description="#1290: decisions whose vote went for the data center (with these, decisions / for / against are read "
+        "from data_center_decision too) (data_center_decision.vote_side); null when "
         "that column or table isn't in this database.",
     )
     decisions_against: int | None = Field(
@@ -236,7 +237,8 @@ SPEAKERS_SQL = (
 # #1290: which way each tallied vote went (data_center_decision.vote_side, dbt), read defensively so a serving copy
 # without the column still answers (has_side false: sides null).
 VOTE_SIDES_SQL = (
-    "SELECT count(*) FILTER (WHERE to_jsonb(d) ->> 'vote_side' = 'for')::int AS decisions_for, "
+    "SELECT count(*)::int AS decisions_tallied, sum(d.votes_for)::int AS yes_votes, sum(d.votes_against)::int AS no_votes, "
+    "count(*) FILTER (WHERE to_jsonb(d) ->> 'vote_side' = 'for')::int AS decisions_for, "
     "count(*) FILTER (WHERE to_jsonb(d) ->> 'vote_side' = 'against')::int AS decisions_against, "
     "coalesce(bool_or(to_jsonb(d) ? 'vote_side'), false) AS has_side "
     "FROM data_center_decision d WHERE d.votes_for IS NOT NULL AND d.votes_against IS NOT NULL "
@@ -474,11 +476,18 @@ async def topic_caption_facts(
                 meetings_reviewed=int(r.get("meetings_reviewed") or 0),
             )
             n_dec = int(r.get("decisions_with_tally") or 0)
+            yes, no = int(r.get("votes_for") or 0), int(r.get("votes_against") or 0)
             d_for, d_against = vote_sides(side_rows, n_dec)
+            if d_for is not None and side_rows:
+                # #1290: with the sides, every vote count comes from data_center_decision (the preferred analysis), so
+                # "N decisions" and "k of N went for" never count from two marts.
+                sr = dict(side_rows[0])
+                n_dec = int(sr.get("decisions_tallied") or 0)
+                yes, no = int(sr.get("yes_votes") or 0), int(sr.get("no_votes") or 0)
             votes = CaptionVotes(
                 decisions=n_dec,
-                for_=int(r.get("votes_for") or 0),
-                against=int(r.get("votes_against") or 0),
+                for_=yes,
+                against=no,
                 decisions_for=d_for,
                 decisions_against=d_against,
             )

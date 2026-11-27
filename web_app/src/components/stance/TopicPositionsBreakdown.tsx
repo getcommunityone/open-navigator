@@ -35,7 +35,11 @@ export default function TopicPositionsBreakdown({ counts, words, scopeLabel, lab
   const unread = counts.meetings != null ? Math.max(0, counts.meetings - counts.read) : null
   return (
     <figure className="topic-positions" aria-labelledby={labelledBy}>
-      {asSentence ? (
+      {display.kind === 'empty' ? (
+        <p className="stance-nodata" role="status">
+          No recorded positions yet: no meeting {scopeLabel === 'National' ? 'nationally' : `in ${scopeLabel}`} has a reading of the public&apos;s position.
+        </p>
+      ) : asSentence ? (
         <p className="stance-fit-lead" data-display="sentence">
           {fmt(counts.read)} {counts.read === 1 ? 'meeting' : 'meetings'} read. {countsSentence(kept.map((r) => ({ label: r.label, count: r.n })))}
         </p>
