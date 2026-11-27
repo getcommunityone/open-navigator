@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { niceMax, pctLabel } from '../../utils/storyTimeline'
+import { pickAxisTicks } from '../../utils/axisTicks'
 import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
 import usePrefersReducedMotion from '../../hooks/usePrefersReducedMotion'
@@ -78,6 +79,8 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
   const xs = (v: number) => plotL + (v / xmax) * (plotR - plotL)
   const h = topPad + visible.length * rowH + 30
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * xmax)
+  // The % labels by the room they have (the same rule as the year axes), first and last always, never overlapping.
+  const tickShown = new Set(pickAxisTicks(ticks.length, (plotR - plotL) / (ticks.length - 1), Math.max(...ticks.map((t) => pctLabel(t).length))))
   const bLegendX = single || !aName ? plotL + 5 : plotL + 14 + aName.length * 6.6 + 16
 
   return (
@@ -99,7 +102,7 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
           {ticks.map((t, i) => (
             <g key={i}>
               <line x1={xs(t)} x2={xs(t)} y1={topPad} y2={h - 24} stroke={t === 0 ? 'var(--ink)' : 'var(--rule)'} strokeWidth={t === 0 ? 1.5 : 1} />
-              {(i % (plotR - plotL < 240 ? 2 : 1) === 0 || i === ticks.length - 1) && (
+              {tickShown.has(i) && (
                 <text className="sc-micro" x={xs(t)} y={h - 6} textAnchor="middle">
                   {pctLabel(t)}
                 </text>
