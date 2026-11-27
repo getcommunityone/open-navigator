@@ -147,8 +147,27 @@ title is at most about 46px (three or four lines beside the map; a two-clause ti
 36px), and right under the subhead and basis line come the topic-named **Start the [data center] story for [place] →**
 (national: no place; `storyStartLabel` in `storyCaption.ts`, [#1182](https://github.com/getcommunityone/open-navigator/issues/1182))
 and **Next story: [title] →** (the same `nextStoryLink` as the end of a story, carrying the place),
-then a line naming the scope in effect, "Showing Tuscaloosa, Alabama. Pick a state on the map to open its story.". Every
-topic card has Next story, not only data centers.
+then the map hint, "Pick a state on the map to open its story." (it said "Showing Tuscaloosa, Alabama." first until
+[#1206](https://github.com/getcommunityone/open-navigator/issues/1206): the title's place control now names the scope).
+Every topic card has Next story, not only data centers.
+
+**The place in the home title is a place control** ([#1206](https://github.com/getcommunityone/open-navigator/issues/1206);
+owner, 26 Nov 2026: "This was better when there was a subtle drop down to choose national or state to change location in
+title."). On every home story card (data centers and each topic story) the place in the title is a subtle inline control,
+in the title's own font with a dotted teal underline and a small ▾: **"[America ▾] hates data centers."**,
+**"[Tuscaloosa, Alabama ▾] brought up …"**. In the broader-scope title (rule 1a) the control is the place the reader
+chose, the second place: **"America hates data centers; [Tuscaloosa, Alabama ▾] brought them up in 2 meetings."** A
+national title whose place is not the country (rule 3 naming the leading state, or "In 81 meetings, the public mostly
+opposed …") is led by **"In [the United States ▾], …"**, so the title always names the scope in effect and stays one
+sentence. The words are the shared caption's (`pickCaption` / `captionText`), unchanged; `splitCaptionAtPlace`
+(`web_app/src/utils/captionPlace.ts`, with tests) only says where the place sits in them. The control opens the story
+pages' place dialog (`PlaceControl`, `themeClassName="home-place"`, styles in `web_app/src/styles/home-place.css`): place
+search, one-click **The United States** and **All of [state]**, **Use my location** and a state list, as a bottom sheet
+on a phone. A pick changes the home scope the way the header's place control does (`usePlacePick`): a city or a state
+becomes the saved location and the home level follows it (City or State), so the header label, the title, the map
+highlight and the Browse topics captions move together; **The United States** sets the home level to National and keeps
+the saved place (as the level menu's National does), so the header still names your place. On a phone the control stays
+inline; its tap target is at least 44px tall, drawn outside the text so the title's line height does not change.
 The map is capped at 60% of the screen height so it never pushes the card below the fold. At 1366×768 the buttons and
 the scope line are in view for the national and a city scope, and on a phone the buttons stack full width.
 
