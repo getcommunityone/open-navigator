@@ -26,7 +26,7 @@ import { isTouchOnly } from '../../utils/touchOnly'
 import { isCurrentPage } from '../../utils/currentPage'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
-import { MISSING_LEGEND, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
+import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
 export interface StateMarker {
   state_code: string
@@ -475,7 +475,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           )}
           {hasStance
             ? words
-              ? `${MISSING_LEGEND} (darker = more meetings)`
+              ? `${missingLegend(words)} (darker = more meetings)`
               : byMeetings
               ? 'Meetings, no AI reading yet (darker = more meetings)'
               : 'Meetings, no stance on record (darker = more meetings)'
@@ -498,7 +498,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : 'No speaker positions on record yet; states show meetings only.'}
           {hasLean || (byMeetings && split.length > 0) ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
-          {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${MISSING_LEGEND.charAt(0).toLowerCase()}${MISSING_LEGEND.slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
+          {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${missingLegend(words).charAt(0).toLowerCase()}${missingLegend(words).slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
         </p>
         )}
 

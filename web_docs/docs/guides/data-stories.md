@@ -110,8 +110,8 @@ caption picker (`web_app/src/utils/storyCaption.ts`) reads `GET /api/topics/{top
 and tries, in order:
 0. **The place's conclusion, in the topic's words** ([#1200](https://github.com/getcommunityone/open-navigator/issues/1200)).
    Once enough meetings where the public spoke have an AI reading (50 nationally, 10 in a state, 3 in one place), the
-   title states the majority position with the count: **"In Ohio, most meetings that took up guns backed the gun
-   proposal before them: 41 of 63 where the public spoke (AI reading)."**, **"America hates data centers: the public was
+   title states the majority position with the count: **"In Ohio, most meetings that took up gun control favored gun
+   limits: 41 of 63 where the public spoke (AI reading)."**, **"America hates data centers: the public was
    against them in 283 of 341 meetings where it spoke (AI reading)."** ("hates" only for data centers, Flock and license
    plate readers, and pickleball), or **"Ohio is split on …"** when no side has more than half. A place too thin of its
    own names the broader scope that has a conclusion. With too few readings the rules below apply, and the line under
@@ -122,8 +122,7 @@ and tries, in order:
    (against at least twice for, at least 10 speakers). "Hates" is only for data centers, Flock and license plate readers,
    and pickleball; every other topic says plainly what the AI reading found, on the same counts: **"In 81 meetings, the
    public mostly opposed water fluoridation."**, or in a place **"In 12 meetings in Arizona, the public mostly opposed
-   short-term rentals."** (guns: "the public mostly opposed the gun measures proposed", since "for" there means for the
-   proposal before the body), and leads with "is divided" instead when that passes too
+   short-term rentals."** (gun control: "the public mostly opposed local gun-control measures"), and leads with "is divided" instead when that passes too
    ([#1182](https://github.com/getcommunityone/open-navigator/issues/1182),
    [#1190](https://github.com/getcommunityone/open-navigator/issues/1190)). The basis line under it reads "In 283 meetings
    across 32 states, the public mostly opposed data centers (AI reading of each meeting's transcript)." No title, legend
@@ -182,7 +181,7 @@ the scope line are in view for the national and a city scope, and on a phone the
 
 **The same two buttons open every story** ([#1182](https://github.com/getcommunityone/open-navigator/issues/1182)). The
 stories hub's button names its topic too. A topic story (`/stories/guns`) shows, under its title (now about 36px) and
-lede, **Start the guns story →**, which scrolls to the story's first section (the map), and **Next story: [title] →**,
+lede, **Start the gun control story →**, which scrolls to the story's first section (the map), and **Next story: [title] →**,
 carrying `?state=&city=`. On the Data Center Story the subhead, basis line, both buttons and the numbered points are
 the story's opening screen, under the sticky title and progress bar and in normal flow, so they scroll away and the
 sticky bar shrinks to the title and progress on every later screen; **Start** goes to the Overview. The buttons share

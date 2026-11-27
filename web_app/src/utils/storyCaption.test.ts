@@ -100,7 +100,7 @@ describe('pickCaption (b) divided', () => {
   it('in a state, and for a topic without a "hates" verb', () => {
     const c = pickCaption('guns', facts({ disagreement_meetings: 12, public_against_meetings: 40 }, ga), ga)
     expect(captionText(c, 'guns')).toBe('Georgia is divided on guns.')
-    expect(c.basis).toBe('In 12 meetings in Georgia, officials sided against the public on guns (AI reading).')
+    expect(c.basis).toBe('In 12 meetings in Georgia, officials sided against the public on gun control (AI reading).')
   })
 
   it('or counted speakers split with both sides substantial', () => {
@@ -293,8 +293,8 @@ describe('the title says what the map shows (#1182)', () => {
     expect(captionText(c, 'water fluoridation')).not.toMatch(/hates|lean/)
     expect(c.basis).toBe("In 81 meetings across 19 states, the public mostly opposed water fluoridation (AI reading of each meeting's transcript).")
     const g = pickCaption('guns', facts({ public_against_meetings: 400 }), nat)
-    expect(captionText(g, 'guns')).toBe('In 400 meetings, the public mostly opposed the gun measures proposed.')
-    expect(g.basis).toBe("In 400 meetings nationwide, the public mostly opposed the gun measures proposed (AI reading of each meeting's transcript).")
+    expect(captionText(g, 'gun control')).toBe('In 400 meetings, the public mostly opposed local gun-control measures.')
+    expect(g.basis).toBe("In 400 meetings nationwide, the public mostly opposed local gun-control measures (AI reading of each meeting's transcript).")
     const az: StoryScope = { stateCode: 'AZ', stateName: 'Arizona', city: null }
     const r = pickCaption('short-term-rentals', facts({ public_against_meetings: 12 }, az), az)
     expect(captionText(r, 'short-term rentals')).toBe('In 12 meetings in Arizona, the public mostly opposed short-term rentals.')
