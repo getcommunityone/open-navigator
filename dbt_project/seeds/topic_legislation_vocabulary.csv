@@ -1,0 +1,12 @@
+topic_query_id,category,display_order,label,description
+*,restrict,1,Restrict,"Limits, bans, regulates or penalizes the activity (generic rule for topics without their own vocabulary)."
+*,support,2,Support,"Funds, protects, expands, exempts or preempts local limits on the activity (generic rule)."
+*,other,3,Other,"Mentions the topic but matches neither rule (generic rule)."
+water-fluoridation,ban,1,Ban,"Prohibits adding fluoride to public water."
+water-fluoridation,restriction,2,Restriction,"Notice, labels, dosage limits, local votes, opt-outs or repeal of a mandate."
+water-fluoridation,protection,3,Protection,"Requires, maintains or protects community water fluoridation."
+water-fluoridation,study,4,Study,"Asks for a study, task force or working group."
+water-fluoridation,unclear,5,Direction not stated,"About fluoride in water, but the title and abstract do not say which way."
+data-centers,restrict,1,Restrict,"Moratoriums, siting limits, water or energy rules, cost allocation, or local power to deny."
+data-centers,incentive,2,Incentive,"Tax exemptions, sales-tax abatements, credits or economic-development incentives."
+data-centers,protect,3,Protect,"Preempts local bans or speeds approvals."

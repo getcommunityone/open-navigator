@@ -165,6 +165,8 @@ def test_other_topic_reads_topic_links_and_bills_when_present(monkeypatch) -> No
     assert body["bills_available"] is True
     bill_sql, bill_params = next((s, p) for s, p in conn.calls if "topic_legislation_bill b" in s)
     assert "status = 'enacted'" in bill_sql and bill_params == (100002, "UT")
+    # The mart's column is last_action_date (#1274); reading latest_action_date made every timeline 503.
+    assert "b.last_action_date AS latest_action_date" in bill_sql and "b.latest_action_date" not in bill_sql
 
 
 def test_unknown_topic_is_404_and_bad_slug_never_reaches_sql(monkeypatch) -> None:
