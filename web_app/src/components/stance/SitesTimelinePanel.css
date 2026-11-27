@@ -1,0 +1,201 @@
+/* The Data Center Story's "Over time" figure (#1348). Compact so the whole screen fits above a phone's bottom bar. */
+.dc-tl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  font-size: 13px;
+  color: var(--ink, #121116);
+}
+.dc-tl-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dc-tl-year {
+  font-family: var(--font-display, inherit);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.dc-tl-projected {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2, #555);
+  border: 1px dashed currentColor;
+  border-radius: 3px;
+  padding: 1px 4px;
+  vertical-align: middle;
+}
+.dc-tl-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.dc-tl-counts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.dc-tl-key {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px dashed transparent;
+  box-sizing: border-box;
+}
+.dc-tl-counts li[data-phase='planned'] .dc-tl-key {
+  background: transparent;
+}
+.dc-tl-map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 42vh;
+}
+.dc-tl[data-future] .dc-tl-map svg {
+  opacity: 0.92;
+}
+.dc-tl-map-skeleton {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 42vh;
+  border-radius: 6px;
+  background: var(--paper-raised, #f4f3f8);
+}
+.dc-tl-land path {
+  fill: var(--paper-raised, #f4f3f8);
+  stroke: var(--ink-3, #b9b7c2);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+.dc-tl-dot {
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.dc-tl-dot:focus-visible {
+  outline: 2px solid var(--ink, #121116);
+}
+.dc-tl-dot.is-picked {
+  stroke: var(--ink, #121116);
+}
+.dc-tl-dot.is-new {
+  animation: dc-tl-pop 420ms ease-out;
+}
+@keyframes dc-tl-pop {
+  from {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dc-tl-dot.is-new {
+    animation: none;
+  }
+}
+.dc-tl-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dc-tl-btn {
+  min-width: 32px;
+  height: 32px;
+  border: 1px solid var(--ink-3, #b9b7c2);
+  border-radius: 6px;
+  background: var(--paper-raised, #fff);
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-tl-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dc-tl-range {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--ink, #121116);
+}
+.dc-tl-strip {
+  display: block;
+  width: 100%;
+  height: 36px;
+  cursor: pointer;
+}
+.dc-tl-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: -2px 0 0;
+  font-size: 11px;
+  color: var(--ink-2, #555);
+  font-variant-numeric: tabular-nums;
+}
+.dc-tl-axis-future {
+  font-style: italic;
+}
+.dc-tl-card {
+  position: relative;
+  padding: 8px 28px 8px 10px;
+  border: 1px solid var(--ink-3, #b9b7c2);
+  border-radius: 8px;
+  background: var(--paper-raised, #fff);
+}
+.dc-tl-card p {
+  margin: 0;
+}
+.dc-tl-card-name {
+  font-weight: 700;
+}
+.dc-tl-card-meta {
+  font-size: 12px;
+  color: var(--ink-2, #555);
+}
+.dc-tl-card-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  border: 0;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+.dc-tl-note,
+.dc-tl-source,
+.dc-tl-status {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--ink-2, #555);
+}
+@media (max-width: 640px) {
+  .dc-tl-year {
+    font-size: 26px;
+  }
+  .dc-tl-map svg,
+  .dc-tl-map-skeleton {
+    max-height: 30vh;
+  }
+  .dc-tl-strip {
+    height: 28px;
+  }
+}

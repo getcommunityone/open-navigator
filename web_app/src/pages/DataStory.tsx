@@ -12,6 +12,10 @@ import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenView from '../components/stance/StoryScreenView'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
 import UpcomingPanel from '../components/stance/UpcomingPanel'
+import CoverageLine from '../components/stance/CoverageLine'
+import SitesTimelinePanel from '../components/stance/SitesTimelinePanel'
+import { fetchSitesTimeline } from '../api/sitesTimeline'
+import { timelineHeadline } from '../utils/siteTimeline'
 import { useTopicUpcoming } from '../hooks/useTopicUpcoming'
 import { upcomingHeadline } from '../utils/topicUpcoming'
 import OutcomesChain from '../components/stance/OutcomesChain'
@@ -27,6 +31,7 @@ import { useIdleNudge } from '../hooks/useIdleNudge'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { STATE_CODES } from '../lib/usStates'
 import {
+  chartScopeLabel,
   screenText,
   scopeQuery,
   storyPlaceDisplay,
@@ -103,6 +108,14 @@ export default function DataStory() {
   const upcomingQ = useTopicUpcoming(storyId, stateCode, city)
   // What happened next (#1314), for the chain screen's headline; the panel reads the same cache entry.
   const outcomesQ = useTopicOutcomes(storyId, stateCode, city)
+  // Data centers over time (#1348): sites narrow by state only, so a city's story reads its state (the label says so).
+  const timelineQ = useQuery({
+    queryKey: ['data-centers', 'sites-timeline', stateCode ?? ''],
+    queryFn: () => fetchSitesTimeline(stateCode),
+    enabled: storyId === 'data-centers',
+    staleTime: 10 * 60_000,
+    retry: 1,
+  })
 
   // --- the question and the reader's two answers ------------------------------------------------------------------------
   const packId = story?.pack ?? ''
@@ -135,7 +148,9 @@ export default function DataStory() {
       }),
     [allScreens, data, status, scope, question, overviewCaption, captionQ.data],
   )
-  const keep = allScreens.map((s, i) => s.kind !== 'chart' || !allTexts[i]!.empty)
+  // A chart screen with nothing on record drops out (#1002); so does Over time once it knows no site has a date (#1348).
+  const timelineEmpty = timelineQ.isSuccess && timelineQ.data.available && (timelineQ.data.dated ?? 0) === 0
+  const keep = allScreens.map((s, i) => (s.kind === 'timeline' ? !timelineEmpty : s.kind !== 'chart' || !allTexts[i]!.empty))
   const keepKey = keep.join()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const screens = useMemo(() => allScreens.filter((_, i) => keep[i]), [allScreens, keepKey])
@@ -359,6 +374,8 @@ export default function DataStory() {
         </div>
       )}
       {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+      {/* #1348: the counts above are counts of our recordings; say how many governments and meetings that is. */}
+      <CoverageLine scope={scope} />
       {/* #1330: where officials sided against the public, with a tap through to those meetings. */}
       {storyId === 'data-centers' && <PositionsSummary scope={scope} only="disagreement" />}
       {points.length > 0 && (
@@ -492,6 +509,31 @@ export default function DataStory() {
                       }}
                     />
                   }
+                />
+              )
+            }
+            if (s.kind === 'timeline') {
+              const sitesLabel = chartScopeLabel('sites', scope)
+              return (
+                <StoryScreenFrame
+                  key={s.id}
+                  id={s.id}
+                  index={i}
+                  active={active === i}
+                  eyebrow={s.eyebrow}
+                  kicker={`${s.kicker ?? 'For context'} · source: Epoch AI and the US Data Center Registry`}
+                  headline={
+                    timelineQ.isPending
+                      ? 'Loading data center sites over time…'
+                      : timelineQ.isError
+                        ? 'Data center sites over time could not be loaded right now.'
+                        : timelineHeadline(timelineQ.data, sitesLabel)
+                  }
+                  context={`Each site appears in the year of its earliest date on record. Epoch AI sites move to operating as Epoch dates them; registry sites keep their status today.${scope.city && scope.stateName ? ` Sites are placed by state, so this shows ${scope.stateName}.` : ''}`}
+                  nextLabel={common.nextLabel}
+                  onNext={common.onNext}
+                  onPrev={common.onPrev}
+                  right={<SitesTimelinePanel res={timelineQ.data} scopeLabel={sitesLabel} stateCode={stateCode} active={active === i} reduced={reduced} />}
                 />
               )
             }

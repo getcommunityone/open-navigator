@@ -90,6 +90,7 @@ describe('story structure', () => {
       'outcomes',
       'voices',
       'sites',
+      'over-time',
       'projects',
       'jobs',
       'concerns',
