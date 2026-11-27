@@ -83,7 +83,7 @@ describe('map quote stance line (#1230)', () => {
     expect(quoteStanceNote('guns', 'guns', 'for')).toBe(`Public: ${w.for}`)
     expect(quoteStanceNote('guns', 'guns', 'split')).toBe(`Public: ${w.split}`)
     expect(quoteStanceNote('guns', 'guns', 'silent')).toBe('Mentions guns; no public stance in this meeting')
-    expect(quoteStanceNote('guns', 'guns', null)).toBe('Mentions guns; no public stance in this meeting')
+    expect(quoteStanceNote('guns', 'guns', null)).toBe('Mentions guns')
   })
   it('never says "AI reading" in the line', () => {
     for (const s of ['against', 'for', 'split', 'silent', null] as const) expect(quoteStanceNote('guns', 'guns', s)).not.toMatch(/AI reading/)

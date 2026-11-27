@@ -179,8 +179,8 @@ export type QuoteStance = 'against' | 'for' | 'split' | 'silent' | null | undefi
 
 /**
  * The short line under a map quote (#1230): where the public stood at the quoted meeting, in the topic's own words
- * ("Public: Opposed the gun proposal", "Public: Split"), or, for a meeting with no public stance on record, that the
- * passage only mentions the topic ("Mentions guns; no public stance in this meeting"). The quote itself is verbatim; this
+ * ("Public: <against words>", "Public: Split"); for a read meeting where the public didn't speak on it, "Mentions guns;
+ * no public stance in this meeting"; for a meeting not read yet, only "Mentions guns". The quote itself is verbatim; this
  * line never restates it.
  */
 export function quoteStanceNote(slug: string | null | undefined, subject: string, stance: QuoteStance): string {
@@ -188,7 +188,9 @@ export function quoteStanceNote(slug: string | null | undefined, subject: string
   if (stance === 'against') return `Public: ${w.against}`
   if (stance === 'for') return `Public: ${w.for}`
   if (stance === 'split') return `Public: ${w.split}`
-  return `Mentions ${subject}; no public stance in this meeting`
+  if (stance === 'silent') return `Mentions ${subject}; no public stance in this meeting`
+  // Not read yet: claim nothing about the public, only that the passage mentions the topic (No Fabricated Data).
+  return `Mentions ${subject}`
 }
 
 /**

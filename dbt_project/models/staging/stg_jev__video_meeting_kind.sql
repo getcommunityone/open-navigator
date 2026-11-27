@@ -26,7 +26,9 @@ with answers as (
     from {{ tx }}
     where nullif(trim(meeting_kind), '') is not null and nullif(trim(video_id), '') is not null
     {% else %}
-    select null::text, null::text, null::text, null::int, null::timestamptz where false
+    select null::text as video_id, null::text as meeting_kind, null::text as kind_source, null::int as source_rank,
+           null::timestamptz as screened_at
+    where false
     {% endif %}
     union all
     {% if meta_exists %}
@@ -34,7 +36,9 @@ with answers as (
     from {{ meta }}
     where nullif(trim(meeting_kind), '') is not null and nullif(trim(video_id), '') is not null
     {% else %}
-    select null::text, null::text, null::text, null::int, null::timestamptz where false
+    select null::text as video_id, null::text as meeting_kind, null::text as kind_source, null::int as source_rank,
+           null::timestamptz as screened_at
+    where false
     {% endif %}
 )
 

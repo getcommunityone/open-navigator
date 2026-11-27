@@ -2663,6 +2663,17 @@ sources:
             description: "JSONB array/object of associated .gov domains (matched with the ? operator)."
 
 models:
+  - name: stg_jev__video_meeting_kind
+    description: >
+      Jev's meeting_kind per recording (#1230), one row per video_id: the transcript screen's answer where it read the
+      video, else the video-meta screen's. Feeds the meeting_video_kind mart. No classifier runs here.
+    columns:
+      - name: video_id
+        tests: [not_null, unique]
+      - name: meeting_kind
+        tests: [not_null]
+      - name: kind_source
+      - name: screened_at
   - name: stg_suiteone_meeting_documents
     description: >
       Cleaned SuiteOne agenda/minutes PDFs from the municipal-calendar crawl in

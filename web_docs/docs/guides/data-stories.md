@@ -50,8 +50,9 @@ passage. They now quote it this way, server-side:
    unchanged. Speakers' own words still come first on the home map.
 3. **The card says where the public stood.** Under "In the meeting · `<title>`" a short line reads "Public: " and the
    topic's own position words from `web_app/src/utils/topicPositions.ts` (its "against", "for" or "Split" label, so a
-   topic reworded there is reworded on the card too), or, when the public took no side at that meeting, "Mentions
-   `<topic>`; no public stance in this meeting". A data-center passage gets its "against" words or the no-stance line,
+   topic reworded there is reworded on the card too), or, when the reading found the public didn't speak on it, "Mentions
+   `<topic>`; no public stance in this meeting". A meeting not read yet gets only "Mentions `<topic>`", with no claim
+   about the public. A data-center passage gets its "against" words or the no-stance line,
    and no line for the audit-only supported or mixed readings. The line never says "AI reading".
 
 The quote stays a verbatim excerpt with the matched words marked, with the meeting title, date, place and recording
