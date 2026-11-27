@@ -24,6 +24,8 @@ export interface MeetingVideo {
   side?: Stance | null
   role?: string | null
   item?: string | null
+  /** Where the public stood at this meeting, labelled as the meeting's (#1293); null: no line. */
+  stanceNote?: string | null
 }
 
 interface Props {
@@ -126,6 +128,7 @@ export default function MeetingVideoModal({ video, onClose }: Props) {
                 speakerName={video.speakerName}
                 role={video.role}
                 item={video.item}
+                stanceNote={video.stanceNote}
                 meeting={video.title}
                 startSeconds={video.start}
               />

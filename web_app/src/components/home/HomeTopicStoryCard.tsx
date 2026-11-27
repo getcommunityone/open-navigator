@@ -162,10 +162,10 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
  * repeats it. It is also the slot the map's desktop hover card fills (#1277): the card replaces the line while a state is
  * hovered, and the slot keeps its height so the page doesn't jump.
  */
-export function HomeStoryDrill({ slotRef }: { slotRef?: (el: HTMLDivElement | null) => void }) {
+export function HomeStoryDrill({ slotRef, hint = 'Pick a state on the map to open its story.' }: { slotRef?: (el: HTMLDivElement | null) => void; hint?: string }) {
   return (
     <div className="map-card-slot" ref={slotRef}>
-      <p className="home-story-drill map-card-slot-hint">Pick a state on the map to open its story.</p>
+      <p className="home-story-drill map-card-slot-hint">{hint}</p>
     </div>
   )
 }

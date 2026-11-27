@@ -18,7 +18,7 @@ import { topicPositions } from '../../utils/topicPositions'
 const NATIVE_NAMES: Record<string, string> = {
   'job-claims': 'By phase',
   'agenda-items': 'Upcoming or past',
-  decisions: 'Debated or not',
+  decisions: 'On a data center or not',
   sites: 'By status',
   projects: 'By status',
   'community-events': 'By kind',
@@ -169,7 +169,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
                 e.preventDefault()
                 hide()
                 playingFrom.current = i
-                setPlaying({ ...r.d.video, title: r.d.title, sub, url: r.d.url, quote: r.d.quote ?? null, place: r.d.place, date: r.d.date })
+                setPlaying({ ...r.d.video, title: r.d.title, sub, url: r.d.url, quote: r.d.quote ?? null, place: r.d.place, date: r.d.date, speakerName: r.d.speakerName ?? null, role: r.d.role ?? null, stanceNote: r.d.stanceNote ?? null })
               } else if (r.d.url) {
                 window.open(r.d.url, '_blank', 'noopener,noreferrer')
               }

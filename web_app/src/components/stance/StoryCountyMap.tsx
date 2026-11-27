@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { COUNTIES_ALBERS_TOPO, albersPoint, bboxOf, dotsFor, featAt, fetchTopo, meetingColor, toFeats } from '../../lib/dotMatrix'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
@@ -52,6 +53,13 @@ interface Props {
   labelledBy?: string
   /** The scope's meeting passages, newest first. One is quoted while a county is hovered; nothing at rest (#1002). */
   passages?: MapPassage[] | null
+  /** Where the desktop hover card goes (#1307, the home page's text column under Start). None → under the legend. */
+  cardSlot?: HTMLElement | null
+  /**
+   * A click (or a tap on a phone) on a county or a town ring drills into the story (#1307, the home hero): `city` is the
+   * ring's town, or the county's town with the most meetings on record, or null for the state. None → a click selects.
+   */
+  onDrill?: (city: string | null) => void
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -67,10 +75,22 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
  * city, town or school district is placed in the county its coordinates fall in, and drawn as a ring. United States broadens
  * back to the national map.
  */
-export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages }: Props) {
+export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill }: Props) {
   const [hover, setHover] = useState<string | null>(null)
   // The map's drawn width (#1309): it is capped by the screen's height, so its labels are sized from what is really drawn.
   const { ref: fitRef, width: drawnWidth } = useChartWidth<HTMLDivElement>(0)
+  // With the card outside the map (#1307), leaving the map hides it after a moment, so the mouse can reach its link.
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const keepCard = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    hideTimer.current = null
+  }
+  const leaveMap = () => {
+    keepCard()
+    if (!cardSlot) setHover(null)
+    else hideTimer.current = setTimeout(() => setHover(null), 400)
+  }
+  useEffect(() => keepCard, [])
   const stateFips = FIPS_OF_CODE[stateCode] ?? null
   const stateName = STATE_CODE_TO_NAME[stateCode] ?? stateCode
   const { data: topo, isError } = useQuery({
@@ -156,6 +176,13 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     active: hover,
     setActive: setHover,
     noun: 'county',
+    // Enter drills like a click (#1307), when the page drills.
+    onActivate: onDrill
+      ? (id) => {
+          const t = [...(placed?.byCounty.get(id) ?? [])].filter((p) => p.jurisdiction_type !== 'county').sort((a, b) => b.meetings - a.meetings)[0]
+          onDrill(t ? (t.jurisdiction_name ?? '').trim().replace(/\s+(city|town|village|borough|CDP)$/, '') : null)
+        }
+      : undefined,
     describe: (id) => {
       const name = grid?.feats.find((f) => f.id === id)?.name ?? id
       const n = placed?.counts.get(id) ?? 0
@@ -218,9 +245,52 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     touch
       ? undefined
       : () => {
+          keepCard()
           keyNav.pointed()
           setHover(id)
         }
+  // The page's city (#1307): its ring and label are drawn bold, so the place asked stands out.
+  const townName = (p: PlaceCount) => (p.jurisdiction_name ?? '').trim().replace(/\s+(city|town|village|borough|CDP)$/, '')
+  const isScopeCity = (p: PlaceCount) => Boolean(scopeCity) && norm(townName(p)) === norm(scopeCity)
+  // The town a county drills to: its town with the most meetings on record (a county government is not a town).
+  const countyTown = (id: string) =>
+    [...(byCounty.get(id) ?? [])].filter((p) => p.jurisdiction_type !== 'county').sort((a, b) => b.meetings - a.meetings)[0]
+  const clickCounty = (id: string) => {
+    if (!onDrill) return setHover(id)
+    const t = countyTown(id)
+    onDrill(t ? townName(t) : null)
+  }
+
+  const card = passage ? (
+        // Desktop only (#1277): under the legend, never over the map; one recording at a time.
+        <QuoteCard
+          className="map-hover-card"
+          compact
+          inlineVideo={inlineVideo}
+          place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
+          date={passage.meeting_date}
+          quote={excerptAroundMark(passage.evidence ?? '')}
+          meeting={passage.meeting_title}
+          stanceNote={dataCenterQuoteNote(passage.ai_public_lean)}
+          videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
+          startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
+          url={passage.jump_url ?? passage.video_url}
+          speakerName={passage.speaker_display_name ?? null}
+          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
+        >
+          {onDrill && hover && (
+            // The same action as a click on the county (#1307).
+            <button type="button" className="map-hover-open" onClick={() => clickCounty(hover)}>
+              Open the story for {countyTown(hover) ? townName(countyTown(hover)!) : stateName} <span aria-hidden="true">→</span>
+            </button>
+          )}
+        </QuoteCard>
+  ) : null
+  const cardShown = card && (
+    <div className="map-hover-wrap" onMouseEnter={keepCard} onMouseLeave={leaveMap}>
+      {card}
+    </div>
+  )
 
   const r = grid.step * 0.38
   const pad = 4
@@ -241,7 +311,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     const boxes: [number, number, number, number][] = []
     const free = (b: [number, number, number, number]) =>
       b[0] >= x0 && b[2] <= x1 && !boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])
-    const out: { key: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; text: string; county: string; ring: boolean }[] = []
+    const out: { key: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; text: string; county: string; ring: boolean; mine: boolean }[] = []
     const cands = [
       ...rings.map((g) => ({ place: g.place, x: g.x, y: g.y, county: g.county, ring: true })),
       ...[...byCounty].flatMap(([county, ps]) => {
@@ -253,7 +323,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           .filter((p) => p.jurisdiction_type === 'county' && p.geoid === county)
           .map((p) => ({ place: p, x: cx, y: cy, county, ring: false }))
       }),
-    ].sort((a, b) => Number(b.ring) - Number(a.ring) || b.place.meetings - a.place.meetings)
+    ].sort((a, b) => Number(isScopeCity(b.place)) - Number(isScopeCity(a.place)) || Number(b.ring) - Number(a.ring) || b.place.meetings - a.place.meetings)
     for (const c of cands) {
       // Shown as people say it (#1115): "Casa Grande", not "Casa Grande city" (the Data Explorer's rule). Only the Census's
       // lowercase suffix is dropped, so a name that ends in a capitalised word keeps it ("Garden City", #1117).
@@ -274,7 +344,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       const hit = tries.find((t) => free(t.box))
       if (!hit) continue
       boxes.push(hit.box)
-      out.push({ key: c.place.jurisdiction_id, x: hit.x, y: c.y, anchor: hit.anchor, text, county: c.county, ring: c.ring })
+      out.push({ key: c.place.jurisdiction_id, x: hit.x, y: c.y, anchor: hit.anchor, text, county: c.county, ring: c.ring, mine: isScopeCity(c.place) })
     }
     return out
   })()
@@ -289,7 +359,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
 
   return (
     // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
-    <figure className="stance-map" aria-labelledby={labelledBy} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+    <figure className="stance-map" aria-labelledby={labelledBy} onMouseLeave={leaveMap} onMouseEnter={keepCard} {...keyNav.stageProps}>
       <figcaption className="stance-map-head">
         <span>
           Meetings where a data center came up, by county · {stateName}
@@ -335,7 +405,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
                 style={{ cursor: 'pointer' }}
                 onMouseEnter={hoverIn(d.id)}
-                onClick={() => setHover(d.id)}
+                onClick={() => clickCounty(d.id)}
               />
             )
           })}
@@ -345,13 +415,15 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               className="stance-map-place"
               cx={g.x}
               cy={g.y}
-              r={grid.step * 0.7}
+              r={grid.step * (isScopeCity(g.place) ? 1 : 0.7)}
               fill="none"
-              stroke={HOUSE_THEME.ramp[5] ?? 'currentColor'}
-              strokeWidth={grid.step * 0.18}
+              stroke={isScopeCity(g.place) ? '#0f172a' : (HOUSE_THEME.ramp[5] ?? 'currentColor')}
+              strokeWidth={grid.step * (isScopeCity(g.place) ? 0.34 : 0.18)}
+              data-scope-city={isScopeCity(g.place) ? '' : undefined}
               opacity={hover && hover !== g.county ? 0.3 : 1}
+              style={onDrill ? { cursor: 'pointer' } : undefined}
               onMouseEnter={hoverIn(g.county)}
-              onClick={() => setHover(g.county)}
+              onClick={() => (onDrill ? onDrill(townName(g.place)) : setHover(g.county))}
             >
               <title>{`${g.place.jurisdiction_name ?? g.place.jurisdiction_id}: ${plural(g.place.meetings)}`}</title>
             </circle>
@@ -386,10 +458,10 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 style={
                   l.ring
                     ? {
-                        fontSize: labelSize,
+                        fontSize: l.mine ? labelSize * 1.15 : labelSize,
                         fontFamily: 'inherit',
-                        fontWeight: 600,
-                        fill: '#0f172a',
+                        fontWeight: l.mine ? 800 : 600,
+                        fill: l.mine ? '#115e59' : '#0f172a',
                         stroke: '#ffffff',
                         strokeWidth: labelSize * 0.32,
                         strokeLinejoin: 'round',
@@ -416,7 +488,11 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         </div>
       </div>
       <p className="stance-map-readout">
-        {hover ? readout(hover) : `${touch ? 'Tap' : 'Hover'} a county to see its count${touch ? '' : ' and hear what was said'}. Rings mark the cities, towns and school districts on record.`}
+        {hover
+          ? readout(hover)
+          : onDrill
+            ? `${touch ? 'Tap a county or a town to open its story.' : 'Hover a county to hear what was said; click it, or a town, to open its story.'} Rings mark the cities, towns and school districts on record.`
+            : `${touch ? 'Tap' : 'Hover'} a county to see its count${touch ? '' : ' and hear what was said'}. Rings mark the cities, towns and school districts on record.`}
       </p>
       {max > 0 && (
         <>
@@ -455,24 +531,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           county and {unplacedMeetings === 1 ? 'is' : 'are'} not shaded.
         </p>
       )}
-      {passage && (
-        // Desktop only (#1277): under the legend, never over the map; one recording at a time.
-        <QuoteCard
-          className="map-hover-card"
-          compact
-          inlineVideo={inlineVideo}
-          place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
-          date={passage.meeting_date}
-          quote={excerptAroundMark(passage.evidence ?? '')}
-          meeting={passage.meeting_title}
-          stanceNote={dataCenterQuoteNote(passage.ai_public_lean)}
-          videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
-          startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
-          url={passage.jump_url ?? passage.video_url}
-          speakerName={passage.speaker_display_name ?? null}
-          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
-        />
-      )}
+      {cardSlot ? (cardShown ? createPortal(cardShown, cardSlot) : null) : cardShown}
       <details className="stance-map-table">
         <summary>Show data table</summary>
         {listed.length === 0 ? (

@@ -1,3 +1,4 @@
+import HeaderPlacePhone from './HeaderPlacePhone'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -76,20 +77,42 @@ const HEADER_CSS = `
 .site-header .sh-place-more { padding: 4px 8px; border: none; border-left: 1px solid rgba(13,148,136,0.3); border-radius: 0 999px 999px 0; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 11px; cursor: pointer; }
 .site-header button:focus-visible, .site-header a:focus-visible { outline: 2px solid ${TEAL_DARK}; outline-offset: 2px; }
 .site-header .sh-mobile { display: none; }
-.site-header .sh-national-phone { display: none; }
+/* #1301: the phone selector (pin + ZIP, or [📍 town | National]) sits in the header row below the menu breakpoint. */
+.site-header .sh-place-phone { display: none; }
+.site-header .sh-pphone { position: relative; min-width: 0; }
+.site-header .sh-ptoggle { display: inline-flex; align-items: stretch; max-width: 100%; border: 1px solid rgba(13,148,136,0.35); border-radius: 999px; overflow: hidden; background: #fff; }
+.site-header .sh-ptoggle-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; min-width: 0; padding: 0 10px; border: none; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.site-header .sh-ptoggle-btn + .sh-ptoggle-btn { border-left: 1px solid rgba(13,148,136,0.35); }
+.site-header .sh-ptoggle-btn[aria-pressed="true"] { background: ${TEAL_DARK}; color: #fff; }
+.site-header .sh-ptoggle-text { overflow: hidden; text-overflow: ellipsis; max-width: 9.5em; }
+@media (max-width: 379px) { .site-header .sh-ptoggle-text { max-width: 6.5em; } .site-header .sh-ptoggle-btn { padding: 0 8px; } }
+.site-header .sh-pzip { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 2px 0 10px; border: 1px solid rgba(13,148,136,0.35); border-radius: 999px; background: #fff; }
+.site-header .sh-pzip-input { width: 4.6em; min-height: 36px; border: none; background: none; font: inherit; font-size: 16px; letter-spacing: .08em; color: ${INK}; outline-offset: 2px; }
+.site-header .sh-pzip-go, .site-header .sh-pzip-cancel { min-height: 40px; min-width: 40px; padding: 0 10px; border: none; border-radius: 999px; background: ${TEAL_DARK}; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.site-header .sh-pzip-go:disabled { background: #d6d3d1; cursor: default; }
+.site-header .sh-pzip-cancel { background: none; color: #78716c; padding: 0 6px; }
+.site-header .sh-pzip-pop { position: absolute; right: 0; top: calc(100% + 6px); width: min(280px, calc(100vw - 32px)); padding: 10px; background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; box-shadow: 0 16px 32px rgba(28,25,23,0.14); z-index: 60; display: flex; flex-direction: column; gap: 6px; }
+.site-header .sh-pzip-error { margin: 0; color: #b91c1c; font-size: 14px; }
+.site-header .sh-pzip-note { margin: 0; font-size: 13px; color: #57534e; }
+.site-header .sh-pzip-choice { min-height: 40px; padding: 0 12px; border: 1px solid #d6d3d1; border-radius: 10px; background: #fff; font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes sh-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sh-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 @media (max-width: ${MENU_BREAKPOINT - 1}px) {
   .site-header .sh-nav, .site-header .sh-place-desk { display: none; }
   .site-header .sh-burger { display: grid; margin-left: auto; }
-  .site-header .sh-national-phone { display: inline-flex; margin-left: auto; }
-  .site-header .sh-national-phone + .sh-burger { margin-left: 0; }
+  .site-header .sh-place-phone { display: flex; margin-left: auto; min-width: 0; }
+  .site-header .sh-place-phone + .sh-burger { margin-left: 0; }
   .site-header .sh-mobile { display: block; }
   .site-header .sh-inner { padding-left: 16px !important; padding-right: 16px !important; gap: 12px !important; }
 }
 @media (max-width: 760px) {
   .site-header .sh-brand-sub { display: none; }
+}
+/* On a narrow phone the C1 mark stays and the name goes, so the place selector fits beside the menu (#1301). */
+@media (max-width: 519px) {
+  .site-header .sh-brand-text { display: none; }
+  .site-header .sh-inner { gap: 8px !important; }
 }
 .site-header .sh-backdrop { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(28,25,23,0.45); animation: sh-fade .15s ease; z-index: 1; }
 .site-header .sh-panel { position: fixed; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e7e5e4; box-shadow: 0 18px 40px rgba(28,25,23,0.18); overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 20px; animation: sh-drop .18s ease; z-index: 2; display: flex; flex-direction: column; gap: 4px; text-align: left; box-sizing: border-box; }
@@ -364,7 +387,7 @@ export default function SiteHeader() {
           >
             C1
           </div>
-          <div>
+          <div className="sh-brand-text">
             <div className="font-display" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.1 }}>
               Open Navigator
             </div>
@@ -420,12 +443,11 @@ export default function SiteHeader() {
           </span>
         )}
 
-        {/* On a phone the one-click National sits in the bar too (#1285), not only in the menu. */}
-        {nationalSearch && (
-          <button type="button" className="sh-national sh-national-phone" onClick={goNational} aria-label="Show National instead">
-            <span aria-hidden="true">×</span> National
-          </button>
-        )}
+        {/* Phones (#1301, after #1285): the location selector stays in the header on every page, outside the menu: the
+            pin + ZIP field, or [📍 town | National] with one tap each way (it carries #1285's one-click National). */}
+        <div className="sh-place-phone">
+          <HeaderPlacePhone />
+        </div>
         <button
           ref={toggleRef}
           type="button"

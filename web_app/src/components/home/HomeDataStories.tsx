@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
 import { STORIES, scopeQuery, storyScopeLabel } from '../../utils/dataStory'
@@ -16,6 +16,7 @@ import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { storyStartHref } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
+import StoryCountyMap from '../stance/StoryCountyMap'
 
 
 interface Props {
@@ -151,6 +152,23 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
     }
     return out
   }, [national.data, speakers.data, stateCode, scope.city, scope.stateCode])
+  // At state (or city) scope the hero draws the story Overview's own state map (#1307): the state's counties with its
+  // meeting towns, in the stance colours, from the same meeting-mentions place counts.
+  const navigate = useNavigate()
+  const statePlaces = useQuery({
+    queryKey: ['home', 'story-map', 'meeting-mentions', 'state', scope.stateCode ?? ''],
+    queryFn: () => fetchDataCenterMeetingMentions({ state: scope.stateCode, limit: 200 }),
+    enabled: Boolean(scope.stateCode),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const byPlace = statePlaces.data?.counts?.by_place
+  const drill = (city: string | null) => {
+    if (!scope.stateCode) return
+    const p = new URLSearchParams({ state: scope.stateCode })
+    if (city) p.set('city', city)
+    navigate(`/stories/data-centers?${p.toString()}`)
+  }
   // The map zooms to the state the story speaks for, the asked city marked where its record has a coordinate (#1285).
   const zoom = scope.stateCode
     ? {
@@ -187,11 +205,31 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                 {storyStartLabel('data-centers', label)} <span aria-hidden="true">→</span>
               </Link>
             </div>
-            <HomeStoryDrill slotRef={setCardSlot} />
+            <HomeStoryDrill
+              slotRef={setCardSlot}
+              hint={scope.stateCode && byPlace && byPlace.length > 0 ? 'Pick a county or a town on the map to open its story.' : undefined}
+            />
           </div>
 
           <div className="home-story-map">
-            {national.isError ? (
+            {scope.stateCode && (statePlaces.isPending || (byPlace && byPlace.length > 0)) ? (
+              byPlace && byPlace.length > 0 ? (
+                <StoryCountyMap
+                  stateCode={scope.stateCode}
+                  scopeCity={asked.city}
+                  scopeLabel={label}
+                  byPlace={byPlace}
+                  onPickState={(code) => onPlaceApply?.(code, null)}
+                  passages={statePlaces.data?.items}
+                  cardSlot={cardSlot}
+                  onDrill={drill}
+                />
+              ) : (
+                <p className="text-sm text-stone-500" role="status">
+                  Loading the map…
+                </p>
+              )
+            ) : national.isError ? (
               <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
             ) : (
               <StoryStatesMap
