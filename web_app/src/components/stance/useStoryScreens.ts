@@ -191,15 +191,16 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     // When the screens change (a new place, or empty screens dropping out as data arrives), the reader stays on the
     // screen they were on, found by its id.
     // The screen the reader asked for wins over the URL and the old position when the screens rebuild under a jump (#1208).
-    // A change of place (a map pick, the place picker, the header's National) starts the story over on its first screen, unless
-    // the same change also asked for a screen in the URL: the screen left in the address belongs to the old place.
+    // A change of place (a map pick, the place picker, the header's National) always starts the story over on its first
+    // screen. A stale `?screen=` from the old place, or one the scroller wrote while the click cleared `settling`, must not
+    // win (#1367). A deep link that names both place and screen on a *fresh* mount still works: `lastScope` is null then, so
+    // `placeChanged` is false and `storyScreenIndex` reads the URL.
     const placeChanged = lastScope.current !== null && lastScope.current.key !== scopeKey
-    const askedNow = lastScope.current != null && lastScope.current.screen !== screenParam
-    lastScope.current = { key: scopeKey, screen: screenParam }
-    if (placeChanged && !askedNow) {
+    const first = screens[0]?.id
+    lastScope.current = { key: scopeKey, screen: placeChanged && first ? first : screenParam }
+    if (placeChanged) {
       intent.current = null
       shownIds.current = []
-      const first = screens[0]?.id
       if (first && screenParam !== first) {
         setSp(
           (prev) => {
@@ -212,7 +213,7 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
       }
     }
     const fromIntent = intent.current ? screens.findIndex((x) => x.id === intent.current!.id) : -1
-    const fromUrl = placeChanged && !askedNow ? 0 : fromIntent >= 0 ? fromIntent : storyScreenIndex(screens, screenParam)
+    const fromUrl = placeChanged ? 0 : fromIntent >= 0 ? fromIntent : storyScreenIndex(screens, screenParam)
     const wasOn = shownIds.current[activeRef.current]
     shownIds.current = screens.map((x) => x.id)
     const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1

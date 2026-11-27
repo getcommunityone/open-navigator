@@ -24,6 +24,8 @@ interface Props {
   onDrill?: (city: string | null) => void
   /** Drawn when no meeting in the state can be placed, or the place counts can't be read: the honest state outline. */
   fallback: ReactNode
+  /** Forwarded to `StoryCountyMap` (#1374): home passes false to drop the side legend panel. */
+  chrome?: boolean
 }
 
 /**
@@ -45,6 +47,7 @@ export default function TopicCountyMap({
   onPickState,
   onDrill,
   fallback,
+  chrome = true,
 }: Props) {
   const aspect = useStateAspect(stateCode)
   const places = useQuery({
@@ -72,6 +75,7 @@ export default function TopicCountyMap({
       labelledBy={labelledBy}
       onPickState={onPickState}
       onDrill={onDrill}
+      chrome={chrome}
     />
   )
 }

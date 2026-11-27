@@ -308,6 +308,19 @@ async function desktop(ctx) {
   await home.mouse.click(hp.AL.x, hp.AL.y)
   await home.waitForTimeout(1200)
   ok(here(home).startsWith('/stories/data-centers?state=AL'), `a click on Alabama on / opens its story (${here(home)})`)
+  // #1367: the drill must open Overview, not a mid-story screen left from a prior visit / scroll race.
+  {
+    const u = new URL(home.url())
+    ok(u.searchParams.get('screen') === 'overview', `Alabama drill carries screen=overview (${here(home)})`)
+    await home.waitForSelector('.stance-pip-btn, [data-panel]', { timeout: 60_000 })
+    await home.waitForTimeout(2500)
+    const land = await home.evaluate(() => {
+      const pip = [...document.querySelectorAll('.stance-pip-btn')].findIndex((b) => b.getAttribute('aria-current'))
+      const eye = document.querySelector('.stance-eyebrow')?.textContent?.trim() ?? ''
+      return { pip, eye, screen: new URLSearchParams(location.search).get('screen') }
+    })
+    ok(land.pip === 0 || land.eye === 'Overview' || land.screen === 'overview', `Alabama drill lands on Overview (pip=${land.pip}, eye=${land.eye}, screen=${land.screen})`)
+  }
   // The card's link (in the text column) reaches the same story: hover Texas, cross to the card, click its link.
   await home.goto(base + '/', { waitUntil: 'networkidle', timeout: 120_000 })
   await home.waitForSelector(`${sel} rect[data-state]`, { timeout: 60_000 })
