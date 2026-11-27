@@ -2586,6 +2586,21 @@ html.stance-snap {
 .stance-map-stage {
   position: relative;
 }
+/* The state drill-down's box transition (#1195): drawn on a canvas over the map for about a second, then the real map shows
+   again. The map stays in the page (and in the accessibility tree) underneath; it is only made transparent meanwhile. */
+.stance-map-morph {
+  position: relative;
+}
+.stance-map-morph.is-morphing .stance-map-svg {
+  opacity: 0;
+}
+.stance-map-morph-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+}
 /* The hovered county's newest meeting passage (#999, #1002), as a QuoteCard (#1108); at rest nothing shows. */
 .stance-map-card {
   position: absolute;

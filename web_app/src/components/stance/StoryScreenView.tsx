@@ -10,6 +10,7 @@ import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
 import StoryDotMap from './StoryDotMap'
 import StoryCountyMap from './StoryCountyMap'
+import MapDrill from './MapDrill'
 import StoryStatement from './StoryStatement'
 import type { ScreenStatement } from './useStoryStatements'
 import { speakerCounts } from '../../utils/stanceGame'
@@ -152,49 +153,65 @@ export default function StoryScreenView(p: Props) {
             />
             )
           ) : screen.kind === 'overview' ? (
-            stats.length > 0 ? (
-              <>
-                {stats.some((s) => s.key === 'meetings') && scope.stateCode && byPlace && byPlace.length > 0 ? (
-                  // At state scope, the state's counties (#1039), like the Census map's state drill-down.
-                  <StoryCountyMap
-                    stateCode={scope.stateCode}
-                    scopeCity={scope.city ?? null}
-                    scopeLabel={storyScopeLabel(scope)}
-                    byPlace={byPlace}
-                    onPickState={(code) => p.onBroaden(code, null)}
-                    labelledBy={`story-h-${screen.id}`}
-                    passages={mentions?.items}
-                  />
-                ) : stats.some((s) => s.key === 'meetings') && byState ? (
-                  <StoryDotMap
-                    byState={byState}
-                    scopeStateCode={scope.stateCode ?? null}
-                    scopeCity={scope.city ?? null}
-                    scopeLabel={storyScopeLabel(scope)}
-                    onPickState={(code) => p.onBroaden(code, null)}
-                    labelledBy={`story-h-${screen.id}`}
-                    passages={mentions?.items}
-                  />
-                ) : stats.some((s) => s.key === 'meetings') && (
-                  <ChartPanel
-                    chartKey="meeting-mentions"
-                    view="meetings"
-                    round={p.index}
-                    enabled
-                    stateCode={scope.stateCode}
-                    stateName={scope.stateName}
-                    city={scope.city}
-                    scopeLabel={storyScopeLabel(scope)}
-                  />
-                )}
-                <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
-                <p className="stance-note">{statsScopeNote(stats, scope)}</p>
-              </>
-            ) : (
-              <p className="stance-nodata" role="status">
-                {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}
-              </p>
-            )
+            // Narrowing to a state, its boxes re-form into the county map; broadening plays it back (#1195). The wrapper stays
+            // mounted while the new scope's counts load, so the transition can wait for the county map.
+            <MapDrill
+              stateCode={scope.stateCode ?? null}
+              byState={byState}
+              county={!scope.stateCode ? 'none' : byPlace == null ? 'loading' : byPlace.length > 0 ? 'ready' : 'none'}
+            >
+              {(beforePick) =>
+                stats.length > 0 ? (
+                  <>
+                    {stats.some((s) => s.key === 'meetings') && scope.stateCode && byPlace && byPlace.length > 0 ? (
+                      // At state scope, the state's counties (#1039), like the Census map's state drill-down.
+                      <StoryCountyMap
+                        stateCode={scope.stateCode}
+                        scopeCity={scope.city ?? null}
+                        scopeLabel={storyScopeLabel(scope)}
+                        byPlace={byPlace}
+                        onPickState={(code) => {
+                          beforePick(code)
+                          p.onBroaden(code, null)
+                        }}
+                        labelledBy={`story-h-${screen.id}`}
+                        passages={mentions?.items}
+                      />
+                    ) : stats.some((s) => s.key === 'meetings') && byState ? (
+                      <StoryDotMap
+                        byState={byState}
+                        scopeStateCode={scope.stateCode ?? null}
+                        scopeCity={scope.city ?? null}
+                        scopeLabel={storyScopeLabel(scope)}
+                        onPickState={(code) => {
+                          beforePick(code)
+                          p.onBroaden(code, null)
+                        }}
+                        labelledBy={`story-h-${screen.id}`}
+                        passages={mentions?.items}
+                      />
+                    ) : stats.some((s) => s.key === 'meetings') && (
+                      <ChartPanel
+                        chartKey="meeting-mentions"
+                        view="meetings"
+                        round={p.index}
+                        enabled
+                        stateCode={scope.stateCode}
+                        stateName={scope.stateName}
+                        city={scope.city}
+                        scopeLabel={storyScopeLabel(scope)}
+                      />
+                    )}
+                    <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
+                    <p className="stance-note">{statsScopeNote(stats, scope)}</p>
+                  </>
+                ) : (
+                  <p className="stance-nodata" role="status">
+                    {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}
+                  </p>
+                )
+              }
+            </MapDrill>
           ) : screen.chart === 'job-claims' && jobsData && noClaims ? (
             // No claims on record: the screen shows actual payroll jobs and where jobs are tracked instead (#1019).
             <PayrollJobsPanel data={jobsData} />

@@ -268,6 +268,14 @@ A phone gets scroll snap, not the pinned engine. Pinning with ScrollTrigger and 
 
 The story's motion is calm: rises, fades and a steady filled button, with no bounce. The challenge shares the same engine and layout and adds its own livelier touches (see its page).
 
+### The state drill-down transition (#1195)
+
+On the Overview, picking a state on the national box map (a click, a tap, or the **Show one state** select) no longer swaps the map in one jump ([#1195](https://github.com/getcommunityone/open-navigator/issues/1195)). The state's boxes lift (they grow a little and cast a shadow), then fly from their national places and re-form into the state's county box map, each easing in (exponential ease-out) to one county box, centre first with a small stagger; the other states' boxes fade and drift outward. Colours cross-fade from the national teal to the county colours as the boxes land. It takes about a second. **United States** plays the same motion backwards. Opening a state's story from the home map plays it on arrival, from the national layout: the home map's link carries a one-time navigation flag (not a URL parameter), cleared from the history entry once used, so a refresh or Back does not replay it.
+
+Nothing is invented. The state has far fewer boxes on the national grid than on its county grid, so each county box flies from the national box nearest it on the map: one of them carries that box, the others spawn from it small and clear and grow in, and a national box with no county box under it fades where it stands. Every box that lands is one of the county map's real boxes, at its real place, size, colour and opacity (read from the county map itself), and when it is over the real map shows again.
+
+It is drawn on a canvas over the map (`MapDrill.tsx`); the map stays in the page underneath, transparent for that second, so focus never moves, nothing extra is announced, and the map's keyboard navigation and data table work as before. A click or key press during it jumps to the end. With **prefers-reduced-motion** on there is no animation: the map swaps at once, as before. While the county counts are still loading, the state's boxes stay lifted on the national map and the flight starts when the county map is ready (it gives up after ten seconds and just shows the map). On a phone the county map is taller than the national one, so part of the flight lands below the fold. The layout math is the pure helper `web_app/src/utils/boxMorph.ts`, with tests. Design note: [State drill-down box transition](../development/story-drill-box-transition.md).
+
 ### Progress, and the next step
 
 A strip of segments along the lower edge of the top bar has one segment per screen. The one in view fills, the ones behind it stay filled, and the words beside it say what is left ("Seven to go", "One to go", "Last one").

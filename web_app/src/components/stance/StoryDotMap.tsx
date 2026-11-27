@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { NATIONAL_BBOX, STATES_ALBERS_TOPO, dotsFor, fetchTopo, meetingColor, toFeats } from '../../lib/dotMatrix'
+import { NATIONAL_BBOX, STATES_ALBERS_TOPO, fetchTopo, meetingColor } from '../../lib/dotMatrix'
+import { NATIONAL_PAD, RAMP, nationalGrid } from './nationalDots'
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
@@ -55,8 +56,6 @@ interface Props {
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
-
-
 /**
  * Overview dot map (#970): the country as a grid of dots, each state's dots shaded by the real number of its meetings where a
  * data center came up, nationally. A state with none stays the empty colour. When the story is scoped to a state, that state
@@ -72,17 +71,12 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     queryFn: () => fetchTopo(STATES_ALBERS_TOPO),
     staleTime: 1000 * 60 * 60,
   })
-  const grid = useMemo(() => {
-    if (!topo) return null
-    const feats = toFeats(topo, 'states').filter((f) => f.id !== '72')
-    return { feats, ...dotsFor(feats, NATIONAL_BBOX, 90) }
-  }, [topo])
+  const grid = useMemo(() => (topo ? nationalGrid(topo) : null), [topo])
 
   const counts = useMemo(() => new Map((byState ?? []).map((s) => [s.state_code, s])), [byState])
   const max = Math.max(0, ...(byState ?? []).map((s) => s.meetings))
   const min = Math.min(...(byState ?? []).map((s) => s.meetings).filter((n) => n > 0), max)
-  // The theme's light-to-brand teal steps; its last, near-black step is left out so the busiest states read as teal, not ink.
-  const ramp = HOUSE_THEME.ramp.slice(1, 5)
+  const ramp = RAMP
   const colorFor = (n: number | undefined): string => meetingColor(n, max, ramp, HOUSE_THEME.neutral)
   const codeOf = (fips: string) => STATE_FIPS_TO_CODE[fips] ?? null
   const stateNameOf = (code: string) => byState?.find((s) => s.state_code === code)?.state ?? STATE_CODE_TO_NAME[code] ?? code
@@ -129,7 +123,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
 
   const listed = [...(byState ?? [])].sort((a, b) => b.meetings - a.meetings || a.state_code.localeCompare(b.state_code))
   const r = grid.step * 0.38
-  const pad = 4
+  const pad = NATIONAL_PAD
   const vb = `${-pad} ${-pad} ${NATIONAL_BBOX[2] + pad * 2} ${NATIONAL_BBOX[3] + pad * 2}`
   const options = [...grid.feats]
     .map((f) => ({ code: codeOf(f.id), name: f.name }))
@@ -169,6 +163,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
       <svg
         viewBox={vb}
         className="stance-map-svg"
+        data-map="national"
         aria-label={`Dot map of meetings where a data center came up, by state, nationally${scopeStateCode ? `, with ${stateNameOf(scopeStateCode)} highlighted (the story is scoped to ${scopeLabel})` : ''}. ${listed.length} ${listed.length === 1 ? 'state has' : 'states have'} at least one.`}
         {...keyNav.svgProps}
       >
