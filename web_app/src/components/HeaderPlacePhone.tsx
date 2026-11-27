@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useLocation as useLocationContext, type LocationData } from '../contexts/LocationContext'
 import { PLACE_PICK_STATE, usePlacePick } from '../hooks/usePlacePick'
@@ -28,6 +28,11 @@ export interface HeaderPlacePhoneViewProps {
  */
 export function HeaderPlacePhoneView(p: HeaderPlacePhoneViewProps) {
   const zipForm = p.state.mode === 'zip' || p.editing
+  // Changing the ZIP from the toggle moves focus into the field, so keyboard and screen-reader users keep their place.
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (p.editing) inputRef.current?.focus()
+  }, [p.editing])
   return (
     <div className="sh-pphone" data-testid="header-place-phone">
       {zipForm ? (
@@ -42,6 +47,7 @@ export function HeaderPlacePhoneView(p: HeaderPlacePhoneViewProps) {
         >
           <span aria-hidden="true">📍</span>
           <input
+            ref={inputRef}
             className="sh-pzip-input"
             type="text"
             inputMode="numeric"
@@ -70,6 +76,7 @@ export function HeaderPlacePhoneView(p: HeaderPlacePhoneViewProps) {
             className="sh-ptoggle-btn"
             data-side="place"
             aria-pressed={p.state.active === 'place'}
+            aria-label={p.state.active === 'place' ? `${p.state.place}, change ZIP` : `Show ${p.state.place}`}
             title={p.state.active === 'place' ? 'Change your ZIP' : `Show ${p.state.place}`}
             onClick={() => (p.state.mode === 'toggle' && p.state.active === 'place' ? p.onEdit() : p.onToggle('place'))}
           >
@@ -120,8 +127,18 @@ export default function HeaderPlacePhone() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [choices, setChoices] = useState<{ label: string; loc: LocationData }[] | null>(null)
+  // The place just left for National, kept for this visit only (never saved): one tap back works after a deep link with
+  // nothing saved, and returns to the place the page had, not a different saved town.
+  const [back, setBack] = useState<{ state: string; city: string | null } | null>(null)
+  const town = back ?? saved
   const search = new URLSearchParams(routerLocation.search)
-  const state = phonePlaceState(routerLocation.pathname, search, saved)
+  const state = phonePlaceState(routerLocation.pathname, search, town)
+  // A new page starts with the toggle, not a half-typed ZIP.
+  useEffect(() => {
+    setEditing(false)
+    setError(null)
+    setChoices(null)
+  }, [routerLocation.pathname])
 
   const reset = () => {
     setEditing(false)
@@ -131,6 +148,7 @@ export default function HeaderPlacePhone() {
   }
   const commit = (loc: LocationData) => {
     reset()
+    setBack(null)
     pickPlace(loc)
   }
   const submit = async () => {
@@ -153,7 +171,11 @@ export default function HeaderPlacePhone() {
     }
   }
   const toggle = (target: 'place' | 'national') => {
-    const next = searchForScope(routerLocation.pathname, search, target, saved)
+    if (target === 'national') {
+      const st = (search.get('state') ?? '').trim().toUpperCase()
+      if (st) setBack({ state: st, city: (search.get('city') ?? '').trim() || null })
+    }
+    const next = searchForScope(routerLocation.pathname, search, target, town)
     if (next.toString() === search.toString()) return
     const qs = next.toString()
     // The same pick marker as a town pick: Layout remounts the page once this URL commits, so label and data move together.

@@ -76,7 +76,7 @@ On a phone narrower than 520px the "Open Navigator" name is hidden so the select
 | A town, Home | The same toggle. National sets `?scope=national` (#1285), and the town side removes it |
 | A town, a page with no place scope | `📍 Tuscaloosa, AL` only (nothing to toggle) |
 
-One tap switches sides and the saved town is kept, so going back needs no retyping. Tapping the pressed town side opens
+One tap switches sides and the saved town is kept, so going back needs no retyping. Going to National remembers the place just left for the rest of the visit (not saved), so a deep link like `/search?state=GA` with no saved town still has a one-tap way back, and the way back is the place the page had, not a different saved town. Tapping the pressed town side opens
 the ZIP field to change it (✕ keeps the current place). The toggle replaces #1285's phone-bar "× National"; desktop keeps
 "× National" beside its place control. The rules are `phonePlaceState()` and `searchForScope()` in
 `web_app/src/utils/headerPlace.ts` (tested in `headerPlacePhone.test.ts`). The component is

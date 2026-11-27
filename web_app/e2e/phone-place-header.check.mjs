@@ -60,6 +60,22 @@ ok(!/[?&]state=/.test(path()) && (await pressed('national')) === 'true', `and ba
 await page.goto(`${base}/chat`, { waitUntil: 'networkidle', timeout: 120_000 })
 ok((await page.locator(`${sel} [data-side="place"]`).isVisible()) && (await page.locator(`${sel} [data-side="national"]`).count()) === 0, 'a page with no place scope: the town only')
 await shot('5-other')
+// A deep link with nothing saved (#1304 review): National, then one tap back to the linked place.
+const ctx2 = await browser.newContext({ ...devices['iPhone SE'], reducedMotion: 'reduce' })
+const p2 = await ctx2.newPage()
+await p2.goto(`${base}/search?state=GA`, { waitUntil: 'networkidle', timeout: 120_000 })
+await p2.locator(`${sel} [data-side="national"]`).click()
+await p2.waitForTimeout(1200)
+const backOk = await p2.locator(`${sel} [data-side="place"]`).isVisible()
+await p2.locator(`${sel} [data-side="place"]`).click().catch(() => {})
+await p2.waitForTimeout(1200)
+ok(backOk && new URL(p2.url()).search.includes('state=GA'), `deep link, nothing saved: National and back to GA (${new URL(p2.url()).search})`)
+const fits = await p2.evaluate(() => {
+  const h = document.querySelector('.site-header')
+  return h ? h.scrollWidth <= window.innerWidth + 1 : false
+})
+ok(fits, 'the header fits a 320px-wide phone without sideways scroll')
+if (shots) await p2.screenshot({ path: `${shots}/phone-place-6-iphone-se.png`, clip: { x: 0, y: 0, width: 320, height: 160 } })
 await browser.close()
 if (failures) {
   console.error(`\n${failures} check(s) failed.`)

@@ -55,6 +55,13 @@ describe('searchForScope: one tap there and back, no retyping', () => {
     expect(searchForScope('/search', sp(''), 'place', { state: 'AL', city: null }).toString()).toBe('state=AL')
   })
 
+  it('a deep link with nothing saved: the place left for National is the way back (review, #1304)', () => {
+    const left = { state: 'GA', city: null }
+    const national = searchForScope('/search', sp('state=GA'), 'national', left)
+    expect(phonePlaceState('/search', national, left)).toEqual({ mode: 'toggle', place: 'GA', active: 'national', canToggle: true })
+    expect(searchForScope('/search', national, 'place', left).toString()).toBe('state=GA')
+  })
+
   it('a page with no place scope is left alone', () => {
     expect(searchForScope('/how-it-works', sp('a=1'), 'national', tus).toString()).toBe('a=1')
   })

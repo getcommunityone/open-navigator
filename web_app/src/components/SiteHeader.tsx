@@ -77,18 +77,18 @@ const HEADER_CSS = `
 .site-header .sh-place-more { padding: 4px 8px; border: none; border-left: 1px solid rgba(13,148,136,0.3); border-radius: 0 999px 999px 0; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 11px; cursor: pointer; }
 .site-header button:focus-visible, .site-header a:focus-visible { outline: 2px solid ${TEAL_DARK}; outline-offset: 2px; }
 .site-header .sh-mobile { display: none; }
-.site-header .sh-national-phone { display: none; }
 /* #1301: the phone selector (pin + ZIP, or [📍 town | National]) sits in the header row below the menu breakpoint. */
 .site-header .sh-place-phone { display: none; }
 .site-header .sh-pphone { position: relative; min-width: 0; }
 .site-header .sh-ptoggle { display: inline-flex; align-items: stretch; max-width: 100%; border: 1px solid rgba(13,148,136,0.35); border-radius: 999px; overflow: hidden; background: #fff; }
-.site-header .sh-ptoggle-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; min-width: 0; padding: 0 10px; border: none; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.site-header .sh-ptoggle-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; min-width: 0; padding: 0 10px; border: none; background: none; color: ${TEAL_DARK}; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .site-header .sh-ptoggle-btn + .sh-ptoggle-btn { border-left: 1px solid rgba(13,148,136,0.35); }
 .site-header .sh-ptoggle-btn[aria-pressed="true"] { background: ${TEAL_DARK}; color: #fff; }
 .site-header .sh-ptoggle-text { overflow: hidden; text-overflow: ellipsis; max-width: 9.5em; }
-.site-header .sh-pzip { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 4px 0 10px; border: 1px solid rgba(13,148,136,0.35); border-radius: 999px; background: #fff; }
+@media (max-width: 379px) { .site-header .sh-ptoggle-text { max-width: 6.5em; } .site-header .sh-ptoggle-btn { padding: 0 8px; } }
+.site-header .sh-pzip { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 2px 0 10px; border: 1px solid rgba(13,148,136,0.35); border-radius: 999px; background: #fff; }
 .site-header .sh-pzip-input { width: 4.6em; min-height: 36px; border: none; background: none; font: inherit; font-size: 16px; letter-spacing: .08em; color: ${INK}; outline-offset: 2px; }
-.site-header .sh-pzip-go, .site-header .sh-pzip-cancel { min-height: 32px; min-width: 32px; padding: 0 10px; border: none; border-radius: 999px; background: ${TEAL_DARK}; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.site-header .sh-pzip-go, .site-header .sh-pzip-cancel { min-height: 40px; min-width: 40px; padding: 0 10px; border: none; border-radius: 999px; background: ${TEAL_DARK}; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .site-header .sh-pzip-go:disabled { background: #d6d3d1; cursor: default; }
 .site-header .sh-pzip-cancel { background: none; color: #78716c; padding: 0 6px; }
 .site-header .sh-pzip-pop { position: absolute; right: 0; top: calc(100% + 6px); width: min(280px, calc(100vw - 32px)); padding: 10px; background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; box-shadow: 0 16px 32px rgba(28,25,23,0.14); z-index: 60; display: flex; flex-direction: column; gap: 6px; }
