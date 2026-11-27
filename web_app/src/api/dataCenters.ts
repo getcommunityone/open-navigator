@@ -344,3 +344,22 @@ export async function fetchDataCenterProjects(params: {
     { 'data_centers.scope_level': scopeLevel },
   )
 }
+
+// --- comment-level metrics from our own captions (#1233) -----------------------------------------------------------
+// Shapes from the FastAPI schema (`CommentMetricsResponse` in api/routes/data_center_comments.py).
+export type DataCenterCommentMetrics = Schemas['CommentMetricsResponse']
+
+/** Public comments about data centers segmented from our captions, with free keyword counts (#1233). */
+export async function fetchDataCenterCommentMetrics(params: {
+  year?: number
+  state?: string
+  city?: string
+}): Promise<DataCenterCommentMetrics> {
+  return withSpan('fetch-data-center-comment-metrics', async () => {
+    const q: Record<string, string> = { year: String(params.year ?? 2026) }
+    if (params.state) q.state = params.state
+    if (params.city) q.city = params.city
+    const res = await api.get<DataCenterCommentMetrics>('/data-centers/comment-metrics', { params: q })
+    return res.data
+  })
+}

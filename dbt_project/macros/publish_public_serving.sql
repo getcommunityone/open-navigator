@@ -184,6 +184,12 @@
     'job_claim':                           "_s.state_code in {{states}}",
     'data_center_agenda_item':             "_s.state_code in {{states}}",
     'data_center_meeting_mention':         "_s.state_code in {{states}}",
+    'segmented_meeting':                   "_s.state_code in {{states}}",
+    'meeting_comment':                     "_s.state_code in {{states}}",
+    'data_center_comment':                 "_s.state_code in {{states}}",
+    'data_center_comment_place':
+        "_s.data_center_comment_id in (select data_center_comment_id from gold.data_center_comment "
+        "where state_code in {{states}})",
     'data_center_meeting_position':        "_s.state_code in {{states}}",
     'data_center_meeting_lean':            "_s.state_code in {{states}}",
     'topic_meeting_lean':                  "_s.state_code in {{states}}",
@@ -269,7 +275,8 @@
     'person_government_term',
     'data_center_meeting_lean',
     'topic_meeting_lean',
-    'recorded_meeting_year'
+    'recorded_meeting_year',
+    'segmented_meeting', 'meeting_comment', 'data_center_comment', 'data_center_comment_place'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

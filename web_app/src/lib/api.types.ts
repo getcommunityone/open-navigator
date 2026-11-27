@@ -492,6 +492,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/comment-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Data Center Comment Metrics */
+        get: operations["data_center_comment_metrics_api_data_centers_comment_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/community-events": {
         parameters: {
             query?: never;
@@ -1617,6 +1634,68 @@ export interface components {
             /** Priority */
             priority: string[];
         };
+        /** CommentMetricsResponse */
+        CommentMetricsResponse: {
+            ai_mentions: components["schemas"]["CountItem"] | null;
+            /**
+             * Basis
+             * @default Public comments segmented from our own meeting captions (self-introductions and the chair calling speakers), kept when the speaker isn't staff or the applicant and the comment is about a data center. Concerns, companies, people, AI and roles are keyword matches (dbt seeds), not a model's reading.
+             */
+            basis: string;
+            /** Comments */
+            comments: number;
+            /** Companies */
+            companies: components["schemas"]["CountItem"][];
+            /** Concerns */
+            concerns: components["schemas"]["CountItem"][];
+            /** Governments */
+            governments: number;
+            /** Meetings */
+            meetings: number;
+            /**
+             * Meetings Segmented
+             * @description Meetings in scope with any segmented comment (all topics).
+             */
+            meetings_segmented: number;
+            /** Meetings With No Supporters */
+            meetings_with_no_supporters?: number | null;
+            /** Mentions Per Meeting By Quarter */
+            mentions_per_meeting_by_quarter: components["schemas"]["QuarterItem"][];
+            /**
+             * Multi Concern Share
+             * @description Share of comments raising 2+ concerns on the reference list.
+             */
+            multi_concern_share?: number | null;
+            /**
+             * No Supporters Reason
+             * @default Needs a per-comment stance (opposed / in favor / question). That classifier pass is on hold by the owner (epic #1232, phase 2); until it runs, this number is unknown.
+             */
+            no_supporters_reason: string;
+            /** People */
+            people: components["schemas"]["CountItem"][];
+            /**
+             * Places
+             * @description Place kinds named (roads, schools, ...).
+             */
+            places?: components["schemas"]["CountItem"][];
+            /** Positions */
+            positions?: {
+                [key: string]: number;
+            } | null;
+            /**
+             * Positions Reason
+             * @default Needs a per-comment stance (opposed / in favor / question). That classifier pass is on hold by the owner (epic #1232, phase 2); until it runs, this number is unknown.
+             */
+            positions_reason: string;
+            /** Roles */
+            roles: components["schemas"]["CountItem"][];
+            scope: components["schemas"]["JobClaimScope"];
+            /**
+             * Year
+             * @description Calendar year filter as a string; null for all years.
+             */
+            year?: string | null;
+        };
         /** CommunityEvent */
         CommunityEvent: {
             /** City */
@@ -1707,6 +1786,20 @@ export interface components {
              * @default 0
              */
             unconfirmed: number;
+        };
+        /** CountItem */
+        CountItem: {
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Share
+             * @description count / comments; null when there are no comments.
+             */
+            share?: number | null;
         };
         /** DataCenterAgendaCounts */
         DataCenterAgendaCounts: {
@@ -3431,6 +3524,31 @@ export interface components {
             /** Value */
             value: number;
         };
+        /** QuarterItem */
+        QuarterItem: {
+            /**
+             * Comments
+             * @description Data-center public comments segmented in those meetings.
+             */
+            comments: number;
+            /**
+             * Meetings With Mention
+             * @description Meetings whose captions say 'data center'.
+             */
+            meetings_with_mention: number;
+            /**
+             * Mention Passages
+             * @description 3-minute caption passages that say it.
+             */
+            mention_passages: number;
+            /** Passages Per Meeting */
+            passages_per_meeting: number | null;
+            /**
+             * Quarter
+             * @description e.g. '2026-Q1' (a string, not a number).
+             */
+            quarter: string;
+        };
         /**
          * RecordingCandidate
          * @description A video a search found for the meeting: a candidate for review, never attached.
@@ -4698,6 +4816,43 @@ export interface operations {
             };
         };
     };
+    data_center_comment_metrics_api_data_centers_comment_metrics_get: {
+        parameters: {
+            query?: {
+                /** @description Meeting year (default 2026); 0 for all years. */
+                year?: number;
+                /** @description 2-letter code or full state name. */
+                state?: string | null;
+                /** @description City / jurisdiction name (substring). */
+                city?: string | null;
+                jurisdiction_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentMetricsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_community_events_api_data_centers_community_events_get: {
         parameters: {
             query?: {
@@ -4929,6 +5084,8 @@ export interface operations {
                 city?: string | null;
                 /** @description Quotes per side. */
                 limit?: number;
+                /** @description If set, up to this many quotes per state and side instead of `limit` per side (the home map). */
+                per_state?: number;
             };
             header?: never;
             path?: never;

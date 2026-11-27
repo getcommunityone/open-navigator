@@ -1928,6 +1928,26 @@ sources:
             description: "When the file was fetched."
           - name: record
             description: "The whole record as published (JSON object, or the CSV row header -> value)."
+      - name: bronze_meeting_comment_segment
+        config:
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 30, period: day}
+        description: >
+          Public comments split out of meeting captions (#1233, epic #1232), one row per detected comment,
+          landed by `python -m ingestion.meetings.comment_segments`. Segmentation is topic-agnostic and runs
+          once per meeting (every meeting a curated topic links to, plus the data-center set). A comment runs
+          from a speaker boundary (a self-introduction or the chair calling a speaker) to the next boundary,
+          a closing ("your time is up"), a 20-second pause or 8 minutes. comment_text and intro_text are the
+          caption words with any home address or street of residence replaced by "[address removed]"
+          before storing; intro_name is the name as heard and is never served (dbt serves "First L." only).
+        columns:
+          - name: comment_segment_id
+            description: "PK: md5(video_id | start_seconds | end_seconds)."
+            tests: [unique, not_null]
+          - name: video_id
+            description: "YouTube video id of the meeting recording."
+            tests: [not_null]
       - name: bronze_data_center_news_item
         config:
           loaded_at_field: last_seen_at
