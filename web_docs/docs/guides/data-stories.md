@@ -836,6 +836,15 @@ one, and a side only when its own name or mission states it. Three are listed fi
 opens the rest. The counts by evidence follow the shared display rule (`pickDisplay`): a sentence for a few, bars for
 more. An empty scope says "No nonprofits on record for Georgia." and links one level up with that level's count. Data
 and rules: [How organizations are tied to topics](../development/topic-organizations.md).
+### Who's working on this: nonprofits on a topic (#1345)
+
+The nonprofits tied to a topic come from `public.topic_organization` (one row per topic × organization) and
+`GET /api/topics/{topic}/organizations?state=&city=`. Each is tied by the record, strongest first: **named in one of the
+topic's recorded meetings** in its state, word for word and near the topic's words; its **990 mission** names the topic;
+its **name** does; or its **IRS (NTEE) category** is the topic's field. The API ranks them that way, then by latest
+revenue, and gives each one's evidence (the meeting passage or mission with the words marked), city, mission, latest
+990 or IRS revenue with its tax year, and a side only where the organization's own name or mission states one. How the
+rules were chosen and checked: [How organizations are tied to topics](../development/topic-organizations.md).
 
 ### What happened next: the chain from meeting to outcome (#1314)
 

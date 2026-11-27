@@ -1,0 +1,291 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Go to home" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: C1
+        - generic [ref=e8]:
+          - generic [ref=e9]: Open Navigator
+          - generic [ref=e10]: by CommunityOne
+      - navigation [ref=e11]:
+        - button "Data Stories" [ref=e12] [cursor=pointer]
+        - button "Search" [ref=e13] [cursor=pointer]
+        - button "How It Works" [ref=e14] [cursor=pointer]
+        - button "Impact" [ref=e15] [cursor=pointer]
+        - button "Register/Login ▾" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: Register/Login
+          - generic [ref=e19]: ▾
+  - region "What did local meetings say about data centers?" [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - paragraph [ref=e24]: Data story · The Data Center Story
+          - generic [ref=e25]:
+            - link "Start the story" [ref=e26] [cursor=pointer]:
+              - /url: /stories/data-centers
+              - text: Start the story →
+            - 'link "Next story: Short-term rentals" [ref=e27] [cursor=pointer]':
+              - /url: /stories/short-term-rentals
+              - text: "Next story: Short-term rentals →"
+        - status [ref=e29]: Loading the map…
+      - navigation "Browse topics" [ref=e30]:
+        - generic [ref=e31]:
+          - paragraph [ref=e32]: Browse topics
+          - link "All data stories" [ref=e33] [cursor=pointer]:
+            - /url: /stories
+        - generic [ref=e36]:
+          - button "Previous topics" [disabled]
+          - list [ref=e37]:
+            - listitem [ref=e38]:
+              - button "Data centers Who spoke up, the sites and projects, and what was decided. Showing above" [pressed] [ref=e39] [cursor=pointer]:
+                - generic [ref=e44]:
+                  - generic [ref=e45]: Data centers
+                  - generic [ref=e46]: Who spoke up, the sites and projects, and what was decided.
+                  - generic [ref=e47]: Showing above
+            - listitem [ref=e48]:
+              - button "Short-term rentals Airbnb, VRBO and vacation rentals, in the words said at meetings. Show this story" [ref=e49] [cursor=pointer]:
+                - generic [ref=e54]:
+                  - generic [ref=e55]: Short-term rentals
+                  - generic [ref=e56]: Airbnb, VRBO and vacation rentals, in the words said at meetings.
+                  - generic [ref=e57]: Show this story →
+            - listitem [ref=e58]:
+              - button "Flock Flock Safety cameras and the contracts behind them. Coming soon · See companies" [ref=e59] [cursor=pointer]:
+                - generic [ref=e64]:
+                  - generic [ref=e65]: Flock
+                  - generic [ref=e66]: Flock Safety cameras and the contracts behind them.
+                  - generic [ref=e67]: Coming soon · See companies
+            - listitem [ref=e68]:
+              - button "Guns Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them. Coming soon · See companies" [ref=e69] [cursor=pointer]:
+                - generic [ref=e73]:
+                  - generic [ref=e74]: Guns
+                  - generic [ref=e75]: Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them.
+                  - generic [ref=e76]: Coming soon · See companies
+            - listitem [ref=e77]:
+              - 'button "License plate readers Automated plate readers: who uses them and for what. Coming soon · See companies" [ref=e78] [cursor=pointer]':
+                - generic [ref=e85]:
+                  - generic [ref=e86]: License plate readers
+                  - generic [ref=e87]: "Automated plate readers: who uses them and for what."
+                  - generic [ref=e88]: Coming soon · See companies
+            - listitem [ref=e89]:
+              - button "Pickleball Courts, noise and new venues, as councils and parks boards weigh them. Coming soon · See companies" [ref=e90] [cursor=pointer]:
+                - generic [ref=e99]:
+                  - generic [ref=e100]: Pickleball
+                  - generic [ref=e101]: Courts, noise and new venues, as councils and parks boards weigh them.
+                  - generic [ref=e102]: Coming soon · See companies
+            - listitem [ref=e103]:
+              - generic [ref=e111]:
+                - generic [ref=e112]: Bike lanes
+                - generic [ref=e113]: Bike lanes and paths, as councils weigh them.
+                - generic [ref=e114]: Coming soon
+            - listitem [ref=e115]:
+              - generic [ref=e123]:
+                - generic [ref=e124]: Starting a nonprofit
+                - generic [ref=e125]: Every step, filing and fee to start one, state by state.
+                - generic [ref=e126]: Coming soon
+            - listitem [ref=e127]:
+              - generic [ref=e133]:
+                - generic [ref=e134]: Insurance shopping
+                - generic [ref=e135]: Are you paying too much? What regulators publish, made simple.
+                - generic [ref=e136]: Coming soon
+          - button "Next topics" [ref=e137] [cursor=pointer]
+        - generic [ref=e140]:
+          - button "Topics page 1 of 3" [ref=e141] [cursor=pointer]
+          - button "Topics page 2 of 3" [ref=e142] [cursor=pointer]
+          - button "Topics page 3 of 3" [ref=e143] [cursor=pointer]
+        - region "Companies named · Data centers · National" [ref=e144]:
+          - heading "Companies named · Data centers · National" [level=3] [ref=e145]
+          - paragraph [ref=e146]: Loading companies…
+  - main [ref=e147]:
+    - generic [ref=e148]:
+      - heading "Search your community" [level=2] [ref=e149]
+      - generic [ref=e150]:
+        - generic [ref=e151]: 📍 Live in
+        - generic [ref=e152]:
+          - link "Seattle, WA" [ref=e153] [cursor=pointer]:
+            - /url: /search?state=WA&city=Seattle
+          - text: ·
+        - generic [ref=e154]:
+          - link "Boston, MA" [ref=e155] [cursor=pointer]:
+            - /url: /search?state=MA&city=Boston
+          - text: ·
+        - generic [ref=e156]:
+          - link "Atlanta, GA" [ref=e157] [cursor=pointer]:
+            - /url: /search?state=GA&city=Atlanta
+          - text: ·
+        - link "Tuscaloosa, AL" [ref=e159] [cursor=pointer]:
+          - /url: /search?state=AL&city=Tuscaloosa
+        - generic [ref=e160]: — more cities coming soon
+      - generic [ref=e162]:
+        - button "Search category" [ref=e163] [cursor=pointer]:
+          - text: All
+          - generic [aria-hidden] [ref=e164]: ▾
+        - textbox "Search topics, people, organizations, or causes" [ref=e165]
+        - button "Location level" [ref=e166] [cursor=pointer]:
+          - text: 📍 the U.S.
+          - generic [aria-hidden] [ref=e167]: ▾
+        - button "Search" [ref=e168] [cursor=pointer]: 🔍
+      - generic [ref=e169]:
+        - generic [ref=e171]:
+          - button "Browse questions" [ref=e172] [cursor=pointer]
+          - button "Show top questions" [ref=e174] [cursor=pointer]: ▾
+        - generic [ref=e176]:
+          - button "Browse topics" [ref=e177] [cursor=pointer]
+          - button "Show top topics" [ref=e179] [cursor=pointer]: ▾
+        - generic [ref=e181]:
+          - button "Browse causes" [ref=e182] [cursor=pointer]
+          - button "Show top causes" [ref=e184] [cursor=pointer]: ▾
+        - generic [ref=e186]:
+          - button "Browse places" [ref=e187] [cursor=pointer]
+          - button "Show top places" [ref=e189] [cursor=pointer]: ▾
+    - generic [ref=e191]:
+      - generic [ref=e192]: 💵
+      - generic [ref=e193]:
+        - generic [ref=e194]: How much of your money is on the line?
+        - generic [ref=e195]: See what you pay in local taxes, where it goes, and what it means for your grandkids. About 90 seconds.
+      - button "Show me my money →" [ref=e196] [cursor=pointer]
+    - generic [ref=e197]:
+      - generic [ref=e198]:
+        - generic [ref=e199]: 🔥
+        - generic [ref=e200]:
+          - heading "Contested" [level=2] [ref=e201]
+          - generic [ref=e202]: Split votes and heated debate among officials or residents · 📍 the U.S.
+        - generic [ref=e203]:
+          - button "Past month" [ref=e204] [cursor=pointer]
+          - button "Past 3 months" [ref=e205] [cursor=pointer]
+          - button "Past year" [ref=e206] [cursor=pointer]
+          - button "All time" [ref=e207] [cursor=pointer]
+      - generic [ref=e208]: No Contested activity in the U.S. for recent.
+    - generic [ref=e210]:
+      - generic [ref=e211]:
+        - generic [ref=e212]: 🤨
+        - generic [ref=e213]:
+          - heading "Raised Eyebrows" [level=2] [ref=e214]
+          - generic [ref=e215]: Unusual patterns — sole-source contracts, reversals, late additions. Manual human review recommended. · 📍 the U.S.
+      - generic [ref=e216]: No Raised Eyebrows activity in the U.S. for recent.
+    - generic [ref=e219]:
+      - generic [ref=e220]: 💵
+      - generic [ref=e221]: Money Moves · loading…
+  - generic [ref=e223]:
+    - generic [ref=e224]:
+      - heading "How it works" [level=2] [ref=e225]
+      - paragraph [ref=e226]: Take real action on local issues — starting with your personal impact. Choose a cause, make a plan, find help when someone needs direct support, track the decisions that matter, and build on open data.
+    - generic [ref=e227]:
+      - generic [ref=e228]: Step 0 · Why should I care? Personal Impact
+      - paragraph [ref=e229]: Local decisions shape your taxes, schools, safety, and your family's future — whether you engage or not. Doing nothing is a choice too, with real consequences for you and your children.
+      - generic [ref=e230]:
+        - button "💵 Try the cost estimator" [ref=e231] [cursor=pointer]
+        - button "📈 View income mobility trends" [ref=e232] [cursor=pointer]
+      - paragraph [ref=e233]: Scoped to your community once you confirm where home is.
+    - generic [ref=e234]:
+      - button "📍 Choose a cause, topic, place or question School Quality Property Taxes Local Schools Traffic & Roads Why are my taxes rising?" [ref=e235] [cursor=pointer]:
+        - generic [ref=e236]: 📍
+        - generic [ref=e237]: Choose a cause, topic, place or question
+        - list [ref=e238]:
+          - listitem [ref=e239]:
+            - generic [aria-hidden] [ref=e240]: ✓
+            - generic [ref=e241]: School Quality
+          - listitem [ref=e242]:
+            - generic [aria-hidden] [ref=e243]: ✓
+            - generic [ref=e244]: Property Taxes
+          - listitem [ref=e245]:
+            - generic [aria-hidden] [ref=e246]: ✓
+            - generic [ref=e247]: Local Schools
+          - listitem [ref=e248]:
+            - generic [aria-hidden] [ref=e249]: ✓
+            - generic [ref=e250]: Traffic & Roads
+          - listitem [ref=e251]:
+            - generic [aria-hidden] [ref=e252]: →
+            - generic [ref=e253]: Why are my taxes rising?
+      - button "💚 Find help & allies Find Allies on Issues Neighborhood Groups Advocacy Support Local Networks Family Resources" [ref=e254] [cursor=pointer]:
+        - generic [ref=e255]: 💚
+        - generic [ref=e256]: Find help & allies
+        - list [ref=e257]:
+          - listitem [ref=e258]:
+            - generic [aria-hidden] [ref=e259]: ✓
+            - generic [ref=e260]: Find Allies on Issues
+          - listitem [ref=e261]:
+            - generic [aria-hidden] [ref=e262]: ✓
+            - generic [ref=e263]: Neighborhood Groups
+          - listitem [ref=e264]:
+            - generic [aria-hidden] [ref=e265]: ✓
+            - generic [ref=e266]: Advocacy Support
+          - listitem [ref=e267]:
+            - generic [aria-hidden] [ref=e268]: ✓
+            - generic [ref=e269]: Local Networks
+          - listitem [ref=e270]:
+            - generic [aria-hidden] [ref=e271]: →
+            - generic [ref=e272]: Family Resources
+      - button "📊 Track decisions School Board Votes Neighborhood Changes Public Safety New Developments Near Me" [ref=e273] [cursor=pointer]:
+        - generic [ref=e274]: 📊
+        - generic [ref=e275]: Track decisions
+        - list [ref=e276]:
+          - listitem [ref=e277]:
+            - generic [aria-hidden] [ref=e278]: ✓
+            - generic [ref=e279]: School Board Votes
+          - listitem [ref=e280]:
+            - generic [aria-hidden] [ref=e281]: ✓
+            - generic [ref=e282]: Neighborhood Changes
+          - listitem [ref=e283]:
+            - generic [aria-hidden] [ref=e284]: ✓
+            - generic [ref=e285]: Public Safety
+          - listitem [ref=e286]:
+            - generic [aria-hidden] [ref=e287]: ✓
+            - generic [ref=e288]: New Developments Near Me
+      - button "🧩 Build with data Local Trends Impact Maps Easy Tools" [ref=e289] [cursor=pointer]:
+        - generic [ref=e290]: 🧩
+        - generic [ref=e291]: Build with data
+        - list [ref=e292]:
+          - listitem [ref=e293]:
+            - generic [aria-hidden] [ref=e294]: ✓
+            - generic [ref=e295]: Local Trends
+          - listitem [ref=e296]:
+            - generic [aria-hidden] [ref=e297]: ✓
+            - generic [ref=e298]: Impact Maps
+          - listitem [ref=e299]:
+            - generic [aria-hidden] [ref=e300]: →
+            - generic [ref=e301]: Easy Tools
+    - generic [ref=e302]: Ready to act? Show up at meetings · Write letters · Change the process
+  - generic [ref=e304]:
+    - generic [ref=e305]:
+      - heading "Our Impact" [level=2] [ref=e306]
+      - paragraph [ref=e307]: One platform connecting residents, leaders, and funders to what's really happening on the ground.
+      - button "📄 View Our Strategic Plan" [ref=e308] [cursor=pointer]
+    - generic [ref=e309]:
+      - heading "Our Mission" [level=3] [ref=e310]
+      - paragraph [ref=e311]: "CommunityOne: One Map for Every Community"
+      - paragraph [ref=e312]: Every person deserves to find the help they need and have a voice in the decisions that shape their lives. But public resources are scattered, gaps go unseen, and communities are left navigating alone.
+      - paragraph [ref=e313]: CommunityOne changes that. One platform connects residents, leaders, and funders to what's really happening on the ground — so no community has to fight just to be seen.
+      - button "Start Exploring →" [ref=e314] [cursor=pointer]
+  - region "Every local decision, in one place." [ref=e315]:
+    - heading "Every local decision, in one place." [level=2] [ref=e316]
+    - paragraph [ref=e317]: Search the meetings, votes, spending, and debates shaping your community.Free, forever.
+  - contentinfo [ref=e318]:
+    - generic [ref=e319]:
+      - generic [ref=e320]:
+        - navigation "Site" [ref=e321]:
+          - link "Chat & Contact" [ref=e322] [cursor=pointer]:
+            - /url: /chat
+          - link "Privacy Policy" [ref=e323] [cursor=pointer]:
+            - /url: http://localhost:3000/docs/legal/privacy-policy
+          - link "Terms of Service" [ref=e324] [cursor=pointer]:
+            - /url: http://localhost:3000/docs/legal/terms-of-service
+          - link "Data Provider Terms" [ref=e325] [cursor=pointer]:
+            - /url: http://localhost:3000/docs/legal/data-provider-terms
+        - navigation "CommunityOne on social media" [ref=e326]:
+          - link "Instagram" [ref=e327] [cursor=pointer]:
+            - /url: https://www.instagram.com/getcommunityone/
+          - link "Facebook" [ref=e330] [cursor=pointer]:
+            - /url: https://www.facebook.com/getcommunityone
+          - link "X (Twitter)" [ref=e333] [cursor=pointer]:
+            - /url: https://x.com/getcommunityone/
+          - link "LinkedIn" [ref=e336] [cursor=pointer]:
+            - /url: https://www.linkedin.com/company/getcommunityone
+          - link "YouTube" [ref=e339] [cursor=pointer]:
+            - /url: https://www.youtube.com/@getcommunityone
+          - link "Discord" [ref=e342] [cursor=pointer]:
+            - /url: https://discord.gg/uH6Dytek
+      - generic [ref=e345]:
+        - text: CommunityOne Navigator · a 501(c)(3) nonprofit ·
+        - link "EIN 42-2467803" [ref=e346] [cursor=pointer]:
+          - /url: https://projects.propublica.org/nonprofits/organizations/422467803
+        - text: · Tuscaloosa, Alabama

@@ -102,6 +102,25 @@ seeds:
       - name: domain
         description: "FQDN to exclude, e.g. wilcoxcountyal.gov"
 
+  - name: topic_organization_rule
+    description: >
+      How each curated topic is tied to nonprofits (#1345), keyed by topic_query_id (the topic slug). rule_type is
+      ntee_code (pattern = the first three characters of the IRS NTEE code), name_keyword or mission_keyword
+      (pattern = a Postgres regex matched case-insensitively against the organization's name or its latest 990
+      mission). side is set only where the words themselves state a position (labelled neutrally); label names an
+      NTEE category for display. Rules found noisy in the spot-check were removed; the precision notes are in
+      web_docs/docs/development/topic-organizations.md.
+    columns:
+      - name: topic_query_id
+        tests: [not_null]
+      - name: rule_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ntee_code', 'name_keyword', 'mission_keyword']
+      - name: pattern
+        tests: [not_null]
   - name: curated_topics
     description: >
       Hand-authored, editorial topics unioned into the CivicSearch topic

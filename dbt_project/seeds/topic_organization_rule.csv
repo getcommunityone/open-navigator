@@ -1,0 +1,48 @@
+topic_query_id,rule_type,pattern,side,label
+data-centers,mission_keyword,\mdata cent(er|re)s?\M,,
+water-fluoridation,name_keyword,\mfluorid,,
+water-fluoridation,name_keyword,\m(dental|oral health)\M(?!.*\m(benefits?|plans?|trust|insurance|be)\M),,
+water-fluoridation,mission_keyword,\mfluorid,,
+water-fluoridation,mission_keyword,\moral health\M,,
+water-fluoridation,name_keyword,\mfluoride action network\M,opposes fluoridation,
+short-term-rentals,name_keyword,\m(short[- ]term rentals?|vacation rentals?)\M,,
+short-term-rentals,mission_keyword,\mshort[- ]term rentals?\M,,
+license-plate-readers,name_keyword,\m(civil liberties|aclu)\M,,
+license-plate-readers,mission_keyword,\m(license plate readers?|surveillance technology)\M,,
+guns,name_keyword,\m(gun violence|moms demand action|brady (campaign|center|united)|everytown|giffords|sandy hook promise)\M,gun violence prevention,
+guns,mission_keyword,\m(gun violence|firearm violence)\M,gun violence prevention,
+guns,name_keyword,\m(second amendment|2nd amendment|rifle association|gun rights)\M,gun rights,
+guns,mission_keyword,\m(second amendment|right to (keep and )?bear arms)\M,gun rights,
+guns,name_keyword,\m(rifle|pistol|gun|shooting|trap and skeet|sportsmens?)\M (club|association|league|range)\M,,
+pickleball,name_keyword,\mpickle ?ball\M,,
+pickleball,mission_keyword,\mpickle ?ball\M,,
+bike-lanes,name_keyword,(\m(bicycle|bike|bicycling|cycling|cyclists?)\M.*\m(coalition|alliance|advocacy|advocates?|union|federation)\M|\m(bike ?walk|walk ?bike|active transportation)\M),,
+bike-lanes,mission_keyword,\m(bike lanes?|bicycle (safety|advocacy|infrastructure)|safe streets|active transportation)\M,,
+violent-crime,ntee_code,I20,,Crime prevention (IRS category I20)
+violent-crime,ntee_code,P62,,Victims' services (IRS category P62)
+theft-and-break-ins,ntee_code,I20,,Crime prevention (IRS category I20)
+theft-and-break-ins,name_keyword,\m(neighborhood watch|crime watch|crime stoppers)\M,,
+drugs-and-overdoses,ntee_code,F20,,Substance abuse treatment (IRS category F20)
+drugs-and-overdoses,ntee_code,F21,,Substance abuse prevention (IRS category F21)
+drugs-and-overdoses,ntee_code,F22,,Substance abuse treatment (IRS category F22)
+drugs-and-overdoses,mission_keyword,\m(overdose|opioid)s?\M,,
+traffic-safety,name_keyword,\m(mothers against drunk driving|traffic safety|vision zero)\M,,
+traffic-safety,mission_keyword,\m(traffic safety|drunk driving|pedestrian safety|vision zero)\M,,
+police-staffing,name_keyword,\m(police athletic league|police foundation|fraternal order of police|police benevolent)\M,,
+youth-crime,ntee_code,I21,,Youth violence prevention (IRS category I21)
+youth-crime,ntee_code,I40,,Rehabilitation services for offenders (IRS category I40)
+domestic-violence,ntee_code,P43,,Family violence shelters and services (IRS category P43)
+domestic-violence,ntee_code,I70,,Protection against abuse (IRS category I70)
+domestic-violence,ntee_code,I71,,Spouse abuse prevention (IRS category I71)
+domestic-violence,mission_keyword,\mdomestic violence\M,,
+school-safety,mission_keyword,\mschool safety\M,,
+fire-and-ems,ntee_code,M24,,Fire prevention and volunteer fire departments (IRS category M24)
+fire-and-ems,ntee_code,E62,,Emergency medical services (IRS category E62)
+parks-funding,ntee_code,N32,,Parks and playgrounds (IRS category N32)
+parks-funding,name_keyword,\m(friends of|conservancy for)\M.*\mparks?\M(?!.*librar),,
+animal-shelters,ntee_code,D20,,Animal protection and welfare (IRS category D20)
+animal-shelters,name_keyword,\m(humane society|spca|animal shelter|animal rescue)\M,,
+homelessness-and-shelters,ntee_code,P85,,Homeless services (IRS category P85)
+homelessness-and-shelters,ntee_code,L41,,Homeless shelters (IRS category L41)
+homelessness-and-shelters,mission_keyword,\mhomeless(ness)?\M(?! (pets?|animals?|dogs?|cats?)\M),,
+immigration-and-sanctuary,mission_keyword,\m(immigrants?|refugees?|asylum)\M,,
