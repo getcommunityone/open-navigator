@@ -27,6 +27,12 @@
     KEYS: PK data_center_decision_id = the source row's own id (event_decision_id or
     event_uncontested_item_id; both are md5 of analysis id and item id, so they can't collide
     with each other's item ids D001 / U001). FK event_meeting_id -> event_meeting.
+    VOTE SIDE (#1290): which way a recorded vote went for the data center, so a stance headline can be checked
+    against the votes. Only when the tally records both a yes and a no count; null otherwise (and on a tie). A motion
+    to pause, ban or prohibit (moratorium, ban, prohibit, pause in the headline) that passes is 'against', and one
+    that fails is 'for'; a denial or rejection (denied / deny / reject in the outcome or headline) is 'against'; any
+    other motion (approve, rezone, adopt rules, delay) that passes is 'for', and one that fails is 'against'. A
+    keyword reading of the item's own words, not a model's: web_docs/docs/development/story-stance-evidence.md.
     Design: web_docs/docs/development/data-center-who-spoke-up.md
 */
 
@@ -111,6 +117,15 @@ select
     d.votes_for::integer                                        as votes_for,
     d.votes_against::integer                                    as votes_against,
     d.vote_text::text                                           as vote_text,
+    (case
+        when d.votes_for is null or d.votes_against is null or d.votes_for = d.votes_against then null
+        when coalesce(d.headline, '') ~* '(moratori|\mban(s|ned|ning)?\M|prohibit|\mpause)'
+            then case when d.votes_for > d.votes_against then 'against' else 'for' end
+        when coalesce(d.outcome, '') || ' ' || coalesce(d.headline, '') ~* '(\mden(y|ies|ied)\M|reject)'
+            then 'against'
+        when d.votes_for > d.votes_against then 'for'
+        else 'against'
+    end)::text                                                  as vote_side,
     -- a date later than the load date is a wrong source date (#472): unknown is better than wrong
     (case when x.meeting_day > current_date then null else x.meeting_day end)::date as meeting_date,
     m.jurisdiction_name::text                                   as jurisdiction_name,

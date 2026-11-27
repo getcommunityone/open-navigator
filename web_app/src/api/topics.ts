@@ -259,7 +259,16 @@ export interface TopicCaptionFacts {
    * Recorded votes in scope (data centers only, #1289): decisions with a tally and their summed votes. Null when no meeting
    * in scope was reviewed; absent on older servers.
    */
-  votes?: { decisions: number; for: number; against: number } | null
+  votes?: {
+    decisions: number
+    for: number
+    against: number
+    /** #1290: decisions whose vote went for / against the data center (dbt vote_side); null when not available. */
+    decisions_for?: number | null
+    decisions_against?: number | null
+  } | null
+  /** #1290: public comments from our own captions in scope (data centers only); their side isn't classified yet. */
+  caption_comments?: { comments: number; governments: number } | null
   /** AI readings (Jev) of meeting transcripts: never counted speakers. */
   lean_meetings: number | null
   public_against_meetings: number | null

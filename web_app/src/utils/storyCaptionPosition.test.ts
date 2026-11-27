@@ -41,7 +41,7 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
     const c = pickCaption('guns', facts({ against: 10, for: 41, split: 12, silent: 0 }, oh), oh)
     expect(c.kind).toBe('position')
     expect(c.ai).toBe(true)
-    expect(captionText(c, 'gun control')).toBe('Ohio mostly favors gun limits.')
+    expect(captionText(c, 'gun control')).toBe('Ohio mostly favors gun control.')
     expect(c.basis).toMatch(/^Most meetings favored gun limits: 41 of 63 where the public spoke\. /)
     expect(captionText(c, 'gun control')).not.toMatch(/proposal/)
   })
@@ -183,7 +183,7 @@ describe('pickCaption (p) lower tier: the place named from 5 meetings where the 
 
   it('a majority for, in the topic words', () => {
     const c = pickCaption('guns', facts({ against: 1, for: 5, split: 1, silent: 40 }, oh), oh)
-    expect(captionText(c, 'gun control')).toBe('Ohio mostly favors gun limits.')
+    expect(captionText(c, 'gun control')).toBe('Ohio mostly favors gun control.')
   })
 
   it('no majority from 5 meetings is split', () => {
@@ -211,13 +211,13 @@ describe('withTopicBlank (#1224)', () => {
       '.',
     ])
   })
-  it('names the topic in brackets when the words do not', () => {
+  it('leads with the topic, never in brackets, when the words do not name it (#1290)', () => {
     expect(withTopicBlank([{ blank: 'place' }, ' mostly favors gun limits.'], 'gun control')).toEqual([
-      { blank: 'place' },
-      ' mostly favors gun limits',
-      ' (',
+      'On ',
       { blank: 'topic' },
-      ').',
+      ': ',
+      { blank: 'place' },
+      ' mostly favors gun limits.',
     ])
   })
   it('leaves a title that already has the control alone', () => {

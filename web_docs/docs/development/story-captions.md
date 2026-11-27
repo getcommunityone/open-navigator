@@ -11,6 +11,21 @@ caption for every topic: lead with disagreement where it is high-volume, and oth
 differ. Only the data-center story had a conclusion ("America hates data centers."); the rest said "X talked about Y in N
 meetings." or showed a fixed blurb.
 
+## Decision (27 Nov 2026, #1290): votes read by which way they went; speaker sources reconciled; the topic is the noun
+
+[#1290](https://github.com/getcommunityone/open-navigator/issues/1290) revises #1289 below in three places; the reasons are in
+[Story vote direction, speaker sources and phone fit](story-vote-direction-and-phone-fit.md).
+
+- **Votes.** The vote check reads which way each tallied vote went for the topic (`data_center_decision.vote_side`: a passed
+  moratorium is against, a passed approval or delay is for) and leans a way only with two thirds of the decisions. This
+  answers #1289's caveat below; nationally the votes are mixed (7 for, 5 against), so the title is "America hates data
+  centers." again.
+- **Speakers.** Where our captions hold public comments, the facts say "no speaker’s side is recorded …, and the 62 public
+  comments in our captions are not sorted by side yet", never "no public speakers"; the transcript reading after them is
+  labelled "Read from each meeting’s transcript, not counted by speaker:".
+- **Title.** "Not enough recorded activity on [data centers] to say.", with the topic control in the sentence; every topic's
+  conclusion wording marks the topic's place (`{T}`), so no title shows the control in brackets.
+
 ## Decision (27 Nov 2026, #1289): the stance headline agrees with the recorded votes, and needs a minimum
 
 [#1289](https://github.com/getcommunityone/open-navigator/issues/1289). The owner found the Alabama page reading

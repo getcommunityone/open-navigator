@@ -229,7 +229,8 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     }
     const moves = ['pointerdown', 'wheel', 'keydown', 'touchstart'] as const
     moves.forEach((e) => window.addEventListener(e, stop, { once: true, passive: true }))
-    const timer = window.setTimeout(stop, 4000)
+    // 10s, not 4s (#1290): a title whose height changes when slower caption facts arrive must still re-land the page.
+    const timer = window.setTimeout(stop, 10_000)
     return () => {
       cancelAnimationFrame(id)
       window.clearTimeout(timer)

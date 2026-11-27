@@ -381,6 +381,14 @@ Up to eleven screens, in this order (a chart screen with nothing on record for t
 
 ### The title states the place's strongest statement (#993, #1125)
 
+**Votes, speakers and the topic control (#1290).** A recorded vote counts by which way it went for data centers (a passed
+moratorium is against), and the votes lean a way only with two thirds of the decisions. Where our captions hold public
+comments but no side is counted, the page says so ("no speaker’s side is recorded …") and the **Who spoke up** figures show a
+dash, not 0. The topic control is the noun in the title ("Not enough recorded activity on [data centers] to say.", "America
+mostly wants [water fluoridation] ended."), never in brackets. On a phone every screen fits above the bottom bar; what doesn't
+fit waits behind **More on this screen**. Details:
+[Story vote direction, speaker sources and phone fit](../development/story-vote-direction-and-phone-fit.md).
+
 The story's title, and the caption on each **Browse topics** tile on the home page, is the strongest statement the record
 supports for the topic and the place in scope (`?state=&city=`), with the place and topic still clickable on the story. The
 caption picker (`web_app/src/utils/storyCaption.ts`) reads `GET /api/topics/{topic}/caption-facts` for exactly that scope

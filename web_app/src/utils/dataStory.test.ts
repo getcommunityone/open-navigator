@@ -12,6 +12,7 @@ import {
   distinctHeadline,
   positionFigures,
   positionsCaption,
+  speakerSidesNotRecorded,
   figureDisplay,
   scopeQuery,
   screenText,
@@ -145,7 +146,8 @@ describe('screenText on a full fixture', () => {
       for (const s of RECORD) {
         const t = screenText(s, full, ready, sc)
         expect(t.headline.length).toBeGreaterThan(10)
-        expect(t.context.length).toBeGreaterThan(5)
+        // #1290: the line may be empty; it never carries the next screen's question.
+        expect(t.context).not.toMatch(/\?$/)
         expect(t.headline).not.toMatch(BANNED)
         expect(t.context).not.toMatch(BANNED)
         expect(`${t.headline} ${t.context}`).not.toMatch(BUILT)
@@ -244,7 +246,7 @@ describe('who spoke up', () => {
     expect(f.every((x) => x.reason == null)).toBe(true)
     const t = screenText(voices, full, ready, al)
     expect(t.headline).toBe('Of 26 people who spoke on a data center item at local meetings in Alabama, 14 spoke against it and 6 for.')
-    expect(t.context).toBe('4 asked a question and 2 took no side. Recorded votes: 9 for and 3 against, in 2 decisions. How often does it come up?')
+    expect(t.context).toBe('4 asked a question and 2 took no side. Recorded votes: 9 for and 3 against, in 2 decisions.')
   })
   it('a vote with no recorded tally is not recorded, never zero', () => {
     const res = positions({ decisions_with_tally: 0, votes_for: null, votes_against: null })
@@ -254,7 +256,7 @@ describe('who spoke up', () => {
     // a stray 0 from the API is still not a vote count when no tally was recorded
     expect(value(positions({ decisions_with_tally: 0, votes_for: 0, votes_against: 0 }), 'votes_for').value).toBeNull()
     // the screen's line states no vote count; the figures carry "not recorded" and the reason
-    expect(screenText(voices, { positions: res }, ready, al).context).toBe('4 asked a question and 2 took no side. How often does it come up?')
+    expect(screenText(voices, { positions: res }, ready, al).context).toBe('4 asked a question and 2 took no side.')
   })
   it('reviewed meetings with no speaker are a real 0, said plainly; nothing reviewed is not recorded (#1059)', () => {
     const none = positions({ speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0 })
@@ -395,7 +397,7 @@ describe('overview headline at a place (#1115)', () => {
   it('says the place pushed back when two thirds or more spoke against', () => {
     const t = screenText(overview, withSpeakers(1, 11, 0, 0, votedAgainst), ready, al)
     expect(t.headline).toBe('Alabama pushed back: 11 of 12 speakers spoke against data centers.')
-    expect(t.context).toBe('A data center came up in 3 meetings. First, where are they?')
+    expect(t.context).toBe('A data center came up in 3 meetings.')
   })
   it('a lean opposite the recorded votes is stated as divided, with both (#1289)', () => {
     expect(screenText(overview, withSpeakers(1, 11), ready, al).headline).toBe(
@@ -418,7 +420,7 @@ describe('overview headline at a place (#1115)', () => {
   it("never repeats the page's caption: leads with its own count of the record", () => {
     const hates = screenText(overview, withSpeakers(1, 11), ready, al, null, { kind: 'position', text: 'Alabama hates data centers.' })
     expect(hates.headline).toBe('A data center came up in 3 meetings in Alabama.')
-    expect(hates.context).toBe('First, where are they?')
+    expect(hates.context).toBe('')
     const divided = screenText(overview, full, ready, tus, null, { kind: 'disagreement', text: 'Tuscaloosa, Alabama is divided on data centers.' })
     expect(divided.headline).toBe('A data center came up in 3 meetings in Tuscaloosa, Alabama.')
     // A count caption that says the same thing as the count line falls to the next line of the record.
@@ -435,7 +437,7 @@ describe('overview headline at a place (#1115)', () => {
   it('keeps the neutral count below the national minimum of speakers', () => {
     const t = screenText(overview, withSpeakers(0, 9), ready, al)
     expect(t.headline).toBe('A data center came up in 3 meetings in Alabama.')
-    expect(t.context).toBe('First, where are they?')
+    expect(t.context).toBe('')
     expect(overviewLean(withSpeakers(0, 9).positions as never, 'Alabama')).toBeNull()
     expect(overviewLean(positions({}, false), 'Alabama')).toBeNull()
   })
@@ -453,12 +455,12 @@ describe('no zero clause in the Who spoke up title', () => {
   it('zero question: two sides only, joined plainly', () => {
     const t = screenText(voices, res(2, 1, 0, 3), ready, tx)
     expect(t.headline).toBe('Of 6 people who spoke on a data center item at local meetings in Texas, 2 spoke for it and 1 against.')
-    expect(t.context).toBe('3 took no side. How often does it come up?')
+    expect(t.context).toBe('3 took no side.')
   })
   it('zero for: the against side alone, question in the context', () => {
     const t = screenText(voices, res(0, 5, 1), ready, tx)
     expect(t.headline).toBe('Of 6 people who spoke on a data center item at local meetings in Texas, 5 spoke against it.')
-    expect(t.context).toBe('1 asked a question. How often does it come up?')
+    expect(t.context).toBe('1 asked a question.')
   })
   it('zero against: the for side alone', () => {
     expect(screenText(voices, res(4, 0, 0), ready, tx).headline).toBe('Of 4 people who spoke on a data center item at local meetings in Texas, 4 spoke for it.')
@@ -479,5 +481,19 @@ describe('no zero clause in the jobs title', () => {
   it('a side with no claims is left out', () => {
     const t = screenText(jobs, { 'job-claims': { ...(full['job-claims'] as object), totals: { construction: 3, operations: 0 } } } as never, ready, al)
     expect(t.headline).toBe('Meetings in Alabama include 3 claims about construction jobs.')
+  })
+})
+
+describe('#1290: speaker figures with caption comments', () => {
+  const res = (t: Record<string, unknown>) => ({ available: true, totals: { meetings: 1, meetings_reviewed: 24, speakers_for: 0, speakers_against: 0, speakers_question: 0, speakers_neutral: 0, decisions_with_tally: 1, votes_for: 8, votes_against: 1, ...t }, quotes: { for: [], against: [], question: [] }, by_state: [] }) as never
+  const al = { stateCode: 'AL', stateName: 'Alabama', city: null }
+  it('a dash, not 0, when our captions hold comments but no side is counted', () => {
+    const f = positionFigures(res({}), al, 62)!
+    for (const k of ['for', 'against', 'question']) expect(f.find((x) => x.key === k)).toMatchObject({ value: null, reason: speakerSidesNotRecorded(62) })
+    expect(speakerSidesNotRecorded(62)).toBe('62 public comments are on record in our captions here, but no speaker’s side is recorded yet.')
+    expect(positionsCaption(res({}), al, 62)).toBe('No speaker’s side is recorded in the 24 meetings reviewed in Alabama. Votes from 1 decision with a recorded vote.')
+  })
+  it('0 when meetings were reviewed and nobody spoke (no comments either)', () => {
+    expect(positionFigures(res({}), al, 0)!.find((x) => x.key === 'for')!.value).toBe(0)
   })
 })

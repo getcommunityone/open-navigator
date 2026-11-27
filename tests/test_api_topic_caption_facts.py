@@ -203,7 +203,7 @@ def test_data_centers_reads_speakers_and_lean(get):
     assert d["meetings"] == 1859
     assert d["speakers"] == {"for": 3, "against": 18, "question": 1, "neutral": 7, "states": 4, "meetings_reviewed": 188}
     # #1289: the recorded votes, so the stance headline can be checked against them.
-    assert d["votes"] == {"decisions": 12, "for": 79, "against": 10}
+    assert d["votes"] == {"decisions": 12, "for": 79, "against": 10, "decisions_for": None, "decisions_against": None}
     assert d["public_against_meetings"] == 283
     assert d["public_against_states"] == 32
     assert d["public_for_meetings"] == 0  # #1200: read from public_lean for data centers too
@@ -228,7 +228,7 @@ def test_data_centers_reviewed_no_votes(get):
            "decisions_with_tally": 0, "votes_for": None, "votes_against": None}
     d = get(dc_conn(routes={"FROM data_center_meeting_position": [row]}), "data-centers", {"state": "AL"}).json()
     assert d["speakers"]["meetings_reviewed"] == 24
-    assert d["votes"] == {"decisions": 0, "for": 0, "against": 0}
+    assert d["votes"] == {"decisions": 0, "for": 0, "against": 0, "decisions_for": 0, "decisions_against": 0}
 
 
 def test_lean_sql_scopes():
@@ -313,3 +313,40 @@ def test_nothing_read_is_zero_and_a_failed_read_is_null(get):
     assert d["lean_meetings"] == 0 and d["public_against_meetings"] is None
     d = get(topic_conn(fail=("topic_meeting_lean",)), "guns").json()
     assert d["lean_meetings"] is None
+
+
+# --- #1290: which way the votes went, and the caption comments --------------------------------------------------------
+
+def test_vote_sides_and_caption_comments(get):
+    routes = {
+        "FROM data_center_decision": [{"decisions_for": 7, "decisions_against": 5, "has_side": True}],
+        "FROM data_center_comment": [{"comments": 2822, "governments": 334}],
+    }
+    d = get(dc_conn(routes=routes), "data-centers").json()
+    assert d["votes"]["decisions_for"] == 7 and d["votes"]["decisions_against"] == 5
+    assert d["caption_comments"] == {"comments": 2822, "governments": 334}
+
+
+def test_vote_sides_and_comments_scope_like_the_speakers(get):
+    conn = dc_conn(routes={"FROM data_center_decision": [{"decisions_for": 1, "decisions_against": 0, "has_side": True}]})
+    get(conn, "data-centers", {"state": "AL", "city": "Tuscaloosa"})
+    for marker in ("FROM data_center_decision", "FROM data_center_comment"):
+        assert next(p for sql, p in conn.calls if marker in sql) == ("AL", "%Tuscaloosa%")
+
+
+def test_missing_vote_side_or_comment_table_is_null_not_zero(get):
+    d = get(dc_conn(fail=("data_center_decision", "data_center_comment")), "data-centers").json()
+    assert d["votes"]["decisions"] == 12  # the tallies still come from the positions mart
+    assert d["votes"]["decisions_for"] is None and d["votes"]["decisions_against"] is None
+    assert d["caption_comments"] is None
+
+
+def test_serving_copy_without_vote_side_has_null_sides(get):
+    d = get(dc_conn(routes={"FROM data_center_decision": [{"decisions_for": 0, "decisions_against": 0, "has_side": False}]}), "data-centers").json()
+    assert d["votes"]["decisions_for"] is None
+
+
+def test_other_topics_have_no_caption_comments(get):
+    conn = _Conn({"FROM civicsearch_topic": [{"topic_id": 100005, "query_id": "guns"}], "FROM jurisdictions": POPS})
+    d = get(conn, "guns").json()
+    assert d["caption_comments"] is None and d["votes"] is None
