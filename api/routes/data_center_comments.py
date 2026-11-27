@@ -76,7 +76,9 @@ class CommentMetricsResponse(BaseModel):
     ai_mentions: CountItem | None
     roles: list[CountItem]
     places: list[CountItem] = Field(default_factory=list, description="Place kinds named (roads, schools, ...).")
-    mentions_per_meeting_by_quarter: list[QuarterItem]
+    mentions_per_meeting_by_quarter: list[QuarterItem] = Field(
+        ..., description="The trend since 2022-Q1 for the place scope; it ignores `year` on purpose (it is a trend)."
+    )
     basis: str = BASIS
 
 
@@ -86,7 +88,9 @@ def _where(scope: JobClaimScope, year: int | None, alias: str = "") -> tuple[str
     params: list[Any] = []
     if year is not None:
         params.append(year)
-        clauses.append(f"extract(year from {a}meeting_date)::int = ${len(params)}")
+        n = len(params)
+        # A range on the date (not extract(year ...)) so the (state_code, meeting_date) index applies.
+        clauses.append(f"{a}meeting_date >= make_date(${n}, 1, 1) AND {a}meeting_date < make_date(${n} + 1, 1, 1)")
     if scope.state_code:
         params.append(scope.state_code)
         clauses.append(f"{a}state_code = ${len(params)}")

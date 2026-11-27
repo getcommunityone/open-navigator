@@ -138,3 +138,18 @@ def test_segmented_comment_text_never_holds_a_house_address() -> None:
     (comment,) = segment_comments("vid9", _cues(lines))
     assert "1703" not in comment.comment_text and "Heritage" not in comment.comment_text
     assert comment.intro_text is not None and "1703" not in comment.intro_text
+
+
+def test_scrub_covers_review_cases() -> None:
+    """Cases from the PR #1247 review: other subjects, adverbs, home/house phrasing, lowercase, no punctuation."""
+    from ingestion.meetings.comment_segments import ADDRESS_REDACTION as R, scrub_personal_location as scrub
+
+    assert scrub("We live on Ridge Road.") == f"We live on {R}."
+    assert scrub("I live right on Ridge Road.") == f"I live right on {R}."
+    assert scrub("my home on Ridge Road is a quarter mile from the site.") == f"my home on {R} is a quarter mile from the site."
+    assert scrub("my house is 412 oak street") == f"my house is {R}"
+    assert scrub("i live on ridge road been here thirty years") == f"i live on {R} been here thirty years"
+    # Not a home location: left alone.
+    assert scrub("my home is very important to me") == "my home is very important to me"
+    assert scrub("our property values will drop") == "our property values will drop"
+    assert scrub("we have lived here for 30 years") == "we have lived here for 30 years"

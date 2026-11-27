@@ -128,7 +128,7 @@ def test_all_years_with_year_zero(get) -> None:
     conn = _Conn(ROWS)
     body = get(conn, {"year": 0}).json()
     assert body["year"] is None
-    assert not any("extract(year" in s for s, _ in conn.calls)
+    assert not any("make_date" in s for s, _ in conn.calls)
 
 
 def test_missing_mart_is_503(get) -> None:

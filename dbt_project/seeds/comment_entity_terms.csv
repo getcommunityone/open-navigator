@@ -23,4 +23,4 @@ person,jensen_huang,Jensen Huang,\y(jensen huang)\y
 person,larry_ellison,Larry Ellison,\y(larry ellison|ellison)\y
 person,sundar_pichai,Sundar Pichai,\y(pichai)\y
 person,satya_nadella,Satya Nadella,\y(nadella)\y
-ai,ai,Any mention of AI,\y(ai|a\. ?i\.?|artificial intelligence|chat ?gpt|machine learning|large language models?|llms?|generative|chatbots?)\y
+ai,ai,Any mention of AI,\y(ai|a\. ?i\.|artificial intelligence|chat ?gpt|machine learning|large language models?|llms?|generative ai|chatbots?)\y

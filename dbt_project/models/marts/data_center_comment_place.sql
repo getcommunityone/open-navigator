@@ -17,10 +17,41 @@
     word the capitalised shape swallowed ("The", "On", "I") is trimmed.
 */
 
-with dc as (
-    select d.data_center_comment_id, d.state_code, f.comment_text
+-- The speaker's own name must never come back as a "place" (Jackson, John Park), or a place row joined to the
+-- display name could rebuild a full name: the introduction sentence and every word of the heard name are blanked first.
+with dc_raw as (
+    select d.data_center_comment_id, d.state_code, f.comment_text, f.intro_name
     from {{ ref('data_center_comment') }} as d
     inner join {{ ref('int_meeting_comment__flags') }} as f on f.comment_segment_id = d.data_center_comment_id
+),
+
+name_words as (
+    select data_center_comment_id, string_agg(
+        regexp_replace(w, '([.^$*+?()\[\]{}|\\-])', '\\\1', 'g'), '|'
+    ) as alt
+    from dc_raw
+    cross join lateral regexp_split_to_table(coalesce(intro_name, ''), '\s+') as w
+    where length(w) >= 2
+    group by data_center_comment_id
+),
+
+dc as (
+    select
+        r.data_center_comment_id,
+        r.state_code,
+        case
+            when n.alt is null then t.no_intro
+            else regexp_replace(t.no_intro, '(?i)\m(' || n.alt || ')\M', ' ', 'g')
+        end as comment_text
+    from dc_raw as r
+    left join name_words as n on n.data_center_comment_id = r.data_center_comment_id
+    cross join lateral (
+        select regexp_replace(
+            r.comment_text,
+            '(?i)\m(my\s+name(\s+is|''s)|name\s+(and|&)\s+address\s+is)\s+[^.,;!?]{0,60}',
+            ' ', 'g'
+        ) as no_intro
+    ) as t
 ),
 
 shape_hits as (

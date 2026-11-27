@@ -74,3 +74,13 @@ def test_place_shapes_are_public_places() -> None:
     assert any(n.endswith("Greene County") for n in names)
     assert any("Pine Ridge site" in n for n in names)
     assert "District 3" in names
+
+
+def test_review_cases_for_roles_minors_and_ai() -> None:
+    # A resident opposing the applicant is still a public comment.
+    assert "staff_or_applicant" not in hits(ROLES, "my name is ann lee, i'm here to oppose the applicant's request and their consultants")
+    assert "staff_or_applicant" in hits(ROLES, "my name is joe haresco. i'm with the acoustical consulting group retained by hillwood")
+    assert "possible_minor" in hits(ROLES, "my name is ava and i'm in the fifth grade")
+    assert "possible_minor" in hits(ROLES, "hi my name is max i am a twelve year old")
+    assert "possible_minor" in hits(ROLES, "my name is leo and i'm 12")
+    assert "ai" not in hits(ENTITIES, "the plan a. i think is bad")

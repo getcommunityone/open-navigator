@@ -51,7 +51,7 @@ from typing import Any
 
 from loguru import logger
 
-SEGMENTER_VERSION = "1.1.0"  # 1.1: home addresses scrubbed before storing
+SEGMENTER_VERSION = "1.2.0"  # 1.1: home addresses scrubbed; 1.2: wider scrub (we/my house on, lowercase)
 TABLE = "bronze.bronze_meeting_comment_segment"
 
 PAUSE_SECONDS = 20.0  # a silence this long ends a comment
@@ -122,23 +122,70 @@ _STREET_SUFFIX = (
     r"(?:street|st|road|rd|avenue|ave|lane|ln|drive|dr|court|ct|way|boulevard|blvd|circle|cir|place|pl|trail|trl"
     r"|point|pointe|terrace|ter|parkway|pkwy|highway|hwy|pike|run|loop|crossing|ridge|hollow|cove|square|sq)"
 )
+# "I live on / we live right on / my house is on / my address is ..." — the words after it are the home location.
 _LIVE_AT = re.compile(
-    r"\b((?:i\s+(?:live|reside)\s+(?:at|on|off\s+of|off)|my\s+(?:home\s+|street\s+)?address\s+is"
-    r"|i(?:'m|\s+am)\s+located\s+at)\s+)([^.,;!?]{1,80}?)(?=[.,;!?]|\s+(?:and|in|which|for|since|so|i)\b|$)",
+    r"\b(?:(?:i|we)(?:'ve|\s+have)?\s+(?:(?:right|just|down|out|up)\s+)?(?:live|lived|reside|resided)"
+    r"|(?:my|our)\s+(?:home|house|farm|property|place|residence)\s+(?:is\s+)?"
+    r"|(?:my|our)\s+(?:home\s+|street\s+|mailing\s+)?address\s+is"
+    r"|i(?:'m|\s+am)\s+located)"
+    r"\s*(?:(?:right|just)\s+)?(?:at|on|off\s+of|off|along)?\s*",
     re.I,
 )
-# Case-insensitive suffix, capitalised street words: "300 acres on Ridge Road" is not an address.
-_HOUSE_ADDRESS = re.compile(
-    r"\b\d{1,6}(?:-\d{1,4})?\s+(?:(?i:[NSEW]\.?|north|south|east|west)\s+)?"
-    r"(?:[A-Z][A-Za-z'\-]*\s+){1,4}(?i:" + _STREET_SUFFIX + r")\b\.?"
+# Where the home location ends: punctuation, or a word that starts the next clause.
+_LOCATION_END = re.compile(
+    r"[.,;!?]|\b(?:and|in|which|for|since|so|i|been|where|near|about|is|was|we|my|but|because|across|next|with"
+    r"|who|that|from|to|it|they|our|the\s+site|this|there|here)\b",
+    re.I,
 )
+_MAX_LOCATION_WORDS = 5
+# Words that make "<number> <words> road" a measurement, not a house address ("300 acres on Ridge Road").
+_NOT_STREET_WORD = (
+    r"(?!(?:acres?|feet|foot|miles?|megawatts?|mw|gallons?|on|of|the|from|to|at|and|in|near|off|along|by|units?"
+    r"|homes?|houses?|people|jobs|years?|percent|minutes?|trucks?|lanes?)\b)"
+)
+_HOUSE_ADDRESS = re.compile(
+    r"\b\d{1,6}(?:-\d{1,4})?\s+(?:(?:[NSEW]\.?|north|south|east|west)\s+)?"
+    r"(?:" + _NOT_STREET_WORD + r"[A-Za-z][A-Za-z'\-]*\s+){1,4}" + _STREET_SUFFIX + r"\b\.?",
+    re.I,
+)
+
+
+def _scrub_live_at(text: str) -> str:
+    out: list[str] = []
+    pos = 0
+    for m in _LIVE_AT.finditer(text):
+        if m.start() < pos:
+            continue
+        rest = text[m.end() :]
+        # "I live in Joliet" names a town: only a street-level preposition (or an address phrase) is scrubbed.
+        phrase = m.group(0).lower()
+        has_prep = re.search(r"\b(at|on|off|along)\s*$", phrase) is not None
+        # "my home is 12 Elm Street" (a number follows) or "my address is ..." scrub; "my home is very
+        # important" and "our property values" don't.
+        if not has_prep and "address" not in phrase and not re.match(r"\s*\d", rest):
+            continue
+        if re.match(r"\s*(in|near|by|around|outside|within|close)\b", rest, re.I) and not re.search(
+            r"\b(at|on|off|along)\s*$", phrase
+        ):
+            continue
+        stop = _LOCATION_END.search(rest)
+        cut = stop.start() if stop else len(rest)
+        words = re.finditer(r"\S+", rest[:cut])
+        spans = [w.end() for w in words]
+        if not spans:
+            continue
+        end = spans[min(len(spans), _MAX_LOCATION_WORDS) - 1]
+        out.append(text[pos : m.end()] + ADDRESS_REDACTION)
+        pos = m.end() + end
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def scrub_personal_location(text: str | None) -> str | None:
     """Text with a speaker's home address / street of residence replaced by ``ADDRESS_REDACTION``."""
     if not text:
         return text
-    out = _LIVE_AT.sub(lambda m: m.group(1) + ADDRESS_REDACTION, text)
+    out = _scrub_live_at(text)
     out = _HOUSE_ADDRESS.sub(ADDRESS_REDACTION, out)
     return out
 
