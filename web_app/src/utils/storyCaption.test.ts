@@ -100,7 +100,7 @@ describe('pickCaption (b) divided', () => {
   it('in a state, and for a topic without a "hates" verb', () => {
     const c = pickCaption('guns', facts({ disagreement_meetings: 12, public_against_meetings: 40 }, ga), ga)
     expect(captionText(c, 'guns')).toBe('Georgia is divided on guns.')
-    expect(c.basis).toBe('In 12 meetings in Georgia, officials sided against the public on guns.')
+    expect(c.basis).toBe('In 12 meetings in Georgia, officials sided against the public on gun control.')
   })
 
   it('or counted speakers split with both sides substantial', () => {
@@ -139,7 +139,7 @@ describe('pickCaption (c) state gap', () => {
       { state_code: 'SD', state: 'South Dakota', meetings: 239, population: 900_000 },
     ]
     const c = pickCaption('guns', facts({ states }), nat)
-    expect(captionText(c, 'guns')).toBe('California and North Carolina took up guns most: 659 and 585 meetings.')
+    expect(captionText(c, 'gun control')).toBe('California and North Carolina took up gun control most: 659 and 585 meetings.')
     expect(c.basis).not.toContain('resident')
   })
 
@@ -296,8 +296,8 @@ describe('the title says what the map shows (#1182)', () => {
     expect(captionText(c, 'water fluoridation')).not.toMatch(/hates|lean/)
     expect(c.basis).toBe("In 81 meetings across 19 states, the public mostly opposed water fluoridation.")
     const g = pickCaption('guns', facts({ public_against_meetings: 400 }), nat)
-    expect(captionText(g, 'guns')).toBe('America mostly opposes the gun measures proposed.')
-    expect(g.basis).toBe("In 400 meetings nationwide, the public mostly opposed the gun measures proposed.")
+    expect(captionText(g, 'gun control')).toBe('America mostly opposes local gun-control measures.')
+    expect(g.basis).toBe("In 400 meetings nationwide, the public mostly opposed local gun-control measures.")
     const az: StoryScope = { stateCode: 'AZ', stateName: 'Arizona', city: null }
     const r = pickCaption('short-term-rentals', facts({ public_against_meetings: 12 }, az), az)
     expect(captionText(r, 'short-term rentals')).toBe('Arizona mostly opposes short-term rentals.')

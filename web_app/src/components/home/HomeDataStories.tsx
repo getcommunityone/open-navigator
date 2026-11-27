@@ -14,6 +14,7 @@ import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { storyStartHref } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
+import { dataCenterQuoteNote } from '../../utils/topicPositions'
 
 
 interface Props {
@@ -28,7 +29,7 @@ interface Props {
 }
 
 const STORY = STORIES['data-centers']!
-/** A state's map passages, in order (speakers' own words first, then meeting passages, newest first), at most this many. */
+/** A state's map passages, in order (speakers' own words first, then the API's map-quote meetings, #1230), at most this many. */
 const QUOTES_PER_STATE = 12
 
 function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) {
@@ -82,10 +83,11 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
       },
       { replace: true, preventScrollReset: true },
     )
-  // National: every state's own count, and the newest passages to quote (newest first, so the first per state is its newest).
+  // National: every state's own count, and each state's passages to quote (#1230): real public meetings only, meetings
+  // where the public mostly opposed first, then newest first (the API's map-quote pick).
   const national = useQuery({
-    queryKey: ['home', 'story-map', 'meeting-mentions', 500],
-    queryFn: () => fetchDataCenterMeetingMentions({ limit: 500 }),
+    queryKey: ['home', 'story-map', 'meeting-mentions', 'quotes-per-state', 3],
+    queryFn: () => fetchDataCenterMeetingMentions({ quotesPerState: 3 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })
@@ -124,6 +126,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
         text: m.evidence,
         date: m.meeting_date ?? null,
         meeting: m.meeting_title ?? null,
+        stanceNote: dataCenterQuoteNote(m.ai_public_lean),
         url: m.jump_url ?? m.video_url ?? null,
         videoId: m.video_id ?? null,
         startSeconds: m.start_seconds ?? null,

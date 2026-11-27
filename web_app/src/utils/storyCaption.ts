@@ -4,7 +4,7 @@
 // Rules, in order; each needs its own real counts and otherwise falls through to the next (CLAUDE.md, No Fabricated Data).
 // Thresholds and the reasons for them: web_docs/docs/development/story-captions.md.
 //   p. position (#1200): the place's conclusion from the AI reading (Jev) of its meetings, in the topic's own words
-//      (utils/topicPositions): "[Ohio] mostly backs the gun proposals.", "[Place] hates [topic]." only for the "hates"
+//      (utils/topicPositions): "[Ohio] mostly favors gun limits.", "[Place] hates [topic]." only for the "hates"
 //      topics, else "[Place] is split on [topic].". Since #1234 (owner, 26 Nov 2026) the title is the conclusion only: no
 //      count, no "(AI reading)", nothing appended; the count opens the basis line ("The public was against data centers
 //      in 283 of 341 meetings where it spoke."). No visible copy says "AI reading"; the map legend discloses the method.
@@ -67,8 +67,8 @@ export interface CaptionCopy {
   hates?: string
   /**
    * For a topic without "hates" (#1190): what "the public mostly opposed" takes in its (a) title and basis lines, usually
-   * the topic ([T]); for guns, where opposing could mean opposing guns or opposing gun limits (#1126), "the gun measures
-   * proposed". Absent (and no `hates`): (a) is skipped.
+   * the topic ([T]); for gun control, where opposing could mean opposing guns or opposing gun limits (#1126, #1237),
+   * "local gun-control measures". Absent (and no `hates`): (a) is skipped.
    */
   opposed?: StoryTitlePart[]
   /** (b) basis wording after "officials", when officials sided against the public, around the topic. */
@@ -123,11 +123,12 @@ export const CAPTION_COPY: Record<string, CaptionCopy> = {
     officials: sidedAgainst,
     question: askMeetings,
   },
+  // Shown as "gun control" (#1237): the gun-control question is what the AI reading asks; the slug stays `guns`.
   guns: {
-    topic: 'guns',
-    story: 'guns',
-    pronoun: 'them',
-    opposed: ['the gun measures proposed'],
+    topic: 'gun control',
+    story: 'gun control',
+    pronoun: 'it',
+    opposed: ['local gun-control measures'],
     facts: 'guns',
     verb: 'took up',
     officials: sidedAgainst,
