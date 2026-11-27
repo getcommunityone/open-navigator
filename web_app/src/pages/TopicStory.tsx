@@ -52,6 +52,9 @@ import LocalActionsTracker from '../components/stance/LocalActionsTracker'
 import PositionBreakdown from '../components/stance/PositionBreakdown'
 import { fetchTopicLegislation, fetchTopicLocalActions } from '../api/topicPolicy'
 import UpcomingPanel from '../components/stance/UpcomingPanel'
+import NonprofitsPanel from '../components/stance/NonprofitsPanel'
+import { useTopicOrganizations } from '../hooks/useTopicOrganizations'
+import { nonprofitsHeadline } from '../utils/topicOrganizations'
 import { useTopicUpcoming } from '../hooks/useTopicUpcoming'
 import { upcomingHeadline } from '../utils/topicUpcoming'
 import OutcomesChain from '../components/stance/OutcomesChain'
@@ -277,6 +280,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
 
   // What's coming up (#1302): the same query (and cache entry) as the screen's panel.
   const upcoming = useTopicUpcoming(def.slug, stateCode, null)
+  // Who's working on this (#1345): the same query (and cache entry) as the screen's panel.
+  const nonprofits = useTopicOrganizations(def.slug, stateCode, null)
   // What happened next (#1314): the chain's counts, shared with the screen's panel.
   const outcomes = useTopicOutcomes(def.slug, stateCode, null)
 
@@ -425,6 +430,21 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
             'Scheduled meetings and public hearings from today on, with the agenda, livestream or notice to take part, and the state bills still open. Nothing here is estimated.',
           right: (
             <UpcomingPanel
+              topic={def.slug}
+              stateCode={stateCode}
+              scopeLabel={label}
+              subject={subject}
+              basePath={`/stories/${def.slug}`}
+            />
+          ),
+        }
+      case 'nonprofits':
+        return {
+          headline: loadingOr(nonprofits, 'nonprofits', () => nonprofitsHeadline(nonprofits.data, topicWord, label)),
+          context:
+            'Nonprofits tied to the topic by the record: named in a meeting on it, a 990 mission or name that names it, or an IRS category in its field. Strongest evidence first, from IRS and Form 990 filings.',
+          right: (
+            <NonprofitsPanel
               topic={def.slug}
               stateCode={stateCode}
               scopeLabel={label}
