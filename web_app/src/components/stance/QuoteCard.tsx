@@ -1,6 +1,6 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { highlightSnippet } from '../../lib/highlight'
-import { clockTime } from '../../lib/youtubeEmbed'
+import { clockTime, youtubeEmbedUrl, youtubeHoverEmbedUrl } from '../../lib/youtubeEmbed'
 import type { Stance } from '../../utils/boxSplit'
 import { BOX_COLORS, STANCE_LABEL } from '../home/storyColors'
 import { aiSummary, initialsOf, playLabel, quoteDate, recordedRole } from './quoteCardUtils'
@@ -38,6 +38,14 @@ export interface QuoteCardProps {
   summary?: string | null
   /** The meeting page in the app, with the scope already in its query (#1124); none → no link. */
   analysisUrl?: string | null
+  /** Play the recording inside the card (#1277, the story maps' hover card): `autoplay` embeds it playing, muted, at
+   *  `startSeconds`, with no play button (desktop mouse hover only); `click` shows the still image with a play button that
+   *  plays it in the card (keyboard focus, reduced motion, data saving). None → the image opens `onPlay` / `url`. */
+  inlineVideo?: 'autoplay' | 'click'
+  /** The map hover card (#1277), person-first: the recording, the quote, who said it, then the meeting, place and date;
+   *  tighter text, the quote clamped, no AI summary or analysis link (the card lets the mouse through to the map, so it
+   *  holds nothing to click but the recording). */
+  compact?: boolean
   /** `card`: with the recording image; `header`: no image (the meeting video popup, which plays the video itself). */
   variant?: 'card' | 'header'
   className?: string
@@ -80,6 +88,8 @@ export default function QuoteCard({
   onPlay,
   summary,
   analysisUrl,
+  inlineVideo,
+  compact = false,
   variant = 'card',
   className,
   style,
@@ -94,7 +104,19 @@ export default function QuoteCard({
   const line = [roleShown, item ? `On: ${item}` : null].filter(Boolean).join(' · ')
   const showImage = variant === 'card' && Boolean(videoId)
   const label = playLabel(startSeconds)
-  const summaryShown = aiSummary(summary)
+  const summaryShown = compact ? null : aiSummary(summary)
+  // Which recording the reader pressed play on (`click`): keyed by video and moment, so a card that moves to another
+  // passage shows its still image again instead of carrying the play over.
+  const [playing, setPlaying] = useState<string | null>(null)
+  const videoKey = videoId ? `${videoId}:${startSeconds ?? 0}` : null
+  const embed =
+    showImage && videoId
+      ? inlineVideo === 'autoplay'
+        ? youtubeHoverEmbedUrl(videoId, startSeconds)
+        : inlineVideo === 'click' && playing === videoKey
+          ? youtubeEmbedUrl(videoId, startSeconds)
+          : null
+      : null
   const media = showImage ? (
     <>
       <img src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} alt={`Recording of the ${place} meeting`} loading="lazy" />
@@ -108,10 +130,26 @@ export default function QuoteCard({
   ) : null
 
   return (
-    <figure className={`qcard qcard--${variant}${className ? ` ${className}` : ''}`} style={style}>
+    <figure className={`qcard qcard--${variant}${compact ? ' qcard--compact' : ''}${className ? ` ${className}` : ''}`} style={style}>
       <div className={`qcard-in${showImage ? ' has-media' : ''}`}>
         {showImage &&
-          (onPlay ? (
+          (embed ? (
+            // One player per card; a new src (another state's passage) is a new iframe, and unmounting the card stops it.
+            <div className="qcard-media qcard-media--embed">
+              <iframe
+                key={embed}
+                src={embed}
+                title={`Recording of the ${place} meeting${startSeconds ? `, from ${clockTime(startSeconds)}` : ''}`}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </div>
+          ) : inlineVideo === 'click' ? (
+            <button type="button" className="qcard-media" onClick={() => setPlaying(videoKey)} aria-label={`${label}: play the recording of the ${place} meeting here`}>
+              {media}
+            </button>
+          ) : onPlay ? (
             <button type="button" className="qcard-media" onClick={onPlay} aria-label={`${label}: recording of the ${place} meeting`}>
               {media}
             </button>
@@ -123,18 +161,22 @@ export default function QuoteCard({
             <div className="qcard-media">{media}</div>
           ))}
         <div className="qcard-text">
-          <p className="qcard-where">{where}</p>
-          {!hasSpeaker && <p className="qcard-meeting">{meeting ? `In the meeting · ${meeting}` : 'In the meeting'}</p>}
-          {stanceNote && <p className="qcard-stance">{stanceNote}</p>}
-          <blockquote className="qcard-quote">
-            <span className="qcard-qmark" aria-hidden="true">
-              “
-            </span>
-            {highlightSnippet(quote)}
-            <span className="qcard-qmark-end" aria-hidden="true">
-              ”
-            </span>
-          </blockquote>
+          {/* Person-first on the map hover card (#1277, the owner's mockup): the quote leads, then who said it, then the
+              meeting, place and date. No "In the meeting" filler: what the record lacks is left out. */}
+          {!compact && <p className="qcard-where">{where}</p>}
+          {!compact && !hasSpeaker && <p className="qcard-meeting">{meeting ? `In the meeting · ${meeting}` : 'In the meeting'}</p>}
+          {!compact && stanceNote && <p className="qcard-stance">{stanceNote}</p>}
+          {quote.trim() && (
+            <blockquote className="qcard-quote">
+              <span className="qcard-qmark" aria-hidden="true">
+                “
+              </span>
+              {highlightSnippet(quote)}
+              <span className="qcard-qmark-end" aria-hidden="true">
+                ”
+              </span>
+            </blockquote>
+          )}
           {hasSpeaker && (
             <figcaption className="qcard-speaker">
               {initials && (
@@ -156,13 +198,15 @@ export default function QuoteCard({
               </span>
             </figcaption>
           )}
+          {compact && <p className="qcard-where qcard-attrib">{[meeting, where].filter(Boolean).join(' · ')}</p>}
+          {compact && stanceNote && <p className="qcard-stance">{stanceNote}</p>}
           {summaryShown && (
             <div className="qcard-summary">
               <span className="qcard-summary-label">AI summary</span>
               <p className="qcard-summary-text">{summaryShown}</p>
             </div>
           )}
-          {analysisUrl && (
+          {analysisUrl && !compact && (
             <p className="qcard-analysis">
               <a href={analysisUrl}>Open the meeting analysis →</a>
             </p>

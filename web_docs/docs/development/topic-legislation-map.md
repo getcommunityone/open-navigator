@@ -17,9 +17,12 @@ A topic story shows where policy is moving on its topic in three charts, each bu
 | Where local bodies acted | `LocalActionsTracker.tsx` | `GET /api/topics/{topic}/local-actions?state=` | `public.topic_meeting_lean.outcome_group` (AI reading, Jev) |
 
 The components live in `web_app/src/components/stance/` and take `topic`, `stateCode`, `scopeLabel` and `subject`, so
-any curated topic can use them. They sit in the **Where policy is moving** section of `/stories/<topic>`
-(`TopicStory.tsx`), which follows the page's `?state=`. Moving them onto story screens once the screen-by-screen topic
-story (#1244) lands is [#1279](https://github.com/getcommunityone/open-navigator/issues/1279).
+any curated topic can use them. On the screen-by-screen topic story (`TopicStory.tsx`, #1244) they are the **State
+bills** and **Votes** screens, after **Who spoke**; `PositionBreakdown` sits on the Who spoke screen with `fiveOnly`, so
+it shows only for a topic read with five positions. Each screen drops out, with a note on the cover, when the topic has
+nothing for it (`utils/topicStoryScreens.ts`). The headlines are computed from the same counts: "37 statehouses have
+taken up water fluoridation since 1991." and "Across America, local bodies voted to keep or start fluoridation in 61 meetings and
+voted to end fluoridation in 4." All follow `?state=`.
 
 Ballot measures are not shown: we hold no ballot-measure data on these topics (checked 2026-11-27; 0 of 10,500 Power BI
 rows and 0 of 112 `gold.civic_ballotmeasure` rows mention fluoride). The source needed is

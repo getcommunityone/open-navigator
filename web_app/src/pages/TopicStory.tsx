@@ -1,31 +1,63 @@
-import { useMemo } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { companySearchTerm } from '../utils/companySearchTerm'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
+import { companySearchTerm } from '../utils/companySearchTerm'
 import { topicStanceForMap } from '../utils/topicStance'
-import { quoteStanceNote, topicPositions } from '../utils/topicPositions'
-import { CAPTION_COPY, captionText, pickCaption, storyStartLabel } from '../utils/storyCaption'
-import { nextStoryLink } from '../utils/storyNav'
+import { positionVerdict, quoteStanceNote, spokeOf, topicPositions } from '../utils/topicPositions'
+import {
+  CAPTION_COPY,
+  HATES_MIN_MEETINGS,
+  captionSubhead,
+  pickCaption,
+  positionCounts,
+  withTopicBlank,
+  type Caption,
+} from '../utils/storyCaption'
+import { storyCloseHref, storyStartHref, storyTopicOptions } from '../utils/storyNav'
+import { droppedNote, planTopicScreens, type ScreenAvailability, type TopicScreenId } from '../utils/topicStoryScreens'
+import type { TopicStoryDef } from '../utils/topicStories'
+import type { StoryScope } from '../utils/dataStory'
 import { useTopicStories } from '../hooks/useTopicStories'
+import { useIdleNudge } from '../hooks/useIdleNudge'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { highlightSnippet } from '../lib/highlight'
 import { STATE_CODES } from '../lib/usStates'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
+import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesMap'
 import TimelineChart from '../components/stance/TimelineChart'
 import DumbbellChart from '../components/stance/DumbbellChart'
+import PlaceControl from '../components/stance/PlaceControl'
+import ProgressPips from '../components/stance/ProgressPips'
+import StoryClose from '../components/stance/StoryClose'
+import ScopeBar from '../components/stance/ScopeBar'
+import { StoryBottomBar } from '../components/stance/StoryProgress'
+import SentenceHeading from '../components/stance/SentenceHeading'
+import StoryScreenFrame from '../components/stance/StoryScreenFrame'
+import TopicPositionsBreakdown from '../components/stance/TopicPositionsBreakdown'
+import StoryNextButton from '../components/stance/StoryNextButton'
+import { useStoryScreens } from '../components/stance/useStoryScreens'
 import LegislationMap from '../components/stance/LegislationMap'
 import LocalActionsTracker from '../components/stance/LocalActionsTracker'
 import PositionBreakdown from '../components/stance/PositionBreakdown'
+import { fetchTopicLegislation, fetchTopicLocalActions } from '../api/topicPolicy'
+import { actionLabels, shadeStates, STATUS_LABEL, yearSpan } from '../utils/topicPolicy'
 import '../styles/folio.css'
+import '../styles/stance.css'
 import '../styles/story-actions.css'
+import '../styles/topic-story.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 
 /**
- * A topic story (#1013): one curated topic's meetings, told from the transcript record. Everything shown is counted or
- * quoted from `topic_transcript_link` (meetings with a verbatim passage) and the decisions search for the topic. The
- * headline is the caption picker's (#1125, utils/storyCaption): the strongest statement the scope's counts support.
+ * A topic story (#1013): one curated topic's meetings, told from the transcript record. Since #1224 it is told screen by
+ * screen like the Data Center Story (the shared screen machine `useStoryScreens`, the same top bar, progress segments,
+ * Back/Next, keys and swipe): a cover, then Overview (the state box map), Over time, Who spoke, State bills, Votes (#1274),
+ * Companies, What was said,
+ * Decisions and a Recap. Every screen is built from data the topic has (utils/topicStoryScreens); one with nothing on record
+ * for the place drops out and the cover says so. Everything shown is counted or quoted from `topic_transcript_link`, the AI
+ * reading (`topic_meeting_lean`) and the decisions search for the topic.
  */
 // The stories are derived from the topic catalog (#1133): every curated topic with linked meetings (utils/topicStories).
 
@@ -35,6 +67,9 @@ const fmtDate = (d?: string | null) => {
   const t = new Date(`${d.slice(0, 10)}T12:00:00`)
   return Number.isNaN(t.getTime()) ? null : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
+/** "were against the courts" -> "was against the courts"; "mostly opposed it" -> "opposed <topic>" (after "the public mostly"). */
+const publicVerb = (verb: string, topic: string) => verb.replace(/^were /, 'was ').replace(/^mostly /, '').replace(/ it$/, ` ${topic}`)
+const meetingsWord = (n: number) => `${fmt(n)} ${n === 1 ? 'meeting' : 'meetings'}`
 
 interface PlatformCompany {
   master_org_id: string
@@ -55,113 +90,16 @@ interface DecisionResult {
 
 const PAGE = 8
 const COUNTED_FROM = /Counted from local meeting recordings/
+const COUNTED_LINE = 'Counted from local meeting recordings and transcripts that mention the topic.'
 
+const avail = (q: { isPending: boolean; isError: boolean }, has: () => boolean): ScreenAvailability =>
+  q.isPending ? 'loading' : q.isError ? 'error' : has() ? 'ready' : 'empty'
+
+/** Resolves the story from the topic catalog, then tells it; keyed by the topic so another topic starts fresh. */
 export default function TopicStory({ slug: slugProp }: { slug?: string }) {
   const params = useParams<{ storyId?: string }>()
   const topicStories = useTopicStories()
   const def = topicStories.stories[slugProp ?? params.storyId ?? '']
-  const [sp, setSp] = useSearchParams()
-  const raw = (sp.get('state') ?? '').trim().toUpperCase()
-  const stateCode = STATE_CODES.includes(raw) ? raw : null
-  const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
-  const label = stateName ?? 'National'
-  // The scope every story link carries: this page is at state grain (it shows and queries the state only), so its links
-  // carry the state it shows, never a city its label doesn't name (CLAUDE.md, scope label rule; city grain is #1186).
-  const scopeQ = stateCode ? `?state=${stateCode}` : ''
-
-  const setState = (code: string | null) =>
-    setSp(
-      (prev) => {
-        const n = new URLSearchParams(prev)
-        if (code) n.set('state', code)
-        else n.delete('state')
-        n.delete('city')
-        return n
-      },
-      { replace: false },
-    )
-
-  // The map always shows the whole country (each state its own count); the headline and lists follow the scope.
-  const national = useQuery({
-    queryKey: ['topic-story', def?.topicId, 'states'],
-    queryFn: () => fetchTopicStates(def!.topicId),
-    enabled: Boolean(def),
-    staleTime: 5 * 60_000,
-  })
-
-  // The four-colour split (#1127): the AI reading of each state's meetings, national like the map. Until the reading
-  // exists (#1126) the map is grey with a note; a failed request leaves the plain meetings map, claiming no stance.
-  const stanceQ = useQuery({
-    queryKey: ['topic-story', def?.topicId, 'state-map'],
-    queryFn: () => fetchTopicStanceMap(def!.topicId),
-    enabled: Boolean(def),
-    staleTime: 5 * 60_000,
-  })
-  const stance = useMemo(() => topicStanceForMap(stanceQ.data), [stanceQ.data])
-
-  // The headline's facts (#1125), keyed on the scope so the label and the numbers move together.
-  const captionQ = useQuery({
-    queryKey: ['caption-facts', def?.slug, stateCode ?? ''],
-    queryFn: () => fetchTopicCaptionFacts(def!.slug, stateCode ?? undefined),
-    enabled: Boolean(def),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  })
-
-  const quotes = useMemo(() => {
-    const out = new Map<string, StateQuote[]>()
-    for (const m of national.data?.newest ?? []) {
-      if (!m.state_code || !m.excerpt) continue
-      const list = out.get(m.state_code) ?? []
-      if (!out.has(m.state_code)) out.set(m.state_code, list)
-      list.push({
-        place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
-        text: m.excerpt,
-        date: m.date ?? null,
-        meeting: m.title ?? null,
-        // Where the public stood at the quoted meeting (#1230): the API picks a meeting where it took a side first.
-        stanceNote: quoteStanceNote(def?.slug, CAPTION_COPY[def?.slug ?? '']?.topic ?? def?.subject.toLowerCase() ?? 'the topic', m.public_stance),
-        url: m.video_url ?? null,
-        videoId: m.video_id ?? null,
-      })
-    }
-    return out
-  }, [national.data, def?.slug, def?.subject])
-
-  const meetings = useInfiniteQuery({
-    queryKey: ['topic-story', def?.topicId, 'meetings', stateCode ?? ''],
-    queryFn: ({ pageParam }) => fetchTopicMeetings(def!.topicId, { state: stateCode ?? undefined, limit: PAGE, offset: pageParam }),
-    initialPageParam: 0,
-    getNextPageParam: (last, pages) => {
-      const seen = pages.reduce((a, p) => a + p.items.length, 0)
-      return seen < last.total ? seen : undefined
-    },
-    enabled: Boolean(def),
-  })
-
-  const decisions = useQuery({
-    queryKey: ['topic-story', def?.topicId, 'decisions', stateCode ?? ''],
-    queryFn: async () => {
-      const res = await api.get('/search', {
-        params: { types: 'decisions', topic_id: def!.topicId, limit: 6, sort: 'date_desc', ...(stateCode ? { state: stateCode } : {}) },
-      })
-      return {
-        total: (res.data?.type_totals?.decisions as number | undefined) ?? 0,
-        items: (res.data?.results?.decisions ?? []) as DecisionResult[],
-      }
-    },
-    enabled: Boolean(def),
-  })
-
-  // The platform companies named in this scope's meetings and decisions (#1015).
-  const companies = useQuery({
-    queryKey: ['topic-story', def?.topicId, 'companies', stateCode ?? ''],
-    queryFn: async () =>
-      ((await api.get(def!.companiesPath!, { params: stateCode ? { state: stateCode } : {} })).data?.companies ?? []) as PlatformCompany[],
-    enabled: Boolean(def?.companiesPath),
-    staleTime: 5 * 60_000,
-  })
-
   if (!def && topicStories.pending) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16" aria-busy="true">
@@ -179,170 +117,367 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
       </div>
     )
   }
+  return <TopicStoryScreens key={def.slug} def={def} live={topicStories.live} />
+}
 
-  const caption = pickCaption(def.slug, captionQ.data, { stateCode: stateCode ?? undefined, stateName, city: null })
-  const headline = captionQ.isPending
-    ? def.title
-    : captionQ.isSuccess && captionQ.data.meetings === 0
-      ? `No meetings on record about ${def.subject.toLowerCase()} ${stateName ? `in ${stateName}` : 'yet'}.`
-      : captionText(caption, CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase())
-  // The two story buttons (#1182), the same as the home card's: Start (named for the topic) jumps to the first section,
-  // Next story moves on, both in the first screen.
-  const next = nextStoryLink(def.slug, scopeQ, topicStories.live)
-  const startStory = () => {
-    const el = document.getElementById('topic-story-start')
-    if (!el) return
-    el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
-    el.focus({ preventScroll: true })
-  }
+function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType<typeof useTopicStories>['live'] }) {
+  const [sp, setSp] = useSearchParams()
+  const navigate = useNavigate()
+  const reduced = usePrefersReducedMotion()
+  const raw = (sp.get('state') ?? '').trim().toUpperCase()
+  const stateCode = STATE_CODES.includes(raw) ? raw : null
+  const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
+  const label = stateName ?? 'National'
+  // The scope every story link carries: this page is at state grain (it shows and queries the state only), so its links
+  // carry the state it shows, never a city its label doesn't name (CLAUDE.md, scope label rule; city grain is #1186).
+  const scopeQ = stateCode ? `?state=${stateCode}` : ''
+  const scope: StoryScope = useMemo(() => ({ stateCode: stateCode ?? undefined, stateName, city: null }), [stateCode, stateName])
+  const screenParam = sp.get('screen') ?? ''
+  const subject = def.subject.toLowerCase()
+  const topicWord = CAPTION_COPY[def.slug]?.topic ?? subject
+  const words = topicPositions(def.slug)
+
+  // A city picked in the place dialog: topic stories are drawn by state (#1186), so its state applies and the cover says so.
+  // A deep link with ?city= gets the same note (the page shows its state only).
+  const [cityAsked, setCityAsked] = useState<string | null>(() => (stateCode ? (sp.get('city') ?? '').trim() || null : null))
+  const [placeOpen, setPlaceOpen] = useState(false)
+  const applyPlace = useCallback(
+    (code: string | null, community: string | null) => {
+      setCityAsked(code && community ? community : null)
+      setSp(
+        (prev) => {
+          const n = new URLSearchParams(prev)
+          if (code) n.set('state', code)
+          else n.delete('state')
+          n.delete('city')
+          return n
+        },
+        { replace: true },
+      )
+    },
+    [setSp],
+  )
+
+  // The map always shows the whole country (each state its own count); the headline and lists follow the scope.
+  const national = useQuery({
+    queryKey: ['topic-story', def.topicId, 'states'],
+    queryFn: () => fetchTopicStates(def.topicId),
+    staleTime: 5 * 60_000,
+  })
+  // The four-colour split (#1127): the AI reading of each state's meetings, national like the map.
+  const stanceQ = useQuery({
+    queryKey: ['topic-story', def.topicId, 'state-map'],
+    queryFn: () => fetchTopicStanceMap(def.topicId),
+    staleTime: 5 * 60_000,
+  })
+  const stance = useMemo(() => topicStanceForMap(stanceQ.data), [stanceQ.data])
+  // The headline's facts (#1125), keyed on the scope so the label and the numbers move together.
+  const captionQ = useQuery({
+    queryKey: ['caption-facts', def.slug, stateCode ?? ''],
+    queryFn: () => fetchTopicCaptionFacts(def.slug, stateCode ?? undefined),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const quotes = useMemo(() => {
+    const out = new Map<string, StateQuote[]>()
+    for (const m of national.data?.newest ?? []) {
+      if (!m.state_code || !m.excerpt) continue
+      const list = out.get(m.state_code) ?? []
+      if (!out.has(m.state_code)) out.set(m.state_code, list)
+      list.push({
+        place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
+        text: m.excerpt,
+        date: m.date ?? null,
+        meeting: m.title ?? null,
+        // Where the public stood at the quoted meeting (#1230): the API picks a meeting where it took a side first.
+        stanceNote: quoteStanceNote(def.slug, topicWord, m.public_stance),
+        url: m.video_url ?? null,
+        videoId: m.video_id ?? null,
+        // Named only where the speaker introduced themselves on the record (#1231).
+        speakerName: m.speaker_display_name ?? null,
+        role: m.speaker_display_name ? (m.speaker_role ?? null) : null,
+      })
+    }
+    return out
+  }, [national.data, def.slug, topicWord])
+  const meetings = useInfiniteQuery({
+    queryKey: ['topic-story', def.topicId, 'meetings', stateCode ?? ''],
+    queryFn: ({ pageParam }) => fetchTopicMeetings(def.topicId, { state: stateCode ?? undefined, limit: PAGE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const seen = pages.reduce((a, p) => a + p.items.length, 0)
+      return seen < last.total ? seen : undefined
+    },
+  })
+  const decisions = useQuery({
+    queryKey: ['topic-story', def.topicId, 'decisions', stateCode ?? ''],
+    queryFn: async () => {
+      const res = await api.get('/search', {
+        params: { types: 'decisions', topic_id: def.topicId, limit: 6, sort: 'date_desc', ...(stateCode ? { state: stateCode } : {}) },
+      })
+      return {
+        total: (res.data?.type_totals?.decisions as number | undefined) ?? 0,
+        items: (res.data?.results?.decisions ?? []) as DecisionResult[],
+      }
+    },
+  })
+  // The platform companies named in this scope's meetings and decisions (#1015).
+  const companies = useQuery({
+    queryKey: ['topic-story', def.topicId, 'companies', stateCode ?? ''],
+    queryFn: async () =>
+      ((await api.get(def.companiesPath!, { params: stateCode ? { state: stateCode } : {} })).data?.companies ?? []) as PlatformCompany[],
+    enabled: Boolean(def.companiesPath),
+    staleTime: 5 * 60_000,
+  })
+
+  // State bills (#1274): national counts (the map shows every state; the scoped state is outlined and opened). Same query
+  // keys as LegislationMap / LocalActionsTracker, so the screen and its chart share one request.
+  const legislation = useQuery({
+    queryKey: ['topic-legislation', def.slug],
+    queryFn: () => fetchTopicLegislation(def.slug),
+    staleTime: 10 * 60_000,
+    retry: 1,
+  })
+  const localActions = useQuery({
+    queryKey: ['topic-local-actions', def.slug, stateCode ?? 'national'],
+    queryFn: () => fetchTopicLocalActions(def.slug, stateCode ?? undefined),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+
+  // --- which screens the place has ---------------------------------------------------------------------------------------
+  const facts = captionQ.data
+  const meetingCount = facts?.meetings ?? 0
+  const counts = useMemo(() => positionCounts(facts, facts?.meetings), [facts])
   const items = meetings.data?.pages.flatMap((p) => p.items) ?? []
   const total = meetings.data?.pages[0]?.total ?? 0
+  const named = (companies.data ?? []).filter((c) => c.meetings + c.decisions > 0)
+  const availability: Partial<Record<TopicScreenId, ScreenAvailability>> = {
+    timeline: avail(captionQ, () => meetingCount > 0),
+    positions: avail(captionQ, () => counts != null),
+    bills: avail(legislation, () => (legislation.data?.total_bills ?? 0) > 0),
+    actions: avail(localActions, () => (localActions.data?.total ?? 0) > 0),
+    companies: def.companiesPath ? avail(companies, () => named.length > 0) : 'absent',
+    said: avail(meetings, () => total > 0),
+    decided: avail(decisions, () => (decisions.data?.total ?? 0) > 0),
+  }
+  const availKey = JSON.stringify(availability)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const plan = useMemo(() => planTopicScreens(availability), [availKey])
+  // The same array while the same screens are in the story: a screen's data going from loading to ready must not count as
+  // a new set of screens (that re-lands the page and can swallow a move made meanwhile, as DataStory keys on keepKey).
+  const keepKey = plan.screens.map((s) => s.id).join()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const screens = useMemo(() => plan.screens, [keepKey])
+  const n = screens.length
 
-  return (
-    <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6">
-      {/* The story's one exit (#1192), the same crumb as the Data Center Story's, keeping the place; a 44px target on phones. */}
-      <div className="flex flex-wrap items-center gap-x-3">
-        <Link
-          to={`/stories${scopeQ}`}
-          className="-my-3 inline-flex min-h-11 items-center text-sm font-semibold text-teal-700 hover:text-teal-900 sm:my-0 sm:min-h-0"
-        >
-          <span aria-hidden="true">←</span>&nbsp;Data stories
-        </Link>
-        <p className="font-mono text-xs uppercase tracking-widest text-teal-700">Data story · {def.title}</p>
-      </div>
-      {/* Restrained like the home title (#1182): about 36px on a laptop, so the buttons stay in the first screen. */}
-      <h1 className="mt-2 max-w-4xl font-serif text-[26px] font-bold leading-tight text-stone-900 sm:text-4xl" aria-busy={captionQ.isPending || undefined}>
-        {headline}
-      </h1>
-      {caption.basis && (
-        <p className="mt-2 max-w-2xl text-sm text-stone-500">
-          {caption.basis}
-        </p>
-      )}
-      <p className="mt-3 max-w-2xl text-stone-600">{def.lede}</p>
-      <div className="home-story-actions">
-        <button type="button" className="home-story-start" onClick={startStory}>
-          {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
-        </button>
-        <Link to={next.href} className="home-story-next">
-          {next.label} <span aria-hidden="true">→</span>
-        </Link>
-      </div>
-      {/* Said once in the first screen (#1192): the basis line already carries it when the caption is a state comparison. */}
-      {!captionQ.isPending && !COUNTED_FROM.test(caption.basis ?? '') && (
-        <p className="mt-3 text-sm text-stone-500">Counted from local meeting recordings and transcripts that mention the topic.</p>
-      )}
+  // The screen machine shared with the Data Center Story: landing, ?screen=, keys, the sideways swipe and re-aimed jumps.
+  const { rootRef, wide, mode, active, activeRef, goTo } = useStoryScreens({
+    screens,
+    screenParam,
+    setSp,
+    scopeKey: stateCode ?? '',
+    resetKey: def.slug,
+    dialogOpen: placeOpen,
+    reduced,
+  })
+  useIdleNudge({ rootRef, screen: `[data-panel="${active}"]`, resetKey: active, entranceMs: NUDGE_ENTRANCE_MS })
 
-      {/* Scope label = the applied filter (CLAUDE.md), with a one-click broaden and a picker. */}
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-stone-600">Showing:</span>
-        <strong className="text-stone-900">{label}</strong>
-        {stateCode && (
-          <button type="button" onClick={() => setState(null)} className="text-teal-700 underline underline-offset-2">
-            National
-          </button>
-        )}
-        <select
-          aria-label="Choose a state"
-          value={stateCode ?? ''}
-          onChange={(e) => setState(e.target.value || null)}
-          className="rounded-md border border-stone-300 bg-white px-2 py-1 text-stone-900"
-        >
-          <option value="">All states</option>
-          {[...STATE_CODES]
-            .sort((a, b) => (STATE_CODE_TO_NAME[a] ?? a).localeCompare(STATE_CODE_TO_NAME[b] ?? b))
-            .map((c) => (
-              <option key={c} value={c}>
-                {STATE_CODE_TO_NAME[c] ?? c}
-              </option>
-            ))}
-        </select>
-      </div>
+  // --- the title --------------------------------------------------------------------------------------------------------
+  const caption: Caption = pickCaption(def.slug, facts, scope)
+  const noMeetings = captionQ.isSuccess && facts?.meetings === 0
+  // Place first at a place scope: "California has no meetings on record about pickleball."
+  const template: Caption['template'] = noMeetings
+    ? stateName
+      ? [{ blank: 'place' }, ' has no meetings on record about ', { blank: 'topic' }, '.']
+      : ['No meetings on record about ', { blank: 'topic' }, ' across ', { blank: 'place' }, ' yet.']
+    : caption.template
+  // The topic is always a control in the title (#1224), even when the conclusion's words don't name it.
+  const titleTemplate = withTopicBlank(template, topicWord)
+  const placeDisplay = noMeetings ? (stateName ?? 'America') : caption.place
+  const subhead = noMeetings ? null : captionSubhead(caption, def.slug, scope)
+  const basis = caption.basis
+  // Close and the last screen's Done go home, keeping the scope (owner 2026-11-27: readers pick the next story there).
+  const homeHref = storyCloseHref(def.slug, scopeQ)
+  const note = droppedNote(plan.dropped, label)
+  const labels = screens.map((s) => s.eyebrow)
 
-      <section id="topic-story-start" tabIndex={-1} className="mx-auto mt-6 max-w-4xl scroll-mt-20 focus:outline-none" aria-label={`Map of meetings about ${def.title.toLowerCase()} by state`}>
-        {national.isError ? (
-          <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
-        ) : (
-          <StoryStatesMap
-            byState={national.data?.states}
-            quotes={quotes}
-            highlight={stateCode}
-            href={(code) => `/stories/${def.slug}?state=${encodeURIComponent(code)}`}
-            subject={def.subject.toLowerCase()}
-            stance={stance}
-            stanceUnit="meetings"
-            positions={topicPositions(def.slug)}
-          />
-        )}
-      </section>
+  // --- each screen's words and figure -----------------------------------------------------------------------------------
+  const loadingOr = (q: { isPending: boolean; isError: boolean }, what: string, ready: () => string) =>
+    q.isPending ? `Loading ${what}…` : q.isError ? `The ${what} could not be loaded right now.` : ready()
+  const verdict = counts ? positionVerdict(counts, HATES_MIN_MEETINGS[stateCode ? 'state' : 'national']) : null
+  const where = stateName ? `in ${stateName}` : 'nationally'
+  const decisionsSearch = `/search?types=decisions&topic_id=${def.topicId}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`
 
-      {/* Meetings over time (#1140): the trend line with its milestone track, and the period dumbbell, for every topic. */}
-      <section className="folio mx-auto mt-10 max-w-4xl rounded-xl p-4 sm:p-6" style={HOUSE_STYLE} aria-labelledby="topic-timeline-h">
-        <h2 id="topic-timeline-h" className="font-serif text-2xl font-semibold" style={{ color: 'var(--ink)' }}>
-          Meetings over time · {label}
-        </h2>
-        <TimelineChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} idBase={`topic-${def.slug}`} />
-        <DumbbellChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} idBase={`topic-${def.slug}`} />
-      </section>
-
-      {/* Where policy is moving (#1274): state bills from OpenStates, what the public said and what local bodies did. */}
-      <section className="folio mx-auto mt-10 max-w-4xl rounded-xl p-4 sm:p-6" style={HOUSE_STYLE} aria-labelledby="topic-policy-h">
-        <h2 id="topic-policy-h" className="font-serif text-2xl font-semibold" style={{ color: 'var(--ink)' }}>
-          Where policy is moving · {label}
-        </h2>
-        <LegislationMap topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} />
-        <PositionBreakdown topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} />
-        <LocalActionsTracker topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} />
-      </section>
-
-      {def.companiesPath && (
-        <section className="mt-10" aria-labelledby="topic-companies-h">
-          <h2 id="topic-companies-h" className="font-serif text-2xl font-semibold text-stone-900">
-            Companies named
-          </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            The rental platforms named in {label === 'National' ? 'these' : `${label}'s`} meetings and decisions, counted from the record.
-          </p>
-          {companies.isError ? (
-            <p className="mt-4 text-sm text-stone-500">Companies could not be loaded right now.</p>
-          ) : companies.isPending ? (
-            <p className="mt-4 text-sm text-stone-500">Loading companies…</p>
-          ) : (
-            <ul className="mt-4 grid gap-4 sm:grid-cols-3">
-              {companies.data!.map((c) => {
+  const screen = (id: TopicScreenId): { headline: string; context: ReactNode; right: ReactNode; lead?: ReactNode } => {
+    switch (id) {
+      case 'overview':
+        return {
+          // Never the header title again (owner 2026-11-26): the Overview says what the map shows.
+          headline: `Where ${topicWord} came up${stateName ? `, with ${stateName} marked` : ''}, state by state.`,
+          context: basis ?? COUNTED_LINE,
+          // The opening's subhead, lede and notes (#1282) sit in the left column under the headline: Overview is screen 1.
+          lead: (
+            <div className="stance-overview-lead">
+              {subhead && <p className="stance-title-subhead">{subhead}</p>}
+              <p className="stance-title-subhead topic-story-lede">{def.lede}</p>
+              {!captionQ.isPending && !COUNTED_FROM.test(basis ?? '') && basis != null && <p className="stance-note">{COUNTED_LINE}</p>}
+              {cityAsked && stateName && (
+                <p className="stance-note" role="status">
+                  Topic stories are drawn by state, so this shows all of {stateName}; {cityAsked} on its own isn't available yet.
+                </p>
+              )}
+              {note && <p className="stance-note">{note}</p>}
+            </div>
+          ),
+          right: (
+            <>
+              {national.isError ? (
+                <p className="stance-nodata" role="status">
+                  The map could not be loaded right now.
+                </p>
+              ) : (
+                <StoryStatesMap
+                  byState={national.data?.states}
+                  quotes={quotes}
+                  highlight={stateCode}
+                  href={(code) => `/stories/${def.slug}?state=${encodeURIComponent(code)}&screen=overview`}
+                  subject={subject}
+                  stance={stance}
+                  stanceUnit="meetings"
+                  positions={words}
+                />
+              )}
+              <p className="stance-note">
+                Drawn by state{stateName ? `, ${stateName} at full strength` : ''}: choose a state to narrow the story to it. Topic
+                meetings are not counted by county yet, so there is no county view.
+              </p>
+            </>
+          ),
+        }
+      case 'timeline':
+        return {
+          headline: `How often ${topicWord} came up ${stateName ? `in ${stateName}` : 'across America'}, year by year.`,
+          context: loadingOr(
+            captionQ,
+            'meeting counts',
+            () => `${meetingsWord(meetingCount)} on record whose transcript mentions the topic, per year, and how the latest period compares with the one before.`,
+          ),
+          right: (
+            <div className="topic-story-charts">
+              <TimelineChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} idBase={`topic-${def.slug}`} />
+              <DumbbellChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} idBase={`topic-${def.slug}`} />
+            </div>
+          ),
+        }
+      case 'positions': {
+        const spoke = counts ? spokeOf(counts) : 0
+        const placeWord = stateName ?? 'America'
+        // A short conclusion, no counts (owner 2026-11-26); the numbers are in the line under it and the bars.
+        const h = loadingOr(captionQ, 'who spoke', () =>
+          !verdict || !counts
+            ? `No position of the public is on record for these meetings yet.`
+            : spoke === 0
+              ? `The public didn't speak on ${topicWord} in the meetings read ${where}.`
+              : verdict.kind === 'majority'
+                ? `${stateName ? `In ${stateName}` : 'Across America'}, the public mostly ${publicVerb(verdict.side === 'against' ? words.againstVerb : words.forVerb, topicWord)}.`
+                : verdict.kind === 'split'
+                  ? `${placeWord} is split on ${topicWord}.`
+                  : `Too few meetings where the public spoke to say which way ${placeWord} leans.`,
+        )
+        const line =
+          counts && verdict && spoke > 0
+            ? verdict.kind === 'majority'
+              ? `${fmt(verdict.count)} of ${meetingsWord(verdict.of)} where the public spoke. `
+              : `The public spoke in ${meetingsWord(spoke)}. `
+            : ''
+        return {
+          headline: h,
+          context: `${line}An AI read each meeting's transcript for the public's position: these are meetings, never counted speakers.`,
+          right: counts ? (
+            <>
+              <TopicPositionsBreakdown counts={counts} words={words} scopeLabel={label} labelledBy="story-h-positions" />
+              {/* Topics read with their own five positions (water fluoridation) also show them in full (#1274). */}
+              <PositionBreakdown topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} fiveOnly />
+            </>
+          ) : null,
+        }
+      }
+      case 'bills': {
+        const L = legislation.data
+        const all = L ? shadeStates(L.summary, { sinceYear: null, category: null }) : []
+        const here = stateCode ? all.find((x) => x.state_code === stateCode) : undefined
+        const enacted = L?.status_counts.enacted ?? 0
+        const span = L ? yearSpan(L.summary) : null
+        return {
+          headline: loadingOr(legislation, 'state bills', () =>
+            stateCode
+              ? here
+                ? `${stateName}'s legislature has taken up ${topicWord}: the furthest a bill got is ${STATUS_LABEL[here.status].toLowerCase()}.`
+                : `${stateName}'s legislature has no bill on ${topicWord} in our record; ${fmt(all.length)} other states do.`
+              : `${fmt(all.length)} statehouses have taken up ${topicWord}${span ? ` since ${span[0]}` : ''}.`,
+          ),
+          context: L
+            ? `${fmt(L.total_bills)} state ${L.total_bills === 1 ? 'bill' : 'bills'} in our copy of OpenStates${enacted ? `, ${fmt(enacted)} enacted` : ''}. Each state is coloured by the furthest any of its bills got; choose one to see its bills.`
+            : 'State bills in our copy of OpenStates.',
+          right: <LegislationMap topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} />,
+        }
+      }
+      case 'actions': {
+        const A = localActions.data
+        const w = actionLabels(def.slug)
+        return {
+          headline: loadingOr(localActions, 'votes', () =>
+            A
+              ? `${stateName ? `In ${stateName}` : 'Across America'}, local bodies ${w.advanced.charAt(0).toLowerCase()}${w.advanced.slice(1)} in ${meetingsWord(A.totals.advanced)} and ${w.blocked.charAt(0).toLowerCase()}${w.blocked.slice(1)} in ${fmt(A.totals.blocked)}.`
+              : '',
+          ),
+          context: A
+            ? `${meetingsWord(A.total)} where a council or board acted on it, ${fmt(A.totals.tabled_or_deferred)} of them put off, as an AI read the transcript.`
+            : 'Meetings where a council or board acted on it, as an AI read the transcript.',
+          right: <LocalActionsTracker topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} />,
+        }
+      }
+      case 'companies':
+        return {
+          headline: loadingOr(
+            companies,
+            'companies',
+            () => `The platforms named in ${stateName ? `${stateName}'s` : 'these'} meetings and decisions.`,
+          ),
+          context: companies.data ? `${fmt(named.length)} ${named.length === 1 ? 'company' : 'companies'} named in the record, counted from it.` : 'Counted from the record.',
+          right: companies.data ? (
+            <ul className="topic-story-list">
+              {named.map((c) => {
                 const brands = c.aliases.filter((a) => a !== c.company_name && !a.includes(','))
                 return (
-                  <li key={c.master_org_id} className="rounded-xl border border-stone-200 bg-white p-4">
-                    <p className="text-base font-semibold text-stone-900">
-                      <Link to={`/organizations/${encodeURIComponent(c.master_org_id)}`} className="hover:text-teal-700">
-                        {c.company_name}
-                      </Link>
+                  <li key={c.master_org_id} className="topic-story-item">
+                    <p className="topic-story-item-title">
+                      <Link to={`/organizations/${encodeURIComponent(c.master_org_id)}`}>{c.company_name}</Link>
                     </p>
-                    {brands.length > 0 && <p className="text-xs text-stone-500">{brands.join(', ')}</p>}
-                    {c.meetings + c.decisions === 0 ? (
-                      <p className="mt-2 text-sm text-stone-500">Not named in {label === 'National' ? 'any meeting on record' : `${label}'s meetings on record`}.</p>
-                    ) : (
-                      <p className="mt-2 text-sm text-stone-700">
-                        <Link to={`/search?q=${encodeURIComponent(companySearchTerm(c.company_name, c.newest?.evidence))}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`} className="font-semibold text-teal-700">
-                          {fmt(c.meetings)} {c.meetings === 1 ? 'meeting' : 'meetings'}
+                    {brands.length > 0 && <p className="topic-story-item-meta">{brands.join(', ')}</p>}
+                      <p className="topic-story-item-body">
+                        <Link to={`/search?q=${encodeURIComponent(companySearchTerm(c.company_name, c.newest?.evidence))}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`}>
+                          {meetingsWord(c.meetings)}
                         </Link>
                         {' · '}
                         {fmt(c.decisions)} {c.decisions === 1 ? 'decision' : 'decisions'}
                       </p>
-                    )}
                     {c.newest?.evidence && (
-                      <blockquote className="mt-2 border-l-2 border-teal-600 pl-3 text-sm italic leading-relaxed text-stone-700">
+                      <blockquote className="topic-story-quote">
                         “{highlightSnippet(c.newest.evidence)}”
-                        <footer className="mt-1 not-italic text-xs text-stone-500">
+                        <footer>
                           {[c.newest.jurisdiction_name, c.newest.state_code].filter(Boolean).join(', ')}
                           {fmtDate(c.newest.date) ? ` · ${fmtDate(c.newest.date)}` : ''}
                           {c.newest.url && (
                             <>
                               {' · '}
                               {c.newest.url.startsWith('/') ? (
-                                <Link to={c.newest.url} className="text-teal-700">Open</Link>
+                                <Link to={c.newest.url}>Open</Link>
                               ) : (
-                                <a href={c.newest.url} target="_blank" rel="noopener noreferrer" className="text-teal-700">Watch ↗</a>
+                                <a href={c.newest.url} target="_blank" rel="noopener noreferrer">
+                                  Watch ↗
+                                </a>
                               )}
                             </>
                           )}
@@ -353,95 +488,213 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
                 )
               })}
             </ul>
-          )}
-        </section>
-      )}
-
-      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <section aria-labelledby="topic-meetings-h">
-          <h2 id="topic-meetings-h" className="font-serif text-2xl font-semibold text-stone-900">
-            What was said{total ? ` · ${fmt(total)} ${total === 1 ? 'meeting' : 'meetings'}` : ''}
-          </h2>
-          <p className="mt-1 text-sm text-stone-500">Newest first. Each passage is quoted from the meeting transcript.</p>
-          {meetings.isError ? (
-            <p className="mt-4 text-sm text-stone-500">Meetings could not be loaded right now.</p>
-          ) : meetings.isPending ? (
-            <p className="mt-4 text-sm text-stone-500">Loading meetings…</p>
-          ) : items.length === 0 ? (
-            <p className="mt-4 text-sm text-stone-500">No meetings on record for {label}.</p>
-          ) : (
-            <ul className="mt-4 space-y-4">
-              {items.map((m) => (
-                <li key={m.video_id} className="rounded-xl border border-stone-200 bg-white p-4">
-                  <p className="text-sm font-semibold text-stone-900">{m.title ?? 'Meeting'}</p>
-                  <p className="text-xs text-stone-500">
-                    {[m.jurisdiction_name ?? m.city, m.state].filter(Boolean).join(', ')}
-                    {fmtDate(m.date) ? ` · ${fmtDate(m.date)}` : ''}
-                  </p>
-                  {m.excerpt && (
-                    <blockquote className="mt-2 border-l-2 border-teal-600 pl-3 text-[15px] italic leading-relaxed text-stone-700">
-                      “{highlightSnippet(m.excerpt)}”
-                    </blockquote>
-                  )}
-                  {m.video_url && (
-                    <a href={m.video_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm font-semibold text-teal-700">
-                      Watch the meeting ↗
-                    </a>
-                  )}
+          ) : null,
+        }
+      case 'said':
+        return {
+          headline: loadingOr(meetings, 'meetings', () => `What was said about ${topicWord} ${stateName ? `in ${stateName}` : 'across America'}.`),
+          context: `${total ? `${meetingsWord(total)}, newest first. ` : 'Newest first. '}Each passage is quoted from the meeting transcript.`,
+          right: (
+            <>
+              <ul className="topic-story-list">
+                {items.map((m) => (
+                  <li key={m.video_id} className="topic-story-item">
+                    <p className="topic-story-item-title">{m.title ?? 'Meeting'}</p>
+                    <p className="topic-story-item-meta">
+                      {[m.jurisdiction_name ?? m.city, m.state].filter(Boolean).join(', ')}
+                      {fmtDate(m.date) ? ` · ${fmtDate(m.date)}` : ''}
+                    </p>
+                    {m.excerpt && <blockquote className="topic-story-quote">“{highlightSnippet(m.excerpt)}”</blockquote>}
+                    {m.video_url && (
+                      <a href={m.video_url} target="_blank" rel="noopener noreferrer" className="topic-story-link">
+                        Watch the meeting ↗
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {meetings.hasNextPage && (
+                <button type="button" className="folio-btn" onClick={() => meetings.fetchNextPage()} disabled={meetings.isFetchingNextPage}>
+                  {meetings.isFetchingNextPage ? 'Loading…' : 'Show more meetings'}
+                </button>
+              )}
+            </>
+          ),
+        }
+      case 'decided': {
+        const d = decisions.data
+        return {
+          headline: loadingOr(decisions, 'decisions', () => `What was decided on ${topicWord} ${stateName ? `in ${stateName}` : 'across America'}.`),
+          context: d ? `${fmt(d.total)} ${d.total === 1 ? 'decision' : 'decisions'} whose record mentions the topic, newest first.` : 'Decisions whose record mentions the topic, newest first.',
+          right: d ? (
+            <>
+              <ul className="topic-story-list">
+                {d.items.map((x, i) => (
+                  <li key={x.url ?? i} className="topic-story-item">
+                    {x.url ? (
+                      <Link to={x.url} className="topic-story-item-title">
+                        {x.title}
+                      </Link>
+                    ) : (
+                      <p className="topic-story-item-title">{x.title}</p>
+                    )}
+                    {x.subtitle && <p className="topic-story-item-meta">{x.subtitle}</p>}
+                    {x.description && <p className="topic-story-item-body">{highlightSnippet(x.description)}</p>}
+                  </li>
+                ))}
+              </ul>
+              {d.total > d.items.length && (
+                <Link to={decisionsSearch} className="topic-story-link">
+                  See all {fmt(d.total)} decisions →
+                </Link>
+              )}
+            </>
+          ) : null,
+        }
+      }
+      case 'recap': {
+        const parts = [
+          captionQ.isSuccess ? meetingsWord(meetingCount) : null,
+          decisions.isSuccess ? `${fmt(decisions.data.total)} ${decisions.data.total === 1 ? 'decision' : 'decisions'}` : null,
+          def.companiesPath && companies.isSuccess ? `${fmt(named.length)} ${named.length === 1 ? 'company' : 'companies'} named` : null,
+        ].filter((x): x is string => x != null)
+        return {
+          headline: `That's the record on ${topicWord} ${stateName ? `in ${stateName}` : 'across America'}.`,
+          context: parts.length ? `${parts.join(', ')}, from local meeting recordings and transcripts.` : COUNTED_LINE,
+          right: (
+            <ul className="topic-story-onward">
+              {(decisions.data?.total ?? 0) > 0 && (
+                <li>
+                  <Link to={decisionsSearch}>Every decision on {topicWord} →</Link>
                 </li>
-              ))}
+              )}
+              <li>
+                <Link to={`/browse-topics${scopeQ}`}>Browse every topic{stateName ? ` in ${stateName}` : ''} →</Link>
+              </li>
+              <li>
+                <Link to={`/stories${scopeQ}`}>All data stories →</Link>
+              </li>
             </ul>
-          )}
-          {meetings.hasNextPage && (
-            <button
-              type="button"
-              onClick={() => meetings.fetchNextPage()}
-              disabled={meetings.isFetchingNextPage}
-              className="mt-4 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50 disabled:opacity-50"
-            >
-              {meetings.isFetchingNextPage ? 'Loading…' : 'Show more meetings'}
-            </button>
-          )}
-        </section>
+          ),
+        }
+      }
+    }
+  }
 
-        <section aria-labelledby="topic-decisions-h">
-          <h2 id="topic-decisions-h" className="font-serif text-2xl font-semibold text-stone-900">
-            What was decided{decisions.data?.total ? ` · ${fmt(decisions.data.total)}` : ''}
-          </h2>
-          <p className="mt-1 text-sm text-stone-500">Decisions whose record mentions the topic, newest first.</p>
-          {decisions.isError ? (
-            <p className="mt-4 text-sm text-stone-500">Decisions could not be loaded right now.</p>
-          ) : decisions.isPending ? (
-            <p className="mt-4 text-sm text-stone-500">Loading decisions…</p>
-          ) : (decisions.data?.items.length ?? 0) === 0 ? (
-            <p className="mt-4 text-sm text-stone-500">No decisions on record for {label}.</p>
-          ) : (
-            <ul className="mt-4 space-y-3">
-              {decisions.data!.items.map((d, i) => (
-                <li key={d.url ?? i} className="rounded-xl border border-stone-200 bg-white p-4">
-                  {d.url ? (
-                    <Link to={d.url} className="text-sm font-semibold text-stone-900 hover:text-teal-700">
-                      {d.title}
-                    </Link>
-                  ) : (
-                    <p className="text-sm font-semibold text-stone-900">{d.title}</p>
-                  )}
-                  {d.subtitle && <p className="mt-0.5 text-xs text-stone-500">{d.subtitle}</p>}
-                  {d.description && <p className="mt-2 text-sm leading-relaxed text-stone-700">{highlightSnippet(d.description)}</p>}
-                </li>
-              ))}
-            </ul>
-          )}
-          {(decisions.data?.total ?? 0) > (decisions.data?.items.length ?? 0) && (
-            <Link
-              to={`/search?types=decisions&topic_id=${def.topicId}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`}
-              className="mt-4 inline-block text-sm font-semibold text-teal-700"
-            >
-              See all {fmt(decisions.data!.total)} decisions →
-            </Link>
-          )}
-        </section>
+  return (
+    <div
+      className="folio stance-game stance-story topic-story"
+      style={HOUSE_STYLE}
+      ref={rootRef}
+      data-mode={mode}
+      data-fade={reduced ? '' : undefined}
+      data-sbar={wide ? undefined : ''}
+    >
+      {/* The story's bar, shared with the Data Center Story (#1234, owner 2026-11-27): the title sentence (its place blank is
+          the only place control), the screen's word, Close (×) at the top right and, on a wide screen, the segments. */}
+      <ScopeBar
+        backTo={homeHref}
+        backLabel="Close"
+        close={<StoryClose to={homeHref} escape={!placeOpen} />}
+        title={def.title}
+        label={label}
+        heading={
+          <SentenceHeading
+            template={titleTemplate}
+            blanks={[
+              {
+                id: 'place',
+                label: 'Place',
+                value: stateCode ?? '',
+                display: placeDisplay,
+                options: [],
+                onChange: () => {},
+                control: (
+                  <PlaceControl
+                    variant="blank"
+                    display={placeDisplay}
+                    stateCode={stateCode ?? undefined}
+                    city={null}
+                    open={placeOpen}
+                    onOpenChange={setPlaceOpen}
+                    onApply={applyPlace}
+                  />
+                ),
+              },
+              {
+                id: 'topic',
+                label: 'Topic',
+                value: def.slug,
+                display: topicWord,
+                // Every live story, the same list as the Data Center Story's (#1224); choosing one opens it on its Overview,
+                // keeping the place.
+                options: storyTopicOptions(live, def.slug, topicWord),
+                onChange: (v) => navigate(storyStartHref(v, scopeQ)),
+              },
+            ]}
+          />
+        }
+        stateCode={stateCode ?? undefined}
+        stateName={stateName}
+        city={null}
+        current={screens[active]?.eyebrow ?? ''}
+        progress={wide ? <ProgressPips count={n} active={active} labels={labels} onJump={goTo} /> : undefined}
+        placeOpen={placeOpen}
+        onPlaceOpenChange={setPlaceOpen}
+        onApply={applyPlace}
+      />
+      <p className="folio-sr-only" aria-live="polite">
+        {screens[active] ? `${screens[active]!.eyebrow}, ${active + 1} of ${n}.` : ''}
+      </p>
+      <div className="stance-body">
+        {/* Keyed by which screens are in the story: the pinned layout moves screens into its own wrappers (see DataStory). */}
+        <div className="stance-acts" key={keepKey}>
+          {screens.map((s, i) => {
+            const v = screen(s.id)
+            return (
+              <StoryScreenFrame
+                key={s.id}
+                id={s.id}
+                index={i}
+                active={active === i}
+                eyebrow={s.eyebrow}
+                headline={v.headline}
+                context={v.context}
+                // The one Next is fixed at the bottom right (StoryNextButton); each screen keeps only its Back inline.
+                nextLabel={null}
+                onNext={() => goTo(i + 1)}
+                onPrev={i > 0 ? () => goTo(i - 1) : undefined}
+                right={v.right}
+              >
+                {v.lead}
+              </StoryScreenFrame>
+            )
+          })}
+        </div>
       </div>
+      {/* The one way forward (#1234, owner 2026-11-27): a green Next fixed at the bottom right on every screen. Cover: starts
+          the story; a screen: the next screen; the last screen: a quiet Done that closes the story. */}
+      {active < n - 1 ? (
+        <StoryNextButton label="Next" ariaLabel={`Next: ${screens[active + 1]?.eyebrow ?? ''}`.replace(/: $/, '')} onClick={() => goTo(Math.min(activeRef.current + 1, n - 1))} />
+      ) : (
+        <StoryNextButton label="Done" ariaLabel="Done: close the story" href={homeHref} quiet />
+      )}
+      {/* Phones: the bottom bar keeps Back and the progress dots; Next is the fixed button above, at its right end. */}
+      {!wide && (
+        <StoryBottomBar
+          active={active}
+          count={n}
+          nextLabel={null}
+          onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
+          withNext={false}
+          prevLabel={active > 0 ? (screens[active - 1]?.eyebrow ?? null) : null}
+          onPrev={() => goTo(Math.max(activeRef.current - 1, 0))}
+          storyHref={homeHref}
+          storyLabel="Done"
+          storyIsNext={false}
+        />
+      )}
+      <p className="stance-keys">Keys: → or PageDown next · ← or PageUp back · Home and End jump to the ends · on a phone, swipe left or right</p>
     </div>
   )
 }

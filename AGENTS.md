@@ -128,6 +128,9 @@ conflict, the rule wins: stop and ask the owner.
   locations or chat text with an identity attached.
 - **Correction and removal.** Anyone shown on the site can ask to correct, hide or remove how we show them (#1064).
   A removal request is honoured even without full verification when the risk to them is plausible.
+- **Third-party sources.** Don't reference CareQuest (CareQuest Institute) or use its data, polls, charts or wording
+  anywhere in the product, code, comments, docs, issues, PRs or commits. Build our own maps and charts from our meeting
+  and bill data.
 - **Blocking in review.** A PR that adds private personal data, ties sensitive data to a person, names a minor,
   scrapes against a site's terms or contacts people unasked is 🔴 Blocking (`.claude/review-rubric.md`).
 

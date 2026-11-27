@@ -8,6 +8,8 @@ interface Props {
   stateCode?: string
   scopeLabel: string
   subject: string
+  /** Show only for topics read with their own five positions (beside a story's four-way breakdown); otherwise nothing. */
+  fiveOnly?: boolean
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -18,13 +20,14 @@ const fmt = (n: number) => n.toLocaleString('en-US')
  * violet side, opposition on the vermilion side, no opinion in grey. Counts of meetings, never of speakers. Meetings
  * where the public didn't speak are said in the note, not drawn.
  */
-export default function PositionBreakdown({ topic, stateCode, scopeLabel, subject }: Props) {
+export default function PositionBreakdown({ topic, stateCode, scopeLabel, subject, fiveOnly = false }: Props) {
   const q = useQuery<TopicPositionsResponse>({
     queryKey: ['topic-positions', topic, stateCode ?? 'national'],
     queryFn: () => fetchTopicPositions(topic, stateCode),
     staleTime: 5 * 60_000,
     retry: 1,
   })
+  if (fiveOnly && q.data?.scale !== 'five') return null
   const title = (
     <p className="sc-h">
       What the public said in meetings on {subject} · {scopeLabel}
@@ -57,7 +60,7 @@ export default function PositionBreakdown({ topic, stateCode, scopeLabel, subjec
   }
   const max = Math.max(1, ...d.options.map((o) => o.meetings))
   return (
-    <div className="sc-block pb">
+    <div className="sc-block pb" style={fiveOnly ? { marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--rule)' } : undefined}>
       {title}
       {d.spoke_meetings === 0 ? (
         <p className="sc-note">

@@ -1,17 +1,18 @@
 # YouTube Audio Downloader for Google Drive
 
-## Meeting audio to OneDrive (`download_meeting_audio`, #1255)
+## Meeting audio to Google Drive (`download_meeting_audio`, #1255, #1270)
 
-The newer CLI downloads a scoped set of meetings and stores them on the owner's **personal** OneDrive
-through rclone, one file at a time, without filling the local disk. Why YouTube, and the limits every run
-keeps: `web_docs/docs/development/meeting-audio-source-decision.md`.
+The newer CLI downloads a scoped set of meetings and stores them in the owner's personal **Google Drive**
+folder `CommunityOne/youtube_audio` through rclone, one file at a time, without filling the local disk.
+Never write through the Drive-for-desktop mount (`I:\My Drive`, `/mnt/i`): its cache is on the full C: disk.
+Why YouTube, and the limits every run keeps: `web_docs/docs/development/meeting-audio-source-decision.md`.
 
-One-time setup, by the owner (needs a browser sign-in to the **personal** Microsoft account, never the
-CDC work account):
+One-time setup, by the owner (browser sign-in to the personal Google account):
 
 ```bash
-rclone config create onedrive onedrive   # choose "OneDrive Personal" when asked
-rclone lsd onedrive:CommunityOne          # find the existing YouTube audio folder
+~/.local/bin/rclone config create gdrive drive scope=drive
+~/.local/bin/rclone lsd gdrive:CommunityOne      # the existing youtube_audio folder
+~/.local/bin/rclone about gdrive:                # free space (~45 GB needed for the 2026 scope)
 ```
 
 Run:
@@ -21,19 +22,19 @@ Run:
 python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --dry-run
 
 # Three files as a test, then the rest (polite: 8 s + jitter between videos)
-python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --target onedrive --limit 3
-python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --target onedrive
+python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --limit 3
+python -m scrapers.youtube.download_meeting_audio --data-centers-2026
 ```
 
-- **Never downloads twice.** Before anything else it inventories the OneDrive folder (`rclone lsf -R`,
+- **Never downloads twice.** Before anything else it inventories the Google Drive folder (`rclone lsf -R`,
   any audio extension), the bronze tracking columns and `data/cache/youtube_audio` (read only), keyed by
   `video_id`. A `video_id` anywhere in a filename counts as held; so do legacy
   `YYYY-MM-DD_<title>.opus` names and tracked paths. Held locally only → the existing file is uploaded.
   Matches are saved to `bronze.bronze_meeting_audio_inventory` and the tracking columns.
-- **Where:** `onedrive:CommunityOne/youtube_audio/<state>/<channel_slug>_<channel_id>/YYYY-MM-DD_<title> [<video_id>].opus`
+- **Where:** `gdrive:CommunityOne/youtube_audio/<state>/<channel_slug>_<channel_id>/YYYY-MM-DD_<title> [<video_id>].opus`
   (the legacy layout plus the id). `--source suiteone|granicus` picks a sibling folder;
   `--remote`, `--community-root` and `--remote-root` override the names.
-- **Targets:** `--target onedrive` (default), `local` or `drive` (a mounted folder, with `--output-dir`).
+- **Targets:** `--target rclone` (default; remote `--remote gdrive`, folder `--remote-root CommunityOne/youtube_audio`), `local` or `drive` (a folder, with `--output-dir`).
 - **Size:** re-encoded to 64 kbps Opus (~28 MB/h, ~2.5 CPU-minutes per audio hour); `--no-transcode` keeps
   YouTube's ~120 kbps stream.
 - **Stops on blocks:** 403/429/bot checks double the pause; three in a row exit with code 3.

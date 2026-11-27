@@ -16,10 +16,11 @@ import {
 } from '../home/storyColors'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
-import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
+import { dataCenterQuoteNote } from '../../utils/topicPositions'
+import { resolveVideoId, startFromUrl } from './quoteCardUtils'
 import type { MapPassage } from './StoryDotMap'
-import { isTouchOnly } from '../../utils/touchOnly'
-import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
+import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
 export interface PlaceCount extends LeanCounts {
@@ -202,13 +203,20 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     return `${countyLabel(id)}: ${plural(n)} (${parts.join(', ')})${st ? `; ${st}` : '; no stance on record'}.${lean ? ` ${lean}` : ''}`
   }
 
-  // Only while a county is hovered: the newest passage from one of its governments, if the scope has one.
+  // Only while a county is hovered, on a desktop: the newest passage from one of its governments, if the scope has one. A
+  // phone has no card (#1277): a tap only selects the county (its outline and the line under the map).
   const hoverNames = new Set((hover ? byCounty.get(hover) ?? [] : []).map((p) => norm(p.jurisdiction_name)))
-  const passage = hover ? (passages ?? []).find((m) => m.evidence && hoverNames.has(norm(m.jurisdiction_name))) : undefined
+  const passage = hover && !touch ? (passages ?? []).find((m) => m.evidence && hoverNames.has(norm(m.jurisdiction_name))) : undefined
   const [bx0, by0, bx1, by1] = grid.bbox
-  const hoverDots = hover ? grid.dots.filter((d) => d.id === hover) : []
-  const hoverX = hoverDots.length ? (hoverDots.reduce((a, d) => a + d.x, 0) / hoverDots.length - bx0) / (bx1 - bx0) : 0
-  const cardSide = hoverX < 0.5 ? 'stance-map-card is-right' : 'stance-map-card'
+  const hoverFeat = hover ? grid.feats.find((f) => f.id === hover) : undefined
+  const inlineVideo = keyNav.keyed || prefersStillMedia() ? 'click' : 'autoplay'
+  const hoverIn = (id: string) =>
+    touch
+      ? undefined
+      : () => {
+          keyNav.pointed()
+          setHover(id)
+        }
 
   const r = grid.step * 0.38
   const pad = 4
@@ -272,7 +280,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   const unplacedMeetings = unplaced.reduce((a, p) => a + p.meetings, 0)
 
   return (
-    <figure className="stance-map" aria-labelledby={labelledBy}>
+    // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
+    <figure className="stance-map" aria-labelledby={labelledBy} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
       <figcaption className="stance-map-head">
         <span>
           Meetings where a data center came up, by county · {stateName}
@@ -292,13 +301,13 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           </select>
         </span>
       </figcaption>
-      <div className="stance-map-stage" onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+      <div className="stance-map-stage">
         {keyNav.sr}
         <svg
           viewBox={vb}
           className="stance-map-svg"
           data-map="county"
-          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where an AI reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where the AI reading found officials sided against the public (see the data table).` : ''}`}
+          aria-label={`Dot map of ${stateName}'s counties, split by speakers' stance where any are on record and otherwise shaded by meetings where a data center came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where a reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where a reading of the meetings found officials sided against the public (see the data table).` : ''}`}
           {...keyNav.svgProps}
         >
           {grid.dots.map((d, i) => {
@@ -308,12 +317,14 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               <circle
                 key={i}
                 data-box=""
+                data-active={hover === d.id ? '' : undefined}
                 cx={d.x}
                 cy={d.y}
                 r={n ? r : r * 0.55}
                 fill={colorFor(i, n)}
                 opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
-                onMouseEnter={touch ? undefined : () => setHover(d.id)}
+                style={{ cursor: 'pointer' }}
+                onMouseEnter={hoverIn(d.id)}
                 onClick={() => setHover(d.id)}
               />
             )
@@ -329,7 +340,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               stroke={HOUSE_THEME.ramp[5] ?? 'currentColor'}
               strokeWidth={grid.step * 0.18}
               opacity={hover && hover !== g.county ? 0.3 : 1}
-              onMouseEnter={touch ? undefined : () => setHover(g.county)}
+              onMouseEnter={hoverIn(g.county)}
               onClick={() => setHover(g.county)}
             >
               <title>{`${g.place.jurisdiction_name ?? g.place.jurisdiction_id}: ${plural(g.place.meetings)}`}</title>
@@ -341,6 +352,18 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               <path key={f.id} d={featPath(f)} />
             ))}
           </g>
+          {/* The hovered (tapped) county's outline, raised (#1277). */}
+          {hoverFeat && (
+            <path
+              d={featPath(hoverFeat)}
+              fill="none"
+              stroke="#1c1917"
+              strokeWidth={grid.step * 0.32}
+              strokeLinejoin="round"
+              pointerEvents="none"
+              data-active-outline=""
+            />
+          )}
           <g className="stance-map-labels" pointerEvents="none" aria-hidden="true">
             {labels.map((l) => (
               <text
@@ -380,28 +403,9 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             ))}
           </g>
         </svg>
-        {passage && (
-          <QuoteCard
-            className={cardSide}
-            place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
-            date={passage.meeting_date}
-            quote={excerptAroundMark(passage.evidence ?? '')}
-            meeting={passage.meeting_title}
-            videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
-            startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
-            url={passage.jump_url ?? passage.video_url}
-            speakerName={passage.speaker_display_name ?? null}
-            role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
-            summary={passage.meeting_summary ?? null}
-            analysisUrl={scopedMeetingHref(passage.meeting_url, { state: stateCode, city: scopeCity })}
-          >
-            {/* On a phone nothing depends on hover (#1229): the card a tap opened closes here, or on a tap outside the map. */}
-            {touch && <MapCardClose onClose={keyNav.close} what={hover ? countyLabel(hover) : undefined} />}
-          </QuoteCard>
-        )}
       </div>
       <p className="stance-map-readout">
-        {hover ? `${readout(hover)}${touch ? ' Tap outside the map to close.' : ''}` : `${touch ? 'Tap' : 'Hover'} a county to see its count. Rings mark the cities, towns and school districts on record.`}
+        {hover ? readout(hover) : `${touch ? 'Tap' : 'Hover'} a county to see its count${touch ? '' : ' and hear what was said'}. Rings mark the cities, towns and school districts on record.`}
       </p>
       {max > 0 && (
         <>
@@ -429,7 +433,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               ? `Split by ${fmt(speakersTotal)} ${speakersTotal === 1 ? 'speaker' : 'speakers'} on record in ${fmt(stances.size)} ${stances.size === 1 ? 'county' : 'counties'}; other counties show meetings only.`
               : `No speaker positions on record in ${stateName} yet; counties show meetings only.`}
             {leans.size > 0
-              ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers; only “the public mostly opposed” and “officials sided against the public” are shown.'
+              ? ' Each meeting is read by a classifier from its transcript; these are not counted speakers. Only “the public mostly opposed” and “officials sided against the public” are shown.'
               : ''}
           </p>
         </>
@@ -439,6 +443,24 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           {plural(unplacedMeetings)} from {unplaced.map((p) => p.jurisdiction_name ?? p.jurisdiction_id).join(', ')} could not be placed in a
           county and {unplacedMeetings === 1 ? 'is' : 'are'} not shaded.
         </p>
+      )}
+      {passage && (
+        // Desktop only (#1277): under the legend, never over the map; one recording at a time.
+        <QuoteCard
+          className="map-hover-card"
+          compact
+          inlineVideo={inlineVideo}
+          place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
+          date={passage.meeting_date}
+          quote={excerptAroundMark(passage.evidence ?? '')}
+          meeting={passage.meeting_title}
+          stanceNote={dataCenterQuoteNote(passage.ai_public_lean)}
+          videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
+          startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
+          url={passage.jump_url ?? passage.video_url}
+          speakerName={passage.speaker_display_name ?? null}
+          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
+        />
       )}
       <details className="stance-map-table">
         <summary>Show data table</summary>
@@ -453,8 +475,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 <th scope="col">Governments</th>
                 {leans.size > 0 && (
                   <>
-                    <th scope="col">AI: public mostly opposed</th>
-                    <th scope="col">AI: officials sided against the public</th>
+                    <th scope="col">Public mostly opposed (meetings)</th>
+                    <th scope="col">Officials sided against the public (meetings)</th>
                   </>
                 )}
               </tr>

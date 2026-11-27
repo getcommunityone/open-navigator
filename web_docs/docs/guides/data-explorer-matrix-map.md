@@ -327,6 +327,13 @@ python -m ingestion.census.export_census_map_static --all-years
 Reload the page afterwards. A missing file comes back from the dev server as the app's own page with a success status, not
 as an error, which is why the page checks for it explicitly.
 
+The check is "a success status that is not a web page" (`isServedDataFile` in `web_app/src/utils/fetchStaticJson.ts`), never
+"a content type that says JSON". The servers disagree on that label: Vite sends a town-shape file (`place_XX.geojson`) as
+`application/geo+json`, while the production API used to send it as `application/octet-stream`, and a JSON-only check skipped
+the real file, so the map's Cities & towns view drew no towns on the live site (#1266, also #1097). The API now registers
+`.geojson` as `application/geo+json` (`api/static_cache.py`). A town with no value for the chosen measure keeps the pale
+"no data" fill; no colour is guessed for it.
+
 ## For developers
 
 - Page: `web_app/src/pages/DataExplorerMatrixPage.tsx` (data loading, shared controls, URL, band and position tracking).

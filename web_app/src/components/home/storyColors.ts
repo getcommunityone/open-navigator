@@ -37,7 +37,8 @@ export const PUBLIC_AGAINST_COLOR = tint(BOX_COLORS.against, 0.45)
 /** #1117: the outline around an area where Jev read officials as siding against the public. */
 export const DISAGREEMENT_STROKE = '#1c1917'
 // Only the data center maps draw this tint (the speaker maps), so it takes that topic's words (#1200).
-export const PUBLIC_AGAINST_LABEL = `${TOPIC_POSITIONS['data-centers']!.against} (AI reading of meetings)`
+// No "(AI reading)" in visible labels (owner, #1277); the method note under the map names the classifier.
+export const PUBLIC_AGAINST_LABEL = TOPIC_POSITIONS['data-centers']!.against
 export const DISAGREEMENT_LABEL = 'Officials sided against the public'
 
 /** Jev's two served meeting counts for an area (#1117); missing means 0. */
@@ -59,7 +60,9 @@ export function leanLine(l: LeanCounts | null | undefined): string | null {
   const parts: string[] = []
   if (pa > 0) parts.push(`the public mostly opposed in ${m(pa)}`)
   if (dis > 0) parts.push(`officials sided against the public in ${m(dis)}`)
-  return parts.length ? `AI reading: ${parts.join('; ')}.` : null
+  if (!parts.length) return null
+  const line = parts.join('; ')
+  return `${line.charAt(0).toUpperCase()}${line.slice(1)}.`
 }
 
 /** The fill for an area's dots or boxes that have no stance band: the AI-reading tint, else `fallback` (grey or empty). */

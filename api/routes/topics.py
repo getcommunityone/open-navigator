@@ -184,6 +184,11 @@ class TopicMeeting(BaseModel):
     # (render with highlightSnippet, never as raw HTML).
     excerpt: Optional[str] = None
     n_keyword_hits: int = 0
+    # Who said the passage, from their self-introduction in the recording (#1231): an official's name, a resident's
+    # "First L.", or null (unknown, or withheld for a student, a minor or a school board resident). Filled on
+    # /states `newest` only.
+    speaker_display_name: Optional[str] = None
+    speaker_role: Optional[str] = None
     # Only on /states `newest` (#1230): how the public leaned at this meeting in the AI reading (topic_meeting_lean):
     # 'against' / 'for' (P >= 0.7), 'split' (mixed, or a lean under 0.7), 'silent' (read; the public didn't speak on it)
     # or None (not read). Same thresholds as the map. Never a count of speakers.
@@ -306,7 +311,7 @@ _TOPIC_STATES_SQL = """
 # newest first. The passage is the stored verbatim excerpt with the matched words in <mark>.
 _TOPIC_NEWEST_PER_STATE_SQL = """
     SELECT DISTINCT ON (l.state_code)
-           l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
+           l.topic_transcript_link_id, l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
            l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits,
            CASE
                WHEN tml.public_lean IS NULL THEN NULL
@@ -334,7 +339,7 @@ _TOPIC_NEWEST_PER_STATE_SQL = """
 # passage per state. Never a 500 over a missing relation.
 _TOPIC_NEWEST_PER_STATE_FALLBACK_SQL = """
     SELECT DISTINCT ON (l.state_code)
-           l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
+           l.topic_transcript_link_id, l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
            l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits,
            NULL::text AS public_stance
     FROM topic_transcript_link l
@@ -342,6 +347,41 @@ _TOPIC_NEWEST_PER_STATE_FALLBACK_SQL = """
       AND ($2::text IS NULL OR l.state_code = $2::text)
     ORDER BY l.state_code, l.event_date DESC NULLS LAST, l.n_keyword_hits DESC
 """
+
+
+_PASSAGE_SPEAKER_SQL = """
+    SELECT s.topic_transcript_link_id, s.speaker_kind, s.speaker_display_name, s.speaker_role
+    FROM meeting_passage_speaker s
+    WHERE s.topic_transcript_link_id = ANY($1::text[]) AND s.speaker_display_name IS NOT NULL
+"""
+
+
+def speaker_fields(row: Optional[Any]) -> tuple[Optional[str], Optional[str]]:
+    """(speaker_display_name, speaker_role) from a meeting_passage_speaker row (#1231). A resident's name is cut to
+    "First L." again here (AGENTS.md, Privacy), whatever the table holds; officials keep their name and title."""
+    if not row:
+        return None, None
+    name = " ".join(str(row.get("speaker_display_name") or "").split()) or None
+    if name and row.get("speaker_kind") != "official":
+        parts = name.split(" ")
+        if len(parts) > 1 and not (len(parts) == 2 and len(parts[1]) == 2 and parts[1].endswith(".")):
+            last = next((ch for ch in parts[-1] if ch.isalpha()), None)
+            name = f"{parts[0]} {last.upper()}." if last else parts[0]
+    if not name:
+        return None, None
+    return name, (row.get("speaker_role") or None)
+
+
+async def _passage_speakers(conn: Any, link_ids: List[str]) -> dict[str, dict[str, Any]]:
+    """meeting_passage_speaker rows keyed by topic_transcript_link_id, or {} when the table isn't in this database."""
+    if not link_ids:
+        return {}
+    try:
+        rows = await conn.fetch(_PASSAGE_SPEAKER_SQL, link_ids)
+    except asyncpg.exceptions.PostgresError as e:
+        logger.warning("topic states: meeting_passage_speaker unavailable ({}); speakers null", e)
+        return {}
+    return {str(r["topic_transcript_link_id"]): dict(r) for r in rows}
 
 
 async def fetch_newest_per_state(conn: Any, topic_id: int, state_code: Optional[str]) -> List[Any]:
@@ -477,12 +517,16 @@ async def topic_states(
             async with pool.acquire() as conn:
                 counts = await conn.fetch(_TOPIC_STATES_SQL, topic_id, state_code)
                 newest = await fetch_newest_per_state(conn, topic_id, state_code)
+                speakers = await _passage_speakers(
+                    conn, [str(r["topic_transcript_link_id"]) for r in newest if r.get("topic_transcript_link_id")]
+                )
         except Exception as exc:  # noqa: BLE001
             logger.exception("topic states failed")
             span.record_exception(exc)
             raise HTTPException(status_code=503, detail="This topic's map is unavailable right now.") from exc
         states = [TopicStateCount(state_code=r["state_code"], state=r["state"], meetings=int(r["meetings"])) for r in counts]
         span.set_attribute("topics.states", len(states))
+        span.set_attribute("topics.newest_with_speaker", len(speakers))
         return TopicStates(
             topic_id=topic_id,
             total_meetings=sum(s.meetings for s in states),
@@ -499,6 +543,8 @@ async def topic_states(
                     video_url=r["video_url"],
                     excerpt=r["evidence_passage"],
                     n_keyword_hits=r["n_keyword_hits"] or 0,
+                    speaker_display_name=speaker_fields(speakers.get(str(r.get("topic_transcript_link_id"))))[0],
+                    speaker_role=speaker_fields(speakers.get(str(r.get("topic_transcript_link_id"))))[1],
                     public_stance=r["public_stance"],
                 )
                 for r in newest

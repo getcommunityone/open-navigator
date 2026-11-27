@@ -137,7 +137,12 @@ export default function LocalActionsTracker({ topic, stateCode, scopeLabel, subj
                     return <rect key={g} x={x} y={base + 1} width={barW} height={Math.max(1, h - 2)} rx={2} fill={ACTION_FILL[g]} />
                   })}
                   {((i % labelEvery === 0 && (labelEvery === 1 || years.length - 1 - i >= labelEvery)) || i === years.length - 1) && (
-                    <text x={x + barW / 2} y={H - 6} textAnchor="middle" className="sc-micro">
+                    <text
+                      x={i === years.length - 1 ? Math.min(W, x + barW) : i === 0 ? Math.max(padL, x) : x + barW / 2}
+                      y={H - 6}
+                      textAnchor={i === years.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'}
+                      className="sc-micro"
+                    >
                       {y.year}
                     </text>
                   )}

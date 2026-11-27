@@ -46,6 +46,11 @@ export interface TopicMeeting {
    *  Render with highlightSnippet (React-escaped), never as raw HTML. */
   excerpt: string | null
   n_keyword_hits: number
+  /** Who said the passage, from their self-introduction in the recording (#1231): an official's name, a resident's
+   *  "First L.", or null (unknown, or withheld for a student, a minor or a school board resident). /states only. */
+  speaker_display_name?: string | null
+  /** The official's title, or "Resident" when they said they live here; null otherwise. */
+  speaker_role?: string | null
   /** Only on `/states` `newest` (#1230): how the public leaned at this meeting in the AI reading (topic_meeting_lean,
    *  same thresholds as the map): 'against' | 'for' | 'split' | 'silent', or null when not read. */
   public_stance?: 'against' | 'for' | 'split' | 'silent' | null

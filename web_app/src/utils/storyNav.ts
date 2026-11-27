@@ -33,14 +33,24 @@ export function nextLiveStory(currentId: string, stories: LiveStory[] = LIVE_STO
 export const START_SCREEN = 'overview'
 
 /**
- * A "Start the … story" link (#1222): the story at `query`'s scope, opened past its cover on the first content screen
+ * A "Start the … story" link (#1222): the story at `query`'s scope, opened on the first screen
  * (`?screen=overview`), so the reader who pressed Start on the home page or the stories list doesn't press Start again.
- * The cover still opens for a plain link (a shared URL, the topic picker, Next story).
+ * Since #1282 a story has no cover, so a plain link opens the same first screen; the explicit `?screen=` keeps Start links unambiguous.
  */
 export function storyStartHref(storyId: string, query = ''): string {
   const qs = new URLSearchParams(query.replace(/^\?/, ''))
   qs.set('screen', START_SCREEN)
   return `/stories/${encodeURIComponent(storyId)}?${qs.toString()}`
+}
+
+/**
+ * The title's topic control (#1224, owner 2026-11-27: "should be able to change data centers; now only 1 option"): every
+ * live story, the Data Center Story and each topic story, never a coming-soon topic. The current story reads as the title
+ * says it (`currentLabel`); the others by their story names. The same list on every story page.
+ */
+export function storyTopicOptions(stories: LiveStory[], currentId: string, currentLabel: string): { value: string; label: string }[] {
+  const list = stories.some((s) => s.id === currentId) ? stories : [{ id: currentId, title: currentLabel }, ...stories]
+  return list.map((s) => ({ value: s.id, label: s.id === currentId ? currentLabel : s.title }))
 }
 
 /**

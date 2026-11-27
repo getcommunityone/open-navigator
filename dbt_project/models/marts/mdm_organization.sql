@@ -19,7 +19,7 @@
     Indexes (dbt `indexes` config, #938): a GIN FTS index on org_name for org search; a btree on
     org_name_norm that both orders org browse/name-sort results (index scan instead
     of a 3.6M-row sort) and powers the person-search anti-join keeping
-    officer-derived org names (e.g. CareQuest Institute) out of People results; and
+    officer-derived org names (e.g. a foundation's name) out of People results; and
     a btree on state_code so a state-scoped name search BitmapAnds the state index
     with the FTS index instead of scanning the full match set
     (see api/routes/search_postgres.py search_organizations_pg / search_persons_pg).
@@ -34,10 +34,9 @@
       - NAME: chosen by *authority for the legal name*, then recency. Government &
         schools own their own names; for nonprofits IRS BMF (the monthly legal-name
         registry) outranks NCCS Core (a research extract that lags and keeps the
-        pre-rebrand name even on a recent filing year). This is why CareQuest
-        Institute (EIN 384016550) now resolves to its current name instead of the
-        stale NCCS "Catalyst Institute Inc" — both report 2024, so recency alone
-        ties and authority breaks it.
+        pre-rebrand name even on a recent filing year). This is why a renamed nonprofit
+        resolves to its current name instead of the stale NCCS one when both
+        report the same year: recency alone ties and authority breaks it.
 
     Name changes are preserved: former_names + name_history (each distinct name
     with the year span and sources it was seen under), current_name_since_year,

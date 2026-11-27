@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
@@ -7,8 +7,7 @@ import { fetchDataCenterMeetingMentions } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
 import PayrollJobsPanel from './PayrollJobsPanel'
 import PositionsBlock from './PositionsBlock'
-import KineticText from './KineticText'
-import ScreenNav from './ScreenNav'
+import StoryScreenFrame from './StoryScreenFrame'
 import StatRow from './StatRow'
 import StoryDotMap from './StoryDotMap'
 import DumbbellChart from './DumbbellChart'
@@ -39,25 +38,13 @@ interface Props {
    * retired Where screen used to show. */
   question?: string | null
   said?: string | null
+  /** Overview only (#1282): the opening's subhead, basis and points, under the headline in the left column. */
+  lead?: ReactNode
 }
 
 /** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
 export default function StoryScreenView(p: Props) {
   const { screen, text, scope } = p
-  const leftRef = useRef<HTMLDivElement>(null)
-  const rightRef = useRef<HTMLDivElement>(null)
-  const nextRef = useRef<HTMLButtonElement>(null)
-
-  // A column taller than its frame scrolls on its own: Lenis must leave wheel and touch over it alone, but only then.
-  useEffect(() => {
-    const els = [leftRef.current, rightRef.current].filter((e): e is HTMLDivElement => e != null)
-    const mark = () => els.forEach((e) => e.toggleAttribute('data-lenis-prevent', e.scrollHeight > e.clientHeight + 1))
-    mark()
-    if (typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(mark)
-    els.forEach((e) => ro.observe(e))
-    return () => ro.disconnect()
-  })
 
   const broaden = (
     <div className="stance-broaden">
@@ -100,63 +87,19 @@ export default function StoryScreenView(p: Props) {
   const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
   return (
-    <section
-      className="stance-panel stance-act"
-      data-panel={p.index}
-      data-screen={screen.id}
-      data-live={p.active ? '' : undefined}
-      aria-labelledby={`story-h-${screen.id}`}
-      aria-roledescription="screen"
-      tabIndex={-1}
-    >
-      <span className="stance-word" aria-hidden="true">
-        {screen.eyebrow}
-      </span>
-      <div className="stance-grid">
-        <div className="stance-left" ref={leftRef}>
-          <div className="stance-card">
-            {screen.kicker && (
-              <p className="stance-card-eyebrow">
-                {screen.kicker} · source: {contextSourceFor(screen.chart)}
-              </p>
-            )}
-            <p className="stance-card-title">{screen.eyebrow}</p>
-          </div>
-          <div className="stance-head">
-            <h2 className="stance-headline" id={`story-h-${screen.id}`}>
-              <KineticText text={text.headline} />
-            </h2>
-            <p className="stance-lede">
-              {text.context}
-            </p>
-          </div>
-          {(p.question || p.said) && (
-            <div className="stance-qblock">
-              {p.question && (
-                <p className="stance-statement" data-testid="scope-question">
-                  {p.question}
-                </p>
-              )}
-              {p.said && (
-                <p className="stance-yours">
-                  You said <b>{p.said}</b>.
-                </p>
-              )}
-            </div>
-          )}
-          {(text.empty || text.failed) && broaden}
-          {/* Asked only when the screen has a record to react to: no statement under "No data available". */}
-          {p.stance && !text.empty && !text.failed && (
-            <StoryStatement
-              s={p.stance}
-              scope={scope}
-              speakers={speakerCounts(p.data.positions as DataCenterPositionsResponse | null | undefined)}
-              id={`story-q-${screen.id}`}
-            />
-          )}
-          <ScreenNav ref={nextRef} nextLabel={p.nextLabel} onNext={p.onNext} onPrev={p.onPrev} />
-        </div>
-        <div className="stance-right" ref={rightRef}>
+    <StoryScreenFrame
+      id={screen.id}
+      index={p.index}
+      active={p.active}
+      eyebrow={screen.eyebrow}
+      kicker={screen.kicker ? `${screen.kicker} · source: ${contextSourceFor(screen.chart)}` : undefined}
+      headline={text.headline}
+      context={text.context}
+      nextLabel={p.nextLabel}
+      onNext={p.onNext}
+      onPrev={p.onPrev}
+      right={
+        <>
           {screen.chart === 'positions' ? (
             // While the table is not loaded the screen's own line says so; the figure is left out, not repeated.
             (p.status.positions ?? 'loading') !== 'loading' && !positionsLoaded(p.data.positions as DataCenterPositionsResponse | null | undefined) ? null : (
@@ -270,8 +213,34 @@ export default function StoryScreenView(p: Props) {
               {screen.chart === 'job-claims' && jobsData && <PayrollJobsPanel data={jobsData} />}
             </>
           )}
+        </>
+      }
+    >
+      {p.lead}
+      {(p.question || p.said) && (
+        <div className="stance-qblock">
+          {p.question && (
+            <p className="stance-statement" data-testid="scope-question">
+              {p.question}
+            </p>
+          )}
+          {p.said && (
+            <p className="stance-yours">
+              You said <b>{p.said}</b>.
+            </p>
+          )}
         </div>
-      </div>
-    </section>
+      )}
+      {(text.empty || text.failed) && broaden}
+      {/* Asked only when the screen has a record to react to: no statement under "No data available". */}
+      {p.stance && !text.empty && !text.failed && (
+        <StoryStatement
+          s={p.stance}
+          scope={scope}
+          speakers={speakerCounts(p.data.positions as DataCenterPositionsResponse | null | undefined)}
+          id={`story-q-${screen.id}`}
+        />
+      )}
+    </StoryScreenFrame>
   )
 }

@@ -80,7 +80,7 @@ class LogoDevEnricher:
             url: Website URL
             
         Returns:
-            Domain name (e.g., 'carequest.org') or None
+            Domain name (e.g., 'example.org') or None
         """
         if not url or pd.isna(url):
             return None
@@ -107,7 +107,7 @@ class LogoDevEnricher:
         Get logo URL from Logo.dev API.
         
         Args:
-            domain: Domain name (e.g., 'carequest.org')
+            domain: Domain name (e.g., 'example.org')
             size: Logo size - "small" (32px), "medium" (128px), "large" (200px), or specific pixel size
             
         Returns:

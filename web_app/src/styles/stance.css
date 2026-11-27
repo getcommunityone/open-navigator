@@ -663,6 +663,7 @@
   .stance-game .stance-right {
     order: 4;
   }
+  .stance-game .stance-overview-lead,
   .stance-game .stance-qblock {
     order: 5;
   }
@@ -2620,29 +2621,7 @@ html.stance-snap {
   z-index: 2;
   pointer-events: none;
 }
-/* The hovered county's newest meeting passage (#999, #1002), as a QuoteCard (#1108); at rest nothing shows. */
-.stance-map-card {
-  position: absolute;
-  left: 0;
-  bottom: 2%;
-  z-index: 2;
-  width: min(300px, 42%);
-}
-.stance-map-card.is-right {
-  left: auto;
-  right: 0;
-  bottom: auto;
-  top: 2%;
-}
-@media (max-width: 640px) {
-  .stance-map-card,
-  .stance-map-card.is-right {
-    position: relative;
-    inset: auto;
-    width: auto;
-    margin-top: 8px;
-  }
-}
+/* The hovered area's passage is a QuoteCard fixed at the map's bottom-left on desktop (.map-hover-card, QuoteCard.css, #1277). */
 .stance-map-readout {
   min-height: 1.4em;
   margin: 4px 0 6px;
@@ -3146,7 +3125,24 @@ html.stance-snap {
   padding-bottom: 72px;
 }
 
-/* The story's opening (#1182): below the sticky bar and in normal flow, so it scrolls away after the first screen. */
+/* The big faded screen word (#1282, owner 2026-11-27): it sat over the bottom of the map and under the green Next. The
+   top bar and the card already name the screen, so the story draws no watermark. */
+.stance-story .stance-word {
+  display: none;
+}
+/* The opening's subhead, basis and points in Overview's left column (#1282). */
+.stance-overview-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.stance-overview-lead .stance-title-points {
+  margin-top: 4px;
+}
+
+/* (The story's own cover is gone, #1282; these rules remain for any page still using .stance-intro.)
+   The story's opening (#1182): below the sticky bar and in normal flow, so it scrolls away after the first screen. */
 .stance-intro {
   padding: 10px 36px 14px;
   border-bottom: 1px solid var(--rule, #d6d3d1);
@@ -3357,4 +3353,10 @@ html.stance-snap .stance-intro {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* The title's topic blank lists every live story (#1224): size it to the topic shown, not the longest name (where the
+   browser can). */
+.stance-story .stance-sentence select.stance-blank {
+  field-sizing: content;
 }

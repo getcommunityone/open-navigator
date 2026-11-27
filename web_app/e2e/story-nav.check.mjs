@@ -4,6 +4,8 @@
 // that the inline Back sits in the same place from the second screen on. No inline Next button shows beside the fixed one.
 // The cover (#1182) is checked first: no Start/Next story button pair, one progress indicator, a Close (×); then Next.
 //
+// Topic stories (#1224) have one fixed Next instead of the inline one: e2e/story-next.check.mjs checks them.
+//
 //   node e2e/story-nav.check.mjs [--base http://localhost:5173] [--path /stories/data-centers] [--shots <dir>/nav-after]
 //
 // The last screen's link to the records shows once the closing question is answered, so the check answers it. That answer
