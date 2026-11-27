@@ -15,6 +15,9 @@ import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesMap'
 import TimelineChart from '../components/stance/TimelineChart'
 import DumbbellChart from '../components/stance/DumbbellChart'
+import LegislationMap from '../components/stance/LegislationMap'
+import LocalActionsTracker from '../components/stance/LocalActionsTracker'
+import PositionBreakdown from '../components/stance/PositionBreakdown'
 import '../styles/folio.css'
 import '../styles/story-actions.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
@@ -280,6 +283,16 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
         </h2>
         <TimelineChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} idBase={`topic-${def.slug}`} />
         <DumbbellChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} idBase={`topic-${def.slug}`} />
+      </section>
+
+      {/* Where policy is moving (#1274): state bills from OpenStates, what the public said and what local bodies did. */}
+      <section className="folio mx-auto mt-10 max-w-4xl rounded-xl p-4 sm:p-6" style={HOUSE_STYLE} aria-labelledby="topic-policy-h">
+        <h2 id="topic-policy-h" className="font-serif text-2xl font-semibold" style={{ color: 'var(--ink)' }}>
+          Where policy is moving · {label}
+        </h2>
+        <LegislationMap topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} />
+        <PositionBreakdown topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} />
+        <LocalActionsTracker topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={def.subject.toLowerCase()} />
       </section>
 
       {def.companiesPath && (

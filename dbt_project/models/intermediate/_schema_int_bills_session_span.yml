@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: int_bills__session_span
+    description: >
+      One row per (state_code, session_identifier) of OpenStates state bills: first and last year, special-session
+      flag and is_closed (the session is over in our data). Feeds topic_legislation_bill's "failed" status (#1274).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [state_code, session_identifier]
+    columns:
+      - name: state_code
+        tests: [not_null]
+      - name: session_identifier
+      - name: start_year
+      - name: last_year
+      - name: is_special
+      - name: is_closed
