@@ -252,7 +252,7 @@ describe('the title says what the map shows (#1182)', () => {
     expect(captionText(c, 'data centers')).toBe('Alabama hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings.')
     expect(c.ai).toBe(true)
     expect(c.basis).toBe(
-      'In 12 meetings in Alabama, Jev (an AI classifier) read the public as mostly against data centers (AI reading). Tuscaloosa, Alabama has too few AI-read meetings for a reading of its own.',
+      "In 12 meetings in Alabama, Jev (an AI classifier) read the public as mostly against data centers (AI reading). None of Tuscaloosa, Alabama's 2 meetings with an AI reading read as mostly against.",
     )
     expect(c.basis).not.toMatch(ZERO)
     // The place blank stays the scope's own place, so the label and the place picker still name Tuscaloosa.
@@ -268,6 +268,13 @@ describe('the title says what the map shows (#1182)', () => {
     )
     const s = pickCaption('data-centers', facts({ meetings: 71, lean_meetings: 71, public_against_meetings: 6, wider: [NATIONAL_RED] }, al), al)
     expect(captionText(s, 'data centers')).toBe('America hates data centers; Alabama brought them up in 71 meetings.')
+    // Alabama has many readings, few against: the basis says so, never "too few readings".
+    expect(s.basis).toMatch(/6 of Alabama's 71 meetings with an AI reading read as mostly against, under the 10 a reading of its own needs\.$/)
+    const none = pickCaption('data-centers', facts({ meetings: 2, lean_meetings: null, public_against_meetings: null, wider: [NATIONAL_RED] }, tus), tus)
+    expect(none.basis).toMatch(/Tuscaloosa, Alabama has no AI reading of its own yet\.$/)
+    // A state name missing from the API's broader entry comes from the scope, never a bare code.
+    const unnamed = pickCaption('data-centers', facts({ meetings: 2, public_against_meetings: 0, wider: [{ ...STATE_RED, state: null }] }, tus), tus)
+    expect(captionText(unnamed, 'data centers')).toMatch(/^Alabama hates data centers;/)
   })
 
   it("the place's own reading still wins when it passes", () => {

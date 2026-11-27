@@ -54,8 +54,10 @@ talked about data centers in 2 meetings." beside an almost all red national map 
   `facts.wider` (city: the state, then the country; state: the country) and takes the first whose confident
   public-against meetings pass (a) at that scope's floor (10 state, 50 national). The title names that scope as text and
   keeps the place as its blank: "America hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings." With no
-  meetings in the place the tail is "has none on record yet". The basis gives the broader count and says the place "has
-  too few AI-read meetings for a reading of its own"; the subhead names only the broader scope's lean. It is an AI
+  meetings in the place the tail is "has none on record yet". The basis gives the broader count, then the place's own
+  reading as it is: "has no AI reading of its own yet", "None of [place]'s N meetings with an AI reading read as mostly
+  against.", or "6 of Alabama's 71 meetings with an AI reading read as mostly against, under the 10 a reading of its own
+  needs." (never "too few readings" for a place with many readings that aren't against); the subhead names only the broader scope's lean. It is an AI
   reading (`ai: true`). It runs after the place's own (a) and (b) and before (c), because (c) and (d) describe volume
   while the map beside the title is coloured by lean.
 - **"Leaned against" for the other topics.** `topic_meeting_lean` (#1126) fixes which way "for" points for each topic

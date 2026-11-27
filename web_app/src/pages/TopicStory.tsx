@@ -60,9 +60,9 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
   const stateCode = STATE_CODES.includes(raw) ? raw : null
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
   const label = stateName ?? 'National'
-  // The scope every story link carries (CLAUDE.md, scope via the URL): the state, and a city the URL already names.
-  const cityParam = stateCode ? (sp.get('city') ?? '').trim() : ''
-  const scopeQ = stateCode ? `?state=${stateCode}${cityParam ? `&city=${encodeURIComponent(cityParam)}` : ''}` : ''
+  // The scope every story link carries: this page is at state grain (it shows and queries the state only), so its links
+  // carry the state it shows, never a city its label doesn't name (CLAUDE.md, scope label rule; city grain is #1186).
+  const scopeQ = stateCode ? `?state=${stateCode}` : ''
 
   const setState = (code: string | null) =>
     setSp(

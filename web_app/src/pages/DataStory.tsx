@@ -265,6 +265,8 @@ export default function DataStory() {
    *  to the screen's controls (Back, then Next), and the arrow keys still page because a heading isn't a control. */
   const onSettled = useCallback((h: Hold) => {
     if (dialogOpenRef.current) return
+    // Resting on the opening (#1182): its Start and Next story buttons stay the first Tab stops; no screen takes focus.
+    if (h.kind === 'cover') return
     const ae = document.activeElement as HTMLElement | null
     if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.closest('.stance-place'))) return
     const panel = rootRef.current?.querySelector<HTMLElement>(`[data-panel="${h.round}"]`)
@@ -303,12 +305,15 @@ export default function DataStory() {
     shownIds.current = screens.map((x) => x.id)
     const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1
     const at = Math.max(0, fromUrl >= 0 ? fromUrl : stay)
+    // The opening (#1182) is a cover hold at the top: a fresh visit with no ?screen opens on it, and a reader still above
+    // the first screen stays on it when the screens rebuild; a reader on screen 0 (or a ?screen link) lands on its hold.
+    const onCover = fromUrl < 0 && at === 0
     const land = (behavior: ScrollBehavior) => {
-      const h = acts.holds().find((x) => x.round === at && x.kind !== 'r')
-      // The first screen on the flow layout is the top of the page. The page can arrive scrolled (a previous page's
-      // offset, e.g. home's Data stories section), so the story always moves to its screen; before #991 it stayed put
-      // at screen 0 and opened mid-way, on a screen that wasn't the active one.
-      const target = at > 0 || mode === 'pinned' ? h?.pos : 0
+      const h = acts.holds().find((x) => x.round === at && (x.kind === 'q' || x.kind === 'end'))
+      const keepCover = onCover && (h == null || window.scrollY < h.pos - 2)
+      // The page can arrive scrolled (a previous page's offset, e.g. home's Data stories section), so the story always
+      // moves to its screen; before #991 it stayed put at screen 0 and opened mid-way, on a screen that wasn't the active one.
+      const target = keepCover ? 0 : at > 0 || mode === 'pinned' ? h?.pos : (h?.pos ?? 0)
       if (target != null && Math.abs(target - window.scrollY) > 2) window.scrollTo({ top: target, behavior })
     }
     land('auto')

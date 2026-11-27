@@ -111,7 +111,8 @@ and tries, in order:
    whose reading passes rule 1 (the state, then the country), named, with the place's own count after it. At
    `?state=AL&city=Tuscaloosa` the home title reads **"America hates data centers; Tuscaloosa, Alabama brought them up in
    2 meetings."** (Tuscaloosa has no confident public-against meeting and Alabama 6, under the state floor of 10), and the
-   basis says "Tuscaloosa, Alabama has too few AI-read meetings for a reading of its own." A state or national claim is
+   basis states the place's own reading truly: "None of Tuscaloosa, Alabama's 2 meetings with an AI reading read as mostly
+   against." (or, for Alabama, "6 of Alabama's 71 meetings ... under the 10 a reading of its own needs."). A state or national claim is
    never put under a city label without naming its scope. The broader readings come from `wider` on caption-facts.
 2. **"[America] is divided on [data centers]."** when officials sided against the public in at least 10 meetings (an AI
    reading; the basis says "In 23 meetings across 10 states, officials backed data centers while the public pushed back

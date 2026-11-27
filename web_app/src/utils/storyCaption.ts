@@ -315,7 +315,7 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
   }
 
   // (a2) The place's own reading is too thin: the nearest broader scope whose reading passes (a), named (#1182).
-  const wider = widerSentiment(copy, stanceVerb, facts, label)
+  const wider = widerSentiment(copy, stanceVerb, facts, label, level, scope.stateName ?? null)
   if (wider) return wider
 
   // (c) Volume with state differences.
@@ -342,12 +342,28 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
  * pass (a) at that scope's threshold. The title names the broader scope as literal text and keeps the place as its blank,
  * with the place's own meeting count after it.
  */
-function widerSentiment(copy: CaptionCopy, verb: string | undefined, facts: TopicCaptionFacts, label: string): Caption | null {
+function widerSentiment(
+  copy: CaptionCopy,
+  verb: string | undefined,
+  facts: TopicCaptionFacts,
+  label: string,
+  level: keyof typeof HATES_MIN_MEETINGS,
+  stateName: string | null,
+): Caption | null {
   if (!verb) return null
+  // What the place's own reading is, stated truly (never "too few" for a place with many readings that aren't against).
+  const ownRead = facts.lean_meetings ?? 0
+  const ownAgainst = facts.public_against_meetings ?? 0
+  const own =
+    ownRead === 0
+      ? `${label} has no AI reading of its own yet.`
+      : ownAgainst === 0
+        ? `None of ${label}'s ${meetingsWord(ownRead)} with an AI reading read as mostly against.`
+        : `${fmt(ownAgainst)} of ${label}'s ${meetingsWord(ownRead)} with an AI reading read as mostly against, under the ${fmt(HATES_MIN_MEETINGS[level])} a reading of its own needs.`
   for (const w of facts.wider ?? []) {
     const against = w.public_against_meetings ?? 0
     if (against < HATES_MIN_MEETINGS[w.level]) continue
-    const name = w.level === 'national' ? 'America' : (w.state ?? w.state_code ?? null)
+    const name = w.level === 'national' ? 'America' : (w.state ?? stateName ?? w.state_code ?? null)
     if (!name) continue
     const states = w.public_against_states ?? 0
     const leanWhere = w.level === 'national' ? (states > 1 ? `across ${fmt(states)} states` : 'nationwide') : `in ${name}`
@@ -359,8 +375,7 @@ function widerSentiment(copy: CaptionCopy, verb: string | undefined, facts: Topi
       place: label,
       widerPlace: name,
       basis:
-        `In ${meetingsWord(against)} ${leanWhere}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading). ` +
-        `${label} has too few AI-read meetings for a reading of its own.`,
+        `In ${meetingsWord(against)} ${leanWhere}, Jev (an AI classifier) read the public as mostly against ${copy.topic} (AI reading). ${own}`,
       ai: true,
     }
   }
