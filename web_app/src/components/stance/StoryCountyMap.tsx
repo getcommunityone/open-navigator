@@ -396,7 +396,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             analysisUrl={scopedMeetingHref(passage.meeting_url, { state: stateCode, city: scopeCity })}
           >
             {/* On a phone nothing depends on hover (#1229): the card a tap opened closes here, or on a tap outside the map. */}
-            {touch && <MapCardClose onClose={keyNav.close} />}
+            {touch && <MapCardClose onClose={keyNav.close} what={hover ? countyLabel(hover) : undefined} />}
           </QuoteCard>
         )}
       </div>

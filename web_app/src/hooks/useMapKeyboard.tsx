@@ -123,17 +123,23 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
     onPointerDown,
   }
   // A tap (or click) outside the map and its card closes the card (#1229). Not left to blur: a tap on a page's plain
-  // text moves no focus on iOS, and the svg may never have had focus.
+  // text moves no focus on iOS, and the svg may never have had focus. On pointerup, not pointerdown: a touch that turns
+  // into a scroll ends in pointercancel, so scrolling the page (to read a tall card) doesn't close it.
   const stageRef = useRef<HTMLDivElement>(null)
+  // The latest setter, so the listener added when the card opened never calls a stale one.
+  const setActiveRef = useRef(setActive)
+  setActiveRef.current = setActive
   const shown = active != null
   useEffect(() => {
     if (!shown) return
-    const onDown = (e: PointerEvent) => {
-      if (pressedOutside(stageRef.current, e.target)) move(null)
+    const onUp = (e: PointerEvent) => {
+      if (pressedOutside(stageRef.current, e.target)) {
+        setActiveRef.current(null)
+        setSaid('')
+      }
     }
-    document.addEventListener('pointerdown', onDown, true)
-    return () => document.removeEventListener('pointerdown', onDown, true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- move only wraps setActive; re-subscribing on every render is waste.
+    document.addEventListener('pointerup', onUp, true)
+    return () => document.removeEventListener('pointerup', onUp, true)
   }, [shown])
   // Leaving the map and its card (not moving between them) hides the card, as leaving with the mouse does.
   const stageProps = {
@@ -152,8 +158,14 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
       </span>
     </>
   )
-  /** Closes the card: the card's own close control (#1229), so a phone reader never needs hover to dismiss it. */
-  const close = () => move(null)
+  /** Closes the card: the card's own close control (#1229), so a phone reader never needs hover to dismiss it. Focus goes
+   *  back to the map (the button it was on is gone), so a screen reader keeps its place. */
+  const close = () => {
+    move(null)
+    // Marked as a pointer focus, so onFocus doesn't open the page's own area again.
+    pointerAt.current = Date.now()
+    stageRef.current?.querySelector<SVGElement>('[data-map-keys]')?.focus({ preventScroll: true })
+  }
   return { svgProps, stageProps, sr, close }
 }
 
@@ -161,11 +173,12 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
  * The close control on a map card (#1229): a real button, 44px tall, so a tap closes the card on a phone. Inline styles so
  * it looks the same on the home page and in the stories.
  */
-export function MapCardClose({ onClose, label = 'Close' }: { onClose: () => void; label?: string }) {
+export function MapCardClose({ onClose, label = 'Close', what }: { onClose: () => void; label?: string; what?: string }) {
   return (
     <button
       type="button"
       className="map-card-close"
+      aria-label={what ? `Close the ${what} card` : undefined}
       onClick={onClose}
       style={{
         display: 'block',

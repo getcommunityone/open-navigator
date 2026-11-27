@@ -239,7 +239,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
                 {hoverCode === scopeStateCode ? (scopeCity ? `Show all of ${stateNameOf(hoverCode)}` : 'Show the whole country') : `Show ${stateNameOf(hoverCode)}`}{' '}
                 <span aria-hidden="true">→</span>
               </button>
-              <MapCardClose onClose={keyNav.close} />
+              <MapCardClose onClose={keyNav.close} what={stateNameOf(hoverCode)} />
             </>
           )}
         </QuoteCard>

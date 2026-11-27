@@ -447,7 +447,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             </Link>
           )}
           {/* On a phone nothing depends on hover (#1229): the card a tap opened closes here, or on a tap outside the map. */}
-          {touch && <MapCardClose onClose={keyNav.close} />}
+          {touch && <MapCardClose onClose={keyNav.close} what={stateName(shownCode)} />}
         </QuoteCard>
       )}
 

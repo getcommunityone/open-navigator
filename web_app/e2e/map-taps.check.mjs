@@ -150,7 +150,7 @@ async function boxMap(ctx, label, path, storyHref) {
   await shot(page, `${label}-${path}-card`)
   let r = await look()
   ok(r.close, 'the card has a Close button')
-  await page.locator('.map-card-close:visible').first().click()
+  await page.locator(`${sel}:visible`).first().locator('xpath=..').locator('.map-card-close').click()
   await page.waitForTimeout(400)
   r = await look()
   ok(!r.card && !r.outlined, `Close closes the card (${r.card ?? 'no card'})`)
@@ -204,8 +204,9 @@ async function dotMap(ctx, label) {
   for (const code of ['TX', 'OR', 'NY', 'OR', 'VA']) {
     const r = await tap(code)
     if (here(page) !== startUrl) {
-      // A state with no passage in scope narrows at once (#1120); say so and stop the sequence here.
-      ok(here(page).includes(`state=${code}`), `tap ${code}: no passage, story narrowed (${here(page)})`)
+      // A state with no passage in scope narrows at once (#1120). The rest of this sequence needs states with passages,
+      // so this is a failure, not a quiet pass: pick other states if the data changed.
+      ok(false, `tap ${code}: no passage, story narrowed at once (${here(page)}); the Close, outside-tap and county checks did not run`)
       return page.close()
     }
     ok(r && r.readout.startsWith(`${STATE_NAMES[code]}:`), `tap ${code}: shows ${r?.readout.slice(0, 40)} · card ${r?.card}`)
@@ -214,7 +215,7 @@ async function dotMap(ctx, label) {
   let r = await look()
   ok(r.card && r.close, 'the card has a Close button')
   if (r.close) {
-    await page.locator('.stance-map-card .map-card-close:visible').first().click()
+    await page.locator(`${sel}:visible`).first().locator('xpath=..').locator('.stance-map-card .map-card-close').click()
     await page.waitForTimeout(400)
     r = await look()
     ok(!r.card, 'Close closes the card')
@@ -305,10 +306,20 @@ async function desktop(ctx) {
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
   ok(!(await mapState(page, sel, 'p.mt-1', '.home-map-card')).card, 'Escape hides the card')
+  // A click outside closes a card the keyboard opened, as a tap does on a phone.
   await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(300)
+  await page.mouse.click(8, 300)
+  await page.waitForTimeout(300)
+  ok(!(await mapState(page, sel, 'p.mt-1', '.home-map-card')).card, 'a click outside the map closes the card')
+  await page.locator(sel).first().focus()
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(300)
+  const target = (await caption()).split(':')[0]
+  const code = Object.entries(STATE_NAMES).find(([, n]) => n === target)?.[0]
   await page.keyboard.press('Enter')
   await page.waitForTimeout(1500)
-  ok(!here(page).includes('state=AL'), `Enter opens that state's story (${here(page)})`)
+  ok(code ? here(page).includes(`state=${code}`) : /state=(?!AL)/.test(here(page)), `Enter opens ${target}'s story (${here(page)})`)
   let pts = await statePoints(page, sel)
   await page.mouse.move(pts.TX.x, pts.TX.y)
   await page.waitForTimeout(400)
