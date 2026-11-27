@@ -60,6 +60,8 @@ export interface StateQuote {
   date: string | null
   /** The meeting's title, for a meeting passage. */
   meeting: string | null
+  /** Where the public stood at this meeting, as a short line (#1230); none → no line. */
+  stanceNote?: string | null
   /** The recording at the passage's moment, or the recording. */
   url: string | null
   /** The recording's YouTube id, when known (else derived from `url`). */
@@ -400,6 +402,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           role={quote.role}
           item={quote.item}
           meeting={quote.meeting}
+          stanceNote={quote.stanceNote ?? null}
           videoId={resolveVideoId(quote.videoId, quote.url)}
           startSeconds={quote.startSeconds ?? startFromUrl(quote.url)}
           url={quote.url}
