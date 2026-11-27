@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
@@ -37,6 +38,8 @@ interface Props {
    * retired Where screen used to show. */
   question?: string | null
   said?: string | null
+  /** Overview only (#1282): the opening's subhead, basis and points, under the headline in the left column. */
+  lead?: ReactNode
 }
 
 /** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
@@ -213,6 +216,7 @@ export default function StoryScreenView(p: Props) {
         </>
       }
     >
+      {p.lead}
       {(p.question || p.said) && (
         <div className="stance-qblock">
           {p.question && (

@@ -12,7 +12,6 @@ import {
   captionSubhead,
   pickCaption,
   positionCounts,
-  storyStartLabel,
   withTopicBlank,
   type Caption,
 } from '../utils/storyCaption'
@@ -247,7 +246,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const n = screens.length
 
   // The screen machine shared with the Data Center Story: landing, ?screen=, keys, the sideways swipe and re-aimed jumps.
-  const { rootRef, startRef, wide, mode, active, activeRef, onCover, goTo } = useStoryScreens({
+  const { rootRef, wide, mode, active, activeRef, goTo } = useStoryScreens({
     screens,
     screenParam,
     setSp,
@@ -284,13 +283,27 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const where = stateName ? `in ${stateName}` : 'nationally'
   const decisionsSearch = `/search?types=decisions&topic_id=${def.topicId}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`
 
-  const screen = (id: TopicScreenId): { headline: string; context: ReactNode; right: ReactNode } => {
+  const screen = (id: TopicScreenId): { headline: string; context: ReactNode; right: ReactNode; lead?: ReactNode } => {
     switch (id) {
       case 'overview':
         return {
           // Never the header title again (owner 2026-11-26): the Overview says what the map shows.
           headline: `Where ${topicWord} came up${stateName ? `, with ${stateName} marked` : ''}, state by state.`,
           context: basis ?? COUNTED_LINE,
+          // The opening's subhead, lede and notes (#1282) sit in the left column under the headline: Overview is screen 1.
+          lead: (
+            <div className="stance-overview-lead">
+              {subhead && <p className="stance-title-subhead">{subhead}</p>}
+              <p className="stance-title-subhead topic-story-lede">{def.lede}</p>
+              {!captionQ.isPending && !COUNTED_FROM.test(basis ?? '') && basis != null && <p className="stance-note">{COUNTED_LINE}</p>}
+              {cityAsked && stateName && (
+                <p className="stance-note" role="status">
+                  Topic stories are drawn by state, so this shows all of {stateName}; {cityAsked} on its own isn't available yet.
+                </p>
+              )}
+              {note && <p className="stance-note">{note}</p>}
+            </div>
+          ),
           right: (
             <>
               {national.isError ? (
@@ -563,21 +576,6 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         onPlaceOpenChange={setPlaceOpen}
         onApply={applyPlace}
       />
-      {/* The cover (#1182): subhead, basis and lede, then what the story leaves out. Its way on is the one fixed Next (#1224). */}
-      <div className="stance-intro" data-cover>
-        {subhead && <p className="stance-title-subhead">{subhead}</p>}
-        {basis && <p className="stance-title-basis">{basis}</p>}
-        <p className="stance-title-subhead topic-story-lede">{def.lede}</p>
-        {!captionQ.isPending && !COUNTED_FROM.test(basis ?? '') && <p className="stance-note">{COUNTED_LINE}</p>}
-        {cityAsked && stateName && (
-          <p className="stance-note" role="status">
-            Topic stories are drawn by state, so this shows all of {stateName}; {cityAsked} on its own isn't available yet.
-          </p>
-        )}
-        {note && <p className="stance-note">{note}</p>}
-        {/* Tells when the cover is in view: the fixed Next starts the story there. */}
-        <span ref={startRef} className="stance-cover-mark" aria-hidden="true" />
-      </div>
       <p className="folio-sr-only" aria-live="polite">
         {screens[active] ? `${screens[active]!.eyebrow}, ${active + 1} of ${n}.` : ''}
       </p>
@@ -600,16 +598,16 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 onNext={() => goTo(i + 1)}
                 onPrev={i > 0 ? () => goTo(i - 1) : undefined}
                 right={v.right}
-              />
+              >
+                {v.lead}
+              </StoryScreenFrame>
             )
           })}
         </div>
       </div>
       {/* The one way forward (#1234, owner 2026-11-27): a green Next fixed at the bottom right on every screen. Cover: starts
           the story; a screen: the next screen; the last screen: a quiet Done that closes the story. */}
-      {onCover ? (
-        <StoryNextButton label="Next" ariaLabel={storyStartLabel(def.slug, label, def.subject)} onClick={() => goTo(0)} />
-      ) : active < n - 1 ? (
+      {active < n - 1 ? (
         <StoryNextButton label="Next" ariaLabel={`Next: ${screens[active + 1]?.eyebrow ?? ''}`.replace(/: $/, '')} onClick={() => goTo(Math.min(activeRef.current + 1, n - 1))} />
       ) : (
         <StoryNextButton label="Done" ariaLabel="Done: close the story" href={homeHref} quiet />
@@ -627,7 +625,6 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           storyHref={homeHref}
           storyLabel="Done"
           storyIsNext={false}
-          hideNext={onCover}
         />
       )}
       <p className="stance-keys">Keys: → or PageDown next · ← or PageUp back · Home and End jump to the ends · on a phone, swipe left or right</p>

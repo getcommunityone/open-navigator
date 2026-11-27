@@ -95,15 +95,17 @@ story (`/stories/guns`, `/stories/pickleball`, `/stories/water-fluoridation` and
 time on the Data Center Story's screen machine (`components/stance/useStoryScreens.ts`), each screen drawn with the same
 frame (`components/stance/StoryScreenFrame.tsx`), with `?screen=` deep links and the keys.
 
+**Overview is the first screen** ([#1282](https://github.com/getcommunityone/open-navigator/issues/1282), owner, 27 Nov 2026): a story has no separate cover. It opens on Overview, with Back hidden. The points the cover used to carry (the Data Center Story's numbered points, its subhead and basis; a topic story's subhead, lede and notes) sit in Overview's left column under its headline, and the map is on the right. The big faded screen word is gone, so nothing sits behind the map or the Next button. `?screen=overview` and a plain link open the same first screen.
+
 **Layout** (owner, 27 Nov 2026: "a right Next green button at bottom right always visible. The two buttons is
 confusing."):
 
 - **Close (×)** at the top right of the story's bar, the same box on every screen; it goes home keeping the scope
   (`/?state=CA`), and **Escape** does the same (`components/stance/StoryClose.tsx`). There is no "← Data stories" crumb
   and no "Showing: … · National only" row: the place changes only through the title's place blank.
-- **One green Next →** fixed at the bottom right of every screen (`components/stance/StoryNextButton.tsx`). On the cover
-  it starts the story; on a screen it goes to the next one; on the last screen it becomes a quiet **Done** that closes the
-  story. There is no Start / Next story pair on the cover and no "Next story" button anywhere: readers pick the next story
+- **One green Next →** fixed at the bottom right of every screen (`components/stance/StoryNextButton.tsx`). On a screen it
+  goes to the next one; on the last screen it becomes a quiet **Done** that closes the
+  story. There is no Start / Next story pair and no "Next story" button anywhere: readers pick the next story
   on home.
 - **Back**: inline at the bottom of each screen's left column on a wide screen; at the left of the phone's bottom bar,
   beside the progress dots, from the second screen on.
@@ -122,7 +124,7 @@ confusing."):
 | Decisions (`decided`) | Decisions whose record mentions the topic, with **See all**. | None in scope. |
 | Recap (`recap`) | The scope's counts and small text links on (every decision, Browse topics, all stories); Next becomes **Done**. | Never. |
 
-A screen left out is not a step, a segment or a Next target, and the cover says which ones and why ("Not in this story
+A screen left out is not a step, a segment or a Next target, and the Overview says which ones and why ("Not in this story
 for Ohio: decisions (none on record)."). While a screen's data loads it stays and says so; a failed request says it could
 not be loaded. The single "unit matrix by who spoke" is not drawn for topics: the topic endpoints serve the AI reading as
 counts per scope, not one record per meeting.
@@ -134,7 +136,7 @@ from 5 meetings where its public spoke ("Alabama mostly opposes data centers.");
 [Story captions](../development/story-captions.md).
 
 **Scope.** Topic stories are at state grain (`?state=`; city grain is #1186). Picking a city in the place dialog applies
-its state, and the cover says the city on its own isn't available yet, so the label never names a scope the data doesn't
+its state, and the Overview says the city on its own isn't available yet, so the label never names a scope the data doesn't
 have. At a state the title leads with the place.
 
 **Titles and headlines** (owner, 2026-11-26): the header title is the short conclusion from the shared caption picker
@@ -144,7 +146,7 @@ public mostly wanted the pickleball courts.", "What was decided on pickleball in
 under it. The Overview's headline says what the map shows and never repeats the header title.
 
 **Swipe.** On a touch screen a quick, mostly sideways flick moves the story (left for the next screen, right for the
-previous; from the cover it opens the first screen), through the same function as Next and the arrow keys
+previous), through the same function as Next and the arrow keys
 (`hooks/useSwipeNav.ts`). Vertical scrolling and scroll snap are untouched, and a flick that starts on a control, a dialog
 or anything that scrolls sideways itself is left to it.
 
@@ -209,7 +211,7 @@ Up to eleven screens, in this order (a chart screen with nothing on record for t
 
 ### Start, short titles, swipe and the phone Back (#1234, 26 Nov 2026)
 
-- **Start opens the story, not its cover.** Every link that already means "start" (home's **Start the data center
+- **Start opens the story on Overview** (since #1282 there is no cover, so a plain link opens it too). Every link that already means "start" (home's **Start the data center
   story**, the home topic cards' Start, the **Start** on each `/stories` card) goes to `/stories/<topic>?…&screen=overview`
   (`storyStartHref` in `utils/storyNav.ts`), so the reader lands on the Overview and does not press Start twice. A plain
   link (a shared URL, the topic picker, **Next story**) still opens the cover. The home map's drill-down keeps its

@@ -26,14 +26,10 @@ interface Options {
 
 export interface StoryScreensApi {
   rootRef: React.RefObject<HTMLDivElement>
-  /** A mark in the cover (#1234: the cover has no buttons of its own): while it is in view `onCover` is true. */
-  startRef: React.RefObject<HTMLSpanElement>
   wide: boolean
   mode: ActsMode
   active: number
   activeRef: React.MutableRefObject<number>
-  onCover: boolean
-  onCoverRef: React.MutableRefObject<boolean>
   goTo: (round: number) => void
   next: () => void
   prev: () => void
@@ -43,7 +39,7 @@ export interface StoryScreensApi {
 /**
  * The screen machine of a data story (#1224), shared by the Data Center Story and the topic stories: one screen at a time
  * (`useActs`: pinned on a wide screen, snapped on a phone), the screen in view written to `?screen=` and a `?screen=` link
- * landing on its screen, the cover (`[data-cover]`) and whether it is in view, keyboard paging (`useScreenKeys`), and focus
+ * landing on its screen, keyboard paging (`useScreenKeys`), and focus
  * on the settled screen's heading after a keyboard move (#1146), re-aiming a jump the growing page threw off (#1208) and the
  * sideways swipe (#1222). Moved out of DataStory.tsx unchanged.
  */
@@ -57,29 +53,7 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   const mode = reduced ? 'snap' : actsMode(false, wide)
   const rootRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(0)
-  // The cover in view (#1192): the fixed Next starts the story there (#1234), and the phone bar shows no Back.
-  const [onCover, setOnCover] = useState(true)
-  const onCoverRef = useRef(true)
-  onCoverRef.current = onCover
-  const startRef = useRef<HTMLSpanElement>(null)
   const shownIds = useRef<string[]>([])
-  useEffect(() => {
-    const el = startRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-    // What sits under the sticky site header and the story's own bar does not count as visible.
-    const header = document.querySelector<HTMLElement>('.site-header')
-    const top = rootRef.current?.querySelector<HTMLElement>('.stance-top')
-    const off = (header?.offsetHeight ?? 0) + (top?.offsetHeight ?? 0)
-    const io = new IntersectionObserver(
-      (entries) => {
-        const e = entries[entries.length - 1]
-        if (e) setOnCover(e.isIntersecting)
-      },
-      { threshold: 0.5, rootMargin: `-${off}px 0px 0px 0px` },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [resetKey, wide])
 
   useLayoutEffect(() => {
     const root = rootRef.current
@@ -169,16 +143,12 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   /** After a keyboard move, focus lands on the settled screen's heading (#1146): a screen reader reads where it is, Tab goes on
    *  to the screen's controls (Back, then Next), and the arrow keys still page because a heading isn't a control. */
   const onSettled = useCallback((h: Hold) => {
-    // Where the page settled is the truth about the cover (#1224): the observer's offset is measured once, and a title that
-    // grows after load (a longer conclusion on a phone) leaves it stale, so a reader on the first screen read as on the cover
-    // and Next started the story again instead of moving on.
-    setOnCover(h.kind === 'cover')
     // A jump made while the page was still growing (a progress segment pressed as the place's data arrived, #1208) can land
     // on another screen: the pixels it aimed for moved. Re-aim at the screen asked for, by id, a few times at most.
     const want = intent.current
     if (want) {
       const at = screensRef.current.findIndex((x) => x.id === want.id)
-      if (at >= 0 && (h.kind === 'cover' || h.round !== at) && want.tries < 3) {
+      if (at >= 0 && h.round !== at && want.tries < 3) {
         want.tries += 1
         goToRef.current(at)
         return
@@ -186,8 +156,6 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
       intent.current = null
     }
     if (dialogOpenRef.current) return
-    // Resting on the opening (#1182): its Start and Next story buttons stay the first Tab stops; no screen takes focus.
-    if (h.kind === 'cover') return
     const ae = document.activeElement as HTMLElement | null
     if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.closest('.stance-place'))) return
     const panel = rootRef.current?.querySelector<HTMLElement>(`[data-panel="${h.round}"]`)
@@ -228,15 +196,11 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     shownIds.current = screens.map((x) => x.id)
     const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1
     const at = Math.max(0, fromUrl >= 0 ? fromUrl : stay)
-    // The opening (#1182) is a cover hold at the top: a fresh visit with no ?screen opens on it, and a reader still above
-    // the first screen stays on it when the screens rebuild; a reader on screen 0 (or a ?screen link) lands on its hold.
-    const coverFirst = fromUrl < 0 && at === 0
     const land = (behavior: ScrollBehavior) => {
       const h = acts.holds().find((x) => x.round === at && (x.kind === 'q' || x.kind === 'end'))
-      const keepCover = coverFirst && (h == null || window.scrollY < h.pos - 2)
       // The page can arrive scrolled (a previous page's offset, e.g. home's Data stories section), so the story always
       // moves to its screen; before #991 it stayed put at screen 0 and opened mid-way, on a screen that wasn't the active one.
-      const target = keepCover ? 0 : at > 0 || mode === 'pinned' ? h?.pos : (h?.pos ?? 0)
+      const target = at > 0 || mode === 'pinned' ? h?.pos : (h?.pos ?? 0)
       if (target != null && Math.abs(target - window.scrollY) > 2) window.scrollTo({ top: target, behavior })
     }
     land('auto')
@@ -299,11 +263,10 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     rootRef,
     enabled: !dialogOpen,
     onNext: () => {
-      if (onCoverRef.current) goTo(0)
-      else if (activeRef.current < n - 1) goTo(activeRef.current + 1)
+      if (activeRef.current < n - 1) goTo(activeRef.current + 1)
     },
     onPrev: () => {
-      if (!onCoverRef.current && activeRef.current > 0) goTo(activeRef.current - 1)
+      if (activeRef.current > 0) goTo(activeRef.current - 1)
     },
   })
   useEffect(() => acts.lock(dialogOpen), [dialogOpen, acts])
@@ -319,5 +282,5 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
     enabled: !dialogOpen,
   })
 
-  return { rootRef, startRef, wide, mode, active, activeRef, onCover, onCoverRef, goTo, next, prev, acts }
+  return { rootRef, wide, mode, active, activeRef, goTo, next, prev, acts }
 }
