@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
-import { summaryFacts } from '../../utils/storySummary'
+import { summaryStats } from '../../utils/storySummary'
 import { useQuery } from '@tanstack/react-query'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
@@ -107,7 +107,7 @@ export default function StoryScreenView(p: Props) {
   const jobsData = p.data['job-claims'] as JobClaimsResponse | null | undefined
   // Phones (#1337): the Overview opens as a one-glance summary (real facts, a map thumbnail); the full map is one tap on.
   const summary = phone && screen.kind === 'overview' && !text.empty && !text.failed && stats.length > 0 && !mapOpen
-  const facts = summary ? summaryFacts(stats, p.data.positions as DataCenterPositionsResponse | null | undefined, scope) : []
+  const facts = summary ? summaryStats(stats, p.data.positions as DataCenterPositionsResponse | null | undefined, scope) : []
   const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
   return (
@@ -117,8 +117,9 @@ export default function StoryScreenView(p: Props) {
       active={p.active}
       eyebrow={screen.eyebrow}
       kicker={screen.kicker ? `${screen.kicker} · source: ${contextSourceFor(screen.chart)}` : undefined}
-      headline={summary ? `At a glance: ${storyScopeLabel(scope)}` : text.headline}
+      headline={text.headline}
       context={summary ? '' : text.context}
+      glance={summary}
       nextLabel={p.nextLabel}
       onNext={p.onNext}
       onPrev={p.onPrev}
@@ -138,13 +139,17 @@ export default function StoryScreenView(p: Props) {
           ) : screen.kind === 'overview' ? (
             // Narrowing to a state, its boxes re-form into the county map; broadening plays it back (#1195). The wrapper stays
             // mounted while the new scope's counts load, so the transition can wait for the county map.
-            <div className={summary ? 'story-summary-thumb' : undefined} data-testid={summary ? 'story-summary-thumb' : undefined}>
+            <div
+              className={summary ? 'story-summary-thumb' : undefined}
+              data-testid={summary ? 'story-summary-map' : undefined}
+              onClick={summary ? (e) => { if ((e.target as HTMLElement).closest('.stance-map-title')) setMapOpen(true) } : undefined}
+            >
             {phone && mapOpen && (
               <button type="button" className="folio-link-btn story-summary-back" onClick={() => setMapOpen(false)}>
                 ← Summary
               </button>
             )}
-            <div className={summary ? 'story-summary-thumb-map' : undefined} aria-hidden={summary ? true : undefined}>
+            <div className={summary ? 'story-summary-thumb-map' : undefined}>
             <MapDrill
               stateCode={scope.stateCode ?? null}
               byState={byState}
@@ -225,11 +230,6 @@ export default function StoryScreenView(p: Props) {
               }
             </MapDrill>
             </div>
-            {summary && (
-              <button type="button" className="story-summary-open" onClick={() => setMapOpen(true)}>
-                See the map and every count →
-              </button>
-            )}
             </div>
           ) : screen.chart === 'job-claims' && jobsData && noClaims ? (
             // No claims on record: the screen shows actual payroll jobs and where jobs are tracked instead (#1019).
@@ -254,7 +254,10 @@ export default function StoryScreenView(p: Props) {
       {summary && facts.length > 0 && (
         <ul className="story-summary" data-testid="story-summary" aria-label={`At a glance: ${storyScopeLabel(scope)}`}>
           {facts.map((f) => (
-            <li key={f}>{f}</li>
+            <li key={f.label}>
+              <b>{f.value}</b>
+              <span>{f.label}</span>
+            </li>
           ))}
         </ul>
       )}

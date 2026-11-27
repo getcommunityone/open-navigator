@@ -3441,17 +3441,32 @@ html.stance-snap .stance-intro {
     min-width: 0;
   }
   .stance-story .stance-sentence {
-    font-size: 17px;
+    font-size: 14.5px;
     line-height: 1.2;
     overflow-wrap: anywhere;
   }
   .stance-story .stance-blank {
-    min-height: 36px;
+    min-height: 28px;
+  }
+  .stance-story .stance-top {
+    padding-right: calc(48px + env(safe-area-inset-right));
+  }
+  /* A long topic is clipped (…) so the headline stays within two lines; the full name is the select's chosen option. */
+  .stance-story .stance-sentence select.stance-blank {
+    max-width: 40vw;
+    text-overflow: ellipsis;
   }
   .stance-story .stance-scope {
     display: none;
   }
   .stance-story .story-scope-note {
+    margin-top: 0;
+    font-size: 12.5px;
+    line-height: 1.2;
+  }
+  .stance-story .story-scope-note .story-scope-why {
+    margin-left: 0;
+    min-height: 20px;
     font-size: 12.5px;
   }
 }
@@ -3627,51 +3642,131 @@ html.stance-snap .stance-intro {
 .stance-positions-disagree { margin: 4px 0 0; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--ink); }
 .stance-voices-subhead { margin: 8px 0 2px; font-family: var(--font-mono); font-size: var(--t-micro, 12px); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
 
-/* The phone Overview's summary card (#1337): three real facts and a clipped map thumbnail that opens the full map. */
+/* The phone Overview (#1337, #1380): one compact stat row (number big, label small) and the real map filling the rest of
+   the screen above the bottom bar. The boxed word and the headline stay in the DOM for screen readers, off screen. */
 .story-summary {
-  order: 3;
-  margin: 8px 0 0;
+  order: 1;
+  margin: 6px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-auto-flow: column;
+  gap: 8px;
 }
 .story-summary li {
-  padding: 8px 12px;
-  font-size: 16px;
-  line-height: 1.3;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 4px 10px;
   border-left: 3px solid var(--teal, #0f766e);
   background: rgba(15, 118, 110, 0.06);
 }
-.story-summary-thumb {
-  margin-top: 8px;
+.story-summary li b {
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
-.story-summary-thumb-map {
-  max-height: 150px;
-  overflow: hidden;
-  pointer-events: none;
-}
-.story-summary-thumb .stance-map-head,
-.story-summary-thumb .stance-map-caption,
-.story-summary-thumb figcaption {
-  display: none;
-}
-.story-summary-thumb .stance-map-fit {
-  --map-chrome: 330px;
-}
-.folio .story-summary-open {
-  display: block;
-  width: 100%;
-  min-height: 44px;
-  margin-top: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #0f766e;
-  background: var(--paper);
-  border: 1px solid #0f766e;
+.story-summary li span {
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--ink-2, #57534e);
 }
 .story-summary-back {
   min-height: 44px;
+}
+@media (max-width: 767px) {
+  .stance-story .stance-panel--glance .stance-word,
+  .stance-story .stance-panel--glance .stance-card,
+  .stance-story .stance-panel--glance .stance-head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    border: 0;
+  }
+  .stance-story .stance-panel--glance .stance-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+  }
+  .stance-panel--glance .stance-glance-about {
+    order: 1;
+    flex: none;
+    font-size: 13px;
+  }
+  .stance-panel--glance .stance-glance-about summary {
+    cursor: pointer;
+    min-height: 28px;
+    color: #0f766e;
+    font-weight: 600;
+  }
+  .stance-panel--glance .stance-glance-about[open] {
+    max-height: 40%;
+    overflow: auto;
+  }
+  /* The map's column is the size the map is fitted to: the screen's height less the stat row. */
+  .stance-story .stance-panel--glance .stance-right {
+    order: 2;
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+    container-type: size;
+    overflow: hidden;
+  }
+  .stance-panel--glance .stance-map {
+    margin: 0;
+  }
+  .stance-panel--glance .stance-map-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .stance-panel--glance .stance-map-head {
+    flex: none;
+    margin: 0 0 2px;
+  }
+  .stance-panel--glance .story-summary-thumb .stance-map-title {
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: #0f766e;
+  }
+  .stance-panel--glance .story-summary-thumb .stance-map-title::after {
+    content: ' · more ›';
+    color: #0f766e;
+    font-weight: 600;
+  }
+  /* The key, the picker and the notes wait on the full map; the header already names and changes the place. */
+  .stance-panel--glance .stance-map-controls,
+  .stance-panel--glance .stance-map-caption,
+  .stance-panel--glance .stance-map-side,
+  .stance-panel--glance figcaption,
+  .stance-panel--glance .stance-note,
+  .stance-panel--glance [data-zoom-note],
+  .stance-panel--glance .stance-right p:not(.stance-nodata) {
+    display: none;
+  }
+  .stance-panel--glance .stance-right svg {
+    max-width: 100%;
+    max-height: 100cqh;
+  }
+  .stance-panel--glance .stance-map-stage {
+    flex: none;
+  }
+  /* The map is as tall as the column less its title row, and as wide as that and the state's shape allow, centred. */
+  .stance-panel--glance .stance-map-fit {
+    --map-h: calc(100cqh - 34px);
+    width: min(100%, calc(var(--map-h) * var(--map-ar, 1)));
+    height: var(--map-h);
+  }
+  .stance-panel--glance .stance-map-fit .stance-map-svg {
+    height: 100%;
+  }
 }
 
 /* The × names its purpose (#1341): a small "Close" caption under it; the tooltip says "Close · back to home". */
