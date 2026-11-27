@@ -25,7 +25,8 @@ select distinct on (n.master_org_id, e.start_date, regexp_replace(lower(e.title)
     o.org_name::text                                                    as org_name,
     e.title::text                                                       as title,
     e.start_date::date                                                  as event_date,
-    (case when e.start_at is not null then to_char(e.start_at, 'FMHH12:MI AM') end)::text as event_time,
+    -- The local wall clock the source states, never re-rendered in the server's time zone.
+    e.start_time::text                                                  as event_time,
     e.location::text                                                    as location,
     coalesce(e.event_url, e.source_page_url)::text                      as event_url,
     e.source_page_url::text                                             as source_page_url,
@@ -41,4 +42,4 @@ inner join {{ ref('mdm_organization') }} as o on o.master_org_id = n.master_org_
 where e.start_date >= current_date
   and o.state_code is not null
 -- The same event read from both a page's JSON-LD and its iCal feed (titles differing only in punctuation) is kept once.
-order by n.master_org_id, e.start_date, regexp_replace(lower(e.title), '[^a-z0-9]+', '', 'g'), (e.start_at is null), e.event_key
+order by n.master_org_id, e.start_date, regexp_replace(lower(e.title), '[^a-z0-9]+', '', 'g'), (e.start_time is null), e.event_key

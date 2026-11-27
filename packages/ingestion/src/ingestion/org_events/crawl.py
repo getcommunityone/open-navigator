@@ -38,12 +38,16 @@ limit %(limit)s
 """
 
 EVENT_UPSERT = f"""
-insert into {EVENT_TABLE} (event_key, ein, title, start_at, start_date, end_at, location, event_url, source_page_url,
-                           source_format, fetched_at)
-values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+insert into {EVENT_TABLE} (event_key, ein, title, start_at, start_date, start_time, end_at, location, event_url,
+                           source_page_url, source_format, fetched_at)
+values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
 on conflict (event_key) do update set title = excluded.title, start_at = excluded.start_at,
-    end_at = excluded.end_at, location = excluded.location, event_url = excluded.event_url, fetched_at = now()
+    start_time = excluded.start_time, end_at = excluded.end_at, location = excluded.location,
+    event_url = excluded.event_url, fetched_at = now()
 """
+
+# A site read again that no longer lists a future event: the event is gone (cancelled or removed), so it goes too.
+STALE_SQL = f"delete from {EVENT_TABLE} where ein = %s and start_date >= current_date and not (event_key = any(%s))"
 
 STATUS_SQL = f"update {WEBSITE_TABLE} set crawl_status = %s, crawled_at = now(), events_found = %s where ein = %s"
 
@@ -115,8 +119,10 @@ def main(argv: list[str] | None = None) -> int:
                 status, events = crawl_site(client, ein, site, today)
                 totals[status] = totals.get(status, 0) + 1
                 for e in events:
-                    cur.execute(EVENT_UPSERT, (e.event_key, e.ein, e.title, e.start_at, e.start_date, e.end_at,
-                                               e.location, e.event_url, e.source_page_url, e.source_format))
+                    cur.execute(EVENT_UPSERT, (e.event_key, e.ein, e.title, e.start_at, e.start_date, e.start_time,
+                                               e.end_at, e.location, e.event_url, e.source_page_url, e.source_format))
+                if status in ("ok", "no_events"):
+                    cur.execute(STALE_SQL, (ein, [e.event_key for e in events]))
                 n_events += len(events)
                 cur.execute(STATUS_SQL, (status, len(events), ein))
                 conn.commit()

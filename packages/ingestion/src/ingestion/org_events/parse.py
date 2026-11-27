@@ -11,6 +11,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from html import unescape
 from typing import Any, Iterable, Optional
 from urllib.parse import urljoin, urlsplit
@@ -24,7 +25,7 @@ NOT_OWN_SITE = re.compile(
 )
 
 #: Event pages and feeds a site commonly links (WordPress "The Events Calendar", Squarespace, Wix, generic).
-EVENT_LINK_RE = re.compile(r"(\.ics(\?|$)|[?&]ical=1|^webcal:|/events?/?($|\?)|/calendar/?($|\?))", re.I)
+EVENT_LINK_RE = re.compile(r"(\.ics(\?|$)|[?&]ical=1|/events?/?($|\?)|/calendar/?($|\?))", re.I)
 
 
 def normalize_website(raw: str | None) -> Optional[str]:
@@ -60,13 +61,17 @@ def website_from_990_xml(xml_text: str) -> Optional[str]:
 class OrgEvent:
     ein: str
     title: str
+    #: Only when the source fixes the moment (an offset or a time zone); None for a floating or date-only start.
     start_at: Optional[datetime]
+    #: The day it starts, in the event's own local time.
     start_date: date
     end_at: Optional[datetime]
     location: Optional[str]
     event_url: Optional[str]
     source_page_url: str
     source_format: str  # jsonld | ical
+    #: The start time as the event's local wall clock ("7:00 PM"), or None when the source gives no time.
+    start_time: Optional[str] = None
 
     @property
     def event_key(self) -> str:
@@ -88,22 +93,33 @@ def _clean(s: Any) -> Optional[str]:
     return t or None
 
 
-def parse_when(value: Any) -> tuple[Optional[datetime], Optional[date]]:
-    """An ISO 8601 date or date-time -> (datetime or None, date). A bare date has no time."""
+def wall_clock(dt: datetime) -> str:
+    """"7:00 PM": the time as the clock in the event's place shows it."""
+    return dt.strftime("%I:%M %p").lstrip("0")
+
+
+def parse_when(value: Any) -> tuple[Optional[datetime], Optional[date], Optional[str]]:
+    """An ISO 8601 date or date-time -> (aware datetime or None, local date, local time text or None).
+
+    The date and time are the ones written (an offset keeps its own wall clock). A trailing ``Z`` names UTC, not the
+    event's place, so its local day is unknown: such a value is not used.
+    """
     v = _clean(value)
     if not v:
-        return None, None
+        return None, None, None
     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", v)
     if m:
         try:
-            return None, date(int(m[1]), int(m[2]), int(m[3]))
+            return None, date(int(m[1]), int(m[2]), int(m[3])), None
         except ValueError:
-            return None, None
+            return None, None, None
+    if v.upper().endswith("Z"):
+        return None, None, None
     try:
-        dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(v)
     except ValueError:
-        return None, None
-    return dt, dt.date()
+        return None, None, None
+    return (dt if dt.tzinfo else None), dt.date(), wall_clock(dt)
 
 
 def _location(loc: Any) -> Optional[str]:
@@ -156,10 +172,10 @@ def events_from_jsonld(html: str, *, ein: str, page_url: str) -> list[OrgEvent]:
             if _CANCELLED.search(str(ev.get("eventStatus", ""))):
                 continue
             title = _clean(ev.get("name"))
-            start_at, start_d = parse_when(ev.get("startDate"))
+            start_at, start_d, start_t = parse_when(ev.get("startDate"))
             if not title or start_d is None:
                 continue
-            end_at, _ = parse_when(ev.get("endDate"))
+            end_at, _, _ = parse_when(ev.get("endDate"))
             url = _clean(ev.get("url"))
             out.append(
                 OrgEvent(
@@ -172,6 +188,7 @@ def events_from_jsonld(html: str, *, ein: str, page_url: str) -> list[OrgEvent]:
                     event_url=urljoin(page_url, url) if url else None,
                     source_page_url=page_url,
                     source_format="jsonld",
+                    start_time=start_t,
                 )
             )
     return out
@@ -187,40 +204,68 @@ def _unfold(text: str) -> list[str]:
     return lines
 
 
+_ICAL_ESC = re.compile(r"\\([\\;,nN])")
+
+
 def _ical_value(v: str) -> str:
-    return v.replace("\\n", " ").replace("\\N", " ").replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\").strip()
+    """Unescape an iCal text value in one pass (so an escaped backslash before "n" stays a backslash and an n)."""
+    return _ICAL_ESC.sub(lambda m: " " if m[1] in "nN" else m[1], v).strip()
 
 
-def _ical_when(params: str, value: str) -> tuple[Optional[datetime], Optional[date]]:
-    v = value.strip()
+def _zone(name: str | None) -> Optional[ZoneInfo]:
+    if not name:
+        return None
     try:
-        if "VALUE=DATE" in params.upper() or re.fullmatch(r"\d{8}", v):
-            d = datetime.strptime(v[:8], "%Y%m%d").date()
-            return None, d
-        if v.endswith("Z"):
-            dt = datetime.strptime(v, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
-        else:
-            dt = datetime.strptime(v[:15], "%Y%m%dT%H%M%S")  # floating or TZID local time, kept as written
-        return dt, dt.date()
+        return ZoneInfo(name.strip().strip('"'))
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+
+
+def _ical_when(params: str, value: str, cal_zone: Optional[ZoneInfo] = None) -> tuple[Optional[datetime], Optional[date], Optional[str]]:
+    """(aware datetime or None, local date, local time text or None) for a DTSTART/DTEND.
+
+    VALUE=DATE is a day. TZID=... is that zone's wall clock. A UTC time (``Z``) is moved to the calendar's own zone
+    (X-WR-TIMEZONE or its one VTIMEZONE); without one its local day is unknown and it is not used. A floating time is
+    the wall clock as written.
+    """
+    v = value.strip()
+    opts = dict(p.split("=", 1) for p in params.split(";") if "=" in p)
+    opts = {k.upper(): val for k, val in opts.items()}
+    try:
+        if opts.get("VALUE", "").upper() == "DATE" or re.fullmatch(r"\d{8}", v):
+            return None, datetime.strptime(v[:8], "%Y%m%d").date(), None
+        if v.upper().endswith("Z"):
+            if cal_zone is None:
+                return None, None, None
+            dt = datetime.strptime(v[:15], "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc).astimezone(cal_zone)
+            return dt, dt.date(), wall_clock(dt)
+        local = datetime.strptime(v[:15], "%Y%m%dT%H%M%S")
+        zone = _zone(opts.get("TZID"))
+        return (local.replace(tzinfo=zone) if zone else None), local.date(), wall_clock(local)
     except ValueError:
-        return None, None
+        return None, None, None
 
 
 def events_from_ical(text: str, *, ein: str, feed_url: str) -> list[OrgEvent]:
     """VEVENTs in an iCalendar feed. Recurring rules are not expanded: only the stated first date is kept."""
     out: list[OrgEvent] = []
     cur: Optional[dict[str, tuple[str, str]]] = None
-    for line in _unfold(text or ""):
+    lines = _unfold(text or "")
+    # The calendar's own zone, for UTC times: X-WR-TIMEZONE, else its only VTIMEZONE.
+    wr = next((ln.split(":", 1)[1] for ln in lines if ln.upper().startswith("X-WR-TIMEZONE:")), None)
+    tzids = {ln.split(":", 1)[1].strip() for ln in lines if ln.upper().startswith("TZID:")}
+    cal_zone = _zone(wr) or (_zone(next(iter(tzids))) if len(tzids) == 1 else None)
+    for line in lines:
         if line.strip() == "BEGIN:VEVENT":
             cur = {}
             continue
         if line.strip() == "END:VEVENT":
             if cur is not None:
                 title = _clean(_ical_value(cur.get("SUMMARY", ("", ""))[1]))
-                start_at, start_d = _ical_when(*cur.get("DTSTART", ("", "")))
+                start_at, start_d, start_t = _ical_when(*cur.get("DTSTART", ("", "")), cal_zone)
                 status = cur.get("STATUS", ("", ""))[1].upper()
                 if title and start_d is not None and status != "CANCELLED":
-                    end_at, _ = _ical_when(*cur.get("DTEND", ("", "")))
+                    end_at, _, _ = _ical_when(*cur.get("DTEND", ("", "")), cal_zone)
                     url = _ical_value(cur.get("URL", ("", ""))[1]) or None
                     out.append(
                         OrgEvent(
@@ -233,6 +278,7 @@ def events_from_ical(text: str, *, ein: str, feed_url: str) -> list[OrgEvent]:
                             event_url=url if url and url.startswith("http") else None,
                             source_page_url=feed_url,
                             source_format="ical",
+                            start_time=start_t,
                         )
                     )
             cur = None

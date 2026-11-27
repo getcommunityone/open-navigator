@@ -11,6 +11,7 @@ select
     nullif(trim(title), '')                                 as title,
     start_at,
     start_date,
+    nullif(trim(start_time), '')                            as start_time,
     end_at,
     nullif(trim(location), '')                              as location,
     nullif(trim(event_url), '')                             as event_url,

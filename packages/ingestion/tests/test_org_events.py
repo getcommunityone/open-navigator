@@ -52,9 +52,11 @@ def test_events_from_jsonld_keeps_stated_dates_only():
     assert e.event_url == "https://www.example.org/events/town-hall"
     assert e.location == "Library, Savannah, GA"
     assert e.source_format == "jsonld"
+    assert e.start_time == "6:30 PM" and e.start_at is not None  # the written offset keeps its own wall clock
 
 
 ICS = """BEGIN:VCALENDAR\r
+X-WR-TIMEZONE:America/New_York\r
 BEGIN:VEVENT\r
 SUMMARY:Pickleball open play\\, all levels\r
 DTSTART;TZID=America/New_York:20261205T090000\r
@@ -80,7 +82,28 @@ def test_events_from_ical():
     assert [e.title for e in evs] == ["Pickleball open play, all levels", "Annual meeting"]
     assert evs[0].start_date == date(2026, 12, 5)
     assert evs[0].location == "Central Park courts"
-    assert evs[1].start_at is not None and evs[1].start_at.tzinfo is not None
+    assert evs[0].start_time == "9:00 AM" and evs[0].start_at is not None  # TZID: that zone's wall clock
+    # 17:00 UTC on Jan 15 is noon in New York (the calendar's zone), not 5 PM.
+    assert evs[1].start_at is not None and evs[1].start_time == "12:00 PM" and evs[1].start_date == date(2027, 1, 15)
+
+
+def test_utc_time_without_a_zone_is_not_guessed():
+    ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:Gala\nDTSTART:20261206T000000Z\nEND:VEVENT\nEND:VCALENDAR\n"
+    assert parse.events_from_ical(ics, ein="1", feed_url="f") == []
+    # A Google-style UTC time moved to the calendar's zone keeps the evening's own day.
+    ics_ny = ics.replace("BEGIN:VCALENDAR\n", "BEGIN:VCALENDAR\nX-WR-TIMEZONE:America/New_York\n")
+    (e,) = parse.events_from_ical(ics_ny, ein="1", feed_url="f")
+    assert e.start_date == date(2026, 12, 5) and e.start_time == "7:00 PM"
+
+
+def test_value_date_time_keeps_its_time():
+    ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:Talk\nDTSTART;VALUE=DATE-TIME:20261205T183000\nEND:VEVENT\nEND:VCALENDAR\n"
+    (e,) = parse.events_from_ical(ics, ein="1", feed_url="f")
+    assert e.start_time == "6:30 PM"
+
+
+def test_ical_unescape_one_pass():
+    assert parse._ical_value("a\\\\nb\\, c") == "a\\nb, c"
 
 
 def test_event_links_same_site_feeds_first():
@@ -110,6 +133,24 @@ def test_crawl_respects_robots_and_ua():
     assert status == "robots_disallowed" and events == []
     assert [r.url.path for r in seen] == ["/robots.txt"]
     assert seen[0].headers["user-agent"] == USER_AGENT
+
+
+def test_redirect_to_a_disallowed_host_is_not_fetched():
+    seen: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(f"{req.url.host}{req.url.path}")
+        if req.url.host == "www.example.org":
+            if req.url.path == "/robots.txt":
+                return httpx.Response(404)
+            return httpx.Response(301, headers={"location": "https://elsewhere.example.com/"})
+        if req.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nDisallow: /\n", headers={"content-type": "text/plain"})
+        return httpx.Response(200, text=JSONLD_PAGE, headers={"content-type": "text/html"})
+
+    status, _ = crawl_site(_client(handler), "1", "https://www.example.org/", date(2026, 12, 1))
+    assert status == "robots_disallowed"
+    assert "elsewhere.example.com/" not in seen  # its robots.txt said no before the page was asked for
 
 
 def test_crawl_stops_on_429():

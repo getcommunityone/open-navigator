@@ -311,7 +311,8 @@ org_event_items as (
         e.event_date                                                                as item_date,
         e.event_time                                                                as item_time,
         null::text                                                                  as jurisdiction_id,
-        initcap(e.city)                                                             as jurisdiction_name,
+        -- The host's home city is not where the event is held: no place is claimed (the event page says).
+        null::text                                                                  as jurisdiction_name,
         e.state_code,
         e.state,
         null::text                                                                  as body_name,

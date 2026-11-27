@@ -4,9 +4,9 @@ branch: feat/1347-org-events
 title: "feat(topics): upcoming events of topic nonprofits from their own websites, folded into Coming up"
 author: jcbowyer
 reviewed_at: 2026-11-27
-reviewer: github-actions
+reviewer: claude (read-only reviewer subagent + author verification)
 head_sha: 56aa0c7a7ba1a623b2ed1cef9ed20ecfc4397fbf
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: feat(topics): upcoming events of topic nonprofits from their own websites, folded into Coming up
@@ -63,18 +63,24 @@ See the PR checks on `56aa0c7a7ba1`.
 
 ## Findings
 
-### 🔴 Blocking (Critical)
+### 🔴 Blocking (Critical) — found by the reviewer, fixed on the branch
 
-None.
+- Time zones: an iCal UTC time (`...Z`) was dated in UTC (a 7 PM EST event on Dec 5 became Dec 6) and the mart re-rendered times in the server's zone. Fixed: a UTC time is moved to the calendar's own zone (X-WR-TIMEZONE or its one VTIMEZONE) and is not used without one; JSON-LD keeps its written offset; the local wall clock is stored as text (`start_time` → `organization_event.event_time`), never re-rendered. A JSON-LD `Z` time is not used.
+- Redirects: the client followed redirects before checking each hop's robots.txt. Fixed: `follow_redirects=False`, each hop is checked against its host's robots.txt, paced and blocked per host before it is requested (test: a redirect to a disallowed host is never fetched).
 
-### 🟡 Should fix (Important)
+### 🟡 Should fix (Important) — fixed
 
-None from automated heuristics.
+- `VALUE=DATE` matched `VALUE=DATE-TIME`; params are now parsed and compared exactly.
+- An event was labelled with the host's home city; `jurisdiction_name` is now null for nonprofit events (listed under the host's state).
+- `max_bytes` did not cap the download; responses are streamed and cut at the cap.
+- A re-crawl never removed cancelled events; a successful read now deletes that site's future events it no longer lists.
 
-### 🔵 Nit (Minor)
+### 🔵 Nit (Minor) — fixed
 
-None from automated heuristics.
+- Dead `^webcal:` alternative removed; iCal text is unescaped in one pass.
+
+Checked by the reviewer: the four `topic_upcoming` union branches line up column by column (28 columns); no person data is stored; the User-Agent, pacing and 403/429 stop hold.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: the blocking and should-fix findings were fixed on the branch and re-tested (16 ingestion tests, dbt rebuild).

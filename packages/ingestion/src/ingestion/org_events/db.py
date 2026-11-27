@@ -32,6 +32,8 @@ create table if not exists {EVENT_TABLE} (
     fetched_at       timestamptz not null default now()
 );
 create index if not exists bronze_organization_event_ein_idx on {EVENT_TABLE} (ein);
+-- The start as the event's local wall clock ("7:00 PM"), as the source states it (#1377 review).
+alter table {EVENT_TABLE} add column if not exists start_time text;
 """
 
 
