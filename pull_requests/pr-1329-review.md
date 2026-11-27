@@ -5,7 +5,7 @@ title: "feat(stories): votes read by which way they went, speaker sources reconc
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 5ca965c22d089a07f7b069b19881c495660357bd
+head_sha: b6bf6b37cbbc28478cae0d0f6f7c5766b28f24ba
 verdict: approve
 ---
 
@@ -21,6 +21,7 @@ Automated review (#648) for PR #1329 on `feat/1290-fit-display-to-data`. Heurist
 - `api/routes/topic_caption_facts.py`
 - `dbt_project/models/marts/_schema_data_center_decision.yml`
 - `dbt_project/models/marts/data_center_decision.sql`
+- `pull_requests/pr-1329-review.md`
 - `tests/test_api_topic_caption_facts.py`
 - `web_app/e2e/story-fit.check.mjs`
 - `web_app/src/api/topics.ts`
@@ -44,7 +45,7 @@ Automated review (#648) for PR #1329 on `feat/1290-fit-display-to-data`. Heurist
 
 ## CI Status
 
-See the PR checks on `5ca965c22d08`.
+See the PR checks on `b6bf6b37cbbc`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
