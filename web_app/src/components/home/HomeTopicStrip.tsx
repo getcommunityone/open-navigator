@@ -56,18 +56,24 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
 
   // Each tile's caption (#1125): the strongest statement its record supports for the page's scope, else its blurb.
   const scope = { stateCode, stateName: stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null, city: stateCode ? city : null }
-  const factsQ = useQueries({
-    queries: TOPICS.map((t) => {
-      const copy = CAPTION_COPY[t.captionKey]
-      const slug = copy ? copy.facts : t.captionKey
-      return {
-        queryKey: ['caption-facts', slug, stateCode ?? '', scope.city ?? ''],
-        queryFn: () => fetchTopicCaptionFacts(slug!, stateCode, scope.city),
-        enabled: Boolean(slug),
-        staleTime: 5 * 60_000,
-        retry: 1,
-      }
-    }),
+  // One query per distinct facts slug (#1170): guide tiles have no slug and several tiles can share one, and duplicate
+  // keys in useQueries share observers and trigger TanStack's "Duplicate Queries" warning.
+  const slugOf = (t: (typeof TOPICS)[number]): string | null => {
+    const copy = CAPTION_COPY[t.captionKey]
+    return (copy ? copy.facts : t.captionKey) || null
+  }
+  const slugs = [...new Set(TOPICS.map(slugOf).filter((s): s is string => Boolean(s)))]
+  const slugQ = useQueries({
+    queries: slugs.map((slug) => ({
+      queryKey: ['caption-facts', slug, stateCode ?? '', scope.city ?? ''],
+      queryFn: () => fetchTopicCaptionFacts(slug, stateCode, scope.city),
+      staleTime: 5 * 60_000,
+      retry: 1,
+    })),
+  })
+  const factsQ = TOPICS.map((t) => {
+    const slug = slugOf(t)
+    return slug ? slugQ[slugs.indexOf(slug)] : undefined
   })
   const captions = TOPICS.map((t, i) => {
     const c = pickCaption(t.captionKey, factsQ[i]?.data, scope)
