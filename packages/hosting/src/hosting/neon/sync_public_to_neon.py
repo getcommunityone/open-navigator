@@ -271,6 +271,9 @@ CIVIC_SERVING = frozenset(
         # Jev's reading of each topic meeting: public / official lean and the map flags (#1126); small, one row per
         # meeting and topic
         "topic_meeting_lean",
+        # Recorded meetings per place and year (#1140, #1194): the story timelines and dumbbell need it to tell a real
+        # zero year from a year with no recordings; small (~1 MB, one row per jurisdiction and year)
+        "recorded_meeting_year",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",
