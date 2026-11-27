@@ -1,5 +1,6 @@
 // Pure helpers for the Data Center Challenge (#852) and the data stories (#884). Nothing here invents a number: every figure comes
 // from an API response, and missing or empty data gives null.
+import { dataCenterQuoteNote } from './topicPositions'
 import { outcomeFromDc, outcomeFromText, sideFromLean, type DotFacets } from './unitMatrix'
 import { youtubeVideoId } from '../lib/youtubeEmbed'
 import type {
@@ -271,6 +272,11 @@ export interface Dot {
   video?: { videoId: string; start: number | null }
   /** The verbatim passage the dot stands for, matched words in <mark> (#1036): shown with the video. */
   quote?: string | null
+  /** Who said the passage, as served ("Audra T."), and their real role (#1293); null when the record names nobody. */
+  speakerName?: string | null
+  role?: string | null
+  /** Where the public stood at the passage's meeting, labelled as the meeting's (#1230, #1293); null: no line. */
+  stanceNote?: string | null
   /** Real fields the unit matrix can regroup this record by (#1140): year, state, town, AI outcome, AI public lean. */
   facets?: DotFacets
 }
@@ -631,6 +637,9 @@ export function chartSpec(
               url: m.jump_url ?? m.video_url ?? null,
               ...meetingVideo(m.video_url, m.start_seconds),
               quote: m.evidence ?? null,
+              speakerName: m.speaker_display_name ?? null,
+              role: m.speaker_display_name ? (m.speaker_role ?? null) : null,
+              stanceNote: dataCenterQuoteNote(m.ai_public_lean),
               facets: {
                 year: yearOf(m.meeting_date) ?? null,
                 state: m.state_code ?? null,
@@ -677,8 +686,8 @@ export function chartSpec(
         title: [d.headline ?? 'Decision on a data center item', d.outcome].filter(Boolean).join(' · '),
         place: joinPlace(d.jurisdiction_name, d.state_code),
         date: d.meeting_date ?? null,
-        // a debated decision has its own page; one taken up without debate links to the meeting recording
-        url: d.decision_url ?? d.video_url ?? null,
+        // a debated decision has its own page; one taken up without debate links to the meeting page, else its recording
+        url: d.decision_url ?? d.meeting_url ?? d.video_url ?? null,
         facets: {
           year: yearOf(d.meeting_date) ?? null,
           state: d.state_code ?? null,
@@ -686,14 +695,24 @@ export function chartSpec(
           outcome: outcomeFromText(d.outcome),
         },
       })
+      // On a data center or only mentioning one (#1293, api/routes/topic_relevance.py), when the server says; an older
+      // server keeps the debated / without-debate split.
+      const on = res.counts?.on_topic
+      const off = res.counts?.in_passing
+      const split = on != null && off != null && items.every((d) => d.relevance != null)
       return dots(
         CHART_TITLES.decisions,
         'Open Navigator, decisions recorded in local meeting recordings',
         'decision',
-        [
-          { key: 'contested', label: 'Debated', total: c, dots: items.filter((d) => d.contested).map(toDot) },
-          { key: 'uncontested', label: 'Without debate', total: u, dots: items.filter((d) => !d.contested).map(toDot) },
-        ],
+        split
+          ? [
+              { key: 'on_topic', label: 'On a data center', total: on, dots: items.filter((d) => d.relevance === 'on_topic').map(toDot) },
+              { key: 'in_passing', label: 'Mentioned in passing', total: off, dots: items.filter((d) => d.relevance !== 'on_topic').map(toDot) },
+            ]
+          : [
+              { key: 'contested', label: 'Debated', total: c, dots: items.filter((d) => d.contested).map(toDot) },
+              { key: 'uncontested', label: 'Without debate', total: u, dots: items.filter((d) => !d.contested).map(toDot) },
+            ],
         c != null && u != null ? c + u : null,
       )
     }
