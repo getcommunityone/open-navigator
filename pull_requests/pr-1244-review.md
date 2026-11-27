@@ -18,8 +18,12 @@ data for the place drops, and the cover names it. The owner's 2026-11-27 layout 
 bottom right (Done on the last screen), Close (×) at the top right, and no Next story button, crumb or "Showing:" row.
 Back is inline on wide screens and in the phone bar. Swipe and keys also move between screens.
 
-DataStory's screen machine moved into `useStoryScreens` unchanged. A read-only reviewer compared it line by line with
-`origin/main` and found no behaviour change. The browser checks pass at three devices on three topics.
+DataStory's screen machine moved into `useStoryScreens`. A read-only reviewer compared it line by line with
+`origin/main` and found no behaviour change. It then took on #1243's additions (re-aimed jumps, the swipe, the cover
+mark) and one fix of its own, both described below. The browser checks pass at three devices on three topics.
+
+The title names the selected place from 5 meetings where its public spoke ("Alabama mostly opposes data centers."). Its
+topic control lists every live story on both story pages.
 
 Verdict: approve-with-nits. The read-only reviewer's Important findings are fixed. The nits left are pre-existing
 evidence gaps on a few tiles, plus the convergence with #1243.
@@ -28,10 +32,13 @@ evidence gaps on a few tiles, plus the convergence with #1243.
 - Files changed: 18 (+1720 / -582, excluding this review file)
 - Areas touched: web_app, web_docs
 - Commits:
+  - be65a9d4 feat(stories): the title names the selected place from 5 meetings, and its topic control lists every live story
   - 113a143a feat(stories): topic stories go screen by screen like the Data Center Story, with swipe
   - 013cc20d feat(stories): topic screen headlines are short statements without counts; shared swipe hook
   - cc234b45 feat(stories): topic stories get one fixed Next, a Close (x) and no Next story button
-  - merges of `origin/main` (d04f6244 #1240, 182be05c #1248) and the bot review commits
+  - merges of `origin/main` (#1240, #1248, #1235, #1243, #1250, #1247, #1254, #1257, #1259, #1263) and the bot review commits. The #1243 merge
+    took its shared `StoryNextButton` / `StoryClose` / `ScopeBar` / `StoryBottomBar` over this branch's own versions,
+    and folded its DataStory machine changes into `useStoryScreens`.
 - Range reviewed: `merge-base(origin/main)..HEAD`
 
 ## CI Status
@@ -71,6 +78,14 @@ Both found by the read-only reviewer, verified and fixed in cc234b45:
 - `TopicStory.tsx`: the `aria-live` region re-announced each screen's loading placeholder and then its final headline.
   It now announces "<word>, N of M" once per screen change.
 
+Found while testing the later additions, verified and fixed in be65a9d4:
+- `useStoryScreens`: the cover observer measured its offset once at mount. When the title grew after load (a longer
+  conclusion on a phone), a reader settled on screen 1 still read as "on the cover", so the fixed Next started the story
+  again. This reproduced on Pixel 7 at `/stories/guns?state=OH`, where the step-through got stuck on the Overview. The
+  settled hold now sets `onCover`. This also guards the Data Center Story, and story-flow passes there.
+- `TopicStory`: the screens array was memoised on the availability string, so a screen's data turning from loading to
+  ready re-ran the landing effect. It now memoises on the screen ids, as DataStory does with `keepKey`.
+
 ### 🔵 Nits / suggestions (Minor)
 - **Fixed:** the Companies context counted named companies but the list showed every row. The list now shows `named`
   only.
@@ -78,10 +93,12 @@ Both found by the read-only reviewer, verified and fixed in cc234b45:
 - **Open (pre-existing):** a decision tile without a `description`, or a passage row without an `excerpt`, has no match
   evidence (CLAUDE.md, "Show the Match Evidence"). This was true of the old page too; it is more visible one screen at a
   time.
-- **Open (convergence):** `StoryNextButton` and `StoryClose` are topic-story components built to the owner's
-  2026-11-27 spec. #1243 is building the Data Center Story's pair. When both land they should share one component.
-- **Open:** the header title still carries counts and "(AI reading)", from `pickCaption`. #1243 rewrites `pickCaption`
-  to the short conclusion for every story, including the topic stories.
+- **Resolved:** the Close and Next components are now the shared #1243 pair, the same on both stories.
+- **Resolved:** titles are the short conclusion after #1243. With the new lower tier
+  (`LEAN_MIN_MEETINGS` = 5) they name the selected place. Vitest covers the tier boundaries: majority, split, under 5,
+  and "hates" at the floor.
+- **Open (wording):** a title whose words don't name the topic shows it in brackets ("Ohio mostly favors gun limits (gun
+  control ▾)."), so the topic stays a control. It reads plainly; the owner may prefer another spot.
 
 ## Repo-Rule Compliance
 | Rule | Pass? | Notes |
@@ -96,16 +113,22 @@ Both found by the read-only reviewer, verified and fixed in cc234b45:
 | Calendar years | n/a | |
 | Scope label matches filter | ✅ | `?state=` drives the label, queries and links; city degrades to its state with a note (#1186) |
 | Match evidence on filtered tiles | ⚠️ | Passages and decisions render the server's `<mark>` snippets through `highlightSnippet`; rows missing a snippet are a pre-existing gap |
-| Docs | ✅ | `guides/data-stories.md` section plus `development/topic-story-screens.md` |
+| Docs | ✅ | `guides/data-stories.md` section, `development/topic-story-screens.md`, and a dated decision in `development/story-captions.md` (owner's words) |
 | Telemetry and logging | n/a | No new fetch paths |
 | Tests | ✅ | `topicStoryScreens.test.ts`, `useSwipeNav.test.ts`; e2e `story-next.check.mjs` |
 | Shared libraries | n/a | |
 
 ## Test Coverage
-- Unit: `planTopicScreens` / `droppedNote` (keeps, drops, absent, error) and `swipeDirection`.
-- Local: `npx tsc --noEmit` clean; `npx vitest run` 77 files, 707 passed / 1 skipped; `npm run build` and the docs
+- Unit: `planTopicScreens` / `droppedNote` (keeps, drops, absent, error), `swipeDirection`, the `pickCaption` lower
+  tier, `withTopicBlank` and `storyTopicOptions`.
+- Local: `npx tsc --noEmit` clean; `npx vitest run` 78 files, 730 passed; `npm run build` and the docs
   build pass.
-- Browser: `node e2e/story-next.check.mjs` passes on all 9 runs (Pixel 7, iPhone 13 and 1440×900 on
+- Browser (after the final merge): `node e2e/story-next.check.mjs` passes on all 9 step-throughs and 4 title checks.
+  The title checks run at Pixel 7 and 1440×900 on `/stories/data-centers?state=AL` ("Alabama mostly opposes data
+  centers.") and `/stories/guns?state=OH` ("Ohio mostly favors gun limits (gun control)."). Each confirms the place word
+  is the place control, the 20 live stories are listed, and a switch keeps `?state=` and opens the Overview.
+  `node e2e/story-flow.check.mjs` passes on the Data Center Story.
+- Step-throughs: `node e2e/story-next.check.mjs` passes on all 9 runs (Pixel 7, iPhone 13 and 1440×900 on
   `/stories/guns`, `/stories/pickleball?state=CA` and `/stories/water-fluoridation`). Each run steps every screen with
   Next, a segment and a swipe. It checks that each step lands, Next and Close keep their spots, and no Next story button
   shows.
