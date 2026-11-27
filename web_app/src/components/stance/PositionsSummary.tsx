@@ -5,6 +5,7 @@ import { fetchDataCenterDecisions } from '../../api/dataCenters'
 import { storyScopeLabel, type StoryScope } from '../../utils/dataStory'
 import {
   disagreementLine,
+  disagreementParts,
   namedSides,
   namedSidesClause,
   officialPositionsLine,
@@ -50,10 +51,14 @@ export default function PositionsSummary({
   const label = storyScopeLabel(scope)
   const where = scope.stateName ? `In ${label}` : 'Across America'
   const pub = publicPositionsLine(e)
-  const named = namedSidesClause(namedSides(decisionsQ.data?.items))
+  // Named people only from a complete list: a capped list would undercount and still read as the scope's total.
+  const dec = decisionsQ.data
+  const complete = Boolean(dec && dec.counts.contested != null && dec.counts.uncontested != null && dec.items.length >= dec.counts.contested + dec.counts.uncontested)
+  const named = complete && dec ? namedSidesClause(namedSides(dec.items)) : null
   const off = officialPositionsLine(e)
   const officials = off ? [off, named].filter(Boolean).join('; ') : named ? `Officials: ${named}` : null
   const dis = disagreementLine(e, where)
+  const parts = disagreementParts(e, where)
   if (only === 'disagreement' ? !dis : !pub && !officials && !dis) return null
   const n = e.disagreement ?? 0
   return (
@@ -70,11 +75,11 @@ export default function PositionsSummary({
       {dis && !headlined && (
         <p className="stance-positions-disagree" data-testid="positions-disagreement">
           {/* The count is the tap target; the sentence reads the same with or without it. */}
-          {dis.split(String(n.toLocaleString('en-US')))[0]}
+          {parts!.before}
           <DrillValue text label="meetings where officials sided against the public" open={open} controls={sheetId} onToggle={() => setOpen((o) => !o)}>
-            {n.toLocaleString('en-US')}
+            {parts!.count}
           </DrillValue>
-          {dis.slice(dis.indexOf(n.toLocaleString('en-US')) + n.toLocaleString('en-US').length)}
+          {parts!.after}
         </p>
       )}
       {open && (

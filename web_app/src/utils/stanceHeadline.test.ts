@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TopicCaptionFacts } from '../api/topics'
 import type { StoryScope } from './dataStory'
 import { captionSubhead, captionText, pickCaption, type Caption } from './storyCaption'
-import { STANCE_MIN_DECISIONS, STANCE_MIN_POSITION_MEETINGS, STANCE_MIN_SPEAKERS, disagreementLine, evidenceFacts, namedSides, namedSidesClause, officialPositionsLine, publicPositionsLine, recordedEvidence, stanceSide, voteSide } from './stanceEvidence'
+import { STANCE_MIN_DECISIONS, STANCE_MIN_POSITION_MEETINGS, STANCE_MIN_SPEAKERS, disagreementLine, disagreementParts, evidenceFacts, namedSides, namedSidesClause, officialPositionsLine, publicPositionsLine, recordedEvidence, stanceSide, voteSide } from './stanceEvidence'
 
 // Test stand-ins shaped like the caption-facts response (#1289). The Alabama fixture mirrors what the live API returned
 // for /stories/data-centers?state=AL on 2026-11-27, the page the owner reported.
@@ -260,5 +260,16 @@ describe('#1330: named supporters and opposers come from #1327 supported_by / op
     expect(namedSidesClause(namedSides(items))).toBe('named supporters 2 · opposers 1')
     expect(namedSides([{}, {}])).toBeNull()
     expect(namedSidesClause({ supporters: 0, opposers: 0 })).toBeNull()
+  })
+})
+
+describe('#1330: the disagreement count is its own part, and singular reads right', () => {
+  it('splits into before / count / after, and "1 of 1 meeting"', () => {
+    const e = recordedEvidence(facts({ stateCode: 'AL', stateName: 'Alabama', city: 'District 1' }, { disagreement_meetings: 1, both_position_meetings: 1 }))
+    expect(disagreementParts(e, 'In District 1, Alabama')).toEqual({
+      before: 'In District 1, Alabama, officials sided against the public in ',
+      count: '1',
+      after: ' of 1 meeting where both took a side.',
+    })
   })
 })

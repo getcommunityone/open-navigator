@@ -552,8 +552,9 @@ async def topic_caption_facts(
                 "disagreement_meetings": int(r["disagreement_meetings"] or 0),
                 "disagreement_states": int(r["disagreement_states"] or 0),
             }
-            # #1330: officials' position and the meetings with any position; left out (null) on an older reading
-            # without the columns, never a 0 that would read as "none".
+            # #1330: officials' position and the meetings with any position, copied when the row has them. Both lean
+            # marts carry official_lean / official_lean_p; a copy without them fails the whole read in _optional, which
+            # leaves every lean field null (never a 0 that would read as "none").
             for k in ("official_against_meetings", "official_for_meetings", "official_divided_meetings",
                       "position_meetings", "both_position_meetings"):
                 if r.get(k) is not None:

@@ -102,9 +102,21 @@ const meetings = (n: number) => `${fmtN(n)} ${n === 1 ? 'meeting' : 'meetings'}`
  * never did or the reading isn't loaded. `where` is "In Georgia" / "Across America".
  */
 export function disagreementLine(e: RecordedEvidence, where: string): string | null {
+  const p = disagreementParts(e, where)
+  return p ? `${p.before}${p.count}${p.after}` : null
+}
+
+/** The same line in three parts, so the count alone can be the tap target (never a search for the number in the text). */
+export function disagreementParts(e: RecordedEvidence, where: string): { before: string; count: string; after: string } | null {
   if (!e.disagreement || e.disagreement <= 0) return null
-  const of = e.bothPositionMeetings != null && e.bothPositionMeetings >= e.disagreement ? ` of ${fmtN(e.bothPositionMeetings)}` : ''
-  return `${where}, officials sided against the public in ${fmtN(e.disagreement)}${of} ${e.disagreement === 1 && !of ? 'meeting' : 'meetings'}${of ? ' where both took a side' : ''}.`
+  const both = e.bothPositionMeetings
+  const of = both != null && both >= e.disagreement ? ` of ${fmtN(both)}` : ''
+  const noun = (of ? both! : e.disagreement) === 1 ? 'meeting' : 'meetings'
+  return {
+    before: `${where}, officials sided against the public in `,
+    count: fmtN(e.disagreement),
+    after: `${of} ${noun}${of ? ` where both took a side` : ''}.`,
+  }
 }
 
 /** "Public: 6 against · 2 split (8 meetings)" (#1330): the public's positions read, no zero side; null with none read. */
@@ -121,7 +133,7 @@ export function publicPositionsLine(e: RecordedEvidence): string | null {
 }
 
 /**
- * "Officials: 7 against · 8 for · 13 divided (28 meetings); votes 1 for · 0 against" (#1330): officials' positions read and
+ * "Officials: 7 against · 8 for · 13 divided (28 meetings); recorded votes: 1 decision for, 0 against" (#1330): officials' positions read and
  * the recorded votes by which way they went; null with neither.
  */
 export function officialPositionsLine(e: RecordedEvidence): string | null {
