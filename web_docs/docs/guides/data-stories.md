@@ -144,7 +144,7 @@ confusing."):
 | Who spoke (`positions`) | The public's position in the meetings the AI read, one bar per position in the topic's words (against, for, split, didn't speak on it), with the headline's conclusion (majority, split, or too few). Meetings, never counted speakers. | No AI reading served for the scope. |
 | Companies (`companies`) | The platforms named in the record (topics with a companies list, today short-term rentals). | No company named in scope; topics without a list never have it. |
 | What was said (`said`) | Meeting passages quoted from the transcript with the matched words marked, each with who spoke and the meeting's position (see "People and position on What was said" below); meetings where the public took a position first, then a vote or a named speaker, then **Mentioned in passing**; **Show more meetings**. | No meetings in scope. |
-| Decisions (`decided`) | Decisions whose record mentions the topic, split into **Decisions on <topic>** and **Mentioned in passing** (see "Decisions: on the topic or in passing" below), each linking its meeting and its page, with **See all**. | None in scope. |
+| Decisions (`decided`) | Decisions whose record mentions the topic, split into **Decisions on [topic]** and **Mentioned in passing** (see "Decisions: on the topic or in passing" below), each linking its meeting and its page, with **See all**. | None in scope. |
 | Recap (`recap`) | The scope's counts and small text links on (every decision, Browse topics, all stories); Next becomes **Done**. | Never. |
 
 A screen left out is not a step, a segment or a Next target, and the Overview says which ones and why ("Not in this story
@@ -228,7 +228,7 @@ or statement matched the topic's keywords, with deterministic rules and no model
    gun. Always **Mentioned in passing**.
 2. **Wording that names the policy** the topic's question asks about (`llm.typesafe.topic_lean.TOPICS`, its subject,
    excludes and outcomes; `utils/topicPositions.ts`): "prohibiting felons from possessing firearms", an assault-weapons
-   resolution, a shooting-range rezoning, "fluoridation", "short-term rental". **Decisions on <topic>**.
+   resolution, a shooting-range rezoning, "fluoridation", "short-term rental". **Decisions on [topic]**.
 3. **Wording that can be either** (a gun store's sale permit, a licence, a special use): on the topic only when the
    meeting's reading says the public took a side there. The body approving a store's permit is not enough.
 4. **Anything else**, and every decision of a topic without rules: on the topic only when the meeting's reading says the
