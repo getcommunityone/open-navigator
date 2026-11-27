@@ -70,7 +70,7 @@ def test_scope_sql_excludes_non_meetings():
 def _inv(target=(), local=()):
     inv = dma.Inventory()
     for rel in target:
-        inv.add(dma.Location("target", "onedrive:CommunityOne/youtube_audio", rel, 10))
+        inv.add(dma.Location("target", "gdrive:CommunityOne/youtube_audio", rel, 10))
     for rel in local:
         inv.add(dma.Location("local", "/data/cache/youtube_audio", rel, 10))
     return inv
@@ -258,24 +258,38 @@ def test_db_failure_after_upload_rolls_back_and_continues(tmp_path: Path):
     assert stats.done == 2 and stats.not_recorded == 2 and conn.rolled_back == 2
 
 
-def test_onedrive_listing_parses_rclone_output(monkeypatch):
+def test_rclone_listing_parses_rclone_output(monkeypatch):
     class P:
         returncode = 0
         stdout = "123\tva/x_uc1/2026-01-05_a [abcdefghijk].opus\n9\tnotes.txt\n"
         stderr = ""
 
     monkeypatch.setattr(dma.subprocess, "run", lambda *a, **k: P())
-    files = dma.OneDriveTarget(
-        remote="onedrive", root="CommunityOne/youtube_audio"
+    files = dma.RcloneTarget(
+        remote="gdrive", root="CommunityOne/youtube_audio"
     ).listing()
     assert files == {"va/x_uc1/2026-01-05_a [abcdefghijk].opus": 123}
 
 
-def test_onedrive_listing_missing_folder_is_empty(monkeypatch):
+def test_rclone_listing_missing_folder_is_empty(monkeypatch):
     class P:
         returncode = 3
         stdout = ""
         stderr = "error listing: directory not found"
 
     monkeypatch.setattr(dma.subprocess, "run", lambda *a, **k: P())
-    assert dma.OneDriveTarget().listing() == {}
+    assert dma.RcloneTarget().listing() == {}
+
+
+def test_defaults_point_at_google_drive_youtube_audio():
+    args = dma.parse_args(["--data-centers-2026"])
+    target = dma.build_target(args)
+    assert isinstance(target, dma.RcloneTarget)
+    assert target.display("") == "gdrive:CommunityOne/youtube_audio"
+    other = dma.build_target(dma.parse_args(["--source", "suiteone"]))
+    assert other.display("") == "gdrive:CommunityOne/suiteone_audio"
+
+
+def test_local_target_still_works(tmp_path: Path):
+    args = dma.parse_args(["--target", "local", "--output-dir", str(tmp_path)])
+    assert isinstance(dma.build_target(args), dma.LocalTarget)

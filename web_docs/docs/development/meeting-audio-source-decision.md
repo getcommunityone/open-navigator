@@ -7,7 +7,8 @@ description: Why meeting audio for diarization is downloaded from YouTube, where
 # Meeting audio source decision
 
 Decided November 27, 2026, by the owner, in session. Logged in
-[#1255](https://github.com/getcommunityone/open-navigator/issues/1255). Follow-up to prefer government
+[#1255](https://github.com/getcommunityone/open-navigator/issues/1255) and
+[#1270](https://github.com/getcommunityone/open-navigator/issues/1270). Follow-up to prefer government
 portals: [#1256](https://github.com/getcommunityone/open-navigator/issues/1256).
 
 ## What was decided
@@ -20,13 +21,15 @@ terms-of-service risk of downloading public government meeting recordings from Y
 - **Scope:** the 2026 data-center meetings (the videos behind `public.data_center_meeting_mention` and
   `public.data_center_meeting_lean` with a 2026 `meeting_date`), minus the rows
   `public.meeting_video_kind` marks as not a public meeting. On November 27, 2026 that was 942 videos.
-- **Where the audio goes:** the owner's **personal** OneDrive, never the "OneDrive - CDC" employer
-  account. The existing `CommunityOne` YouTube audio folder holds YouTube audio; other sources get
-  sibling folders under `CommunityOne` (`suiteone_audio`, `granicus_audio`), set by `--source`.
-  Uploads go through the OneDrive API (rclone), not the synced folder under `C:\Users\…\OneDrive`,
-  because C: is nearly full.
+- **Where the audio goes:** the owner's personal **Google Drive**, in the existing
+  `CommunityOne/youtube_audio` folder (owner, November 27, 2026: "I mean to use Google Drive, not
+  OneDrive"; the first plan named OneDrive and was dropped the same day,
+  [#1270](https://github.com/getcommunityone/open-navigator/issues/1270)). Other sources get sibling
+  folders under `CommunityOne` (`suiteone_audio`, `granicus_audio`), set by `--source`. Uploads go
+  through the Drive API with rclone (remote `gdrive`), never through the Drive-for-desktop mount
+  (`I:\My Drive`), whose cache sits on the nearly full C: disk.
 - **Don't download twice** (owner, November 27, 2026): every run first inventories what we hold
-  (the OneDrive folder, the bronze tracking columns, `data/cache/youtube_audio`) keyed by `video_id`
+  (the Google Drive folder, the bronze tracking columns, `data/cache/youtube_audio`) keyed by `video_id`
   and skips it. A file held only locally is uploaded, not downloaded again.
 
 ## The conflict with AGENTS.md
@@ -58,4 +61,4 @@ its terms allow access. Preferring it is [#1256](https://github.com/getcommunity
 
 ## How to run it
 
-`packages/scrapers/src/scrapers/youtube/README_AUDIO_DOWNLOAD.md`, section "Meeting audio to OneDrive".
+`packages/scrapers/src/scrapers/youtube/README_AUDIO_DOWNLOAD.md`, section "Meeting audio to Google Drive".
