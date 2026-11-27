@@ -3,6 +3,7 @@
  * My account includes profile fields, location, and Following tabs (from Profile).
  */
 import { useState, useEffect, useCallback } from 'react'
+import { SOUND_EVENT, readSoundSetting, writeSoundSetting } from '../utils/stanceSound'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import AddressLookup from '../components/AddressLookup'
@@ -236,8 +237,11 @@ export default function Settings() {
         </div>
 
         {!user ? (
-          <div className="flex flex-1 items-center justify-center px-6">
-            <p className="text-slate-600">Please sign in to access settings.</p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
+            <p className="text-slate-600">Please sign in to access your account settings.</p>
+            <div className="w-full max-w-md">
+              <StorySoundSetting />
+            </div>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
@@ -449,6 +453,7 @@ export default function Settings() {
                   <p className="text-sm text-slate-500 mb-2">
                     Maps, scorecards, and data-quality tools for the public site
                   </p>
+                  <StorySoundSetting />
                   {linkCard(
                     'Data explorer — map',
                     'ACS choropleth and drill-downs',
@@ -574,6 +579,35 @@ function TextInput({
         }`}
       />
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+    </div>
+  )
+}
+
+/** "Play sound in stories" (#1319): a device setting kept in localStorage, off until chosen. Stories and the site menu follow it live. */
+function StorySoundSetting() {
+  const [on, setOn] = useState(() => readSoundSetting())
+  useEffect(() => {
+    const h = () => setOn(readSoundSetting())
+    window.addEventListener(SOUND_EVENT, h)
+    return () => window.removeEventListener(SOUND_EVENT, h)
+  }, [])
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div>
+        <p className="text-sm font-medium text-slate-900">Play sound in stories</p>
+        <p className="text-xs text-slate-500">Soft page-turn cues while you read. Off by default; saved on this device.</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label="Play sound in stories"
+        data-testid="settings-story-sound"
+        onClick={() => writeSoundSetting(!on)}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${on ? 'bg-emerald-600' : 'bg-slate-300'}`}
+      >
+        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      </button>
     </div>
   )
 }

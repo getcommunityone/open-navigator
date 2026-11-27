@@ -1467,37 +1467,6 @@ select.stance-blank {
   }
 }
 
-/* The sound switch in the top bar. */
-.stance-top-actions {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.stance-sound {
-  margin-top: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.stance-sound[aria-pressed='false'] {
-  color: var(--ink-2);
-}
-/* Phones: sound is set in the site menu (#1017). The story's one exit is the "← Data stories" crumb (#1192). */
-@media (max-width: 767px) {
-  .stance-top-actions .stance-sound {
-    display: none;
-  }
-}
-@media (max-width: 767px) {
-  .stance-sound {
-    min-height: 44px;
-    min-width: 44px;
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-}
-
 /* A phone shows the round on one screen: the chart folds away once the question is asked, and the finding is the title. */
 @media (max-width: 767px) {
   .stance-game[data-beats] .stance-act {
@@ -2144,17 +2113,6 @@ html.stance-snap {
 
 /* On a phone the story keeps its top bar short: the sound switch is its icon (the words stay for a screen reader). */
 @media (max-width: 767px) {
-  .stance-story .stance-sound-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-  .stance-story .stance-sound {
-    justify-content: center;
-  }
 }
 /* A screen is only a starting point for Tab (tabindex -1), never a control: it takes focus without a ring. */
 .folio .stance-act[tabindex='-1']:focus-visible {

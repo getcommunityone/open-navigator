@@ -10,6 +10,7 @@ import asyncio
 from datetime import date
 from typing import Any
 
+import asyncpg
 import httpx
 import pytest
 from fastapi import FastAPI
@@ -18,21 +19,32 @@ from api.routes import search, topics
 
 
 class _Conn:
+    """A serving copy without the people/position tables (#1293): the /meetings people query fails, so these tests
+    cover the plain-list fallback; tests/test_api_topic_said.py covers the people query."""
+
     def __init__(self, rows=None, total: int = 0, row=None):
         self.rows = rows or []
         self.total = total
         self.row = row
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
 
+    @staticmethod
+    def _said(sql: str) -> None:
+        if "WITH scoped" in sql:
+            raise asyncpg.exceptions.UndefinedTableError('relation "meeting_comment" does not exist')
+
     async def fetch(self, sql: str, *params: Any):
+        self._said(sql)
         self.calls.append((sql, params))
         return self.rows
 
     async def fetchval(self, sql: str, *params: Any):
+        self._said(sql)
         self.calls.append((sql, params))
         return self.total
 
     async def fetchrow(self, sql: str, *params: Any):
+        self._said(sql)
         self.calls.append((sql, params))
         return self.row
 
@@ -183,7 +195,7 @@ def test_topic_meetings_returns_highlighted_passages_in_scope(get):
 def test_topic_meetings_national_scope_passes_nulls(get):
     conn = _Conn(total=0, rows=[])
     body = get(conn, "/api/topics/51/meetings").json()
-    assert body == {"topic_id": 51, "total": 0, "items": []}
+    assert body == {"topic_id": 51, "total": 0, "items": [], "position_counts": None}
     assert conn.calls[0][1] == (51, None, None)
 
 

@@ -53,6 +53,12 @@ Caveat, stated so it can be revisited: a vote "for" means the motion passed, and
 (a moratorium or a strict ordinance). Summed votes are the owner's proxy for which way officials went until decisions carry
 a direction of their own.
 
+Update (27 Nov 2026, #1313): the title reads "Not enough recorded activity on [data centers ▾] to say.", with the topic
+as an inline control. It used to be "… to say ( ▾ )." with an empty picker in brackets. The basis names each source and its
+scope, so the two lines can't contradict: "One decision passed 8–1; no public speakers in 24 meetings reviewed by hand. A
+reading of all 71 meeting transcripts found the public speaking on data centers in 8 (6 against and 2 split)." With no
+public comment found it says so, and it adds how many meetings are not read yet.
+
 Contract: `GET /api/topics/{topic}/caption-facts` adds `speakers.meetings_reviewed` and
 `votes: {decisions, for, against} | null` (data centers only; null when no meeting in scope was reviewed).
 

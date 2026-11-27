@@ -55,6 +55,15 @@ Owner, 27 Nov 2026: with Tuscaloosa, AL chosen, the Overview said "A data center
 - **No "AI reading" label** on the home topic-strip tiles.
 - `web_app/e2e/place-scope.check.mjs` checks the zoom, the pin, the reason, "× National" and the story note at 1440×900 and Pixel 7.
 
+### The home map at a state or city (#1307)
+
+Owner, 27 Nov 2026, on `/?state=AL&city=Tuscaloosa` after #1285: "The Alabama map should match the drill-down one; I have no clue what this is." The zoomed home map was the national box grid cropped to the state, every box the same colour.
+
+- **Data centers.** With home scoped to a state, or to a city that resolves to its state, the hero map is the story Overview's own state map (`StoryCountyMap`, reused). It shows the state's counties, the meeting towns as labelled rings, and the stance legend, from `GET /api/data-centers/meeting-mentions?state=` (`counts.by_place`, `items`). The chosen city's ring is bold and dark and its label bold teal, and its county stands out. The caption, legend and data table under the map are the state map's.
+- **Hover and click.** On a desktop, hovering a county shows its card in the slot under **Start the … story** (the hint reads "Pick a county or a town on the map to open its story."). Clicking a county, or a town ring, opens the Data Center Story at that state, at the county's town with the most meetings on record, or at the ring's town (`/stories/data-centers?state=AL&city=Auburn`). Enter does the same from the keyboard. On a phone a tap drills.
+- **Topic cards.** Topics have no county or town data, so a state-scoped topic card draws the state's outline only, never a box grid. A line says so: "Alabama: 386 meetings on record. These meetings aren't mapped by county or town yet, so the state is drawn as its outline." The asked city is marked where its record has a coordinate. Hovering the state shows its card, and a click opens its story.
+- `StoryCountyMap` gains two optional props for this, `cardSlot` and `onDrill`. Without them it behaves as before on the story pages.
+
 ### Which meeting a map card quotes (#1230)
 
 **Changed 26 Nov 2026 ([#1230](https://github.com/getcommunityone/open-navigator/issues/1230)).** The owner did not believe
@@ -143,8 +152,8 @@ confusing."):
 | Over time (`timeline`) | The trend line with its milestone track and the period dumbbell (#1140). | No meetings on record in scope. |
 | Who spoke (`positions`) | The public's position in the meetings the AI read, one bar per position in the topic's words (against, for, split, didn't speak on it), with the headline's conclusion (majority, split, or too few). Meetings, never counted speakers. | No AI reading served for the scope. |
 | Companies (`companies`) | The platforms named in the record (topics with a companies list, today short-term rentals). | No company named in scope; topics without a list never have it. |
-| What was said (`said`) | Meeting passages, newest first, quoted from the transcript with the matched words marked; **Show more meetings**. | No meetings in scope. |
-| Decisions (`decided`) | Decisions whose record mentions the topic, with **See all**. | None in scope. |
+| What was said (`said`) | Meeting passages quoted from the transcript with the matched words marked, each with who spoke and the meeting's position (see "People and position on What was said" below); meetings where the public took a position first, then a vote or a named speaker, then **Mentioned in passing**; **Show more meetings**. | No meetings in scope. |
+| Decisions (`decided`) | Decisions whose record mentions the topic, split into **Decisions on [topic]** and **Mentioned in passing** (see "Decisions: on the topic or in passing" below), each linking its meeting and its page, with **See all**. | None in scope. |
 | Recap (`recap`) | The scope's counts and small text links on (every decision, Browse topics, all stories); Next becomes **Done**. | Never. |
 
 A screen left out is not a step, a segment or a Next target, and the Overview says which ones and why ("Not in this story
@@ -174,6 +183,76 @@ previous), through the same function as Next and the arrow keys
 or anything that scrolls sideways itself is left to it.
 
 Design note: [Topic stories, screen by screen](../development/topic-story-screens.md).
+
+### People and position on What was said (#1293)
+
+Owner, 27 Nov 2026: "We need people and position." The Georgia water-fluoridation screen listed nine meetings newest first,
+and its first card quoted staff converting a fluoride feed system with no person and no position. Each card now shows:
+
+- **The meeting as the link.** Its name and date open the recording (or the meeting page when there is no recording), and
+  on a phone the whole card is the tap target. **Watch the meeting ↗** and **Meeting page** stay as separate links. Topic
+  passages carry no timestamp, so the recording opens at the start.
+- **Who spoke, only from the record.** "Said by Amy N. · Resident" when the quoted passage's speaker introduced themselves
+  (`meeting_passage_speaker`, #1231 / #1245); otherwise **Speaker not identified**. A second line names up to three people
+  whose own words in that meeting matched the topic ("Also spoke on it: Tracy B., Lee K. and 2 more", from
+  `meeting_comment.topic_ids`). Residents are "First L." at most (the API cuts any fuller name again); possible minors,
+  staff and applicants, and everyone at a school-board meeting (a `school_district` jurisdiction, or a jurisdiction or title
+  naming a school board, the same rule as `meeting_speaker_intro`) are never named. Officials matched to our officials
+  data keep their name and title.
+- **Position chips, labelled by source.** No per-speaker stance is published yet, so a chip is never the speaker's. The
+  most specific real source is the meeting's AI reading (`topic_meeting_lean`, the map's thresholds): **Public at this
+  meeting: …** in the topic's own words (for water fluoridation its five positions, such as "Oppose, each community
+  decides", only when they agree with the lean's side), then **Council or board: …** from what the body did (`outcome_group`,
+  the Votes screen's source: "Voted to keep or start fluoridation"). A meeting with neither gets no chip. A keyword false
+  hit (`excluded_no_item`) has no public side and no vote.
+- **Order and the summary.** With `sort=people` the list puts meetings where the public took a position first, then a vote
+  or a named person, then the rest under **Mentioned in passing**, newest first within each, and a named person first
+  inside a group. The line above the cards comes from the scope's real counts (`position_counts`): "Of 9 meetings: the
+  public took no position at any of them. A council or board acted at 4 (4 voted to keep or start fluoridation). 5 only
+  mentioned it in passing."
+
+API: `GET /api/topics/{topic_id}/meetings?sort=newest|people` adds, per item, `speaker_display_name`, `speaker_role`,
+`commenters`, `commenter_count`, `public_stance`, `public_position`, `vote`, `position`, `position_source`
+(`speaker` | `meeting` | `vote`, or null), `in_passing` and `meeting_url`, and on the first page `position_counts`. All are
+optional and the default order is unchanged; a serving copy without the lean, speaker or comment tables gets the plain list.
+
+On the local warehouse (27 Nov 2026), across the 17,645 meetings of the 19 topic stories (data centers has its own story):
+4,277 cards (24%) name a person (705 the quoted speaker, 4,057 at least one commenter on the topic), 1,825 (10%) carry the
+meeting's public position and 2,807 (16%) a council or board action (2,169 of them as the only chip), so 3,994 (23%) have a
+chip; none comes from a per-speaker stance. 10,838 (61%) are mentioned in passing. Georgia water fluoridation: 9 meetings, the public took no position at any (all read as "didn't speak on
+it"), 4 have a council action (voted to keep or start fluoridation), none names a speaker, 5 are mentioned in passing.
+
+The Data Center Story's Meetings screen does the same in its recording popup: the speaker as served and the
+**Public: …** line from `data_center_meeting_lean` (only the readings the maps serve).
+
+### Decisions: on the topic or in passing (#1293)
+
+Owner, 27 Nov 2026, on `/stories/guns?state=AL`: "This looks suspicious on all of these. We need drill-downs to the
+meetings." The list showed "Capital Improvement Plan Funds Reallocated from Firearms Training Project" (a budget move) and
+"Firearms Sale Permit Granted to Dunham's Athleisure Corporation" as decisions on gun control. A keyword hit is not a
+decision on the topic, so `GET /api/topics/{topic_id}/decisions?state=&city=&limit=` splits the decisions whose headline
+or statement matched the topic's keywords, with deterministic rules and no model call (`api/routes/topic_relevance.py`):
+
+1. **Off-topic wording first**: a budget move, a purchase, training, an award, a crime report, ShotSpotter, a tool called a
+   gun. Always **Mentioned in passing**.
+2. **Wording that names the policy** the topic's question asks about (`llm.typesafe.topic_lean.TOPICS`, its subject,
+   excludes and outcomes; `utils/topicPositions.ts`): "prohibiting felons from possessing firearms", an assault-weapons
+   resolution, a shooting-range rezoning, "fluoridation", "short-term rental". **Decisions on [topic]**.
+3. **Wording that can be either** (a gun store's sale permit, a licence, a special use): on the topic only when the
+   meeting's reading says the public took a side there. The body approving a store's permit is not enough.
+4. **Anything else**, and every decision of a topic without rules: on the topic only when the meeting's reading says the
+   body acted on the topic. If it can't be classified, it is in passing.
+
+Each panel takes its form from the shared display rule (`pickDisplay`, [#1289](https://github.com/getcommunityone/open-navigator/issues/1289)): the cards for a handful, otherwise a count sentence with the newest cards under a fold, so the matched passage is never dropped. The screen's line gives the real totals ("3 decisions on gun control; 6 more mention guns in passing."). Each card's title
+opens the decision page (`/decisions/:id`) and its meeting name and date open the recording (decisions carry no timestamp)
+or the meeting page; **Meeting page** and **Decision details** are separate links and the whole card is the tap target.
+Alabama guns on the local warehouse: 9 decisions, 3 on gun control (the Tuscaloosa legislative proposals on firearm
+possession), 6 in passing (the Shelby County reallocation and the Wetumpka sale permit among them).
+
+The Data Center Story's Decisions screen uses the same rules on `data_center_decision` headlines: its squares group into
+**On a data center** and **Mentioned in passing** (`counts.on_topic`, `counts.in_passing` on
+`GET /api/data-centers/decisions`), a square opens the decision page, else the meeting page, else the recording, and the
+screen's line says how many are on a data center.
 
 ## The heading is a sentence
 
@@ -633,7 +712,7 @@ When you stop on a screen that has a next step, the page draws your eye to it. A
 - It is never shown on a group of answers: no answer is pushed.
 - Focus does not move, nothing is announced to a screen reader, no control is added and nothing shifts.
 - With reduced motion nothing moves: an outline inside the button shows and goes, once per cue.
-- The hub cue is visual only. On the story, with **Sound on**, the first idle nudge also plays one soft page-turn cue, and advancing to a new screen plays the same soft cue (after your first click or key unlocks Web Audio). Answering still plays the lock cue. The challenge is louder: its arrow hops twice and the light is brighter, and its first idle cue plays a soft sound when sound is on (#966).
+- The hub cue is visual only. On the story, with **Play sound in stories** on (Settings, Site tab, or the site menu; off by default, #1319), the first idle nudge also plays one soft page-turn cue, and advancing to a new screen plays the same soft cue (after your first click or key unlocks Web Audio). Answering still plays the lock cue. The challenge is louder: its arrow hops twice and the light is brighter, and its first idle cue plays a soft sound when sound is on (#966).
 
 | Timing | Value | Constant |
 | --- | --- | --- |

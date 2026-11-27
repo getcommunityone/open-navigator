@@ -109,13 +109,25 @@ export interface DataCenterDecision {
   video_url?: string | null
   /** Site path of the decision's page; debated decisions only. */
   decision_url?: string | null
+  /** The meeting's page in the app (#1293). */
+  meeting_url?: string | null
+  /** On a data center, or only mentioning one (#1293, api/routes/topic_relevance.py). Absent on older servers. */
+  relevance?: 'on_topic' | 'in_passing' | null
+  relevance_basis?: string | null
 }
 
 export interface DataCenterDecisionsResponse {
   scope: Schemas['JobClaimScope']
   /** False when the table is not in the database yet: every count is null, not zero. */
   available: boolean
-  counts: { contested?: number | null; uncontested?: number | null; meetings?: number | null }
+  counts: {
+    contested?: number | null
+    uncontested?: number | null
+    meetings?: number | null
+    /** #1293: whole-scope split; absent on older servers. */
+    on_topic?: number | null
+    in_passing?: number | null
+  }
   items: DataCenterDecision[]
 }
 

@@ -17,7 +17,7 @@ export interface CueNote {
   gain: number
 }
 
-/** The device setting: "on" or "off", default on. */
+/** The device setting: "on" or "off", default off. */
 export const SOUND_KEY = 'stance.sound'
 /** All cues go through one master gain this quiet. */
 export const MASTER_GAIN = 0.15
@@ -62,19 +62,10 @@ export function cueNotes(cue: Cue, step = 0): CueNote[] {
 /** Seconds from the cue's start to the end of its last note. */
 export const cueLength = (cue: Cue, step = 0): number => Math.max(...cueNotes(cue, step).map((n) => n.start + n.duration))
 
-/** Phones start with sound off (#1017): the setting lives in the menu there, not in the story's header. */
-const isPhone = (): boolean => {
-  try {
-    return window.matchMedia('(max-width: 767px)').matches
-  } catch {
-    return false
-  }
-}
-
 /** Fired on window when the setting changes, so a story and the site menu stay in step. */
 export const SOUND_EVENT = 'stance-sound-change'
 
-/** The saved setting; when never set, on except on a phone. Storage that throws counts as the default. */
+/** The saved setting; when never set, off (#1319). Storage that throws counts as the default. */
 export function readSoundSetting(): boolean {
   try {
     const v = window.localStorage.getItem(SOUND_KEY)
@@ -83,7 +74,7 @@ export function readSoundSetting(): boolean {
   } catch {
     /* blocked storage: fall through to the default */
   }
-  return !isPhone()
+  return false
 }
 
 export function writeSoundSetting(on: boolean): void {

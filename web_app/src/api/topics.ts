@@ -51,22 +51,93 @@ export interface TopicMeeting {
   speaker_display_name?: string | null
   /** The official's title, or "Resident" when they said they live here; null otherwise. */
   speaker_role?: string | null
-  /** Only on `/states` `newest` (#1230): how the public leaned at this meeting in the AI reading (topic_meeting_lean,
-   *  same thresholds as the map): 'against' | 'for' | 'split' | 'silent', or null when not read. */
+  /** On `/states` `newest` (#1230) and `/meetings` (#1293): how the public leaned at this meeting in the AI reading
+   *  (topic_meeting_lean, same thresholds as the map): 'against' | 'for' | 'split' | 'silent', or null when not read. */
   public_stance?: 'against' | 'for' | 'split' | 'silent' | null
+  /** `/meetings` (#1293): the meeting's five-position public reading (water fluoridation), only when on the same side. */
+  public_position?: string | null
+  /** `/meetings`: what the council or board did on the topic, in the same AI reading. */
+  vote?: 'advanced' | 'blocked' | 'tabled_or_deferred' | null
+  /** `/meetings`: the card's position chip key and where it comes from; both null = no chip. 'meeting' is the meeting's
+   *  overall public position, never the quoted speaker's. */
+  position?: string | null
+  position_source?: 'speaker' | 'meeting' | 'vote' | null
+  /** `/meetings`: named public commenters whose words matched the topic ("First L."), up to 3, and how many in all. */
+  commenters?: string[]
+  commenter_count?: number
+  /** `/meetings`: no person, no public position and no vote on record. */
+  in_passing?: boolean
+  /** `/meetings`: the meeting's page in the app, or null. */
+  meeting_url?: string | null
+}
+
+/** `/meetings` (#1293): the scope's meetings by what the record says about people and positions. Never speakers. */
+export interface TopicSaidCounts {
+  against: number
+  for: number
+  split: number
+  silent: number
+  unread: number
+  vote_advanced: number
+  vote_blocked: number
+  vote_tabled: number
+  with_person: number
+  public_position_meetings: number
+  in_passing: number
 }
 
 export interface TopicMeetingList {
   topic_id: number
   total: number
   items: TopicMeeting[]
+  /** First page only; null on later pages or on a serving copy without the tables. */
+  position_counts?: TopicSaidCounts | null
 }
 
 export async function fetchTopicMeetings(
   topicId: number,
-  params: { state?: string; city?: string; limit?: number; offset?: number } = {},
+  params: { state?: string; city?: string; limit?: number; offset?: number; sort?: 'newest' | 'people' } = {},
 ): Promise<TopicMeetingList> {
   const res = await api.get<TopicMeetingList>(`/topics/${topicId}/meetings`, { params })
+  return res.data
+}
+
+/** A decision whose record matched the topic (#1293), with its meeting and why it is on the topic or only in passing. */
+export interface TopicDecision {
+  event_decision_id: string
+  title: string
+  /** Matched passage, terms in <mark> (render with highlightSnippet). */
+  excerpt?: string | null
+  outcome?: string | null
+  jurisdiction_name?: string | null
+  state_code?: string | null
+  state?: string | null
+  meeting_name?: string | null
+  meeting_date?: string | null
+  decision_url: string
+  meeting_url?: string | null
+  video_url?: string | null
+  video_id?: string | null
+  relevance: 'on_topic' | 'in_passing'
+  relevance_basis: string
+}
+
+export interface TopicDecisionList {
+  topic_id: number
+  topic_slug?: string | null
+  total: number
+  on_topic_total: number
+  in_passing_total: number
+  on_topic: TopicDecision[]
+  in_passing: TopicDecision[]
+}
+
+/** `GET /api/topics/{id}/decisions`: decisions on the topic and ones that only mention it (#1293). */
+export async function fetchTopicDecisions(
+  topicId: number,
+  params: { state?: string; city?: string; limit?: number } = {},
+): Promise<TopicDecisionList> {
+  const res = await api.get<TopicDecisionList>(`/topics/${topicId}/decisions`, { params })
   return res.data
 }
 

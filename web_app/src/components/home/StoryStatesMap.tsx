@@ -430,7 +430,34 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         aria-label={grid.zoomed ? `Map of ${stateName(zoom!.stateCode)} drawn as small boxes${zoom?.pin ? `, with ${zoom.pin.name} marked` : ''}. ${summary}` : summary}
         {...keyNav.svgProps}
       >
-        {boxes.map((b, i) => {
+        {/* Zoomed (#1307): no county or town data for this map, so the state is its outline only, never a uniform box grid
+            that looks like data. Hover shows its card; a click opens its story. */}
+        {grid.zoomed && zoom && grid.feats[0] && (
+          <path
+            d={featPath(grid.feats[0])}
+            data-state={zoom.stateCode}
+            data-active={shownCode ? '' : undefined}
+            fill={shownCode ? '#e7e5e4' : '#f5f5f4'}
+            stroke="#57534e"
+            strokeWidth={grid.step * 0.12}
+            strokeLinejoin="round"
+            style={{ cursor: 'pointer' }}
+            onMouseEnter={
+              touch
+                ? undefined
+                : () => {
+                    keepCard()
+                    keyNav.pointed()
+                    setHover(firstBox.get(zoom.stateCode) ?? null)
+                  }
+            }
+            onClick={() => {
+              const i = firstBox.get(zoom.stateCode)
+              if (i != null) onBox(i)
+            }}
+          />
+        )}
+        {!grid.zoomed && boxes.map((b, i) => {
           const active = !!shownCode && b.code === shownCode
           const muted = shownCode ? !active : !!highlight && b.code !== highlight
           const on = (meetings.get(b.code ?? '') ?? 0) > 0 || !!b.side
@@ -492,7 +519,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       </svg>
       {grid.zoomed && (
         <p className="mt-1 text-xs text-stone-600" data-zoom-note="">
-          {zoom?.pin ? `${stateName(zoom.stateCode)}, with ${zoom.pin.name} marked.` : zoom?.note ?? `${stateName(zoom!.stateCode)}.`}
+          {`${stateName(zoom!.stateCode)}: ${plural(meetings.get(zoom!.stateCode) ?? 0, 'meeting', 'meetings')} on record. These meetings aren't mapped by county or town yet, so the state is drawn as its outline.`}
+          {zoom?.pin ? ` ${zoom.pin.name} is marked.` : zoom?.note ? ` ${zoom.note}` : ''}
         </p>
       )}
 

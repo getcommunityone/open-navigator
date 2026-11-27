@@ -2198,6 +2198,13 @@ class DataCenterDecision(BaseModel):
     state_code: str | None = None
     video_url: str | None = None
     decision_url: str | None = Field(None, description="Site path of the decision's page; contested decisions only.")
+    meeting_url: str | None = Field(None, description="The meeting's page in the app (/meetings/{event_meeting_id}).")
+    relevance: Literal["on_topic", "in_passing"] | None = Field(
+        None,
+        description="#1293: 'on_topic' when the headline names a data center project or rule, 'in_passing' otherwise "
+        "(api/routes/topic_relevance.py, deterministic rules).",
+    )
+    relevance_basis: str | None = Field(None, description="Which rule decided; for audit.")
 
 
 class DataCenterDecisionCounts(BaseModel):
@@ -2206,6 +2213,8 @@ class DataCenterDecisionCounts(BaseModel):
     contested: int | None = None
     uncontested: int | None = None
     meetings: int | None = Field(None, description="Meetings the decisions were taken in.")
+    on_topic: int | None = Field(None, description="#1293: decisions on a data center (topic_relevance rules).")
+    in_passing: int | None = Field(None, description="#1293: decisions that only mention data centers.")
 
 
 class DataCenterDecisionsResponse(BaseModel):
@@ -2238,12 +2247,38 @@ def build_decision_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[
     item_params = [*params, limit]
     items_sql = (
         "SELECT d.data_center_decision_id, d.contested, d.headline, d.outcome, d.votes_for, d.votes_against, "
-        "d.vote_text, d.meeting_date, d.jurisdiction_name, d.state_code, d.video_url, d.decision_url "
+        "d.vote_text, d.meeting_date, d.jurisdiction_name, d.state_code, d.video_url, d.decision_url, "
+        "CASE WHEN d.event_meeting_id IS NOT NULL THEN '/meetings/' || d.event_meeting_id::text END AS meeting_url "
         f"FROM data_center_decision d WHERE {where_sql} "
         "ORDER BY d.meeting_date DESC NULLS LAST, d.data_center_decision_id "
         f"LIMIT ${len(item_params)}"
     )
     return counts_sql, params, items_sql, item_params
+
+
+def decision_headlines_sql(scope: JobClaimScope) -> tuple[str, list[Any]]:
+    """Every decision headline in scope, for the on-topic / in-passing counts (#1293)."""
+    where: list[str] = []
+    params: list[Any] = []
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"d.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"d.jurisdiction_name ILIKE ${len(params)}")
+    return f"SELECT d.headline FROM data_center_decision d WHERE {' AND '.join(where) or 'TRUE'}", params
+
+
+def mark_decision_relevance(counts: "DataCenterDecisionCounts", items: list["DataCenterDecision"], headlines: list[str | None]) -> None:
+    """Stamp each listed decision on-topic or in passing and count the whole scope (#1293). No reading is joined: the
+    data-center decisions carry only a headline, so an unsure one is in passing."""
+    from api.routes.topic_relevance import classify_decision
+
+    for it in items:
+        it.relevance, it.relevance_basis = classify_decision("data-centers", it.headline, None)
+    rels = [classify_decision("data-centers", h, None)[0] for h in headlines]
+    counts.on_topic = sum(1 for r in rels if r == "on_topic")
+    counts.in_passing = len(rels) - counts.on_topic
 
 
 @router.get("/decisions", response_model=DataCenterDecisionsResponse)
@@ -2282,6 +2317,8 @@ async def data_center_decisions(
                 with tracer.start_as_current_span("data-centers.decisions.query"):
                     count_rows = await conn.fetch(counts_sql, *params)
                     item_rows = await conn.fetch(items_sql, *item_params)
+                    head_sql, head_params = decision_headlines_sql(applied)
+                    headlines = [r["headline"] for r in await conn.fetch(head_sql, *head_params)]
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("decisions.relation_missing", True)
             logger.warning("data-centers: 'data_center_decision' isn't here yet ({}); unavailable", e)
@@ -2292,7 +2329,9 @@ async def data_center_decisions(
             raise HTTPException(status_code=500, detail="Failed to load data center decisions")
         counts = DataCenterDecisionCounts(**dict(count_rows[0])) if count_rows else DataCenterDecisionCounts()
         items = [DataCenterDecision(**dict(r)) for r in item_rows]
+        mark_decision_relevance(counts, items, headlines)
         span.set_attribute("decisions.items", len(items))
+        span.set_attribute("decisions.on_topic", counts.on_topic or 0)
         return DataCenterDecisionsResponse(scope=applied, counts=counts, items=items)
 
 
