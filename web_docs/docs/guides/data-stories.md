@@ -117,6 +117,14 @@ and tries, in order:
    show their question, and their tile keeps its blurb.
 
 The home story card uses the same title. No title or basis line ever states a zero.
+
+The home story card fits one laptop screen ([#1176](https://github.com/getcommunityone/open-navigator/issues/1176)). Its
+title is at most about 46px (three or four lines beside the map), and right under the subhead and basis line come
+**Start the story** and **Next story: [title] →** (the same `nextStoryLink` as the end of a story, carrying the place),
+then a line naming the scope in effect, "Showing Tuscaloosa, Alabama. Pick a state on the map to open its story.". Every
+topic card has Next story, not only data centers. On the data-center card the three numbered points follow the buttons.
+The map is capped at 60% of the screen height so it never pushes the card below the fold. At 1366×768 the buttons and
+the scope line are in view for the national and a city scope, and on a phone the buttons stack full width.
 A small line under the title gives the numbers behind it, and says when coverage varies by state. Every number is a real
 count for the scope; missing data falls through to the next rule. Thresholds and the reasons for them:
 [Story captions](../development/story-captions.md).

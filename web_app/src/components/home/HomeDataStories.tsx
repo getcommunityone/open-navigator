@@ -7,7 +7,7 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { fetchTopicCaptionFacts } from '../../api/topics'
 import { CAPTION_COPY, captionSubhead, captionText, pickCaption } from '../../utils/storyCaption'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
-import HomeTopicStoryCard from './HomeTopicStoryCard'
+import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { storyHeroPoints } from '../../utils/heroPoints'
@@ -151,7 +151,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
         {topicDef ? (
-          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} />
+          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} next={nextStoryLink(topicDef.slug, q, topicStories.live)} />
         ) : (
         <div className="home-story-card">
           <div className="home-story-text">
@@ -167,6 +167,16 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
                 {dcCaption.basis}
               </p>
             )}
+            {/* Next steps first (#1176): Start, Next story and the drill-down hint sit in the first screen. */}
+            <div className="home-story-actions">
+              <Link to={`/stories/data-centers${q}`} className="home-story-start">
+                Start the story{label === 'National' ? '' : ` for ${label}`} <span aria-hidden="true">→</span>
+              </Link>
+              <Link to={nextDc.href} className="home-story-next">
+                {nextDc.label} <span aria-hidden="true">→</span>
+              </Link>
+            </div>
+            <HomeStoryDrill label={label} />
             {points.length > 0 && (
               <ol className="home-story-points" aria-label={stateCode ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
                 {points.map((p) => {
@@ -187,14 +197,6 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
                 })}
               </ol>
             )}
-            <div className="home-story-actions">
-              <Link to={`/stories/data-centers${q}`} className="home-story-start">
-                Start the story{label === 'National' ? '' : ` for ${label}`} <span aria-hidden="true">→</span>
-              </Link>
-              <Link to={nextDc.href} className="home-story-next">
-                {nextDc.label} <span aria-hidden="true">→</span>
-              </Link>
-            </div>
           </div>
 
           <div className="home-story-map">
