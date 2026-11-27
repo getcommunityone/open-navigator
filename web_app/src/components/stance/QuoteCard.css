@@ -251,3 +251,94 @@ div.qcard-media {
     font-size: 21px;
   }
 }
+
+/* The recording playing in the card (#1277): 16:9, YouTube's own controls, no overlay. */
+.qcard-media--embed {
+  aspect-ratio: 16 / 9;
+  cursor: default;
+}
+.qcard-media--embed::after {
+  content: none;
+}
+.qcard-media--embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+/* The story maps' hover card (#1277): tighter, the quote clamped, so it fits in the map's bottom-left corner. */
+.qcard--compact .qcard-text {
+  padding: 10px 12px 12px;
+}
+.qcard--compact .qcard-quote {
+  margin-top: 6px;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qcard--compact .qcard-qmark {
+  font-size: 34px;
+  top: -4px;
+}
+.qcard--compact .qcard-speaker {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.qcard--compact .qcard-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+/* Fixed at the map's bottom-left corner on desktop (#1277), never beside the cursor. Phones get no card. The card lets the
+   mouse through to the states under it (so the corner's states can still be hovered and clicked), except a play button. */
+.map-hover-card {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 3;
+  width: min(264px, max(38%, 220px));
+  margin: 0;
+  pointer-events: none;
+}
+/* Only the still image's play button (keyboard, reduced motion) takes the mouse; the playing video lets it through too, so
+   a state under it can still be hovered and clicked. */
+.map-hover-card button.qcard-media {
+  pointer-events: auto;
+}
+.qcard--compact .qcard-where,
+.qcard--compact .qcard-meeting,
+.qcard--compact .qcard-stance {
+  font-size: 12px;
+}
+.qcard--compact .qcard-quote {
+  -webkit-line-clamp: 3;
+}
+.map-hover-open {
+  margin: 6px 0 0;
+  color: var(--qcard-teal);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.map-hover-here {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #115e59;
+}
+/* The hover card's attribution line under the speaker (#1277): meeting · place · date. */
+.qcard--compact .qcard-attrib {
+  margin-top: 6px;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qcard--compact .qcard-speaker + .qcard-attrib {
+  margin-top: 4px;
+}

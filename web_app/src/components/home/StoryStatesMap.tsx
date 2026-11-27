@@ -22,9 +22,9 @@ import {
 import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
-import { isTouchOnly } from '../../utils/touchOnly'
+import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { isCurrentPage } from '../../utils/currentPage'
-import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
 import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
@@ -194,8 +194,9 @@ interface Box {
  * The home page's story map (#985, #995, #1087): the country as a grid of small square boxes in each state's shape (the
  * Explore map's geometry). Where speakers are on record, a state's boxes are split in bands by the real counts of those who
  * spoke against, for, asked a question or took no side; a state with meetings but no speaker on record is one grey; a state
- * with none is the empty tint. Hovering (tapping, on a phone) a box shows one of that state's real passages, cycling through
- * them across its boxes; clicking opens that state's story. Nothing is drawn from a guess: no counts, no split.
+ * with none is the empty tint. On a desktop, hovering a state outlines it and shows one of its real passages in a card at the
+ * map's bottom-left, with the recording playing muted at the quoted moment (#1277); clicking opens that state's story. On a
+ * phone there is no card: a tap opens the state's story at once. Nothing is drawn from a guess: no counts, no split.
  */
 export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions }: Props) {
   const byMeetings = stanceUnit === 'meetings'
@@ -302,18 +303,18 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
 
   const shown = hover != null ? boxes[hover] : undefined
   const shownCode = shown?.code ?? null
-  // The card: one of the state's passages, cycling across its boxes (box index mod passages). A box in a side's band shows
-  // that side's own words when the state has some; otherwise the state's passages in turn.
+  // The card (#1277): one passage per state, the same wherever the mouse is in it, so its recording keeps playing while the
+  // pointer moves over the state's boxes. A named speaker's own words ("Rob D.") first, else the state's first passage (the
+  // order #1230 chose). Desktop only: a phone has no card.
   let quote: StateQuote | undefined
-  if (shown && shownCode) {
+  if (!touch && shown && shownCode) {
     const all = quotes?.get(shownCode) ?? []
-    // A named speaker's own words ("Rob D.") first, wherever the state has some; passages with no one named after.
     const named = all.filter((q) => q.speakerName)
-    const own = shown.side ? (named.some((q) => q.side === shown.side) ? named : all).filter((q) => q.side === shown.side) : []
-    const pool = named.length ? named : all
-    if (own.length) quote = own[shown.bandRank % own.length]
-    else if (pool.length) quote = pool[shown.rank % pool.length]
+    quote = (named.length ? named : all)[0]
   }
+  const shownFeat = shownCode ? grid.feats.find((f) => STATE_FIPS_TO_CODE[f.id] === shownCode) : undefined
+  // Autoplay only for the mouse, and not for a reader who asked for less motion or data: then the still image and a play button.
+  const inlineVideo = keyNav.keyed || prefersStillMedia() ? 'click' : 'autoplay'
   const shownStance = shownCode ? lineOf(stanceBy.get(shownCode)) : null
   // The card's state is the page the reader is on: no button to it, and the caption says so.
   const shownIsHere = shownCode ? isCurrentPage(href(shownCode), location.pathname, location.search) : false
@@ -321,7 +322,6 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const noReading = words ? words.unread.charAt(0).toLowerCase() + words.unread.slice(1) : 'no AI reading yet'
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
   const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
-  const left = shown ? (shown.x / W) * 100 : 0
   const size = grid.step * 0.8
   const pad = 4
 
@@ -340,27 +340,24 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       : '') +
     ' The data table below lists every state; its links open each state’s story.'
 
+  // A click (desktop) or a tap (phone, #1277: no card there) opens the state's story at once.
   const onBox = (i: number) => {
     const b = boxes[i]
     if (!b?.code) return
-    // On a phone (no hover) the first tap on a state with a card shows that state's card, whose "Open the … story" button
-    // is the way in (#1187); before, the tap navigated at once while the card still showed the page's own state, so its
-    // button led nowhere. A state with no card, or a second tap on the state shown, opens the story directly (#1120).
-    if (touch && b.code !== shownCode && (quotes?.get(b.code)?.length ?? 0) > 0) {
-      setHover(i)
-      return
-    }
-    setHover(i)
+    setHover(firstBox.get(b.code) ?? i)
     if (isCurrentPage(href(b.code), location.pathname, location.search)) return
     navigate(href(b.code), { state: DRILL_FROM_NATIONAL })
   }
 
   return (
-    <div style={{ position: 'relative' }} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+    <div>
+      {/* The map and its card: leaving both (not moving between them) hides the card and stops its recording. */}
+      <div style={{ position: 'relative' }} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
       {keyNav.sr}
       <svg viewBox={`${-pad} ${-pad} ${W + pad * 2} ${H + pad * 2}`} className="block h-auto w-full" aria-label={summary} {...keyNav.svgProps}>
         {boxes.map((b, i) => {
-          const muted = shownCode ? b.code !== shownCode : !!highlight && b.code !== highlight
+          const active = !!shownCode && b.code === shownCode
+          const muted = shownCode ? !active : !!highlight && b.code !== highlight
           const on = (meetings.get(b.code ?? '') ?? 0) > 0 || !!b.side
           const s = on ? size : size * 0.6
           return (
@@ -372,12 +369,21 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               width={s}
               height={s}
               rx={s * 0.12}
+              data-active={active ? '' : undefined}
               fill={colorOf(b)}
-              opacity={muted ? 0.7 : 1}
-              stroke={i === hover ? '#1c1917' : undefined}
-              strokeWidth={i === hover ? 1.5 : undefined}
+              opacity={muted ? (shownCode ? 0.45 : 0.7) : 1}
+              // The whole hovered state stands out (#1277), so it reads as one thing to click.
+              stroke={active ? '#1c1917' : undefined}
+              strokeWidth={active ? 0.9 : undefined}
               style={{ cursor: b.code ? 'pointer' : 'default' }}
-              onMouseEnter={touch ? undefined : () => setHover(i)}
+              onMouseEnter={
+                touch || !b.code
+                  ? undefined
+                  : () => {
+                      keyNav.pointed()
+                      setHover(firstBox.get(b.code!) ?? i)
+                    }
+              }
               onClick={() => onBox(i)}
             />
           )
@@ -388,13 +394,18 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             <path key={f.id} d={featPath(f)} />
           ))}
         </g>
+        {/* The hovered (or keyboard-chosen) state's outline, raised: dark and thick over everything else (#1277). */}
+        {shownFeat && (
+          <path d={featPath(shownFeat)} fill="none" stroke="#1c1917" strokeWidth={2.4} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
+        )}
       </svg>
 
       {shown && shownCode && quote && (
-        // At the top of the map, on the side away from the box, so it never covers the box it describes.
+        // Desktop only (#1277): fixed at the map's bottom-left, never beside the cursor; one recording at a time.
         <QuoteCard
-          className="home-map-card"
-          style={{ ...(left < 55 ? { right: 0, top: '2%' } : { left: 0, top: '2%' }), padding: 0, overflow: 'hidden' }}
+          className="map-hover-card"
+          compact
+          inlineVideo={inlineVideo}
           place={quote.place}
           date={quote.date}
           quote={excerptAroundMark(quote.text)}
@@ -407,55 +418,24 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           videoId={resolveVideoId(quote.videoId, quote.url)}
           startSeconds={quote.startSeconds ?? startFromUrl(quote.url)}
           url={quote.url}
-          summary={quote.summary ?? null}
-          analysisUrl={quote.analysisUrl ?? null}
         >
-          <p style={{ margin: '10px 0 0', paddingTop: 8, borderTop: '1px solid #e7e5e4', fontSize: 12, color: '#57534e' }}>
-            {stateName(shownCode)}: {plural(shownMeetings, 'meeting', 'meetings')}
-            {shownStance ? ` · ${shownStance}` : hasStance ? (byMeetings ? ` · ${noReading}` : ' · no stance on record') : ''}
+          {/* A label, not a link (#1277): the card lets the mouse through, and the state itself is what to click. */}
+          <p className={shownIsHere ? 'map-hover-here' : 'map-hover-open'}>
+            {shownIsHere
+              ? `You’re reading the ${stateName(shownCode)} story`
+              : keyNav.keyed
+                ? `Press Enter to open the ${stateName(shownCode)} story →`
+                : `Click ${stateName(shownCode)} to open its story →`}
           </p>
-          {shownLean && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#57534e' }}>{shownLean}</p>}
-          {/* A real button, not a caption (#1187): the way into the state's story, on desktop and phones alike. Inline
-              styles so it looks the same on the home page and on topic stories (outside .v9). */}
-          {shownIsHere ? (
-            // Already on this state's story: a link here would do nothing, so the card says where the reader is.
-            <p className="home-map-card-here" style={{ margin: '12px 0 0', fontSize: 14, fontWeight: 600, color: '#115e59', textAlign: 'center' }}>
-              You’re reading the {stateName(shownCode)} story
-            </p>
-          ) : (
-            <Link
-              to={href(shownCode)}
-              state={DRILL_FROM_NATIONAL}
-              className="home-map-card-open"
-              style={{
-                display: 'block',
-                margin: '12px 0 0',
-                padding: '12px 16px',
-                minHeight: 44,
-                boxSizing: 'border-box',
-                borderRadius: 999,
-                background: '#0f766e',
-                color: '#fff',
-                fontSize: 15,
-                fontWeight: 700,
-                lineHeight: 1.3,
-                textAlign: 'center',
-                textDecoration: 'none',
-              }}
-            >
-              Open the {stateName(shownCode)} story <span aria-hidden="true">→</span>
-            </Link>
-          )}
-          {/* On a phone nothing depends on hover (#1229): the card a tap opened closes here, or on a tap outside the map. */}
-          {touch && <MapCardClose onClose={keyNav.close} what={stateName(shownCode)} />}
         </QuoteCard>
       )}
+      </div>
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? (quote ? 'Tap the button, or tap the state again, to open its story; tap outside the map to close.' : 'Tap to open its story.') : 'Click to open its story.'}`
-          : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to read what was said, then open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? 'Tap a state to open its story.' : `Click ${stateName(shownCode)} to open its story.`}`
+          : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a state to hear what was said; click it to open that state’s story.'}`}
       </p>
 
       <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-tight text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>

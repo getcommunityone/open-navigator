@@ -1,14 +1,17 @@
-// Map taps check (#1229): on a phone, tapping states on the story maps, any number of times in any order, always shows the
-// tapped state's card (or opens its story on a second tap of the shown state, #1223), and nothing depends on hover: a card a
-// tap opened closes on its Close button or on a tap outside the map. Before, the map's svg took focus on the first tap, the
-// keyboard hook (#1146) picked the page's own state, and that card stayed pinned: every later tap went unseen ("Once I click
-// on one dot I can't click on a different one"). Also checks the desktop keyboard path still works.
+// Story map check (#1277; replaces the #1229 tap-card check). The owner, 27 Nov 2026: "Change to not have popup — nothing
+// on mobile. On desktop make the video start playing automatically with the card in the bottom left and no play button.
+// Make it more obvious to click to drill down on the chart for that state using the box."
+//
+//   Phones (Pixel 7, iPhone 13): no card ever; the hint "Tap a state to open its story" shows under the map; a tap on a
+//   state opens its story (the Overview narrows); on the county map a tap only lights that county.
+//   Desktop (1440x900): hovering a state outlines it and shows ONE card at the map's bottom-left, its recording an iframe
+//   whose src has autoplay=1&mute=1; another state swaps it; leaving the map removes it; keyboard focus shows the card with
+//   no autoplay; Enter and a click open the state's story.
 //
 //   node e2e/map-taps.check.mjs [--base http://localhost:5173] [--shots <dir>] [--only box,dot,desktop]
 //
 // Surfaces: a topic story's state box map (/stories/guns?state=AL), the home page map (/), and the Data Center story's
-// overview dot map and its county map after the drill-down (/stories/data-centers). Devices: Pixel 7, iPhone 13 (on
-// chromium) and a 1440x900 desktop. It reads the page and changes nothing. Exits 1 on any failure.
+// Overview dot map and its county map (/stories/data-centers). It reads the page and changes nothing. Exits 1 on any failure.
 import { chromium, devices } from 'playwright'
 
 const arg = (name, dflt) => {
@@ -17,7 +20,6 @@ const arg = (name, dflt) => {
 }
 const base = arg('base', 'http://localhost:5173')
 const shots = arg('shots', null)
-// --only box|dot|desktop: run one surface (all by default).
 const only = arg('only', null)
 const run = (name) => !only || only.split(',').includes(name)
 let failures = 0
@@ -32,20 +34,12 @@ const shot = async (page, name) => {
 const browser = await chromium.launch({ args: ['--disable-gpu', '--disable-software-rasterizer', '--use-gl=swiftshader'] })
 const here = (page) => page.url().replace(base, '')
 
-const STATE_NAMES = {
-  OR: 'Oregon', TX: 'Texas', NY: 'New York', UT: 'Utah', GA: 'Georgia', CA: 'California', OH: 'Ohio', VA: 'Virginia',
-  AZ: 'Arizona', WA: 'Washington', FL: 'Florida', PA: 'Pennsylvania', IL: 'Illinois', NC: 'North Carolina', MI: 'Michigan',
-  CO: 'Colorado', MN: 'Minnesota', AL: 'Alabama',
-}
-
 // In the page: the map svg on screen for a selector (a story keeps other screens' maps in the DOM, hidden).
 const VISIBLE = `(sel) => [...document.querySelectorAll(sel)].find((v) => v.getClientRects().length > 0 && v.getBoundingClientRect().width > 50) ?? null`
 
-/** A tap point (the box nearest the state's middle) for every state on the visible map. */
+/** A point (the shape nearest the state's middle) for every state on the visible map. */
 async function statePoints(page, sel) {
-  // Scrolled by the page, not Playwright's stability wait: a story's map may keep a gentle motion going.
   await page.evaluate(([sel, visible]) => eval(visible)(sel)?.scrollIntoView({ block: 'center' }), [sel, VISIBLE])
-  // Wait until the map stops moving (a screen arriving or a smooth scroll), so the tap lands where it was aimed.
   let last = null
   for (let i = 0; i < 20; i++) {
     await page.waitForTimeout(200)
@@ -75,106 +69,71 @@ async function statePoints(page, sel) {
   )
 }
 
-/** What the visible map shows: the readout line, the card's place, the outlined box's state. */
-function mapState(page, sel, readoutSel, cardSel) {
+/** What the visible map shows: the card (place, iframe src, where it sits), the lit state, the text under the map. */
+function mapState(page, sel, readoutSel) {
   return page.evaluate(
-    ([sel, readoutSel, cardSel, visible]) => {
+    ([sel, readoutSel, visible]) => {
       const svg = eval(visible)(sel)
-      const scope = svg?.closest('figure') ?? svg?.parentElement?.parentElement ?? document
       const stage = svg?.parentElement
-      const card = stage?.querySelector(cardSel)
+      const scope = svg?.closest('figure') ?? stage?.parentElement ?? document
+      const cards = [...document.querySelectorAll('.map-hover-card')].filter((c) => c.getClientRects().length > 0)
+      const card = cards[0] ?? null
+      const sb = stage?.getBoundingClientRect()
+      const cb = card?.getBoundingClientRect()
+      const lit = [...(svg?.querySelectorAll('[data-active]') ?? [])]
       return {
+        cards: cards.length,
+        place: card?.querySelector('.qcard-where')?.textContent ?? null,
+        iframes: document.querySelectorAll('.map-hover-card iframe').length,
+        src: card?.querySelector('iframe')?.getAttribute('src') ?? null,
+        playBtn: !!card?.querySelector('.qcard-play-btn'),
+        open: card?.querySelector('.map-hover-open, .map-hover-here')?.textContent ?? null,
+        bottomLeft: cb && sb ? Math.abs(cb.left - sb.left) < 2 && Math.abs(cb.bottom - sb.bottom) < 2 : null,
+        lit: [...new Set(lit.map((e) => e.getAttribute('data-state')).filter(Boolean))],
+        litCount: lit.length,
+        outline: !!svg?.querySelector('[data-active-outline]'),
         readout: scope.querySelector(readoutSel)?.textContent ?? '',
-        card: card ? card.querySelector('.qcard-where')?.textContent ?? '(card)' : null,
-        outlined: svg?.querySelector('rect[stroke="#1c1917"]')?.getAttribute('data-state') ?? null,
-        close: !!stage?.querySelector('.map-card-close'),
+        close: !!document.querySelector('.map-card-close'),
       }
     },
-    [sel, readoutSel, cardSel, VISIBLE],
+    [sel, readoutSel, VISIBLE],
   )
 }
 
-/** Tap somewhere plain outside the map: the page's first heading (text, not a link or control). */
-async function tapOutside(page) {
-  const b = await page.evaluate(() => {
-    // A plain spot on screen: the point's own element is text, not a link, control, map or card.
-    const plain = (x, y) => {
-      const el = document.elementFromPoint(x, y)
-      return el && !el.closest('a, button, input, select, label, summary, svg, figure, [role="button"], .home-map-card, .stance-map-stage, .stance-map-card')
-    }
-    for (const el of document.querySelectorAll('h1, h2, h3, p')) {
-      const r = el.getBoundingClientRect()
-      if (r.width < 40 || r.top < 80 || r.bottom > innerHeight - 80) continue
-      for (const fx of [0.5, 0.25, 0.75, 0.1]) {
-        const x = r.left + r.width * fx
-        const y = r.top + Math.min(10, r.height / 2)
-        if (plain(x, y)) return { x, y }
-      }
-    }
-    return null
-  })
-  if (!b) return ok(false, 'found a plain spot outside the map to tap')
-  await page.touchscreen.tap(b.x, b.y)
-  await page.waitForTimeout(500)
-}
-
-/** Box map (StoryStatesMap): A, B, C, B, A, D each show their own card; Close and a tap outside close it; a second tap on
- *  the shown state opens its story; after that, taps keep switching. */
-async function boxMap(ctx, label, path, storyHref) {
+/** Phone box map: the hint shows, no card ever, and each tap opens the tapped state's story. */
+async function boxMapPhone(ctx, label, path, storyHref, codes) {
   const page = await ctx.newPage()
   await page.goto(base + path, { waitUntil: 'networkidle', timeout: 120_000 })
   const sel = 'svg[data-map-keys]'
   await page.waitForSelector(`${sel} rect[data-state]`, { timeout: 60_000 })
   await page.waitForTimeout(800)
   console.log(`\n${label} ${path} (state box map)`)
-  const look = () => mapState(page, sel, 'p.mt-1', '.home-map-card')
-  const startUrl = here(page)
-  const order = ['OR', 'TX', 'NY', 'UT', 'GA', 'CA', 'OH', 'VA', 'AZ', 'WA', 'FL', 'PA', 'IL', 'NC', 'MI', 'CO', 'MN']
-  const present = order.filter((c) => c in STATE_NAMES)
-  const tap = async (code) => {
+  let r = await mapState(page, sel, 'p.mt-1')
+  ok(r.readout.includes('Tap a state to open its story'), `the hint shows under the map ("${r.readout.slice(-40)}")`)
+  await shot(page, `${label}-${path}-hint`)
+  for (const code of codes) {
     const pts = await statePoints(page, sel)
-    if (!pts[code]) return null
-    await page.touchscreen.tap(pts[code].x, pts[code].y)
-    await page.waitForTimeout(600)
-    return look()
-  }
-  const [a, b, c, d, e, f] = present
-  for (const code of [a, b, c, b, a, d]) {
-    const r = await tap(code)
-    const shows = r && r.readout.startsWith(`${STATE_NAMES[code]}:`)
-    const opened = here(page) !== startUrl
-    ok(shows && !opened, `tap ${code}: ${shows ? `card ${r.card}, outline on ${r.outlined}` : `STUCK or left: readout "${r?.readout.slice(0, 40)}", url ${here(page)}`}`)
-    if (shows) ok(r.outlined === code, `  outline is on the tapped state (${r.outlined})`)
-    if (opened) return page.close()
-  }
-  await shot(page, `${label}-${path}-card`)
-  let r = await look()
-  ok(r.close, 'the card has a Close button')
-  await page.locator(`${sel}:visible`).first().locator('xpath=..').locator('.map-card-close').click()
-  await page.waitForTimeout(400)
-  r = await look()
-  ok(!r.card && !r.outlined, `Close closes the card (${r.card ?? 'no card'})`)
-  await tap(e)
-  await tapOutside(page)
-  r = await look()
-  ok(!r.card && !r.outlined && here(page) === startUrl, `a tap outside the map closes the card (${r.card ?? 'no card'})`)
-  await tap(d)
-  r = await tap(d)
-  ok(here(page).startsWith(storyHref(d)), `second tap on ${d} opens its story (${here(page)})`)
-  if (path.startsWith('/stories/') && here(page).startsWith('/stories/')) {
-    await page.waitForTimeout(1200)
-    const now = here(page)
-    for (const code of [e, f, e]) {
-      const r2 = await tap(code)
-      ok(r2 && r2.readout.startsWith(`${STATE_NAMES[code]}:`) && here(page) === now, `after opening ${d}, tap ${code}: ${r2?.card ?? r2?.readout.slice(0, 40)}`)
+    if (!pts[code]) {
+      ok(false, `${code} is on the map`)
+      continue
     }
+    await page.touchscreen.tap(pts[code].x, pts[code].y)
+    await page.waitForTimeout(250)
+    r = await mapState(page, sel, 'p.mt-1')
+    ok(r.cards === 0 && r.iframes === 0 && !r.close, `tap ${code}: no card, no player, no Close (${r.cards} cards)`)
+    await page.waitForURL((u) => u.toString().replace(base, '').startsWith(storyHref(code)), { timeout: 8000 }).catch(() => {})
+    ok(here(page).startsWith(storyHref(code)), `tap ${code} opens its story at once (${here(page)})`)
+    await page.waitForTimeout(1500)
+    await page.waitForSelector(`${sel} rect[data-state]`, { timeout: 30_000 }).catch(() => {})
   }
+  r = await mapState(page, sel, 'p.mt-1')
+  ok(r.cards === 0, 'still no card after the story opened')
+  await shot(page, `${label}-${path}-after-tap`)
   await page.close()
 }
 
-/** Data Center story overview (StoryDotMap in MapDrill): a tap shows the state's card (or, with no passage, narrows), taps
- *  switch, Close and a tap outside close it, a second tap narrows; then the county map's taps switch and close the same. */
-async function dotMap(ctx, label) {
+/** Data Center story Overview on a phone: a tap narrows to the state with no card; on the county map a tap lights a county. */
+async function dotMapPhone(ctx, label) {
   const page = await ctx.newPage()
   await page.goto(base + '/stories/data-centers', { waitUntil: 'networkidle', timeout: 120_000 })
   console.log(`\n${label} /stories/data-centers (overview dot map and county map)`)
@@ -187,67 +146,29 @@ async function dotMap(ctx, label) {
   }
   await start()
   const sel = 'svg[data-map="national"]'
-  const ready = await page.waitForSelector(`${sel}:visible`, { timeout: 60_000 }).then(() => true, () => false)
-  if (!ready) {
+  if (!(await page.waitForSelector(`${sel}:visible`, { timeout: 60_000 }).then(() => true, () => false))) {
     ok(false, 'overview dot map shows')
     return page.close()
   }
-  const look = () => mapState(page, sel, '.stance-map-readout', '.stance-map-card')
-  const startUrl = here(page)
-  const tap = async (code) => {
-    const pts = await statePoints(page, sel)
-    if (!pts[code]) return null
-    await page.touchscreen.tap(pts[code].x, pts[code].y)
-    await page.waitForTimeout(700)
-    return look()
-  }
-  for (const code of ['TX', 'OR', 'NY', 'OR', 'VA']) {
-    const r = await tap(code)
-    if (here(page) !== startUrl) {
-      // A state with no passage in scope narrows at once (#1120). The rest of this sequence needs states with passages,
-      // so this is a failure, not a quiet pass: pick other states if the data changed.
-      ok(false, `tap ${code}: no passage, story narrowed at once (${here(page)}); the Close, outside-tap and county checks did not run`)
-      return page.close()
-    }
-    ok(r && r.readout.startsWith(`${STATE_NAMES[code]}:`), `tap ${code}: shows ${r?.readout.slice(0, 40)} · card ${r?.card}`)
-  }
-  await shot(page, `${label}-dotmap-card`)
-  let r = await look()
-  ok(r.card && r.close, 'the card has a Close button')
-  if (r.close) {
-    await page.locator(`${sel}:visible`).first().locator('xpath=..').locator('.stance-map-card .map-card-close').click()
-    await page.waitForTimeout(400)
-    r = await look()
-    ok(!r.card, 'Close closes the card')
-  }
-  await tap('TX')
-  await tapOutside(page)
-  r = await look()
-  ok(!r.card && here(page) === startUrl, `a tap outside the map closes the card (${r.card ?? 'no card'})`)
-  await tap('TX')
-  await tap('TX')
-  ok(here(page).includes('state=TX'), `second tap on TX narrows the story (${here(page)})`)
-  // A new scope may show the cover again (#1182): Start goes on to the overview, now the state's county map (the drill).
+  let r = await mapState(page, sel, '.stance-map-readout')
+  ok(r.readout.includes('Tap a state to open its story'), `the hint shows under the map ("${r.readout}")`)
+  await shot(page, `${label}-dotmap-hint`)
+  const pts = await statePoints(page, sel)
+  await page.touchscreen.tap(pts.TX.x, pts.TX.y)
+  await page.waitForTimeout(300)
+  r = await mapState(page, sel, '.stance-map-readout')
+  ok(r.cards === 0 && r.iframes === 0, `tap TX: no card (${r.cards})`)
+  await page.waitForTimeout(800)
+  ok(here(page).includes('state=TX'), `tap TX narrows the story at once (${here(page)})`)
   await start()
   const county = 'svg[data-map="county"]'
-  const cready = await page.waitForSelector(`${county}:visible circle[data-box]`, { timeout: 30_000 }).then(() => true, () => false)
-  if (!cready) {
+  if (!(await page.waitForSelector(`${county}:visible circle[data-box]`, { timeout: 30_000 }).then(() => true, () => false))) {
     ok(false, 'county map shows after narrowing')
     return page.close()
   }
   await page.evaluate(([county, visible]) => eval(visible)(county)?.scrollIntoView({ block: 'center' }), [county, VISIBLE])
-  await page.waitForTimeout(400)
-  const lit = () =>
-    page.evaluate(
-      ([county, visible]) => {
-        const svg = eval(visible)(county)
-        const dots = [...svg.querySelectorAll('circle[data-box]')]
-        return { bright: dots.filter((c) => c.getAttribute('opacity') === '1').length, all: dots.length }
-      },
-      [county, VISIBLE],
-    )
-  for (const [fx, fy] of [[0.25, 0.3], [0.75, 0.7], [0.5, 0.5], [0.25, 0.3]]) {
-    // The drill canvas may still run: a tap during it jumps to the end and must still reach the map.
+  await page.waitForTimeout(1500)
+  for (const [fx, fy] of [[0.3, 0.3], [0.7, 0.7], [0.5, 0.5]]) {
     const p = await page.evaluate(
       ([county, visible, fx, fy]) => {
         const svg = eval(visible)(county)
@@ -271,78 +192,113 @@ async function dotMap(ctx, label) {
     await page.touchscreen.tap(p.x, p.y)
     await page.waitForTimeout(500)
     const tapped = await page.evaluate(
-      ([county, visible, i]) => eval(visible)(county).querySelectorAll('circle[data-box]')[i].getAttribute('opacity'),
+      ([county, visible, i]) => eval(visible)(county).querySelectorAll('circle[data-box]')[i].hasAttribute('data-active'),
       [county, VISIBLE, p.i],
     )
-    const l = await lit()
-    ok(tapped === '1' && l.bright < l.all, `  county tap at ${fx},${fy}: its county lit (${l.bright}/${l.all} dots bright)`)
+    r = await mapState(page, county, '.stance-map-readout')
+    ok(tapped && r.outline && r.cards === 0, `county tap at ${fx},${fy}: that county lit and outlined, no card (${r.readout.slice(0, 50)})`)
   }
   await shot(page, `${label}-countymap`)
-  await tapOutside(page)
-  const l = await lit()
-  ok(l.bright === l.all, `a tap outside the county map closes it (${l.bright}/${l.all} bright)`)
   await page.close()
 }
 
-/** Desktop (#1146): Tab focus starts on the page's state, arrows move, Enter opens; a click opens; hover still shows. */
+/** Desktop hover on any of the maps: bottom-left card with an autoplaying muted iframe, lit state, swap, leave. */
+async function hoverChecks(page, sel, readoutSel, a, b, name) {
+  let pts = await statePoints(page, sel)
+  await page.mouse.move(pts[a].x, pts[a].y)
+  await page.waitForTimeout(600)
+  let r = await mapState(page, sel, readoutSel)
+  ok(r.lit.length === 1 && r.lit[0] === a && r.litCount > 1 && r.outline, `hover ${a}: the whole state is lit and outlined (${r.litCount} shapes)`)
+  ok(r.cards === 1, `hover ${a}: one card (${r.cards}) · ${r.place}`)
+  ok(r.bottomLeft === true, '  the card sits at the map’s bottom-left')
+  if (r.src) {
+    ok(r.src.includes('youtube-nocookie.com') && r.src.includes('autoplay=1&mute=1') && !r.playBtn, `  its recording autoplays muted, no play button (${r.src.slice(0, 90)})`)
+  } else ok(!r.playBtn, '  this passage has no video id: quote only, no play button')
+  ok(/^Click .+ to open|^Click to show|^You’re reading/.test(r.open ?? ''), `  it says how to drill in ("${r.open}")`)
+  await shot(page, `desktop-${name}-hover-${a}`)
+  const firstSrc = r.src
+  pts = await statePoints(page, sel)
+  await page.mouse.move(pts[b].x, pts[b].y)
+  await page.waitForTimeout(600)
+  r = await mapState(page, sel, readoutSel)
+  ok(r.cards === 1 && r.iframes <= 1 && r.lit[0] === b, `hover ${b}: the card moves to ${b}, one player (${r.iframes}) · ${r.place}`)
+  if (firstSrc && r.src) ok(r.src !== firstSrc, '  the video swapped')
+  await shot(page, `desktop-${name}-hover-${b}`)
+  await page.mouse.move(5, 5)
+  await page.waitForTimeout(400)
+  r = await mapState(page, sel, readoutSel)
+  ok(r.cards === 0 && r.iframes === 0, 'leaving the map removes the card and its player')
+}
+
 async function desktop(ctx) {
   const page = await ctx.newPage()
   await page.goto(base + '/stories/guns?state=AL', { waitUntil: 'networkidle', timeout: 120_000 })
   const sel = 'svg[data-map-keys]'
   await page.waitForSelector(`${sel} rect[data-state]`, { timeout: 60_000 })
   console.log('\nDesktop 1440x900 /stories/guns?state=AL')
-  const caption = async () => (await mapState(page, sel, 'p.mt-1', '.home-map-card')).readout
+  await hoverChecks(page, sel, 'p.mt-1', 'TX', 'AZ', 'guns')
+  // Keyboard: same card and highlight, but never autoplay from focus.
   await page.locator(sel).first().focus()
-  await page.waitForTimeout(300)
-  const first = await caption()
-  ok(first.startsWith('Alabama:'), `keyboard focus starts on the page's state (${first.slice(0, 30)})`)
+  await page.waitForTimeout(400)
+  let r = await mapState(page, sel, 'p.mt-1')
+  ok(r.readout.startsWith('Alabama:') && r.lit[0] === 'AL', `keyboard focus starts on the page's state (${r.readout.slice(0, 30)})`)
+  ok(r.iframes === 0, `  no autoplay from keyboard focus (${r.playBtn ? 'still image with a play button' : 'no player'})`)
   await page.keyboard.press('ArrowRight')
   await page.waitForTimeout(300)
-  const moved = await caption()
-  ok(moved && moved !== first, `ArrowRight moves to the next state (${moved.slice(0, 30)})`)
-  await page.keyboard.press('ArrowLeft')
-  await page.waitForTimeout(300)
-  ok((await caption()).startsWith('Alabama:'), 'ArrowLeft moves back')
+  r = await mapState(page, sel, 'p.mt-1')
+  ok(!r.readout.startsWith('Alabama:') && r.iframes === 0, `ArrowRight moves on, still no autoplay (${r.readout.slice(0, 30)})`)
+  await shot(page, 'desktop-guns-keyboard')
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
-  ok(!(await mapState(page, sel, 'p.mt-1', '.home-map-card')).card, 'Escape hides the card')
-  // A click outside closes a card the keyboard opened, as a tap does on a phone.
+  ok((await mapState(page, sel, 'p.mt-1')).cards === 0, 'Escape hides the card')
   await page.keyboard.press('ArrowRight')
   await page.waitForTimeout(300)
-  await page.mouse.click(8, 300)
-  await page.waitForTimeout(300)
-  ok(!(await mapState(page, sel, 'p.mt-1', '.home-map-card')).card, 'a click outside the map closes the card')
-  await page.locator(sel).first().focus()
-  await page.keyboard.press('ArrowRight')
-  await page.waitForTimeout(300)
-  const target = (await caption()).split(':')[0]
-  const code = Object.entries(STATE_NAMES).find(([, n]) => n === target)?.[0]
+  const target = (await mapState(page, sel, 'p.mt-1')).lit[0]
   await page.keyboard.press('Enter')
   await page.waitForTimeout(1500)
-  ok(code ? here(page).includes(`state=${code}`) : /state=(?!AL)/.test(here(page)), `Enter opens ${target}'s story (${here(page)})`)
-  let pts = await statePoints(page, sel)
-  await page.mouse.move(pts.TX.x, pts.TX.y)
-  await page.waitForTimeout(400)
-  ok((await caption()).startsWith('Texas:'), 'hovering Texas shows its card')
-  const s = await mapState(page, sel, 'p.mt-1', '.home-map-card')
-  ok(!s.close, 'no Close button on desktop (the mouse leaving closes it)')
-  pts = await statePoints(page, sel)
+  ok(here(page).includes(`state=${target}`), `Enter opens ${target}'s story (${here(page)})`)
+  const pts = await statePoints(page, sel)
   await page.mouse.click(pts.OR.x, pts.OR.y)
-  await page.waitForTimeout(1000)
+  await page.waitForTimeout(1200)
   ok(here(page).includes('state=OR'), `a click on Oregon opens its story (${here(page)})`)
   await page.close()
+
+  const home = await ctx.newPage()
+  await home.goto(base + '/', { waitUntil: 'networkidle', timeout: 120_000 })
+  await home.waitForSelector(`${sel} rect[data-state]`, { timeout: 60_000 })
+  console.log('\nDesktop 1440x900 / (home)')
+  await hoverChecks(home, sel, 'p.mt-1', 'TX', 'VA', 'home')
+  await home.close()
+
+  const dc = await ctx.newPage()
+  await dc.goto(base + '/stories/data-centers', { waitUntil: 'networkidle', timeout: 120_000 })
+  console.log('\nDesktop 1440x900 /stories/data-centers (Overview)')
+  const s = dc.locator('[data-cover] .home-story-start:visible')
+  if (await s.count()) {
+    await s.first().click()
+    await dc.waitForTimeout(1200)
+  }
+  const nat = 'svg[data-map="national"]'
+  if (await dc.waitForSelector(`${nat}:visible`, { timeout: 60_000 }).then(() => true, () => false)) {
+    await hoverChecks(dc, nat, '.stance-map-readout', 'TX', 'VA', 'datacenters')
+    const p2 = await statePoints(dc, nat)
+    await dc.mouse.click(p2.TX.x, p2.TX.y)
+    await dc.waitForTimeout(1200)
+    ok(here(dc).includes('state=TX'), `a click on Texas narrows the story (${here(dc)})`)
+  } else ok(false, 'overview dot map shows')
+  await dc.close()
 }
 
 for (const [label, desc] of [
   ['Pixel 7', devices['Pixel 7']],
   ['iPhone 13', devices['iPhone 13']],
 ]) {
-  // Both on chromium (the only engine installed); the descriptors give the viewport, touch and no-hover media.
+  // Both on chromium; the descriptors give the viewport, touch and the no-hover / coarse-pointer media.
   const { defaultBrowserType: _engine, ...opts } = desc
   const ctx = await browser.newContext(opts)
-  if (run('box')) await boxMap(ctx, label, '/stories/guns?state=AL', (c) => `/stories/guns?state=${c}`)
-  if (run('box')) await boxMap(ctx, label, '/', (c) => `/stories/data-centers?state=${c}`)
-  if (run('dot')) await dotMap(ctx, label)
+  if (run('box')) await boxMapPhone(ctx, label, '/stories/guns?state=AL', (c) => `/stories/guns?state=${c}`, ['TX', 'OR'])
+  if (run('box')) await boxMapPhone(ctx, label, '/', (c) => `/stories/data-centers?state=${c}`, ['TX'])
+  if (run('dot')) await dotMapPhone(ctx, label)
   await ctx.close()
 }
 if (run('desktop')) {
@@ -355,4 +311,4 @@ if (failures) {
   console.error(`\n${failures} check(s) failed.`)
   process.exit(1)
 }
-console.log('\nEvery tap showed its own state, and every card closed on a tap.')
+console.log('\nPhones drill on a tap with no card; desktop hover shows the bottom-left card playing the recording.')

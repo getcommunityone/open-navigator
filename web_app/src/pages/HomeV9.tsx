@@ -81,7 +81,6 @@ html { scroll-behavior: smooth; }
 .v9 .home-story-map { position: relative; }
 /* The map never pushes the card past one screen (#1176): capped by height, kept centred at its aspect ratio. */
 .v9 .home-story-map > svg, .v9 .home-story-map svg[role="img"] { max-height: min(60vh, 560px); width: auto; max-width: 100%; margin: 0 auto; }
-.v9 .home-map-card { position: absolute; width: min(290px, 70%); background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; box-shadow: 0 10px 28px rgba(28,25,23,.12); padding: 14px 16px; margin: 0; z-index: 2; pointer-events: auto; }
 .v9 .home-topics { margin-top: 22px; border: 1px solid #e7e5e4; border-radius: 14px; background: #fff; }
 .v9 .home-topics-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px 0; }
 .v9 .home-topics-head p { margin: 0; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #44403c; font-weight: 600; border-bottom: 2px solid #0f766e; padding-bottom: 8px; }
@@ -140,7 +139,6 @@ html { scroll-behavior: smooth; }
 .v9 .home-topic-company-quote a { color: #0f766e; }
 @media (max-width: 860px) {
   .v9 .home-story-card { grid-template-columns: minmax(0, 1fr); }
-  .v9 .home-map-card { position: static; width: auto; margin-top: 8px; }
   .v9 .home-story-actions { flex-direction: column; }
   .v9 .home-story-actions a { display: block; width: 100%; box-sizing: border-box; }
 }

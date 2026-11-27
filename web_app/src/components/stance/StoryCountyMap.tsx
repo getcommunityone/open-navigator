@@ -17,10 +17,10 @@ import {
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
-import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
+import { resolveVideoId, startFromUrl } from './quoteCardUtils'
 import type { MapPassage } from './StoryDotMap'
-import { isTouchOnly } from '../../utils/touchOnly'
-import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
+import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
 export interface PlaceCount extends LeanCounts {
@@ -203,13 +203,20 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     return `${countyLabel(id)}: ${plural(n)} (${parts.join(', ')})${st ? `; ${st}` : '; no stance on record'}.${lean ? ` ${lean}` : ''}`
   }
 
-  // Only while a county is hovered: the newest passage from one of its governments, if the scope has one.
+  // Only while a county is hovered, on a desktop: the newest passage from one of its governments, if the scope has one. A
+  // phone has no card (#1277): a tap only selects the county (its outline and the line under the map).
   const hoverNames = new Set((hover ? byCounty.get(hover) ?? [] : []).map((p) => norm(p.jurisdiction_name)))
-  const passage = hover ? (passages ?? []).find((m) => m.evidence && hoverNames.has(norm(m.jurisdiction_name))) : undefined
+  const passage = hover && !touch ? (passages ?? []).find((m) => m.evidence && hoverNames.has(norm(m.jurisdiction_name))) : undefined
   const [bx0, by0, bx1, by1] = grid.bbox
-  const hoverDots = hover ? grid.dots.filter((d) => d.id === hover) : []
-  const hoverX = hoverDots.length ? (hoverDots.reduce((a, d) => a + d.x, 0) / hoverDots.length - bx0) / (bx1 - bx0) : 0
-  const cardSide = hoverX < 0.5 ? 'stance-map-card is-right' : 'stance-map-card'
+  const hoverFeat = hover ? grid.feats.find((f) => f.id === hover) : undefined
+  const inlineVideo = keyNav.keyed || prefersStillMedia() ? 'click' : 'autoplay'
+  const hoverIn = (id: string) =>
+    touch
+      ? undefined
+      : () => {
+          keyNav.pointed()
+          setHover(id)
+        }
 
   const r = grid.step * 0.38
   const pad = 4
@@ -309,12 +316,14 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               <circle
                 key={i}
                 data-box=""
+                data-active={hover === d.id ? '' : undefined}
                 cx={d.x}
                 cy={d.y}
                 r={n ? r : r * 0.55}
                 fill={colorFor(i, n)}
                 opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
-                onMouseEnter={touch ? undefined : () => setHover(d.id)}
+                style={{ cursor: 'pointer' }}
+                onMouseEnter={hoverIn(d.id)}
                 onClick={() => setHover(d.id)}
               />
             )
@@ -330,7 +339,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               stroke={HOUSE_THEME.ramp[5] ?? 'currentColor'}
               strokeWidth={grid.step * 0.18}
               opacity={hover && hover !== g.county ? 0.3 : 1}
-              onMouseEnter={touch ? undefined : () => setHover(g.county)}
+              onMouseEnter={hoverIn(g.county)}
               onClick={() => setHover(g.county)}
             >
               <title>{`${g.place.jurisdiction_name ?? g.place.jurisdiction_id}: ${plural(g.place.meetings)}`}</title>
@@ -342,6 +351,18 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               <path key={f.id} d={featPath(f)} />
             ))}
           </g>
+          {/* The hovered (tapped) county's outline, raised (#1277). */}
+          {hoverFeat && (
+            <path
+              d={featPath(hoverFeat)}
+              fill="none"
+              stroke="#1c1917"
+              strokeWidth={grid.step * 0.32}
+              strokeLinejoin="round"
+              pointerEvents="none"
+              data-active-outline=""
+            />
+          )}
           <g className="stance-map-labels" pointerEvents="none" aria-hidden="true">
             {labels.map((l) => (
               <text
@@ -382,8 +403,11 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           </g>
         </svg>
         {passage && (
+          // Desktop only (#1277): fixed at the map's bottom-left, never beside the cursor; one recording at a time.
           <QuoteCard
-            className={cardSide}
+            className="map-hover-card"
+            compact
+            inlineVideo={inlineVideo}
             place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
             date={passage.meeting_date}
             quote={excerptAroundMark(passage.evidence ?? '')}
@@ -394,16 +418,11 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             url={passage.jump_url ?? passage.video_url}
             speakerName={passage.speaker_display_name ?? null}
             role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
-            summary={passage.meeting_summary ?? null}
-            analysisUrl={scopedMeetingHref(passage.meeting_url, { state: stateCode, city: scopeCity })}
-          >
-            {/* On a phone nothing depends on hover (#1229): the card a tap opened closes here, or on a tap outside the map. */}
-            {touch && <MapCardClose onClose={keyNav.close} what={hover ? countyLabel(hover) : undefined} />}
-          </QuoteCard>
+          />
         )}
       </div>
       <p className="stance-map-readout">
-        {hover ? `${readout(hover)}${touch ? ' Tap outside the map to close.' : ''}` : `${touch ? 'Tap' : 'Hover'} a county to see its count. Rings mark the cities, towns and school districts on record.`}
+        {hover ? readout(hover) : `${touch ? 'Tap' : 'Hover'} a county to see its count${touch ? '' : ' and hear what was said'}. Rings mark the cities, towns and school districts on record.`}
       </p>
       {max > 0 && (
         <>
