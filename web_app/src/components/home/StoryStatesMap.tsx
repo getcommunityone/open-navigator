@@ -116,26 +116,26 @@ export const LEGEND_LABEL: Record<(typeof LEGEND_STANCES)[number], string> = {
 }
 /** The same four entries when the split counts meetings by the AI reading (#1127). */
 export const AI_LEGEND_LABEL: Record<(typeof LEGEND_STANCES)[number], string> = {
-  against: 'Public leaned against',
-  for: 'Public leaned for',
-  neutral: 'Mixed',
+  against: 'Public mostly opposed',
+  for: 'Public mostly supported',
+  neutral: 'Public split',
 }
 /** Column and line words for an AI-read meeting split; a meeting reading has no "asked a question". */
 const AI_STANCE_LABEL: Record<Stance, string> = {
-  against: 'Public leaned against',
-  for: 'Public leaned for',
+  against: 'Public mostly opposed',
+  for: 'Public mostly supported',
   question: 'Asked a question',
-  neutral: 'Mixed',
+  neutral: 'Public split',
 }
 const AI_LINE_WORD: Record<Stance, string> = {
-  against: 'leaned against',
-  for: 'leaned for',
+  against: 'mostly opposed',
+  for: 'mostly supported',
   question: 'asked a question',
-  neutral: 'mixed',
+  neutral: 'split',
 }
 
 /** The real speaker counts as one line ("3 spoke against · 1 asked a question"), or null with none on record. With
- *  `unit` 'meetings' the counts are meetings as the AI read them: "AI reading: 3 meetings leaned against · 1 leaned for". */
+ *  `unit` 'meetings' the counts are meetings as the AI read them: "AI reading of 4 meetings: 3 mostly opposed · 1 mostly supported". */
 export function stanceLine(s: StanceCounts | undefined, unit: StanceUnit = 'speakers'): string | null {
   if (!s || speakersOf(s) === 0) return null
   const keys = STANCE_ORDER.filter((k) => stanceCount(s, k) > 0)
@@ -290,7 +290,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         '.'
       : '') +
     (leanStates.length
-      ? ` In ${plural(leanStates.length, 'other state', 'other states')} an AI reading of the meetings found the public leaned against: ${leanStates.map((s) => stateName(s.state_code)).join(', ')}.`
+      ? ` In ${plural(leanStates.length, 'other state', 'other states')} an AI reading of the meetings found the public mostly opposed: ${leanStates.map((s) => stateName(s.state_code)).join(', ')}.`
       : '') +
     (disagreeStates.length
       ? ` In ${plural(disagreeStates.length, 'state', 'states')} the AI reading found officials sided against the public (see the data table): ${disagreeStates.map((s) => stateName(s.state_code)).join(', ')}.`
@@ -458,7 +458,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                     ))}
                   {hasLean && (
                     <>
-                      {!byMeetings && <th scope="col" className="py-1 pr-2">AI: public leaned against</th>}
+                      {!byMeetings && <th scope="col" className="py-1 pr-2">AI: public mostly opposed</th>}
                       <th scope="col" className="py-1 pr-2">AI: officials sided against the public</th>
                     </>
                   )}

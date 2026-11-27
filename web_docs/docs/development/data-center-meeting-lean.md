@@ -56,17 +56,17 @@ Spoke against red; disagreement meetings are not drawn on the map (no outlines, 
   now needs officials supportive, excludes moratoriums and denials, and asks Jev whether an approval was a specific
   project (`dc_project_approved_p`, filled by the third re-screen).
 
-So only "public leaned against" (about 7 of 8 right) and the refined disagreement rule are shown.
+So only "public mostly opposed" (about 7 of 8 right) and the refined disagreement rule are shown.
 
 ## Decision: the headline gates on confident "against" only (#1134)
 
 The data-center story's **America hates data centers.** used to rest only on 29 hand-counted speakers in 4 states. It
-may now also pass on this reading: confident (p ≥ 0.7) "public leaned against" meetings of at least **50 nationally,
+may now also pass on this reading: confident (p ≥ 0.7) "public mostly opposed" meetings of at least **50 nationally,
 10 for a state and 3 for a city or other single place** (a single government holds few data center meetings, so 3
 separate meetings is the least that is more than one evening's crowd). Because "supported" and "mixed" failed the hand
 checks above, the gate does **not** compare against them (no "against ≥ 2× for/mixed" ratio), and the sentence states
-only the against count: "The public leaned against data centers in 283 meetings across 32 states (AI reading of
-meetings)." The confident for, mixed and spoke counts are served on positions `lean_totals` / `scope_lean_totals`
+only the against count: "The public mostly opposed data centers in 283 meetings across 32 states (AI reading of
+meetings)." (worded "mostly opposed", not "leaned against", since #1190) The confident for, mixed and spoke counts are served on positions `lean_totals` / `scope_lean_totals`
 (`public_for_meetings`, `public_mixed_meetings`, `public_spoke_meetings`, same p ≥ 0.7) for audit only. On 26 Nov 2026
 they were 14, 7 and 304 nationally; the 1,449 confident "no public comment" meetings are not counted as spoke.
 

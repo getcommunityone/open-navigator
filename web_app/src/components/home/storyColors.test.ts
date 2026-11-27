@@ -26,10 +26,10 @@ describe('leanLine', () => {
   })
   it('names each count only when above 0', () => {
     expect(leanLine({ public_against_meetings: 3, disagreement_meetings: 0 })).toBe(
-      'AI reading: the public leaned against in 3 meetings.',
+      'AI reading: the public mostly opposed in 3 meetings.',
     )
     expect(leanLine({ public_against_meetings: 1, disagreement_meetings: 1 })).toBe(
-      'AI reading: the public leaned against in 1 meeting; officials sided against the public in 1 meeting.',
+      'AI reading: the public mostly opposed in 1 meeting; officials sided against the public in 1 meeting.',
     )
     expect(leanLine({ public_against_meetings: 0, disagreement_meetings: 2 })).toBe(
       'AI reading: officials sided against the public in 2 meetings.',

@@ -48,7 +48,7 @@ officials and the public disagreeing needs no direction.
 ## Decision: the title says what the map shows (#1182)
 
 The owner (26 Nov 2026): "Say what the map says". At `?state=AL&city=Tuscaloosa` the home title read "Tuscaloosa, Alabama
-talked about data centers in 2 meetings." beside an almost all red national map (public leaned against, AI reading).
+talked about data centers in 2 meetings." beside an almost all red national map (public mostly opposed, AI reading).
 
 - **(a2) `wider_sentiment`.** When the place's own reading fails (a) and (b), the picker tries the broader scopes in
   `facts.wider` (city: the state, then the country; state: the country) and takes the first whose confident
@@ -57,10 +57,10 @@ talked about data centers in 2 meetings." beside an almost all red national map 
   meetings in the place the tail is "has none on record yet". The basis gives the broader count, then the place's own
   reading as it is: "has no AI reading of its own yet", "None of [place]'s N meetings with an AI reading read as mostly
   against.", or "6 of Alabama's 71 meetings with an AI reading read as mostly against, under the 10 a reading of its own
-  needs." (never "too few readings" for a place with many readings that aren't against); the subhead names only the broader scope's lean. It is an AI
+  needs." (never "too few readings" for a place with many readings that aren't against); the subhead names only what the broader scope's public mostly opposed. It is an AI
   reading (`ai: true`). It runs after the place's own (a) and (b) and before (c), because (c) and (d) describe volume
   while the map beside the title is coloured by lean.
-- **"Leaned against" for the other topics.** `topic_meeting_lean` (#1126) fixes which way "for" points for each topic
+- ~~**"Leaned against" for the other topics.**~~ (wording superseded 26 Nov 2026, #1190, below; the rule stands) `topic_meeting_lean` (#1126) fixes which way "for" points for each topic
   (allowing short-term rentals, keeping fluoride, building lanes; for guns, the proposal before the body), so a confident
   "against" now has a stated direction. Those topics get (a) with "leaned against" (`CaptionCopy.against`) on the same
   thresholds, never "hates"; guns reads "leaned against what was proposed on guns". When (b) also passes for such a topic,
@@ -75,6 +75,37 @@ Titles on 26 Nov 2026 (local warehouse): national data centers "America hates da
 plate readers "America hates Flock and license plate readers." (186 confident public-against meetings, over the floor of
 50 since the #1126 run); water fluoridation "America leaned against water fluoridation." (81); Alabama "America hates
 data centers; Alabama brought them up in 71 meetings." (Alabama 6, under 10); Tuscaloosa as above.
+
+## Decision: plain words for the AI reading, never "leaned" (#1190)
+
+The owner (26 Nov 2026), verbatim: "leaned against is terrible title nobody including me knows what that means". The
+figure behind the phrase is Jev's reading of each meeting's transcript: whether the members of the public who spoke were
+mostly against, mostly for or split on the topic (`topic_meeting_lean`, `data_center_meeting_lean`). The copy now says that.
+
+- **Titles for topics without "hates"** (everything but data centers, Flock and license plate readers, and pickleball) lead
+  with the count: "In 81 meetings, the public mostly opposed water fluoridation."; at a place, "In 12 meetings in Arizona,
+  the public mostly opposed short-term rentals." Guns say "the public mostly opposed the gun measures proposed", because
+  opposing could mean opposing guns or opposing gun limits (`CaptionCopy.opposed`, which replaces `CaptionCopy.against`).
+  Because the title states the AI count, it needs the meeting reading itself; "hates" may still rest on counted speakers.
+  The "[Place] hates X." titles are unchanged.
+- **The wider-scope fallback** (#1182) keeps "America hates data centers; Tuscaloosa, Alabama brought them up in 2
+  meetings."; without "hates" it reads "Across America the public mostly opposed water fluoridation; Tuscaloosa, Alabama
+  brought it up in 2 meetings."
+- **Basis lines**: "In 283 meetings across 32 states, the public mostly opposed data centers (AI reading of each meeting's
+  transcript)." The place's own reading: "Of Tuscaloosa, Alabama's 2 meetings with an AI reading, none had a public mostly
+  opposed." or "Of Alabama's 71 meetings with an AI reading, 6 had a public mostly opposed, under the 10 a title of its own
+  needs."
+- **Maps, hover cards and tables**: "Public mostly opposed", "Public mostly supported", "Public split" (was "Mixed"),
+  "AI reading: the public mostly opposed in 8 meetings."; "Officials sided against the public" stays. The unit matrix's
+  public groups use the same three words.
+- Copy only: column, field and table names (`public_against_meetings`, `topic_meeting_lean`) are unchanged.
+
+Titles on 26 Nov 2026 after the change (local warehouse): water fluoridation "In 81 meetings, the public mostly opposed water
+fluoridation." (was "America leaned against water fluoridation."); data centers "America hates data centers." and, at
+`?state=AL&city=Tuscaloosa`, "America hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings." (unchanged
+titles, new basis wording). Guns (0 confident public-against meetings of 20 read) and short-term rentals (1 of 19) do not
+reach the national floor of 50, so they keep their volume titles ("California and North Carolina took up guns most: 659
+and 585 meetings.", "California took up short-term rentals in 570 meetings, more than any other state.").
 
 **No zero clauses.** No title or basis states a zero ("0 spoke for"): a zero clause is left out (owner rule).
 

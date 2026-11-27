@@ -52,7 +52,7 @@ describe('groupRecords', () => {
     expect(g.every((x) => x.count > 0)).toBe(true)
     expect(g[0]!.tone).toBe('approved')
     expect(groupRecords(rs, 'side').map((x) => [x.label, x.count])).toEqual([
-      ['Public against', 1],
+      ['Public mostly opposed', 1],
       ['No side taken', 1],
       ['Not screened', 2],
     ])
