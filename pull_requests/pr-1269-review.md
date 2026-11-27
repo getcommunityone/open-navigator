@@ -31,11 +31,11 @@ in 1418935c. Verdict: approve.
 ## CI Status
 | Check | Status |
 |---|---|
-| Frontend Build | see PR checks on the head commit (merge only when green) |
-| Documentation Build | see PR checks |
-| Backend Tests | see PR checks |
-| API Types | see PR checks |
-| PR conventions | see PR checks |
+| Frontend Build | pass |
+| Documentation Build | pass |
+| Backend Tests | pass (first run failed installing lxml 6.2.0 from sdist while its wheels were still uploading to PyPI; re-run passed, also hit main) |
+| API Types | pass |
+| PR conventions | pass |
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 - Secrets: clean.
