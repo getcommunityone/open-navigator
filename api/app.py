@@ -700,8 +700,10 @@ app.include_router(deployments_routes.router, prefix="/api")
 
 # Data-center job claims by phase (#246): GET /api/data-centers/job-claims
 from api.routes import data_centers as data_centers_routes
+from api.routes import data_center_comments as data_center_comments_routes
 
 app.include_router(data_centers_routes.router, prefix="/api")
+app.include_router(data_center_comments_routes.router, prefix="/api")
 # Data-center job-application links (#248): public list + admin screen.
 from api.routes import application_links as application_links_routes
 

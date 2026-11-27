@@ -12,17 +12,19 @@ const blockOf = (slug: string) => {
   const next = TOPIC_LEAN.slice(start + 1).search(/^ {4}"[a-z-]+": TopicDef\(/m)
   return next < 0 ? TOPIC_LEAN.slice(start) : TOPIC_LEAN.slice(start, start + 1 + next)
 }
-const stanceOf = (slug: string) => {
-  const start = TOPIC_LEAN.indexOf(`"${slug}": TopicDef(`)
-  const block = TOPIC_LEAN.slice(start, TOPIC_LEAN.indexOf('item=', start))
-  const stance = block.slice(block.indexOf('stance=') + 'stance='.length)
-  // The Python string literal(s) joined: "a" "b" -> ab.
-  return [...stance.matchAll(/"([^"]*)"/g)].map((m) => m[1]).join('')
+/** A string field of one topic's `TopicDef(...)` (`subject`, `sides`, ...): the Python string literal(s) joined. */
+const fieldOf = (slug: string, field: string) => {
+  const block = blockOf(slug)
+  const start = block.indexOf(`${field}=`)
+  if (start < 0) return ''
+  const rest = block.slice(start + field.length + 1)
+  const end = rest.search(/^ {8}[a-z_]+=/m)
+  return [...(end < 0 ? rest : rest.slice(0, end)).matchAll(/"([^"]*)"/g)].map((m) => m[1]).join('')
 }
 
 describe('topic position vocabulary', () => {
   it('has words for every topic Jev reads (topic_lean.TOPICS) and for data centers', () => {
-    expect(TOPIC_SLUGS.length).toBeGreaterThanOrEqual(6)
+    expect(TOPIC_SLUGS.length).toBeGreaterThanOrEqual(5)
     for (const slug of [...TOPIC_SLUGS, 'data-centers']) {
       const w = TOPIC_POSITIONS[slug]
       expect(w, slug).toBeDefined()
@@ -53,29 +55,33 @@ describe('topic position vocabulary', () => {
     for (const v of Object.values(g)) expect(v).not.toMatch(/proposal|proposed/i)
   })
 
-  // Main's topic_lean.py still holds the earlier "proposal before the body" guns question; the stored readings came from
-  // the gun-control one (#1239). Skipped only while the old wording is there: once it is replaced, whatever the field
-  // names, this runs and fails unless the new question still says gun limits are "for" and gun rights "against".
-  it.skipIf(/proposal before the body/.test(blockOf('guns')))('guns words match topic_lean\'s gun-control sides', () => {
+  // The stored guns readings came from the gun-control question (#1239), now on main: gun limits are "for", gun rights
+  // "against". Fails if the question is reworded so that the words above no longer say which side is which.
+  it("guns words match topic_lean's gun-control sides", () => {
     const b = blockOf('guns')
-    expect(b).toMatch(/gun-control measure/)
-    expect(b).toMatch(/asking for limits on guns[\s\S]*are for it/)
-    expect(b).toMatch(/defending gun rights[\s\S]*against it/)
+    expect(b).not.toMatch(/proposal before the body/)
+    expect(fieldOf('guns', 'subject')).toMatch(/^a local gun-control measure/)
+    expect(fieldOf('guns', 'sides')).toMatch(/asking for limits on guns.*are for it/)
+    expect(fieldOf('guns', 'sides')).toMatch(/defending gun rights.*against it/)
   })
 
   it('short-term rentals follow topic_lean: for = allowing them, against = banning or restricting them', () => {
-    expect(stanceOf('short-term-rentals')).toMatch(/^allowing short-term rentals.*against means banning or restricting/)
+    expect(fieldOf('short-term-rentals', 'subject')).toMatch(/^allowing short-term rentals/)
+    expect(fieldOf('short-term-rentals', 'sides')).toMatch(/asking for a ban, a cap or a moratorium, are against them/)
     const s = topicPositions('short-term-rentals')
     expect(s.for).toBe('Want to allow short-term rentals')
     expect(s.against).toBe('Want limits on short-term rentals')
   })
 
   it('the other topics point "for" at the thing topic_lean names', () => {
-    expect(stanceOf('pickleball')).toMatch(/pickleball courts/)
+    expect(fieldOf('pickleball', 'subject')).toMatch(/^pickleball courts/)
+    expect(fieldOf('pickleball', 'sides')).toMatch(/asking for more courts, lights or hours are for/)
     expect(topicPositions('pickleball').for).toBe('For the courts')
-    expect(stanceOf('license-plate-readers')).toMatch(/license plate reader cameras/)
+    expect(fieldOf('license-plate-readers', 'subject')).toMatch(/automated license plate readers/)
+    expect(fieldOf('license-plate-readers', 'advanced')).toMatch(/approved a contract, purchase, installation, renewal or expansion/)
     expect(topicPositions('flock').for).toBe('For the cameras')
-    expect(stanceOf('water-fluoridation')).toMatch(/^keeping or adding fluoride/)
+    // Fluoridation's leans are CareQuest's poll positions; the mart rolls support_* up to "for" (keep or start it).
+    expect(fieldOf('water-fluoridation', 'advanced')).toMatch(/^The body voted to keep, start, restore or fund fluoridating/)
     expect(topicPositions('water-fluoridation').for).toBe('Keep fluoride in the water')
   })
 

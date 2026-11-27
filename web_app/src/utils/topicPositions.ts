@@ -3,7 +3,7 @@
 // matrix's "By who spoke" groups, the Overview and the headline).
 //
 // Every position shown is an AI reading (Jev) of the meeting transcript, never a count of speakers. Which way "for"
-// points is fixed per topic by the question Jev was asked: `llm.typesafe.topic_lean.TOPICS[slug].stance` (data centers:
+// points is fixed per topic by the question Jev was asked: `llm.typesafe.topic_lean.TOPICS[slug]` (`subject` and `sides`; data centers:
 // their own screen, `screen_transcripts`). The words here restate that stance and never invent a direction. Where "for" and
 // "against" could each be read either way, the two sides are named instead (#1237): guns, read by the gun-control
 // question (question_version 48468cc5296e), say "Favor gun limits" and "Favor gun rights", never "the gun proposal".
@@ -32,7 +32,7 @@ export interface TopicPositions {
    */
   againstTitle?: string
   forTitle?: string
-  /** What "for" means, from topic_lean's stance, for the map's "How to read this map" note: "For = allowing short-term
+  /** What "for" means, from topic_lean's subject and sides, for the map's "How to read this map" note: "For = allowing short-term
    * rentals". A topic with named sides (guns) defines both sides and what isn't counted. No closing period. */
   forMeans: string
 }

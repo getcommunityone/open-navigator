@@ -552,6 +552,11 @@ def estimate_tokens(
     )
 
 
+# Topics --topic can read (#1126); the definitions live in llm.typesafe.topic_lean.TOPICS (kept in step by a test).
+TOPIC_SLUGS: tuple[str, ...] = (
+    "guns", "short-term-rentals", "pickleball", "license-plate-readers", "water-fluoridation",
+)
+
 # Meeting sets that can be screened together (#1029).
 COHORTS: dict[str, str] = {
     # Transcripts that name a data center (verbatim passages in data_center_meeting_mention).
@@ -863,8 +868,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     if getattr(args, "calibrate", False):
         return run_calibrate(args)
-    if getattr(args, "topic", ""):
-        # #1126: the public / official lean on one curated topic, only for its linked meetings.
+    if getattr(args, "topic", None):
+        # #1126: how the public and officials leaned on one topic, into bronze_transcript_topic_lean_jev.
         from llm.typesafe import topic_lean
 
         return topic_lean.run(args)
@@ -991,13 +996,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--topic",
-        default="",
-        help="Read how the public and officials leaned on a curated topic, for its linked meetings only (#1126): "
-        "short-term-rentals, license-plate-readers, guns, pickleball, water-fluoridation, bike-lanes, or all. "
-        "Lands in bronze.bronze_transcript_topic_lean_jev. Paid: run on the owner's go-ahead.",
+        default=None,
+        help="Ask the topic lean questions (public, officials, outcome) for a topic's linked meetings instead of "
+        f"the screen (#1126): {', '.join(TOPIC_SLUGS)}, several separated by commas, or all. Results go to "
+        "bronze.bronze_transcript_topic_lean_jev. Paid: run on the owner's go-ahead.",
     )
-    p.add_argument("--topic-chunk-chars", type=int, default=0, help="Chunk size for --topic (default 40,000)")
-    p.add_argument("--topic-max-chunks", type=int, default=0, help="Most topic chunks read per meeting (default 3)")
+    p.add_argument(
+        "--neighbor-chunks",
+        type=int,
+        default=0,
+        help="With --topic: also send this many chunks on each side of each keyword-passage chunk (default 0; "
+        "each chunk is ~100k characters, so the passage is already inside it) (#1145)",
+    )
+    p.add_argument(
+        "--max-input-tokens",
+        type=int,
+        default=0,
+        help="With --topic: stop once this many input tokens have been sent, per topic (0 = no cap)",
+    )
     p.add_argument(
         "--limit", type=int, default=100, help="Most videos to screen (default 100; per topic with --topic)"
     )

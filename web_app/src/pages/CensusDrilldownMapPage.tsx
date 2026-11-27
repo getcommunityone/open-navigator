@@ -1,6 +1,6 @@
 // @ts-nocheck — Census utility functions and react-router types are loose; this file
 // follows the same convention as CensusMapPage.tsx.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchStaticJson } from '../utils/fetchStaticJson'
@@ -44,7 +44,11 @@ import { InfoHelpTrigger } from '../components/InfoHelpTrigger'
 import MapAddressSearch, { type MapAddressResult } from '../components/MapAddressSearch'
 import CensusMapLeftRail, { type CensusMapRailSection } from '../components/CensusMapLeftRail'
 import CensusMetricBrowserPanel from '../components/CensusMetricBrowserPanel'
-import CensusDrilldownStage, { type DrilldownView } from '../components/CensusDrilldownStage'
+import CensusDrilldownStage, {
+  type DrilldownView,
+  type StageTapPreview,
+} from '../components/CensusDrilldownStage'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import CensusDrilldownLocalView from '../components/CensusDrilldownLocalView'
 import PinnedAddressParcelCard from '../components/PinnedAddressParcelCard'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
@@ -84,6 +88,9 @@ function fips2(raw) {
  * unmatched path under public/, which would otherwise pose as a successful
  * 200 to vintage-fallback loops and short-circuit them on r.json() parse.
  */
+/** Touch / narrow screens get tap-first map behaviour and the collapsed bottom sheet (#1238). */
+const TOUCH_MAP_QUERY = '(max-width: 760px), (hover: none)'
+
 function isJsonResponse(r: Response): boolean {
   if (r.status === 404) return false
   const ct = r.headers.get('content-type') ?? ''
@@ -246,6 +253,13 @@ export default function CensusDrilldownMapPage() {
     value: number | null
     rank: { rank: number; total: number } | null
   } | null>(null)
+  // ── touch / narrow screens (#1238) ───────────────────────────────────────
+  // Phones and other no-hover devices: a first tap previews a shape in a
+  // compact strip (a second tap or the strip's button drills), and the pinned
+  // card is a bottom sheet collapsed to one line so the map stays visible.
+  const touchUi = useMediaQuery(TOUCH_MAP_QUERY)
+  const [tapPreview, setTapPreview] = useState<StageTapPreview | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   // ── display options (mirror existing page) ────────────────────────────────
   const viz: 'filled' | 'bubble' = searchParams.get('viz') === 'bubble' ? 'bubble' : 'filled'
@@ -1089,7 +1103,52 @@ export default function CensusDrilldownMapPage() {
 
   // Local view keeps the aside slot so the parcel card has somewhere to render.
   const showRightAside = true
-  const localStatus = localPin ? localPin.label : 'Click any state to drill in'
+  const tapVerb = touchUi ? 'tap' : 'click'
+  const localStatus = localPin ? localPin.label : `${touchUi ? 'Tap' : 'Click'} any state to drill in`
+  // Phone bottom sheet: only on touch/narrow screens, only while a county is
+  // pinned and outside the street view. Desktop keeps the in-page card (#1095).
+  const sheetMode = touchUi && !!pinnedCounty && view !== 'local'
+  const pinKey = `${pinnedCounty?.geoid ?? ''}|${pinnedPlace?.geoid ?? ''}|${pinnedZcta?.zcta ?? ''}`
+  // A new pin opens the sheet collapsed, so the map it was tapped on stays in view.
+  useEffect(() => {
+    setSheetOpen(false)
+  }, [pinKey])
+  // Touch: after a drill, or when the sheet expands, bring the map card to the
+  // top of the window so the area stays visible above the sheet (#1238).
+  const mapCardRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!touchUi || view === 'nation' || view === 'local') return
+    const el = mapCardRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const sheetTop = !sheetMode
+      ? window.innerHeight
+      : sheetOpen
+        ? window.innerHeight * 0.55
+        : window.innerHeight - 64
+    if (r.top < 0 || r.bottom > sheetTop) el.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [touchUi, view, selectedStateFips, sheetOpen])
+  // A preview captured under one metric/year/mode must not be shown under
+  // another; and a hover readout left over from mouse use must not outrank it.
+  useEffect(() => {
+    setTapPreview(null)
+  }, [metricSlug, displayVintage, valueMode])
+  useEffect(() => {
+    if (touchUi) setHoverInfo(null)
+  }, [touchUi])
+  // The preview strip states the value the same way the card does: in Real
+  // mode a dollar figure is deflated to the latest CPI year (map stays nominal).
+  const previewValue = (() => {
+    const v = tapPreview?.info.value ?? null
+    if (v == null) return null
+    const cpiByYear = cpi.data?.by_year
+    const cpiLatestYear = cpi.data?.latest_year
+    if (isDollarMetric(metricSlug) && valueMode === 'raw' && inflationMode === 'real' && cpiByYear && cpiLatestYear != null) {
+      return deflate(v, displayVintage, cpiLatestYear, cpiByYear) ?? v
+    }
+    return v
+  })()
   type Crumb = { label: string; current: boolean; onClick?: () => void }
   const crumbs: Crumb[] = [
     { label: 'United States', current: view === 'nation', onClick: goNation },
@@ -1232,7 +1291,10 @@ export default function CensusDrilldownMapPage() {
       <div
         className={`grid gap-3 ${
           showRightAside
-            ? 'grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)_minmax(260px,19rem)] items-start'
+            ? // From 1024px (lg) the area's panel sits beside the map, so it is
+              // never pushed below the fold on a laptop (incl. 1366px at 125%
+              // zoom ≈ 1093 css px); the left rail joins at xl (#1238).
+              'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(260px,19rem)] xl:grid-cols-[auto_minmax(0,1fr)_minmax(260px,19rem)] items-start'
             : 'grid-cols-1 xl:grid-cols-[auto_minmax(0,1fr)] items-start'
         }`}
       >
@@ -1270,10 +1332,17 @@ export default function CensusDrilldownMapPage() {
 
         {/* center: stage + legend */}
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="relative rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+          <div ref={mapCardRef} className="relative scroll-mt-20 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
             {/* ZIP / places views: opt-in boundary overlays. Both off by default. */}
             {view === 'zip' || view === 'place' ? (
-              <div className="absolute left-3 top-3 z-10 flex flex-col gap-1">
+              <div
+                className={
+                  // Touch: a small control row above the map, never over it (#1238).
+                  touchUi
+                    ? 'mb-2 flex flex-wrap items-center gap-1.5'
+                    : 'absolute left-3 top-3 z-10 flex flex-col gap-1'
+                }
+              >
                 <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm backdrop-blur hover:bg-white">
                   <input
                     type="checkbox"
@@ -1427,9 +1496,49 @@ export default function CensusDrilldownMapPage() {
                 zctaRankByZcta={zctaRankByZcta}
                 placeRankByGeoid={placeRankByGeoid}
                 onHoverInfo={setHoverInfo}
+                onTapPreview={touchUi ? setTapPreview : undefined}
+                tapPreviewId={tapPreview?.info.id ?? null}
               />
             )}
           </div>
+
+          {/* Touch: the tapped shape's name/value in a compact strip, with an
+              explicit button to drill (a second tap on the shape also drills). */}
+          {touchUi && tapPreview && view !== 'local' ? (
+            <div
+              role="status"
+              data-testid="census-map-preview"
+              className="flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-[13px] shadow-sm"
+            >
+              <span className="min-w-0 flex-1 truncate">
+                <span className="font-semibold text-slate-900">{tapPreview.info.name}</span>
+                <span className="text-slate-400"> · </span>
+                <span className="font-semibold tabular-nums text-slate-900">
+                  {previewValue != null
+                    ? formatMetricValueCompact(metricSlug, previewValue, metrics, valueMode)
+                    : '—'}
+                </span>
+                {tapPreview.info.rank ? (
+                  <span className="text-slate-500">
+                    {' '}
+                    · #{tapPreview.info.rank.rank} of {tapPreview.info.rank.total}
+                  </span>
+                ) : null}
+              </span>
+              <button
+                type="button"
+                data-testid="census-map-preview-drill"
+                onClick={() => {
+                  const p = tapPreview
+                  setTapPreview(null)
+                  p.drill()
+                }}
+                className="shrink-0 rounded-md bg-[#354F52] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#2c4346]"
+              >
+                {tapPreview.info.kind === 'state' ? 'Open state ▸' : 'Show towns ▸'}
+              </button>
+            </div>
+          ) : null}
 
           {/* status strip */}
           <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-sm">
@@ -1441,17 +1550,21 @@ export default function CensusDrilldownMapPage() {
                 ? localStatus
                 : view === 'zip'
                   ? zctaTopo
-                    ? `${stateName} · ${Object.keys(zctaDisplayByZcta).length || 'ZCTA'} polygons · click a ZIP to pin`
+                    ? `${stateName} · ${Object.keys(zctaDisplayByZcta).length || 'ZCTA'} polygons · ${tapVerb} a ZIP to pin`
                     : `${stateName} · ZIP tiles not generated for this state yet — run scripts/frontend/prep_zcta_tiles.sh`
                   : view === 'place'
                     ? placesGeoJson
-                      ? `${stateName} · ${(placesGeoJson.features ?? []).length} cities & towns in state · click any to pin`
+                      ? `${stateName} · ${(placesGeoJson.features ?? []).length} cities & towns in state · ${tapVerb} any to pin`
                       : `${stateName} · place tiles not generated for this state yet — run scripts/datasources/census/export_census_map_static.py --place-states ${selectedStateFips ?? '??'}`
                     : view === 'county'
-                      ? `${countyName ?? selectedCountyGeoid} · click any county or address to go deeper`
+                      ? `${countyName ?? selectedCountyGeoid} · ${tapVerb} any county or address to go deeper`
                       : view === 'state'
-                        ? `${stateName} · click any county`
-                        : `${Object.keys(stateDisplayById).length} states · click any to drill in`}
+                        ? touchUi
+                          ? `${stateName} · tap a county, tap again to open it`
+                          : `${stateName} · click any county`
+                        : touchUi
+                          ? `${Object.keys(stateDisplayById).length} states · tap one, tap again to open it`
+                          : `${Object.keys(stateDisplayById).length} states · click any to drill in`}
             </span>
             {view !== 'nation' ? (
               <button
@@ -1524,7 +1637,7 @@ export default function CensusDrilldownMapPage() {
         {/* right column — unified hover/pin readout (replaces dark floating tooltip) */}
         {showRightAside ? (
           <aside
-            className={`flex flex-col gap-3 xl:sticky xl:top-4 ${
+            className={`flex flex-col gap-3 ${sheetMode ? '' : 'lg:sticky lg:top-4'} ${
               // Phones (<md) have no hover affordance and the aside otherwise
               // stacks below a tall map — a tapped county's drill CTAs end up
               // off-screen. When a county is pinned, dock the aside as a bottom
@@ -1533,10 +1646,18 @@ export default function CensusDrilldownMapPage() {
               // xl, the sticky sidebar at xl. Desktop windows narrower than
               // 1280px must not get the sheet: it buried the map and flickered
               // under the cursor (#1095). All sheet styles reset at md:.
-              pinnedCounty
-                ? 'fixed inset-x-0 bottom-0 z-40 max-h-[45vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl backdrop-blur md:static md:inset-x-auto md:bottom-auto md:z-auto md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:p-0 md:pb-0 md:shadow-none md:backdrop-blur-none'
+              // #1238: the sheet is driven by ``sheetMode`` (touch or ≤ 760px)
+              // and is collapsed to one line by default; "Details" expands it
+              // to at most 45% of the window. No backdrop-blur: it would make
+              // the sheet the containing block of the docked info popover.
+              sheetMode
+                ? `fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-slate-200 bg-white px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 shadow-2xl ${
+                    sheetOpen ? 'max-h-[45vh] overflow-y-auto' : ''
+                  }`
                 : ''
             }`}
+            data-testid={sheetMode ? 'census-map-sheet' : undefined}
+            aria-label={sheetMode ? 'Selected place details' : undefined}
           >
             {view === 'local' && localPin ? (
               <PinnedAddressParcelCard
@@ -1589,7 +1710,7 @@ export default function CensusDrilldownMapPage() {
                       value: pinnedCounty.value,
                       rank: pinnedCounty.rank,
                     }
-                  : (hoverInfo ?? stateFallback)
+                  : (hoverInfo ?? (touchUi ? (tapPreview?.info ?? null) : null) ?? stateFallback)
               // Pinned cards capture ``value``/``rank`` at click time, but the
               // active metric can change afterward via the dropdown. The label
               // and sparkline read ``metricSlug`` live, so without re-resolving
@@ -1740,6 +1861,62 @@ export default function CensusDrilldownMapPage() {
                 else setPinnedCounty(null)
               }
               return (
+                <>
+                {sheetMode ? (
+                  // One-line sheet header: name · value · rank · Details. Tap the
+                  // toggle, or swipe the handle up/down, to expand or collapse.
+                  <div
+                    className="sticky top-0 z-10 -mx-3 bg-white px-3 pt-1"
+                    onTouchStart={(e) => {
+                      const el = e.currentTarget as HTMLDivElement
+                      el.dataset.y = String(e.touches[0]?.clientY ?? 0)
+                    }}
+                    onTouchEnd={(e) => {
+                      const y0 = Number((e.currentTarget as HTMLDivElement).dataset.y ?? NaN)
+                      const y1 = e.changedTouches[0]?.clientY ?? NaN
+                      if (!Number.isFinite(y0) || !Number.isFinite(y1)) return
+                      if (y1 - y0 > 30) setSheetOpen(false)
+                      else if (y0 - y1 > 30) setSheetOpen(true)
+                    }}
+                  >
+                    <div aria-hidden className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-300" />
+                    <div className="flex items-center gap-2 pb-1 text-[13px]">
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="font-semibold text-slate-900">{showing?.name ?? ''}</span>
+                        <span className="text-slate-400"> · </span>
+                        <span className="font-semibold tabular-nums text-slate-900">
+                          {displayValue != null
+                            ? formatMetricValueCompact(metricSlug, displayValue, metrics, valueMode)
+                            : '—'}
+                        </span>
+                        {showing?.rank ? (
+                          <span className="text-slate-500">
+                            {' '}
+                            · #{showing.rank.rank} of {showing.rank.total}
+                          </span>
+                        ) : null}
+                      </span>
+                      <button
+                        type="button"
+                        data-testid="census-map-sheet-toggle"
+                        aria-expanded={sheetOpen}
+                        onClick={() => setSheetOpen((v) => !v)}
+                        className="shrink-0 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                      >
+                        {sheetOpen ? 'Hide ▾' : 'Details ▴'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearPin}
+                        className="-mr-1 shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        aria-label="Clear pin"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {sheetMode && !sheetOpen ? null : (
                 <div className={`rounded-lg border bg-white p-3 shadow-sm transition-colors ${accent}`}>
                   {idle ? (
                     <div className="flex items-start gap-2">
@@ -1748,9 +1925,13 @@ export default function CensusDrilldownMapPage() {
                           Region details
                         </div>
                         <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900">
-                          {view === 'nation'
-                            ? 'Hover any state for details · click to zoom'
-                            : `Hover any county in ${stateName ?? 'this state'} for details`}
+                          {touchUi
+                            ? view === 'nation'
+                              ? 'Tap any state for details · tap again to zoom'
+                              : `Tap any county in ${stateName ?? 'this state'} for details`
+                            : view === 'nation'
+                              ? 'Hover any state for details · click to zoom'
+                              : `Hover any county in ${stateName ?? 'this state'} for details`}
                         </div>
                         <div className="mt-2 text-[11px] leading-snug text-slate-500">
                           Showing{' '}
@@ -1817,6 +1998,7 @@ export default function CensusDrilldownMapPage() {
                             <InfoHelpTrigger
                               topic="Real vs nominal dollars"
                               align="right"
+                              mobilePlacement={sheetMode ? 'top' : 'anchored'}
                               help={
                                 `Nominal: dollar figures exactly as reported for each year — not adjusted for inflation.\n\n` +
                                 `Real: every year's value is restated in ${cpiLatestYear ?? 'the latest'} dollars so amounts are comparable over time. ` +
@@ -1833,7 +2015,7 @@ export default function CensusDrilldownMapPage() {
                               #{showing!.rank.rank} of {showing!.rank.total}
                             </span>
                           ) : null}
-                          {isPinned ? (
+                          {isPinned && !sheetMode ? (
                             <button
                               type="button"
                               onClick={clearPin}
@@ -1928,11 +2110,13 @@ export default function CensusDrilldownMapPage() {
                     </div>
                   ) : null}
                 </div>
+                )}
+                </>
               )
             })()}
             {/* Pin stays primary; when the cursor visits another region, the
                 comparison chip slides in just below so the user can preview
-                without dismissing. Hidden below md, where the aside is a
+                without dismissing. Hidden below xl and in the phone sheet, where the aside is a
                 docked bottom sheet: a card appearing with the pointer would
                 change the sheet's height under the cursor (#1095). */}
             {pinnedCounty && hoverInfo && hoverInfo.id !== pinnedCounty.geoid ? (
@@ -1986,7 +2170,7 @@ export default function CensusDrilldownMapPage() {
                 </div>
               </div>
             ) : null}
-            {pinnedAddress ? (
+            {pinnedAddress && !(sheetMode && !sheetOpen) ? (
               <div className="rounded-lg border border-rose-200 bg-white p-3 shadow-sm">
                 <div className="text-[10px] font-semibold uppercase tracking-wide text-rose-700">
                   Pinned address
@@ -2018,6 +2202,8 @@ export default function CensusDrilldownMapPage() {
           </aside>
         ) : null}
       </div>
+      {/* Room for the collapsed phone sheet so it never hides the page's last row. */}
+      {sheetMode ? <div aria-hidden className="h-16" /> : null}
     </div>
   )
 }

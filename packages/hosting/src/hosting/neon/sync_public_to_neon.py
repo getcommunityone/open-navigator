@@ -274,6 +274,8 @@ CIVIC_SERVING = frozenset(
         # Recorded meetings per place and year (#1140, #1194): the story timelines and dumbbell need it to tell a real
         # zero year from a year with no recordings; small (~1 MB, one row per jurisdiction and year)
         "recorded_meeting_year",
+        # Which videos are real public meetings (#1240, #1258): map cards only quote these; ~1 MB, one row per video
+        "meeting_video_kind",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

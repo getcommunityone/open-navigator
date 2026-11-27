@@ -137,7 +137,28 @@ interface StageProps {
       rank: { rank: number; total: number } | null
     } | null,
   ) => void
+  /**
+   * Touch / narrow screens (#1238): when set, a first tap on a state or county
+   * only previews it (the parent shows a compact strip with ``drill``), and a
+   * second tap on the same shape drills. Hover handlers are ignored in this
+   * mode — browsers fire synthetic mouseenter on tap. Leave unset on desktop:
+   * the Stage then behaves exactly as before (click drills, hover reads out).
+   */
+  onTapPreview?: (preview: StageTapPreview | null) => void
+  /** Tap mode: the id the parent currently previews; ``null`` once the parent
+   *  clears or consumes the preview (e.g. its drill button), resetting the Stage. */
+  tapPreviewId?: string | null
 }
+
+export type StageHoverInfo = {
+  kind: 'state' | 'county' | 'zip' | 'place'
+  id: string
+  name: string
+  value: number | null
+  rank: { rank: number; total: number } | null
+}
+
+export type StageTapPreview = { info: StageHoverInfo; drill: () => void }
 
 function fips2(id: string | number | undefined): string {
   if (id == null) return ''
@@ -217,8 +238,14 @@ export default function CensusDrilldownStage({
   countyRankByGeoid,
   zctaRankByZcta,
   placeRankByGeoid,
-  onHoverInfo,
+  onHoverInfo: onHoverInfoProp,
+  onTapPreview,
+  tapPreviewId = null,
 }: StageProps) {
+  const tapMode = !!onTapPreview
+  // In tap mode hover readouts are suppressed (synthetic mouse events on tap
+  // would otherwise flash the hover card); the tap preview replaces them.
+  const onHoverInfo = tapMode ? undefined : onHoverInfoProp
   const svgRef = useRef<SVGSVGElement | null>(null)
   /**
    * Local-only — tracks the polygon under the cursor so we can render a clear
@@ -226,7 +253,40 @@ export default function CensusDrilldownStage({
    * `onHoverInfo` for the readout) because every cursor move would re-render
    * the whole page if we did.
    */
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [hoveredId, setHoveredIdRaw] = useState<string | null>(null)
+  /** Tap mode: the shape previewed by the first tap (a second tap drills). */
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const setHoveredId: typeof setHoveredIdRaw = (v) => {
+    if (!tapMode) setHoveredIdRaw(v)
+  }
+  // The parent cleared or consumed the preview: forget it here too, so the
+  // next tap on that shape previews again instead of drilling.
+  useEffect(() => {
+    if (tapPreviewId == null) {
+      setPreviewId(null)
+      setHoveredIdRaw(null)
+    }
+  }, [tapPreviewId])
+  // A new view or state clears any pending preview.
+  useEffect(() => {
+    setPreviewId(null)
+    setHoveredIdRaw(null)
+    onTapPreview?.(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, selectedStateFips])
+  /** Tap mode: preview on the first tap, drill on the second. Returns true when it only previewed. */
+  const previewOrDrill = (info: StageHoverInfo, drill: () => void): boolean => {
+    if (!onTapPreview) return false
+    if (previewId !== info.id) {
+      setPreviewId(info.id)
+      setHoveredIdRaw(info.id)
+      onTapPreview({ info, drill })
+      return true
+    }
+    setPreviewId(null)
+    onTapPreview(null)
+    return false
+  }
   /**
    * Current zoom scale. Always-on ZIP labels live inside the zoomed <g>, so we
    * counter-scale their font by 1/k to keep them a constant on-screen size.
@@ -385,38 +445,35 @@ export default function CensusDrilldownStage({
     // ZCTA tiles are raw lng/lat (need ALBERS); state/county tiles are
     // pre-projected. Track which so we measure the bbox with the right path.
     let targetIsLngLat = false
+    let placeUnion: GeoJSON.Feature | null = null
     if (view === 'state' && selectedStateFips && states) {
       targetFeature = states.find((f) => fips2(f.id as string | number) === selectedStateFips) ?? null
     } else if (view === 'county' && selectedCountyGeoid && countiesInState) {
       targetFeature =
         countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
-    } else if (view === 'zip') {
-      // ZIP view: stay framed on the selected ZCTA if one is pinned, else fall
-      // back to the county the user drilled from (keeps the camera anchored).
-      if (selectedZcta && zctasInCounty) {
-        targetFeature = zctasInCounty.find((f) => String(f.id) === selectedZcta) ?? null
-        if (targetFeature) targetIsLngLat = true
+    } else if (view === 'zip' || view === 'place') {
+      // ZIP / Cities & towns: frame the WHOLE county the user drilled into
+      // (plus any town that spills over its line), with context around it.
+      // Picking a ZIP or a town highlights it in place; the camera no longer
+      // dives into one small polygon (#1238: "zoom appears too far in").
+      const county =
+        selectedCountyGeoid && countiesInState
+          ? (countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null)
+          : null
+      if (county) targetFeature = county
+      if (view === 'place' && placesInCounty && placesInCounty.length) {
+        placeUnion = { type: 'FeatureCollection', features: placesInCounty } as never
       }
-      if (!targetFeature && selectedCountyGeoid && countiesInState) {
-        targetFeature =
-          countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
-      }
-    } else if (view === 'place') {
-      // Place view: frame the pinned city/town if one is selected. Otherwise
-      // frame the cities/towns *themselves* (their combined extent) rather than
-      // the whole county — places are small and scattered, so county-bbox
-      // framing leaves them tiny amid rural white space. Falls back to the
-      // county, then nation, when no place geometry is loaded yet.
-      if (selectedPlaceFeature) {
-        targetFeature = selectedPlaceFeature
-        targetIsLngLat = true
-      } else if (placesInCounty && placesInCounty.length) {
-        targetFeature = { type: 'FeatureCollection', features: placesInCounty } as never
-        targetIsLngLat = true
-      }
-      if (!targetFeature && selectedCountyGeoid && countiesInState) {
-        targetFeature =
-          countiesInState.find((f) => geoid5(f.id as string | number) === selectedCountyGeoid) ?? null
+      if (!targetFeature) {
+        // No county geometry yet: fall back to the pinned shape, then the towns.
+        if (view === 'zip' && selectedZcta && zctasInCounty) {
+          targetFeature = zctasInCounty.find((f) => String(f.id) === selectedZcta) ?? null
+          if (targetFeature) targetIsLngLat = true
+        } else if (view === 'place' && (selectedPlaceFeature || placeUnion)) {
+          targetFeature = selectedPlaceFeature ?? placeUnion
+          placeUnion = null
+          targetIsLngLat = true
+        }
       }
     }
     if (!targetFeature) {
@@ -425,30 +482,33 @@ export default function CensusDrilldownStage({
       return
     }
     const boundsPath = targetIsLngLat ? projectedPath : path
-    const [[x0, y0], [x1, y1]] = boundsPath.bounds(targetFeature as never) as [[number, number], [number, number]]
-    // Pad the county bbox slightly so the ZIP boundaries don't kiss the SVG
-    // edge when we land — gives the postal grid a little breathing room.
-    const pad =
-      (view === 'zip' && !selectedZcta) || (view === 'place' && !selectedPlaceFeature)
-        ? 0.82
-        : 0.9
+    let [[x0, y0], [x1, y1]] = boundsPath.bounds(targetFeature as never) as [[number, number], [number, number]]
+    if (placeUnion) {
+      // Places are lng/lat; widen the county box to cover towns crossing its line.
+      const [[px0, py0], [px1, py1]] = projectedPath.bounds(placeUnion as never) as [
+        [number, number],
+        [number, number],
+      ]
+      if ([px0, py0, px1, py1].every(Number.isFinite)) {
+        x0 = Math.min(x0, px0)
+        y0 = Math.min(y0, py0)
+        x1 = Math.max(x1, px1)
+        y1 = Math.max(y1, py1)
+      }
+    }
+    // Fit the area with comfortable padding: it fills at most ~75% of the
+    // stage (states ~80%), so neighbours give context and it never kisses the
+    // edge. The side panel is its own grid column, not an overlay, so no extra
+    // inset is needed for it.
+    const pad = view === 'state' ? 0.8 : 0.72
     const k = Math.min(150, pad / Math.max((x1 - x0) / W, (y1 - y0) / H))
     const tx = W / 2 - k * ((x0 + x1) / 2)
     const ty = H / 2 - k * ((y0 + y1) / 2)
     const next = zoomIdentity.translate(tx, ty).scale(k) as ZoomTransform
     // d3-zoom interpolates transforms with interpolateZoom (van Wijk) by
-    // default — the long duration when first entering the ZIP tier makes the
-    // county-bbox flight read as cinematic; a pinned ZCTA gets a snappier hop.
-    const duration =
-      view === 'zip'
-        ? selectedZcta
-          ? 800
-          : 1250
-        : view === 'place'
-          ? selectedPlaceFeature
-            ? 800
-            : 1250
-          : 900
+    // default — the longer duration when first entering a sub-county tier reads
+    // as a flight; re-framing the same county is a no-op transition.
+    const duration = view === 'zip' || view === 'place' ? 1250 : 900
     select(svgEl).transition().duration(duration).call(z.transform as never, next)
   }, [
     view,
@@ -512,6 +572,13 @@ export default function CensusDrilldownStage({
       onClick={(e) => {
         // Background click resets to nation. Children stopPropagation.
         if (e.target === e.currentTarget || e.target === svgRef.current) {
+          // Tap mode: a background tap first dismisses a pending preview.
+          if (previewId) {
+            setPreviewId(null)
+            setHoveredIdRaw(null)
+            onTapPreview?.(null)
+            return
+          }
           if (view !== 'nation') onResetToNation()
         }
       }}
@@ -536,7 +603,21 @@ export default function CensusDrilldownStage({
                 d={d}
                 onClick={(e) => {
                   e.stopPropagation()
-                  onPickState(sid)
+                  const drill = () => onPickState(sid)
+                  if (
+                    previewOrDrill(
+                      {
+                        kind: 'state',
+                        id: sid,
+                        name: (f.properties as { name?: string })?.name ?? sid,
+                        value: stateDisplayById[sid] ?? null,
+                        rank: stateRankById?.[sid] ?? null,
+                      },
+                      drill,
+                    )
+                  )
+                    return
+                  drill()
                 }}
                 onMouseEnter={() => {
                   setHoveredId(sid)
@@ -614,7 +695,9 @@ export default function CensusDrilldownStage({
                     } catch {
                       // fall through: caller handles null
                     }
-                    onPickCounty({ geoid: gid, name, value, rank, lngLat, feature: f })
+                    const drill = () => onPickCounty({ geoid: gid, name, value, rank, lngLat, feature: f })
+                    if (previewOrDrill({ kind: 'county', id: gid, name, value, rank }, drill)) return
+                    drill()
                   }}
                   onMouseEnter={() => {
                     setHoveredId(gid)

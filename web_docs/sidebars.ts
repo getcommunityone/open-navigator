@@ -123,6 +123,7 @@ function developersTechnicalItems() {
         'development/llm-usage-tracking',
         'development/data-freshness',
         'development/gpu-compute-decisions',
+        'development/meeting-audio-source-decision',
         'development/ai-model-evaluation',
         'development/ai-policy-analysis',
         'development/ai-model-merging',
