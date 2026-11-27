@@ -4,9 +4,9 @@ branch: feat/1345-topic-organization
 title: "feat(topics): topic_organization mart and API tie nonprofits to curated topics"
 author: jcbowyer
 reviewed_at: 2026-11-27
-reviewer: github-actions
+reviewer: claude (read-only reviewer subagent + author verification)
 head_sha: 223d212e388c5a40c462c5062a87a93360f1d999
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: feat(topics): topic_organization mart and API tie nonprofits to curated topics
@@ -53,12 +53,14 @@ None.
 
 ### 🟡 Should fix (Important)
 
-None from automated heuristics.
+- Fixed: the named-in-meeting quote was a lower-cased copy of the transcript (`int_topic_organization__named_in_meeting.sql`), breaking the verbatim-evidence rule. Now the passage keeps its case and matching is case-insensitive (`~*`, `'gi'`).
+- Fixed: marking topic words after the name could nest `<mark>`s, which `highlightSnippet` renders wrongly. Topic words are now marked only outside the name's mark, with a fallback to the name alone if any nesting remains.
 
 ### 🔵 Nit (Minor)
 
-None from automated heuristics.
+- Fixed: a mission longer than 1,000 characters was cut before its match. It is now cut to a window around the match (`regexp_instr`).
+- Open: `topic_slug = $1 OR topic_id::text = $1` and `lower(city)` may skip the index. It is fast at the current size (147k rows, sub-second); left as is.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: no blocking findings. The should-fix items were fixed on the branch.
