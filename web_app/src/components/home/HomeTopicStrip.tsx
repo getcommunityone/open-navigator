@@ -157,9 +157,15 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
         <p id="home-topics-h" className="font-mono-x">
           Browse topics
         </p>
-        <Link to={`/stories${query}`} aria-label="All data stories" title="All data stories" className="home-topics-all">
-          <ChevronRight size={18} aria-hidden="true" />
-        </Link>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {/* Every main topic, last year against this year, in one dumbbell (#1343), in the page's place. */}
+          <Link to={`/browse-topics/all${query}`} style={{ fontSize: 13, fontWeight: 600, color: '#0f766e' }}>
+            Compare all
+          </Link>
+          <Link to={`/stories${query}`} aria-label="All data stories" title="All data stories" className="home-topics-all">
+            <ChevronRight size={18} aria-hidden="true" />
+          </Link>
+        </span>
       </div>
       <div className="home-topics-scroller">
         <button type="button" className="home-topics-arrow is-prev" aria-label="Previous topics" onClick={() => page(-1)} disabled={pos.atStart} hidden={pos.pages <= 1}>

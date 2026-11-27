@@ -3667,3 +3667,7 @@ html.stance-snap .stance-intro {
 .story-summary-back {
   min-height: 44px;
 }
+
+/* The × names its purpose (#1341): a small "Close" caption under it; the tooltip says "Close · back to home". */
+.folio .story-close { flex-direction: column; gap: 0; }
+.folio .story-close .story-close-label { font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0.02em; margin-top: -4px; }

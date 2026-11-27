@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TopicCaptionFacts } from '../api/topics'
 import type { StoryScope } from './dataStory'
 import { captionSubhead, captionText, pickCaption, type Caption } from './storyCaption'
-import { STANCE_MIN_DECISIONS, STANCE_MIN_SPEAKERS, evidenceFacts, recordedEvidence, stanceSide, voteSide } from './stanceEvidence'
+import { STANCE_MIN_DECISIONS, STANCE_MIN_POSITION_MEETINGS, STANCE_MIN_SPEAKERS, disagreementLine, disagreementParts, evidenceFacts, namedSides, namedSidesClause, officialPositionsLine, publicPositionsLine, recordedEvidence, stanceSide, voteSide } from './stanceEvidence'
 
 // Test stand-ins shaped like the caption-facts response (#1289). The Alabama fixture mirrors what the live API returned
 // for /stories/data-centers?state=AL on 2026-11-27, the page the owner reported.
@@ -204,5 +204,72 @@ describe('#1290: votes read by which way they went, and the speaker sources reco
     // Votes that went against data centers back an against headline.
     const allAgainst = national({ votes: { decisions: 3, for: 27, against: 0, decisions_for: 0, decisions_against: 3 } })
     expect(title(pickCaption('data-centers', allAgainst, nat))).toBe('America hates data centers.')
+  })
+})
+
+describe('#1330: every recorded position counts, public and official, and disagreement is said', () => {
+  // Live shapes, 27 Nov 2026 (caption facts for data centers): Alabama 32 meetings with a position (public 6 against and 2
+  // split; officials 7 against, 8 for, 13 divided), 4 with both, one vote 8–1 that went for data centers.
+  const alAll = (over: Over = {}) =>
+    facts(al, {
+      votes: { decisions: 1, for: 8, against: 1, decisions_for: 1, decisions_against: 0 },
+      caption_comments: { comments: 62, governments: 10 },
+      official_against_meetings: 7,
+      official_for_meetings: 8,
+      official_divided_meetings: 13,
+      position_meetings: 32,
+      both_position_meetings: 4,
+      ...over,
+    })
+
+  it('the minimum is fewer than 5 meetings with any position, public or official (and fewer than 3 voted decisions)', () => {
+    expect(STANCE_MIN_POSITION_MEETINGS).toBe(5)
+    const at = (n: number) => pickCaption('data-centers', alAll({ position_meetings: n }), al).kind
+    expect(at(STANCE_MIN_POSITION_MEETINGS - 1)).toBe('insufficient')
+    expect(at(STANCE_MIN_POSITION_MEETINGS)).not.toBe('insufficient')
+  })
+  it('Alabama clears the minimum on 32 meetings with a position, and its title agrees with the 8–1 vote: divided', () => {
+    const c = pickCaption('data-centers', alAll(), al)
+    expect(title(c)).toBe('Alabama is divided on data centers.')
+    expectAgreesWithVotes(c, alAll())
+    expect(c.basis).toMatch(/Recorded votes went the other way: 1 of 1 decision with a recorded vote went for data centers\.$/)
+  })
+  it('says where officials sided against the public, with its denominator, and nothing when they never did', () => {
+    const ga = recordedEvidence(facts({ stateCode: 'GA', stateName: 'Georgia', city: null }, { disagreement_meetings: 11, both_position_meetings: 27 }))
+    expect(disagreementLine(ga, 'In Georgia')).toBe('In Georgia, officials sided against the public in 11 of 27 meetings where both took a side.')
+    expect(disagreementLine(recordedEvidence(alAll()), 'In Alabama')).toBeNull()
+  })
+  it('the positions lines name who: the public and officials, no zero side', () => {
+    const e = recordedEvidence(alAll())
+    expect(publicPositionsLine(e)).toBe('Public: 6 against · 2 split (8 meetings)')
+    expect(officialPositionsLine(e)).toBe('Officials: 7 against · 8 for · 13 divided (28 meetings); recorded votes: 1 decision for, 0 against')
+  })
+  it('below the minimum, the facts count the meetings with a position too', () => {
+    const c = pickCaption('data-centers', alAll({ position_meetings: 3 }), al)
+    expect(c.basis).toMatch(/the public or officials took a position in 3 meetings read\./)
+  })
+})
+
+describe('#1330: named supporters and opposers come from #1327 supported_by / opposed_by', () => {
+  it('counts distinct names, and says nothing without the fields', () => {
+    const items = [
+      { supported_by: [{ name: 'John Faile' }, { name: 'Ann B.' }], opposed_by: [{ name: 'Sam C.' }] },
+      { supported_by: [{ name: 'John Faile' }], opposed_by: [] },
+    ]
+    expect(namedSides(items)).toEqual({ supporters: 2, opposers: 1 })
+    expect(namedSidesClause(namedSides(items))).toBe('named supporters 2 · opposers 1')
+    expect(namedSides([{}, {}])).toBeNull()
+    expect(namedSidesClause({ supporters: 0, opposers: 0 })).toBeNull()
+  })
+})
+
+describe('#1330: the disagreement count is its own part, and singular reads right', () => {
+  it('splits into before / count / after, and "1 of 1 meeting"', () => {
+    const e = recordedEvidence(facts({ stateCode: 'AL', stateName: 'Alabama', city: 'District 1' }, { disagreement_meetings: 1, both_position_meetings: 1 }))
+    expect(disagreementParts(e, 'In District 1, Alabama')).toEqual({
+      before: 'In District 1, Alabama, officials sided against the public in ',
+      count: '1',
+      after: ' of 1 meeting where both took a side.',
+    })
   })
 })

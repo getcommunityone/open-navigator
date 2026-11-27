@@ -286,6 +286,14 @@ export interface TopicCaptionFacts {
     decisions_for?: number | null
     decisions_against?: number | null
   } | null
+  /** #1330: officials' position in the meeting reading (P >= 0.7 for a side), and meetings with any position. */
+  official_against_meetings?: number | null
+  official_for_meetings?: number | null
+  official_divided_meetings?: number | null
+  /** Meetings with any recorded position, public (against, for or split) or official. */
+  position_meetings?: number | null
+  /** Meetings where both the public and officials took a position. */
+  both_position_meetings?: number | null
   /** #1290: public comments from our own captions in scope (data centers only); their side isn't classified yet. */
   caption_comments?: { comments: number; governments: number } | null
   /** AI readings (Jev) of meeting transcripts: never counted speakers. */

@@ -12,6 +12,8 @@ export type DrillVoteDecision = Schemas['VoteDecision']
 export type DrillVoteDecisionsResponse = Schemas['VoteDecisionsResponse']
 export type DrillCaptionComment = Schemas['CaptionComment']
 export type DrillCaptionCommentsResponse = Schemas['CaptionCommentsResponse']
+export type DrillDisagreementMeeting = Schemas['DisagreementMeeting']
+export type DrillDisagreementMeetingsResponse = Schemas['DisagreementMeetingsResponse']
 
 /** Which number was tapped. Each kind has exactly one endpoint whose total is that number. */
 export type DrillKind =
@@ -20,6 +22,8 @@ export type DrillKind =
   | { kind: 'comments'; filter: 'all' }
   | { kind: 'comments'; filter: 'ai' }
   | { kind: 'comments'; filter: 'company'; company: string }
+  /** #1330: the meetings where officials sided against the public. */
+  | { kind: 'disagreement' }
 
 export interface DrillScope {
   stateCode?: string
@@ -31,6 +35,7 @@ export type DrillPage =
   | { kind: 'speakers'; total: number | null; items: DrillSpeaker[]; available: boolean }
   | { kind: 'votes'; total: number | null; totalDecisions: number | null; items: DrillVoteDecision[]; available: boolean }
   | { kind: 'comments'; total: number | null; items: DrillCaptionComment[]; available: boolean; note: string }
+  | { kind: 'disagreement'; total: number | null; items: DrillDisagreementMeeting[]; available: boolean }
 
 export const DRILL_PAGE_SIZE = 25
 
@@ -43,7 +48,12 @@ function scopeParams(scope: DrillScope): Record<string, string> {
 
 /** A stable key for react-query: the tapped number and the scope it is for. */
 export function drillKey(d: DrillKind, scope: DrillScope): (string | number)[] {
-  const what = d.kind === 'comments' ? `comments:${d.filter}:${d.filter === 'company' ? d.company : ''}` : `${d.kind}:${d.side}`
+  const what =
+    d.kind === 'comments'
+      ? `comments:${d.filter}:${d.filter === 'company' ? d.company : ''}`
+      : d.kind === 'disagreement'
+        ? 'disagreement'
+        : `${d.kind}:${d.side}`
   return ['story-drill', what, scope.stateCode ?? 'national', scope.city ?? '', scope.year ?? 2026]
 }
 
@@ -68,6 +78,10 @@ export async function fetchDrillPage(d: DrillKind, scope: DrillScope, offset: nu
           items: res.data.items ?? [],
           available: res.data.available !== false,
         }
+      }
+      if (d.kind === 'disagreement') {
+        const res = await api.get<DrillDisagreementMeetingsResponse>('/data-centers/disagreement-meetings', { params: q })
+        return { kind: 'disagreement', total: res.data.total ?? null, items: res.data.items ?? [], available: res.data.available !== false }
       }
       const extra: Record<string, string> = { year: String(scope.year ?? 2026) }
       if (d.filter === 'ai') extra.ai = 'true'

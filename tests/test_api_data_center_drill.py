@@ -187,3 +187,27 @@ def test_missing_mart_is_unavailable_not_zero(get) -> None:
         b = get(_Conn(error=err), path, params).json()
         assert b["available"] is False and b["items"] == []
         assert b.get("total", b.get("total_votes")) is None
+
+
+# --- #1330: officials sided against the public ----------------------------------------------------------------------
+
+
+def test_disagreement_meetings_total_is_the_flag_count_and_rows_link_the_recording(get) -> None:
+    row = {"video_id": "abc", "jurisdiction_name": "Coweta County", "state_code": "GA", "meeting_date": "2026-05-01",
+           "public_lean": "mostly_opposed", "official_lean": "mostly_supportive", "outcome": "approved",
+           "video_url": "https://www.youtube.com/watch?v=abc"}
+    conn = _Conn(count={"n": 11}, rows=[row])
+    b = get(conn, "/api/data-centers/disagreement-meetings", {"state": "GA"}).json()
+    assert b["total"] == 11 and b["items"][0]["video_url"].endswith("abc")
+    assert b["scope"]["state_code"] == "GA"
+    # The same flag caption-facts counts as disagreement_meetings, in the same scope.
+    assert all("officials_sided_against_public" in sql for sql, _ in conn.calls)
+    assert conn.calls[0][1] == ("GA",)
+
+
+def test_disagreement_meetings_city_scope_and_missing_mart(get) -> None:
+    conn = _Conn(count={"n": 0})
+    get(conn, "/api/data-centers/disagreement-meetings", {"state": "AL", "city": "Tuscaloosa"})
+    assert conn.calls[0][1] == ("AL", "%Tuscaloosa%")
+    b = get(_Conn(error=asyncpg.exceptions.UndefinedTableError("nope")), "/api/data-centers/disagreement-meetings", {}).json()
+    assert b["available"] is False and b["total"] is None

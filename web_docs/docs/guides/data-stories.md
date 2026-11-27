@@ -137,6 +137,18 @@ Every topic story's map is the home box map with the same four-entry legend ([#1
 
 On the home hero, **Start the story** and the next-story button stick to the bottom of the screen until their own place scrolls into view, so they are always reachable ([#1174](https://github.com/getcommunityone/open-navigator/issues/1174)). The desktop hover card ends with "Click to open the story for [state] →". Topic story cards (`GET /api/topics/{id}/states` `newest[]`) carry `speaker_display_name` and `speaker_role` from the same self-introductions (#1231), so a topic card can say who was speaking too. The map's cards prefer a named speaker's own words ("Rob D.", never a full surname): the home map asks `GET /api/data-centers/positions?per_state=3` for up to three quotes per state and side, and named speakers rank first.
 
+## Browse all topics: every topic, last year against this year (#1343)
+
+`/browse-topics/all?state=&city=` compares every main (curated) topic in one animated dumbbell ([#1343](https://github.com/getcommunityone/open-navigator/issues/1343)). Each row is a topic: the hollow dot is the last full year, the filled dot is this year to date, labelled by its months (for example **Jan–Nov 2026**, through the latest dated topic meeting in the place), and the line between them is the change. Rows are sorted by change, largest rise first; each value sits over its dot and the relative change is written at the end of the row with its sign (**+456%**, **−20%**). Rising rows are teal and falling rows ochre (the house theme's two data colours, a blue–yellow pair that stays distinct under red–green colour blindness), and the sign carries the direction without colour. The dots grow in and the line draws when the chart scrolls into view; under prefers-reduced-motion it is drawn in its final state. Tapping a row opens that topic's story in the same place (`/stories/<slug>?state=&city=`). On a phone the rows use the compact dumbbell from [#1268](https://github.com/getcommunityone/open-navigator/issues/1268) (label and change on one line, values over the dots, no axis) and fit 360px with no sideways scroll.
+
+**What the dots measure.** By default, the share of recorded meetings that discussed the topic: distinct topic meetings divided by all recorded (transcribed) meetings in the place that year (`recorded_meeting_year`). Recordings grew from 14,038 meetings in 2025 to 16,873 in 2026 nationally, so raw counts would show almost every topic rising; the share corrects for that. A toggle shows raw meeting counts instead, with a note that this year is not a full year.
+
+**When a topic isn't compared.** A topic needs at least 5 meetings in each year (the shared minimum, `MIN_SCOPE_MEETINGS`), and the place at least 20 recorded meetings in each year (the period dumbbell's `MIN_RECORDED_MEETINGS`). Otherwise the topic is listed under **Too few meetings to compare** with its two counts, and topics with no tagged meetings in either year share one line; none of them is given a change. When one year recorded under a quarter of the other's meetings in the place, the note says so and asks the reader to read that year with care (the timeline's thin-year ratio, #1207).
+
+**The place.** The eyebrow and the 📍 chip name the scope the numbers use (National, the state, or the city), with one-click links to broaden (city → **All of GA** → **National**). Browse Topics (**Compare all topics, last year against this year →**) and the home **Browse topics** strip (**Compare all**) link here with the place carried. It is its own route rather than the top of Browse Topics because that page opens on decision cards, and the chart wants the full width and a deep link.
+
+**Data.** `GET /api/topics/yoy?state=&city=` (`api/routes/topic_yoy.py`) answers in one SQL statement over `public.civicsearch_topic` (`source = 'curated'`), `public.data_center_meeting_mention` (data centers), `public.topic_transcript_link` (every other topic) and `public.recorded_meeting_year`, the same sources and dating as the story timeline, so a row matches the topic story's Meetings screen for the same place. Per topic it returns `topic_id`, `slug`, `name`, `year_a`, `year_b` (strings), `meetings_a`, `meetings_b`, `recorded_a`, `recorded_b`, `share_a`, `share_b` and `comparable`; the response adds `year_b_through`, `year_b_partial`, `thin_year`, `min_meetings` and `min_recorded_meetings`. No new mart: the query takes under 100 ms on the local warehouse. `tests/test_api_topic_yoy.py` checks the numbers against the marts.
+
 ## Topic stories, screen by screen (#1224)
 
 Owner, 26 Nov 2026: "All the stories should have horizontal scroll drill down with swipe like data center." Every topic
@@ -312,6 +324,12 @@ The story is headed by the longer "What did local meetings in [place] say about 
 - **The data center record.** The former data-center hub's counts row and **Who spoke for and against** are kept as the Data centers card's detail, **What the data center records cover**, loaded only when opened. The rules for those figures are below. Every count is the endpoint's own whole-scope total, a count that is missing or zero is left out, and under a city a count the source cannot narrow to a city (sites) is labelled with its own, wider place.
 
 ### Who spoke up
+
+**Public and officials, and where they disagree (#1330).** The screen opens with who took which side: "Public: 6 against · 2
+split (8 meetings)" and "Officials: … (N meetings); recorded votes …; named supporters N · opposers M". Where officials sided
+against the public it headlines that ("In Georgia, officials sided against the public in 11 of 27 meetings where both took a
+side."), and the count opens those meetings with their recordings. The hand-counted figures below are labelled "Speakers
+counted by hand". Details: [Story captions](../development/story-captions.md) (#1330).
 
 When the positions table is loaded, the Data centers card's detail on `/stories` shows what people said about data centers at local meetings in the place in scope, as five figures and one chart (under the power/water/land hook). The story's own **Who spoke up** screen always has this block:
 

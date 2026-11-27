@@ -38,6 +38,8 @@ import {
 import { fetchDataCenterPositions, type DataCenterPositionsResponse } from '../api/dataCenters'
 import { storyHeroPoints } from '../utils/heroPoints'
 import { fetchTopicCaptionFacts } from '../api/topics'
+import PositionsSummary from '../components/stance/PositionsSummary'
+import { disagreementLine, recordedEvidence } from '../utils/stanceEvidence'
 import { captionSubhead, captionText, pickCaption, withTopicBlank } from '../utils/storyCaption'
 import '../styles/story-actions.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
@@ -124,8 +126,15 @@ export default function DataStory() {
     return { kind: c.kind, text: captionText(c, story?.topic ?? storyId) }
   }, [storyId, captionQ.data, scope, story])
   const allTexts = useMemo(
-    () => allScreens.map((s) => screenText(s, data, status, scope, question, overviewCaption)),
-    [allScreens, data, status, scope, question, overviewCaption],
+    () =>
+      allScreens.map((s) => {
+        const t = screenText(s, data, status, scope, question, overviewCaption)
+        // #1330: where officials sided against the public, the Who spoke up screen headlines it (the count is in its panel).
+        if (s.id !== 'voices' || t.empty || t.failed) return t
+        const dis = disagreementLine(recordedEvidence(captionQ.data), scope.stateName ? `In ${storyScopeLabel(scope)}` : 'Across America')
+        return dis ? { ...t, headline: dis } : t
+      }),
+    [allScreens, data, status, scope, question, overviewCaption, captionQ.data],
   )
   const keep = allScreens.map((s, i) => s.kind !== 'chart' || !allTexts[i]!.empty)
   const keepKey = keep.join()
@@ -351,6 +360,8 @@ export default function DataStory() {
         </div>
       )}
       {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+      {/* #1330: where officials sided against the public, with a tap through to those meetings. */}
+      {storyId === 'data-centers' && <PositionsSummary scope={scope} only="disagreement" />}
       {points.length > 0 && (
         <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
           {points.map((pt) => (
