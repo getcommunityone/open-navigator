@@ -7,6 +7,7 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
+import { dataCenterQuoteNote } from '../../utils/topicPositions'
 import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
 import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { isTouchOnly } from '../../utils/touchOnly'
@@ -30,6 +31,8 @@ export interface MapPassage {
   /** "First L." and role, only when the record attributes the quoted words to a person (#1124). */
   speaker_display_name?: string | null
   speaker_role?: string | null
+  /** Jev's reading of the public at that meeting (data_center_meeting_lean, #1230): the card's stance line. */
+  ai_public_lean?: string | null
 }
 
 export interface StateCount {
@@ -224,6 +227,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           date={passage.meeting_date}
           quote={excerptAroundMark(passage.evidence ?? '')}
           meeting={passage.meeting_title}
+          stanceNote={dataCenterQuoteNote(passage.ai_public_lean)}
           videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
           startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
           url={passage.jump_url ?? passage.video_url}
