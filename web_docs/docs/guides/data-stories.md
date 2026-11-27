@@ -712,7 +712,7 @@ When you stop on a screen that has a next step, the page draws your eye to it. A
 - It is never shown on a group of answers: no answer is pushed.
 - Focus does not move, nothing is announced to a screen reader, no control is added and nothing shifts.
 - With reduced motion nothing moves: an outline inside the button shows and goes, once per cue.
-- The hub cue is visual only. On the story, with **Sound on**, the first idle nudge also plays one soft page-turn cue, and advancing to a new screen plays the same soft cue (after your first click or key unlocks Web Audio). Answering still plays the lock cue. The challenge is louder: its arrow hops twice and the light is brighter, and its first idle cue plays a soft sound when sound is on (#966).
+- The hub cue is visual only. On the story, with **Play sound in stories** on (Settings, Site tab, or the site menu; off by default, #1319), the first idle nudge also plays one soft page-turn cue, and advancing to a new screen plays the same soft cue (after your first click or key unlocks Web Audio). Answering still plays the lock cue. The challenge is louder: its arrow hops twice and the light is brighter, and its first idle cue plays a soft sound when sound is on (#966).
 
 | Timing | Value | Constant |
 | --- | --- | --- |
