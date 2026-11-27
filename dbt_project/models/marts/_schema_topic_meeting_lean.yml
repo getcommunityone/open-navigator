@@ -1,17 +1,29 @@
 version: 2
 
+# #1126: Jev's reading of how the public and the elected officials leaned on a topic in each meeting, for the topic
+# stories' four-colour maps and disagreement captions (#1125). Built into gold and published to public
+# (publish_public_serving's served list). Every lean is an aggregate per meeting, never tied to a person.
+
 models:
   - name: topic_meeting_lean
     description: >
-      Jev's AI reading of how the public and elected officials leaned on a curated topic, per meeting (#1126). One
-      row per (video_id, topic_id) for meetings linked to the topic with a reading under the topic's current
-      question version. A classifier's reading of the transcript, never counted speakers; nothing is tied to a
-      person. Feeds GET /api/topics/{topic_id}/state-map (#1127) and the topic caption facts (#1125).
+      One row per meeting video and topic (topic_transcript_link) with a Jev screen under the topic's current question
+      version. Topics: guns, short-term rentals, pickleball, license plate readers, water fluoridation. public_lean /
+      official_lean are Jev's (a classifier's) reading of the transcript, not counted speakers: mostly_supportive,
+      mostly_opposed, mixed or did_not_speak (water fluoridation: mostly_supportive, mostly_opposed, no_opinion or
+      did_not_speak, rolled up from CareQuest's five poll positions, kept in public_position / official_position).
+      public_against / public_for = the public mostly opposed / supportive with p >= 0.7.
+      officials_sided_against_public = the public mostly opposed, officials mostly supportive, and the body did not
+      block the subject (outcome_group <> blocked). The same thresholds as data_center_meeting_lean.
     config:
       materialized: table
       on_schema_change: fail
       contract:
         enforced: true
+      tags: ['marts', 'topics', 'serving']
+      indexes:
+        - columns: [topic_id, state_code]
+        - columns: [jurisdiction_id]
     constraints:
       - type: primary_key
         columns: [video_id, topic_id]
@@ -19,67 +31,164 @@ models:
         columns: [topic_id]
         to: ref('civicsearch_topic')
         to_columns: [topic_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [video_id, topic_id]
     columns:
       - name: video_id
-        description: 'The meeting video (with topic_id, the primary key).'
+        description: "YouTube video id of the meeting recording. Part of the primary key."
         data_type: text
         constraints:
           - type: not_null
-        tests: [not_null]
+        tests:
+          - not_null
       - name: topic_id
-        description: 'FK to civicsearch_topic: the curated topic read.'
+        description: "The curated topic (FK to civicsearch_topic). Part of the primary key."
         data_type: integer
         constraints:
           - type: not_null
-        tests: [not_null]
-      - name: state_code
-        description: "Two-letter state code of the meeting's place."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('civicsearch_topic')
+              field: topic_id
+      - name: topic_slug
+        description: "The topic's CLI slug: guns, short-term-rentals, pickleball, license-plate-readers or water-fluoridation."
         data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code of the meeting (from topic_transcript_link)."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
       - name: state
-        description: 'Full state name.'
+        description: "Full state name."
         data_type: text
       - name: jurisdiction_id
-        description: "The meeting's government, when resolved (event_youtube_with_jurisdiction)."
+        description: "The government whose meeting it is (FK to jurisdictions); null when the video's place isn't in jurisdictions."
         data_type: text
+        tests:
+          - relationships:
+              to: ref('jurisdictions')
+              field: jurisdiction_id
       - name: jurisdiction_name
-        description: "The meeting's government name, as the topic link gives it."
+        description: "Jurisdiction name as resolved for the video."
         data_type: text
       - name: meeting_date
-        description: 'Meeting date, when known.'
+        description: "Meeting date (null when the source date is in the future, #472)."
         data_type: date
       - name: public_lean
-        description: 'mostly_opposed, mostly_supportive, mixed or did_not_speak (AI reading).'
+        description: "Jev's reading for members of the public: mostly_supportive, mostly_opposed, mixed, no_opinion (fluoridation only) or did_not_speak."
+        data_type: text
+        tests:
+          # The rolled-up lean (#1201/#1204): water fluoridation's CareQuest positions roll up to these, so a label
+          # outside them is a real failure (a writer and question out of step), not the known fluoridation labels.
+          - accepted_values:
+              values: ['mostly_supportive', 'mostly_opposed', 'mixed', 'no_opinion', 'did_not_speak']
+      - name: public_lean_p
+        description: "Jev's probability for public_lean (for fluoridation, the summed probability of the rolled-up positions)."
+        data_type: numeric
+      - name: official_lean
+        description: "Jev's reading for the elected officials, with the same labels as public_lean."
         data_type: text
         tests:
           - accepted_values:
-              values: ['mostly_opposed', 'mostly_supportive', 'mixed', 'did_not_speak']
-      - name: public_lean_p
-        description: "Jev's probability for public_lean."
-        data_type: numeric
-      - name: official_lean
-        description: 'The same labels for the elected officials (AI reading).'
-        data_type: text
+              values: ['mostly_supportive', 'mostly_opposed', 'mixed', 'no_opinion', 'did_not_speak']
       - name: official_lean_p
         description: "Jev's probability for official_lean."
         data_type: numeric
+      - name: public_position
+        description: >
+          Water fluoridation only: the CareQuest poll position closest to the public who spoke (support_require_all,
+          support_local_choice, no_opinion, oppose_local_choice, oppose_ban_all or did_not_speak). Null for other topics.
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['support_require_all', 'support_local_choice', 'no_opinion', 'oppose_local_choice', 'oppose_ban_all', 'did_not_speak']
+      - name: public_position_probabilities
+        description: "Water fluoridation only: Jev's probability for each public position (did_not_speak left out once the public spoke)."
+        data_type: jsonb
+      - name: official_position
+        description: "Water fluoridation only: the CareQuest poll position closest to the elected officials. Null for other topics."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['support_require_all', 'support_local_choice', 'no_opinion', 'oppose_local_choice', 'oppose_ban_all', 'did_not_speak']
+      - name: official_position_probabilities
+        description: "Water fluoridation only: Jev's probability for each official position."
+        data_type: jsonb
       - name: outcome
-        description: 'approved, denied, tabled_or_deferred, moratorium, discussed_no_action or no_item.'
+        description: >
+          Jev's reading of what the body did: advanced, blocked, tabled_or_deferred, discussed_no_action or no_item
+          (fluoridation: voted_to_end_fluoridation, voted_to_keep_or_start, tabled_or_deferred, discussion_only or
+          no_fluoridation_item).
         data_type: text
+      - name: outcome_group
+        description: "outcome mapped onto the shared labels (fluoridation's labels rolled up: end -> blocked, keep/start -> advanced)."
+        data_type: text
+        tests:
+          - accepted_values:
+              values: ['advanced', 'blocked', 'tabled_or_deferred', 'discussed_no_action', 'no_item']
+      - name: outcome_p
+        description: "Jev's probability for outcome."
+        data_type: numeric
       - name: public_against
-        description: 'public_lean = mostly_opposed with P >= 0.7.'
+        description: "public_lean = mostly_opposed and public_lean_p >= 0.7."
         data_type: boolean
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
       - name: public_for
-        description: 'public_lean = mostly_supportive with P >= 0.7.'
+        description: "public_lean = mostly_supportive and public_lean_p >= 0.7."
         data_type: boolean
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
       - name: officials_sided_against_public
-        description: 'Public mostly opposed, officials mostly supportive, and the outcome not a denial or moratorium.'
+        description: "The public mostly opposed, officials mostly supportive, and the body did not block the subject (outcome_group <> blocked)."
         data_type: boolean
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
       - name: question_version
-        description: "Hash of the topic's Jev question wording."
+        description: "The topic's Jev question version the row was screened under (the current one)."
         data_type: text
+        constraints:
+          - type: not_null
+      - name: excluded_no_item
+        description: >
+          #1136: Jev's outcome says no item on this topic came up (outcome_group = no_item) with p >= 0.7, so the
+          keyword link was a false hit. Maps and counts leave these meetings out.
+        data_type: boolean
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: official_action
+        description: >
+          #1136: what the body did about the subject, from the outcome, only where the public did not speak:
+          'for' (outcome_group advanced: approved or adopted it; fluoridation voted_to_keep_or_start), 'against'
+          (blocked or tabled_or_deferred: denied, banned, paused, limited, tabled; fluoridation
+          voted_to_end_fluoridation) or 'none' (the public spoke, or no action).
+        data_type: text
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['for', 'against', 'none']
       - name: screened_at
-        description: 'When Jev read the meeting.'
+        description: "When Jev screened the meeting."
         data_type: timestamptz
+        constraints:
+          - type: not_null

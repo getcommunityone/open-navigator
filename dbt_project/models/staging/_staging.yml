@@ -2233,24 +2233,45 @@ sources:
 
       - name: bronze_transcript_topic_lean_jev
         description: >
-          Jev (TypeSafe) reading of how the public and elected officials leaned on one curated topic, per meeting
-          (#1126). One row per (video_id, topic_id, question_version). Landed by
-          ``python -m llm.typesafe.screen_transcripts --topic <slug>`` (llm.typesafe.topic_lean), only for meetings
-          linked to the topic. Classifier probabilities only; Jev writes no text and nothing is tied to a person.
-          The table is created by the first run; until then stg_jev__transcript_topic_lean builds empty.
+          Jev (TypeSafe) reading of how the public and the elected officials leaned on one topic in one meeting, and
+          what the body did (#1126). PK (video_id, topic_id, question_version). Landed by
+          ``python -m llm.typesafe.screen_transcripts --topic <slug|all>`` (llm.typesafe.topic_lean, whose CREATE_SQL
+          defines these columns; a test keeps this list in step, #1201) for the meetings in topic_transcript_link.
+          Classifier probabilities only; Jev writes no text. An aggregate per meeting, never tied to a person. Water
+          fluoridation uses CareQuest's five poll positions instead of the shared lean labels. Until the first run
+          creates the table, stg_jev__transcript_topic_lean builds empty.
         columns:
           - name: video_id
             description: "Meeting video (with topic_id and question_version, the primary key)."
           - name: topic_id
             description: "Curated topic id (civicsearch_topic)."
           - name: question_version
-            description: "Hash of the topic's question wording."
+            description: "Hash of the topic's question wording (llm.typesafe.topic_lean.question_version)."
+          - name: topic_slug
+            description: "The topic's CLI slug (guns, short-term-rentals, pickleball, license-plate-readers, water-fluoridation)."
+          - name: model
           - name: public_lean
-            description: "mostly_opposed, mostly_supportive, mixed or did_not_speak."
+            description: "mostly_supportive, mostly_opposed, mixed or did_not_speak (water fluoridation: the five CareQuest positions or did_not_speak)."
+          - name: public_lean_probabilities
           - name: official_lean
             description: "Same labels, for the elected officials."
+          - name: official_lean_probabilities
           - name: outcome
-            description: "approved, denied, tabled_or_deferred, moratorium, discussed_no_action or no_item."
+            description: "advanced, blocked, tabled_or_deferred, discussed_no_action or no_item (water fluoridation: its own five outcomes)."
+          - name: outcome_probabilities
+          - name: chunk_count
+          - name: chunks_screened
+          - name: keyword_chunks
+            description: "Chunks of the transcript that hold one of the topic's keywords."
+          - name: chunk_selection
+            description: "keyword_passages (the chunks holding the topic's keyword passages) or evenly_spaced (no keyword in the captions), #1145."
+          - name: passages_covered
+            description: "How many of the screened chunks hold a keyword passage (of keyword_chunks), #1145."
+          - name: transcript_chars
+          - name: input_tokens
+          - name: answers
+            description: "Jev's per-chunk answers (probabilities only)."
+          - name: screened_at
       - name: bronze_bls_qcew_industry
         description: >
           BLS Quarterly Census of Employment and Wages, annual averages for one industry (default NAICS 518210,

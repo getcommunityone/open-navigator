@@ -474,7 +474,7 @@ outputPorts:
   version: 1.0.0
   contractId: open-navigator-public-topic_meeting_lean
   type: table
-  description: Jev's AI reading of how the public and elected officials leaned on a curated topic, per meeting (#1126).
+  description: One row per meeting video and topic (topic_transcript_link) with a Jev screen under the topic's current question version.
 - name: meeting_video_kind
   version: 1.0.0
   contractId: open-navigator-public-meeting_video_kind
