@@ -10,7 +10,6 @@ import {
   CAPTION_COPY,
   HATES_MIN_MEETINGS,
   captionSubhead,
-  captionText,
   pickCaption,
   positionCounts,
   storyStartLabel,
@@ -62,6 +61,8 @@ const fmtDate = (d?: string | null) => {
   const t = new Date(`${d.slice(0, 10)}T12:00:00`)
   return Number.isNaN(t.getTime()) ? null : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
+/** "were against the courts" -> "was against the courts"; "mostly opposed it" -> "opposed <topic>" (after "the public mostly"). */
+const publicVerb = (verb: string, topic: string) => verb.replace(/^were /, 'was ').replace(/^mostly /, '').replace(/ it$/, ` ${topic}`)
 const meetingsWord = (n: number) => `${fmt(n)} ${n === 1 ? 'meeting' : 'meetings'}`
 
 interface PlatformCompany {
@@ -267,11 +268,6 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       : ['No meetings on record about ', { blank: 'topic' }, ' across ', { blank: 'place' }, ' yet.']
     : caption.template
   const placeDisplay = noMeetings ? (stateName ?? 'America') : caption.place
-  const headline = noMeetings
-    ? stateName
-      ? `${stateName} has no meetings on record about ${topicWord}.`
-      : `No meetings on record about ${topicWord} yet.`
-    : captionText(caption, topicWord)
   const subhead = noMeetings ? null : captionSubhead(caption, def.slug, scope)
   const basis = caption.basis
   const onward = nextStoryLink(def.slug, scopeQ, live)
@@ -289,7 +285,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
     switch (id) {
       case 'overview':
         return {
-          headline: captionQ.isPending ? def.title : headline,
+          // Never the header title again (owner 2026-11-26): the Overview says what the map shows.
+          headline: `Where ${topicWord} came up${stateName ? `, with ${stateName} marked` : ''}, state by state.`,
           context: basis ?? COUNTED_LINE,
           right: (
             <>
@@ -318,8 +315,12 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         }
       case 'timeline':
         return {
-          headline: loadingOr(captionQ, 'meeting counts', () => `${meetingsWord(meetingCount)} ${where} took up ${topicWord}.`),
-          context: 'Meetings per year whose transcript mentions the topic, and how the latest period compares with the one before.',
+          headline: `How often ${topicWord} came up ${stateName ? `in ${stateName}` : 'across America'}, year by year.`,
+          context: loadingOr(
+            captionQ,
+            'meeting counts',
+            () => `${meetingsWord(meetingCount)} on record whose transcript mentions the topic, per year, and how the latest period compares with the one before.`,
+          ),
           right: (
             <div className="topic-story-charts">
               <TimelineChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} idBase={`topic-${def.slug}`} />
@@ -329,20 +330,28 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         }
       case 'positions': {
         const spoke = counts ? spokeOf(counts) : 0
+        const placeWord = stateName ?? 'America'
+        // A short conclusion, no counts (owner 2026-11-26); the numbers are in the line under it and the bars.
         const h = loadingOr(captionQ, 'AI reading', () =>
           !verdict || !counts
             ? 'No AI reading of these meetings yet.'
             : spoke === 0
-              ? `In all ${meetingsWord(counts.read)} the AI read ${where}, the public didn't speak on ${topicWord}.`
+              ? `The public didn't speak on ${topicWord} in the meetings read ${where}.`
               : verdict.kind === 'majority'
-              ? `${stateName ? `In ${stateName}` : 'Across America'}, the public ${verdict.side === 'against' ? words.againstVerb : words.forVerb} in ${fmt(verdict.count)} of ${meetingsWord(verdict.of)} where it spoke.`
-              : verdict.kind === 'split'
-                ? `${stateName ?? 'America'} is split on ${topicWord}: no side has most of the ${meetingsWord(verdict.of)} where the public spoke.`
-                : `Too few meetings where the public spoke ${where} to say which way it leans (${fmt(spoke)}).`,
+                ? `${stateName ? `In ${stateName}` : 'Across America'}, the public mostly ${publicVerb(verdict.side === 'against' ? words.againstVerb : words.forVerb, topicWord)}.`
+                : verdict.kind === 'split'
+                  ? `${placeWord} is split on ${topicWord}.`
+                  : `Too few meetings where the public spoke to say which way ${placeWord} leans.`,
         )
+        const line =
+          counts && verdict && spoke > 0
+            ? verdict.kind === 'majority'
+              ? `${fmt(verdict.count)} of ${meetingsWord(verdict.of)} where the public spoke. `
+              : `The public spoke in ${meetingsWord(spoke)}. `
+            : ''
         return {
           headline: h,
-          context: "An AI read each meeting's transcript for the public's position. These are meetings, never counted speakers.",
+          context: `${line}An AI read each meeting's transcript for the public's position: these are meetings, never counted speakers.`,
           right: counts ? <TopicPositionsBreakdown counts={counts} words={words} scopeLabel={label} labelledBy="story-h-positions" /> : null,
         }
       }
@@ -351,9 +360,9 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           headline: loadingOr(
             companies,
             'companies',
-            () => `${fmt(named.length)} ${named.length === 1 ? 'company was' : 'companies were'} named in ${stateName ? `${stateName}'s` : 'these'} meetings and decisions.`,
+            () => `The platforms named in ${stateName ? `${stateName}'s` : 'these'} meetings and decisions.`,
           ),
-          context: 'The rental platforms named in the record, counted from it.',
+          context: companies.data ? `${fmt(named.length)} ${named.length === 1 ? 'company' : 'companies'} named in the record, counted from it.` : 'Counted from the record.',
           right: companies.data ? (
             <ul className="topic-story-list">
               {companies.data.map((c) => {
@@ -404,8 +413,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         }
       case 'said':
         return {
-          headline: loadingOr(meetings, 'meetings', () => `What was said in ${meetingsWord(total)} ${where}.`),
-          context: 'Newest first. Each passage is quoted from the meeting transcript.',
+          headline: loadingOr(meetings, 'meetings', () => `What was said about ${topicWord} ${stateName ? `in ${stateName}` : 'across America'}.`),
+          context: `${total ? `${meetingsWord(total)}, newest first. ` : 'Newest first. '}Each passage is quoted from the meeting transcript.`,
           right: (
             <>
               <ul className="topic-story-list">
@@ -436,8 +445,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       case 'decided': {
         const d = decisions.data
         return {
-          headline: loadingOr(decisions, 'decisions', () => `${fmt(d!.total)} ${d!.total === 1 ? 'decision' : 'decisions'} ${where} mention ${topicWord}.`),
-          context: 'Decisions whose record mentions the topic, newest first.',
+          headline: loadingOr(decisions, 'decisions', () => `What was decided on ${topicWord} ${stateName ? `in ${stateName}` : 'across America'}.`),
+          context: d ? `${fmt(d.total)} ${d.total === 1 ? 'decision' : 'decisions'} whose record mentions the topic, newest first.` : 'Decisions whose record mentions the topic, newest first.',
           right: d ? (
             <>
               <ul className="topic-story-list">

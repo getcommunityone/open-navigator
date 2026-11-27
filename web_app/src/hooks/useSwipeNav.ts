@@ -1,25 +1,45 @@
 import { useEffect, useRef, type RefObject } from 'react'
 
-/** The shortest horizontal travel, in CSS pixels, that counts as a swipe. */
-export const SWIPE_MIN_PX = 50
-/** A swipe is mostly sideways: its horizontal travel is at least this many times its vertical travel. */
-export const SWIPE_RATIO = 1.5
-/** A swipe is a flick, not a slow drag (a drag is someone reading or selecting). */
-export const SWIPE_MAX_MS = 800
+/**
+ * Swipe between a story's screens on a touch screen (#1222, owner 2026-11-26: "It should swipe left to toggle"): swipe left
+ * = next screen, swipe right = previous. Shared by the Data Center Story and the topic stories.
+ *
+ * - Horizontal-dominant only: the finger must travel at least `minDistance` px sideways and clearly more sideways than up or
+ *   down (`ratio`), within `maxMs`, so a vertical scroll (the phone's screen-by-screen snap) is never taken for a swipe and
+ *   nothing calls preventDefault: the page keeps its own scrolling.
+ * - Not inside something that pans or swipes on its own: maps, charts, sliders, form fields, dialogs, a horizontally
+ *   scrollable strip, or anything marked `data-swipe-ignore` (see `SWIPE_IGNORE`).
+ * - Touch only (`touchstart` / `touchend`): a mouse drag or a trackpad does nothing.
+ */
+export const SWIPE_IGNORE = [
+  '[data-swipe-ignore]',
+  '.stance-map',
+  '.sc-block',
+  '.leaflet-container',
+  '.stance-place',
+  'input',
+  'select',
+  'textarea',
+  '[role="dialog"]',
+  '[role="slider"]',
+].join(', ')
 
-/** Where the gesture belongs to the control under the finger, not to the story. */
-const OWN_TOUCH = 'input, select, textarea, [contenteditable="true"], [data-keys-own], [data-swipe-own], [role="dialog"], [role="slider"], .stance-place'
-
-/** Which way a finished touch moves the story: `next` for a swipe to the left, `prev` to the right, else null. */
-export function swipeDirection(dx: number, dy: number, ms: number): 'next' | 'prev' | null {
-  if (ms > SWIPE_MAX_MS) return null
-  if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) return null
-  return dx < 0 ? 'next' : 'prev'
+export interface SwipeOptions {
+  /** The element whose touches count (the story root). */
+  rootRef: RefObject<HTMLElement>
+  onNext: () => void
+  onPrev: () => void
+  /** False turns swiping off (a dialog is open, reduced layout, a wide screen). */
+  enabled?: boolean
+  minDistance?: number
+  /** How much more sideways than vertical the gesture must be. */
+  ratio?: number
+  maxMs?: number
 }
 
-/** True when an element between `el` and `root` scrolls sideways itself (a wide table, a chart strip): it keeps the swipe. */
-function scrollsSideways(el: Element | null, root: Element): boolean {
-  for (let n = el; n && n !== root; n = n.parentElement) {
+/** True when `el` (or an ancestor up to `root`) can scroll sideways itself, so a sideways drag belongs to it. */
+function scrollsSideways(el: HTMLElement | null, root: HTMLElement): boolean {
+  for (let n = el; n && n !== root && n !== document.body; n = n.parentElement) {
     if (n.scrollWidth > n.clientWidth + 1) {
       const ox = getComputedStyle(n).overflowX
       if (ox === 'auto' || ox === 'scroll') return true
@@ -28,44 +48,36 @@ function scrollsSideways(el: Element | null, root: Element): boolean {
   return false
 }
 
-interface Options {
-  rootRef: RefObject<HTMLElement>
-  onNext: () => void
-  onPrev: () => void
-  /** False while a dialog owns the page. */
-  enabled?: boolean
+/** Pure: which way a finished gesture goes, or null. Exported for the unit test. */
+export function swipeDirection(dx: number, dy: number, ms: number, minDistance = 50, ratio = 1.5, maxMs = 800): 'next' | 'prev' | null {
+  if (ms > maxMs || Math.abs(dx) < minDistance || Math.abs(dx) < ratio * Math.abs(dy)) return null
+  return dx < 0 ? 'next' : 'prev'
 }
 
-/**
- * Swipe left for the next screen and right for the previous one (#1224), on a touch screen. Vertical scrolling and scroll
- * snap are untouched (the listeners are passive and never prevent the default): only a quick, mostly sideways flick that
- * starts outside a control, a dialog or anything that scrolls sideways itself moves the story, through the same function as
- * Next and the arrow keys.
- */
-export function useSwipeNav(opts: Options) {
-  const o = useRef(opts)
-  o.current = opts
+export function useSwipeNav({ rootRef, onNext, onPrev, enabled = true, minDistance = 50, ratio = 1.5, maxMs = 800 }: SwipeOptions): void {
+  const cb = useRef({ onNext, onPrev })
+  cb.current = { onNext, onPrev }
   useEffect(() => {
-    const root = opts.rootRef.current
-    if (!root) return
+    const root = rootRef.current
+    if (!root || !enabled) return
     let start: { x: number; y: number; t: number } | null = null
     const onStart = (e: TouchEvent) => {
       start = null
-      if (o.current.enabled === false || e.touches.length !== 1) return
-      const t = e.target as Element | null
-      if (t?.closest?.(OWN_TOUCH) || scrollsSideways(t, root)) return
-      const p = e.touches[0]!
-      start = { x: p.clientX, y: p.clientY, t: Date.now() }
+      if (e.touches.length !== 1) return
+      const target = e.target as HTMLElement | null
+      if (target?.closest(SWIPE_IGNORE) || scrollsSideways(target, root)) return
+      const t = e.touches[0]!
+      start = { x: t.clientX, y: t.clientY, t: performance.now() }
     }
     const onEnd = (e: TouchEvent) => {
+      if (!start) return
+      const t = e.changedTouches[0]
       const s = start
       start = null
-      if (!s || o.current.enabled === false) return
-      const p = e.changedTouches[0]
-      if (!p) return
-      const dir = swipeDirection(p.clientX - s.x, p.clientY - s.y, Date.now() - s.t)
-      if (dir === 'next') o.current.onNext()
-      else if (dir === 'prev') o.current.onPrev()
+      if (!t) return
+      const dir = swipeDirection(t.clientX - s.x, t.clientY - s.y, performance.now() - s.t, minDistance, ratio, maxMs)
+      if (dir === 'next') cb.current.onNext()
+      else if (dir === 'prev') cb.current.onPrev()
     }
     const onCancel = () => (start = null)
     root.addEventListener('touchstart', onStart, { passive: true })
@@ -76,6 +88,5 @@ export function useSwipeNav(opts: Options) {
       root.removeEventListener('touchend', onEnd)
       root.removeEventListener('touchcancel', onCancel)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.rootRef.current])
+  }, [rootRef, enabled, minDistance, ratio, maxMs])
 }

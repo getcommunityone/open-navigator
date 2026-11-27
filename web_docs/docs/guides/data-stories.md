@@ -72,8 +72,13 @@ counts per scope, not one record per meeting.
 
 **Scope.** Topic stories are at state grain (`?state=`; city grain is #1186). Picking a city in the place dialog applies
 its state, and the cover says the city on its own isn't available yet, so the label never names a scope the data doesn't
-have. At a state the title leads with the place ("In California, most meetings that took up pickleball …"; "California
-has no meetings on record about …").
+have. At a state the title leads with the place.
+
+**Titles and headlines** (owner, 2026-11-26): the header title is the short conclusion from the shared caption picker
+(`pickCaption`, #1234), with no counts and no "AI reading" text; with nothing on record it reads "California has no
+meetings on record about pickleball." Each screen's headline is a plain statement with no counts ("In California, the
+public mostly wanted the pickleball courts.", "What was decided on pickleball in California."); the numbers sit in the line
+under it. The Overview's headline says what the map shows and never repeats the header title.
 
 **Swipe.** On a touch screen a quick, mostly sideways flick moves the story (left for the next screen, right for the
 previous; from the cover it opens the first screen), through the same function as Next and the arrow keys
