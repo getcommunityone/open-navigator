@@ -5,7 +5,7 @@ title: "fix(home): sticky Start the story, say a click opens the state, and name
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: bb178dcb053bd20b187b2ed0abb0881ed0c609c3
+head_sha: f1e5b6b692323c330c78728dbc8323e3d3d81c9d
 verdict: approve
 ---
 
@@ -19,6 +19,7 @@ Automated review (#648) for PR #1175 on `fix/1174-home-hero`. Heuristic rubric s
 ## Scope of Change
 
 - `api/routes/data_centers.py`
+- `pull_requests/pr-1175-review.md`
 - `tests/test_api_data_center_positions.py`
 - `web_app/src/api/dataCenters.ts`
 - `web_app/src/components/home/HomeDataStories.tsx`
@@ -29,7 +30,7 @@ Automated review (#648) for PR #1175 on `fix/1174-home-hero`. Heuristic rubric s
 
 ## CI Status
 
-See the PR checks on `bb178dcb053b`.
+See the PR checks on `f1e5b6b69232`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
