@@ -13,6 +13,7 @@ import { resolveVideoId, startFromUrl } from './quoteCardUtils'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { pickZoneIndex } from '../../utils/mapQuote'
+import { layoutHoverBadge } from '../../utils/mapHoverBadge'
 import { featPath } from '../home/StoryStatesMap'
 
 /** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
@@ -162,7 +163,17 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   const listed = [...(byState ?? [])].sort((a, b) => b.meetings - a.meetings || a.state_code.localeCompare(b.state_code))
   const r = grid.step * 0.38
   const pad = NATIONAL_PAD
-  const vb = `${-pad} ${-pad} ${NATIONAL_BBOX[2] + pad * 2} ${NATIONAL_BBOX[3] + pad * 2}`
+  const vbTuple: [number, number, number, number] = [-pad, -pad, NATIONAL_BBOX[2] + pad * 2, NATIONAL_BBOX[3] + pad * 2]
+  const vb = vbTuple.join(' ')
+  const drillCueLabel =
+    !touch && hoverCode && hoverFeat
+      ? hoverCode === scopeStateCode
+        ? scopeCity
+          ? `${stateNameOf(hoverCode)} · Click for whole state →`
+          : 'Click for United States →'
+        : `${stateNameOf(hoverCode)} · Click to drill down →`
+      : null
+  const drillCue = drillCueLabel && hoverFeat ? layoutHoverBadge(hoverFeat.bbox, vbTuple, drillCueLabel, grid.step) : null
   const options = [...grid.feats]
     .map((f) => ({ code: codeOf(f.id), name: f.name }))
     .filter((o): o is { code: string; name: string } => !!o.code)
@@ -246,6 +257,31 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
         {/* The hovered state's outline, raised (#1277), so the whole state reads as one thing to click. */}
         {hoverFeat && (
           <path d={featPath(hoverFeat)} fill="none" stroke="#1c1917" strokeWidth={2.4} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
+        )}
+        {/* On-map drill-down cue (#1360): non-blocking teal pill anchored to the hovered state on desktop. */}
+        {drillCue && drillCueLabel && (
+          <g pointerEvents="none" data-hover-drill-cue="">
+            <rect
+              x={drillCue.x}
+              y={drillCue.y}
+              width={drillCue.width}
+              height={drillCue.height}
+              rx={drillCue.rx}
+              fill="#0f766e"
+              stroke="#ffffff"
+              strokeWidth={Math.max(1.5, grid.step * 0.16)}
+            />
+            <text
+              x={drillCue.textX}
+              y={drillCue.textY}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="#ffffff"
+              style={{ fontSize: drillCue.fontSize, fontWeight: 700, fontFamily: "'Source Sans 3', system-ui, sans-serif" }}
+            >
+              {drillCueLabel}
+            </text>
+          </g>
         )}
       </svg>
       </div>

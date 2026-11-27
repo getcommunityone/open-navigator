@@ -29,6 +29,7 @@ import { isCurrentPage } from '../../utils/currentPage'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
 import { pickBoxQuote } from '../../utils/mapQuote'
+import { layoutHoverBadge } from '../../utils/mapHoverBadge'
 import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
 export interface StateMarker {
@@ -366,8 +367,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const size = grid.step * 0.8
   const pad = grid.zoomed ? grid.step * 2 : 4
   const [fx0, fy0, fx1, fy1] = grid.zoomed ? grid.frame : [0, 0, W, H]
-  const vb = `${fx0 - pad} ${fy0 - pad} ${fx1 - fx0 + pad * 2} ${fy1 - fy0 + pad * 2}`
+  const vbTuple: [number, number, number, number] = [fx0 - pad, fy0 - pad, fx1 - fx0 + pad * 2, fy1 - fy0 + pad * 2]
+  const vb = vbTuple.join(' ')
   const pinPt = grid.zoomed && zoom?.pin ? albersPoint(zoom.pin.lon, zoom.pin.lat) : null
+  // Desktop hover drill-down pill anchored right beside the hovered state (#1360) so clicking to drill down is unmistakable.
+  const drillCueLabel = !touch && shownCode && shownFeat && !shownIsHere ? `${stateName(shownCode)} · Click to drill down →` : null
+  const drillCue = drillCueLabel && shownFeat ? layoutHoverBadge(shownFeat.bbox, vbTuple, drillCueLabel, grid.step) : null
 
   const summary =
     `Map of the United States drawn as small boxes in each state's shape. ${plural(withMeetings, 'state has', 'states have')} at least one meeting where ${subject} came up.` +
@@ -522,6 +527,31 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         {shownFeat && (
           <path d={featPath(shownFeat)} fill="none" stroke="#1c1917" strokeWidth={grid.step * 0.2} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
         )}
+        {/* On-map drill-down cue (#1360): non-blocking teal pill anchored to the hovered state on desktop. */}
+        {drillCue && drillCueLabel && (
+          <g pointerEvents="none" data-hover-drill-cue="">
+            <rect
+              x={drillCue.x}
+              y={drillCue.y}
+              width={drillCue.width}
+              height={drillCue.height}
+              rx={drillCue.rx}
+              fill="#0f766e"
+              stroke="#ffffff"
+              strokeWidth={Math.max(1.5, grid.step * 0.16)}
+            />
+            <text
+              x={drillCue.textX}
+              y={drillCue.textY}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="#ffffff"
+              style={{ fontSize: drillCue.fontSize, fontWeight: 700, fontFamily: "'Source Sans 3', system-ui, sans-serif" }}
+            >
+              {drillCueLabel}
+            </text>
+          </g>
+        )}
         {/* The asked city (#1285), at the coordinate its meeting record holds: the map's most prominent mark. */}
         {pinPt && zoom?.pin && (
           <g pointerEvents="none" data-pin={zoom.pin.name}>
@@ -550,12 +580,28 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
-        {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? 'Tap a state to open its story.' : `Click ${stateName(shownCode)} to open its story.`}`
-          : grid.zoomed && zoom
-            ? // Zoomed (#1285): the one state's own line, not the national count.
-              `${stateName(zoom.stateCode)}: ${plural(meetings.get(zoom.stateCode) ?? 0, 'meeting', 'meetings')} where ${subject} came up${lineOf(stanceBy.get(zoom.stateCode)) ? `; ${lineOf(stanceBy.get(zoom.stateCode))}` : ''}. ${touch ? 'Tap the map to open its story.' : 'Hover to hear what was said; click to open its story.'}`
-            : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a state to hear what was said; click it to open that state’s story.'}`}
+        {shown && shownCode ? (
+          <>
+            {`${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} `}
+            {shownIsHere ? (
+              'You’re reading its story.'
+            ) : touch ? (
+              'Tap a state to open its story.'
+            ) : (
+              <strong className="font-semibold text-teal-800">{`Click ${stateName(shownCode)} to open its story →`}</strong>
+            )}
+          </>
+        ) : grid.zoomed && zoom ? (
+          <>
+            {`${stateName(zoom.stateCode)}: ${plural(meetings.get(zoom.stateCode) ?? 0, 'meeting', 'meetings')} where ${subject} came up${lineOf(stanceBy.get(zoom.stateCode)) ? `; ${lineOf(stanceBy.get(zoom.stateCode))}` : ''}. `}
+            {touch ? 'Tap the map to open its story.' : <strong className="font-semibold text-teal-800">Hover to hear what was said · click to open its story →</strong>}
+          </>
+        ) : (
+          <>
+            {`${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. `}
+            {touch ? 'Tap a state to open its story.' : <strong className="font-semibold text-teal-800">Hover a state to hear what was said · click any state to drill down →</strong>}
+          </>
+        )}
       </p>
 
       <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-tight text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>
