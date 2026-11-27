@@ -82,7 +82,8 @@ import { InfoHelpTrigger } from '../components/InfoHelpTrigger'
 import MapAddressSearch, { type MapAddressResult } from '../components/MapAddressSearch'
 import CensusMapLeftRail, { type CensusMapRailSection } from '../components/CensusMapLeftRail'
 import { censusMapPathPrefix, mapPathPlace, mapPathState, mapPathUs } from '../utils/dataExplorerPaths'
-import { MAP_POPUP_OPTIONS, escapeHtml, meetingsButtonHtml } from '../lib/mapPopup'
+import api from '../lib/api'
+import { MAP_POPUP_OPTIONS, escapeHtml, fillMeetingsSlot, meetingsButtonHtml, meetingsSlotHtml } from '../lib/mapPopup'
 
 const STATES_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'
 const COUNTY_TOPO = 'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json'
@@ -1209,6 +1210,24 @@ function AcTrendChart({
       </div>
     </div>
   )
+}
+
+/** Meeting-document count for a county (5-digit FIPS), cached per session. `undefined` when the lookup fails,
+ *  so a failed request shows no button rather than a guess. The API answers 200 with 0 for an unknown id. */
+const countyMeetingCounts = new Map<string, Promise<number | undefined>>()
+function countyMeetingCount(fips: string): Promise<number | undefined> {
+  let pending = countyMeetingCounts.get(fips)
+  if (!pending) {
+    pending = api
+      .get<{ meeting_count?: number }>(`/jurisdiction/${encodeURIComponent(fips)}/meeting-documents`)
+      .then((r) => r.data?.meeting_count)
+      .catch(() => {
+        countyMeetingCounts.delete(fips)
+        return undefined
+      })
+    countyMeetingCounts.set(fips, pending)
+  }
+  return pending
 }
 
 function countyGeoidFromFeature(f: GeoJSON.Feature): string {
@@ -3425,7 +3444,20 @@ function CensusMapPage() {
                               metrics,
                               valueMode,
                             )
-                          layer.bindPopup(`<div><strong>${escapeHtml(name)}</strong><br/>${valueLine}${rankLine}</div>`, MAP_POPUP_OPTIONS)
+                          // A county button only where the county has meeting documents: no slot for the
+                          // Connecticut planning-region gap, and the slot fills after the API reports a count.
+                          const meetingsSlot = isConnecticutPlanningRegionGap(gid, p) ? '' : meetingsSlotHtml(gid)
+                          layer.bindPopup(
+                            `<div><strong>${escapeHtml(name)}</strong><br/>${valueLine}${rankLine}${meetingsSlot}</div>`,
+                            MAP_POPUP_OPTIONS,
+                          )
+                          if (meetingsSlot) {
+                            layer.on('popupopen', (e: { popup?: { getElement?: () => HTMLElement | undefined } }) => {
+                              const el = e.popup?.getElement?.()
+                              if (!el) return
+                              countyMeetingCount(gid).then((n) => fillMeetingsSlot(el, gid, n))
+                            })
+                          }
                           layer.on('mouseover', () => {
                             setCountyHover({ id: gid, name, value: disp })
                           })
