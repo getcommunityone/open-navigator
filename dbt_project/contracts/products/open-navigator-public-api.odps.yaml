@@ -475,6 +475,11 @@ outputPorts:
   contractId: open-navigator-public-topic_meeting_lean
   type: table
   description: Jev's AI reading of how the public and elected officials leaned on a curated topic, per meeting (#1126).
+- name: meeting_video_kind
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_video_kind
+  type: table
+  description: 'What kind of video each quoted recording is (#1230): Jev''s meeting_kind for every video a topic link or a data-center mention quotes and that Jev screened.'
 - name: recorded_meeting_year
   version: 1.0.0
   contractId: open-navigator-public-recorded_meeting_year

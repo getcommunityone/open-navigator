@@ -2198,6 +2198,19 @@ sources:
           - name: question_probabilities
           - name: screened_at
 
+      - name: bronze_video_meta_screen_jev
+        description: >
+          Jev (TypeSafe) screen of a video's title and description, one row per video (PK video_id), landed by
+          ``llm.typesafe.screen_video_meta``. Its meeting_kind (government_meeting, town_hall, government_other,
+          not_government) backs stg_jev__video_meeting_kind where the transcript screen hasn't read the video (#1230).
+        columns:
+          - name: video_id
+          - name: question_version
+          - name: model
+          - name: meeting_kind
+          - name: meeting_kind_probabilities
+          - name: screened_at
+
       - name: bronze_transcript_topic_lean_jev
         description: >
           Jev (TypeSafe) reading of how the public and elected officials leaned on one curated topic, per meeting

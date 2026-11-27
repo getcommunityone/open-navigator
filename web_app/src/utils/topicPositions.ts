@@ -173,3 +173,32 @@ export function positionVerdict(c: PositionCounts, floor: number): PositionVerdi
   if (c.for * 2 > of) return { kind: 'majority', side: 'for', count: c.for, of }
   return { kind: 'split', of }
 }
+
+/** One meeting's public position, as the map quote's API gives it (#1230): null when the meeting wasn't read. */
+export type QuoteStance = 'against' | 'for' | 'split' | 'silent' | null | undefined
+
+/**
+ * The short line under a map quote (#1230): where the public stood at the quoted meeting, in the topic's own words
+ * ("Public: Opposed the gun proposal", "Public: Split"), or, for a meeting with no public stance on record, that the
+ * passage only mentions the topic ("Mentions guns; no public stance in this meeting"). The quote itself is verbatim; this
+ * line never restates it.
+ */
+export function quoteStanceNote(slug: string | null | undefined, subject: string, stance: QuoteStance): string {
+  const w = topicPositions(slug)
+  if (stance === 'against') return `Public: ${w.against}`
+  if (stance === 'for') return `Public: ${w.for}`
+  if (stance === 'split') return `Public: ${w.split}`
+  return `Mentions ${subject}; no public stance in this meeting`
+}
+
+/**
+ * The same line for a data-center meeting passage (#1230), from its `ai_public_lean` (data_center_meeting_lean, with a
+ * lean under P 0.7 already served as 'mixed'). Only the readings the maps serve are named: a confident "mostly opposed",
+ * or no public comment on the data center. "Supported" and "mixed" are audit-only (data-center-meeting-lean.md), so
+ * they get no line rather than a claim.
+ */
+export function dataCenterQuoteNote(aiPublicLean: string | null | undefined): string | null {
+  if (aiPublicLean === 'mostly_opposed') return `Public: ${TOPIC_POSITIONS['data-centers']!.against}`
+  if (aiPublicLean === 'no_public_comment_on_data_center') return 'Mentions data centers; no public stance in this meeting'
+  return null
+}
