@@ -234,7 +234,7 @@ or statement matched the topic's keywords, with deterministic rules and no model
 4. **Anything else**, and every decision of a topic without rules: on the topic only when the meeting's reading says the
    body acted on the topic. If it can't be classified, it is in passing.
 
-The screen's line gives the real totals ("3 decisions on gun control; 6 more mention guns in passing."). Each card's title
+Each panel takes its form from the shared display rule (`pickDisplay`, [#1289](https://github.com/getcommunityone/open-navigator/issues/1289)): the cards for a handful, otherwise a count sentence with the newest cards under a fold, so the matched passage is never dropped. The screen's line gives the real totals ("3 decisions on gun control; 6 more mention guns in passing."). Each card's title
 opens the decision page (`/decisions/:id`) and its meeting name and date open the recording (decisions carry no timestamp)
 or the meeting page; **Meeting page** and **Decision details** are separate links and the whole card is the tap target.
 Alabama guns on the local warehouse: 9 decisions, 3 on gun control (the Tuscaloosa legislative proposals on firearm

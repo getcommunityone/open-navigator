@@ -16,7 +16,8 @@ Reviewed against `.claude/review-rubric.md`.
   - Counts run only with the first page (`offset == 0`); later pages fetch the total only. National guns (7,684 meetings) answers in about 0.4 s locally; the event_meeting lookup is per page, not per row (a per-row lateral took 36 s and was removed).
   - `said_position` never lets a five-position reading contradict the lean side; tests cover each source.
   - Decision relevance: off-topic wording wins, then named policy, then permit-like wording needs a public side at that meeting, then anything else needs a body action. The Shelby reallocation and Wetumpka sale permit are in passing; tests pin both.
-- **Verification:** pytest 49 passed (new `tests/test_api_topic_said.py`); vitest 791 passed; `tsc --noEmit` clean; Playwright at Pixel 7 and 1440 on GA fluoridation, guns (national, AL) and data centers AL.
+- **Shared display rule (#1298):** rebased on 2e691355. The topic Decisions panels pick their form with `pickDisplay` (`DecisionPanel`: cards for a list, a count sentence with the cards folded otherwise; no unit chart, which would drop the matched passages). The Data Center decisions go through `ChartPanel` -> `FitDisplay` with the new on-topic / in-passing groups. Tested in `TopicRecordCards.test.tsx`.
+- **Verification:** pytest 49 passed (new `tests/test_api_topic_said.py`); vitest 815 passed (after the rebase); `tsc --noEmit` clean; Playwright at Pixel 7 and 1440 on GA fluoridation, guns (national, AL) and data centers AL.
 - **Docs:** `web_docs/docs/guides/data-stories.md` documents both changes, the API fields and the rules.
 
 Nits (non-blocking):
