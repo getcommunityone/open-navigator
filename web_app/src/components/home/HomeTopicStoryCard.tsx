@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '../../api/topics'
 import { topicStanceForMap } from '../../utils/topicStance'
@@ -10,6 +10,8 @@ import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, st
 import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
+import { stanceFromPublicLean } from '../../utils/mapQuote'
+import TopicCountyMap from '../stance/TopicCountyMap'
 import HomeStoryTitle, { type TopicControl, HomeStorySubhead } from './HomeStoryTitle'
 import { storyStartHref } from '../../utils/storyNav'
 
@@ -41,8 +43,8 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   // The map's hover card goes in the text column, under Start (#1277), never over the map.
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   const states = useQuery({
-    queryKey: ['topic-story', def.topicId, 'states'],
-    queryFn: () => fetchTopicStates(def.topicId),
+    queryKey: ['topic-story', def.topicId, 'states', 3],
+    queryFn: () => fetchTopicStates(def.topicId, { quotes_per_state: 3 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })
@@ -68,6 +70,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
       if (!m.state_code || !m.excerpt) continue
       const q: StateQuote = {
         place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
+        band: stanceFromPublicLean(m.public_stance),
         text: m.excerpt,
         date: m.date ?? null,
         meeting: m.title ?? null,
@@ -94,6 +97,38 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   const title = captionText(caption, topicNoun)
   // Start opens the story past its cover (#1222).
   const href = storyStartHref(def.slug, query)
+  const navigate = useNavigate()
+  const positions = topicPositions(def.slug)
+  // At state scope (#1349) the hero draws the story Overview's county map: a county or a town ring opens the story there.
+  const drill = (city: string | null) => {
+    if (!scope.stateCode) return
+    const p = new URLSearchParams({ state: scope.stateCode })
+    if (city) p.set('city', city)
+    navigate(`/stories/${encodeURIComponent(def.slug)}?${p.toString()}`)
+  }
+
+  const statesMap = (
+    <StoryStatesMap
+      byState={states.data?.states}
+      quotes={quotes}
+      highlight={scope.stateCode ?? null}
+      zoom={
+        scope.stateCode
+          ? {
+              stateCode: scope.stateCode,
+              pin: placeScope.pin,
+              note: asked.city && placeScope.pinKnown && !placeScope.pin ? `No map location on record for ${asked.city}.` : null,
+            }
+          : null
+      }
+      href={(code) => `/stories/${encodeURIComponent(def.slug)}?state=${encodeURIComponent(code)}`}
+      subject={topicNoun.toLowerCase()}
+      stance={stance && stance.length > 0 ? stance : undefined}
+      stanceUnit="meetings"
+      positions={positions}
+      cardSlot={cardSlot}
+    />
+  )
 
   return (
     <div className="home-story-card">
@@ -126,32 +161,26 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
             {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
           </Link>
         </div>
-        <HomeStoryDrill slotRef={setCardSlot} />
+        <HomeStoryDrill slotRef={setCardSlot} hint={scope.stateCode ? 'Pick a county or a town on the map to open its story.' : undefined} />
       </div>
       <div className="home-story-map">
         {states.isError ? (
           <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
-        ) : (
-          <StoryStatesMap
-            byState={states.data?.states}
-            quotes={quotes}
-            highlight={scope.stateCode ?? null}
-            zoom={
-              scope.stateCode
-                ? {
-                    stateCode: scope.stateCode,
-                    pin: placeScope.pin,
-                    note: asked.city && placeScope.pinKnown && !placeScope.pin ? `No map location on record for ${asked.city}.` : null,
-                  }
-                : null
-            }
-            href={(code) => `/stories/${encodeURIComponent(def.slug)}?state=${encodeURIComponent(code)}`}
+        ) : scope.stateCode ? (
+          <TopicCountyMap
+            topicId={def.topicId}
+            stateCode={scope.stateCode}
+            scopeCity={scope.city ?? null}
+            scopeLabel={label}
             subject={topicNoun.toLowerCase()}
-            stance={stance && stance.length > 0 ? stance : undefined}
-            stanceUnit="meetings"
-            positions={topicPositions(def.slug)}
+            positions={positions}
             cardSlot={cardSlot}
+            onPickState={(code) => onPlaceApply?.(code, null)}
+            onDrill={drill}
+            fallback={statesMap}
           />
+        ) : (
+          statesMap
         )}
       </div>
     </div>

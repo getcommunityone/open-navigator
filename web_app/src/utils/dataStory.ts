@@ -55,7 +55,7 @@ export interface StoryScreen {
    * readers answered (#950). `question` remains a kind for tests and any legacy screen helper; the story no longer opens on
    * it. `chart` is one dataset.
    */
-  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict' | 'upcoming' | 'nonprofits' | 'outcomes'
+  kind: 'question' | 'scope' | 'overview' | 'chart' | 'verdict' | 'upcoming' | 'nonprofits' | 'outcomes' | 'timeline'
   /** "For context": the screen is records about the topic that are not something said in a meeting (sites, projects). */
   kicker?: string
 }
@@ -71,6 +71,8 @@ export const DATA_CENTER_STORY: StoryScreen[] = [
   { id: 'outcomes', eyebrow: 'What happened', chart: null, kind: 'outcomes' },
   { id: 'voices', eyebrow: 'Who spoke up', chart: 'positions', kind: 'chart' },
   { id: 'sites', eyebrow: 'Sites', chart: 'sites', kind: 'chart', kicker: 'For context' },
+  // Data centers over time (#1348): sites by the year of their earliest real date, animated, with proposed sites ahead.
+  { id: 'over-time', eyebrow: 'Over time', chart: null, kind: 'timeline', kicker: 'For context' },
   { id: 'projects', eyebrow: 'Proposals', chart: 'projects', kind: 'chart', kicker: 'For context' },
   { id: 'jobs', eyebrow: 'Promises', chart: 'job-claims', kind: 'chart' },
   { id: 'concerns', eyebrow: 'Concerns', chart: 'concerns', kind: 'chart' },
@@ -264,7 +266,7 @@ export function landConcernNote(res: AreaConcernsResponse | null | undefined, pl
 
 /** Where a "For context" screen's figures come from (they are not from meeting recordings or transcripts), or null. */
 export function contextSourceFor(key: string | null | undefined): string | null {
-  if (key === 'sites') return 'Epoch AI and the US Data Center Registry'
+  if (key === 'sites' || key === 'over-time') return 'Epoch AI and the US Data Center Registry'
   if (key === 'projects') return 'curated announcements and Epoch AI'
   return null
 }
@@ -896,6 +898,10 @@ function screenTextRaw(
   if (screen.kind === 'nonprofits') {
     // The page words this screen from its own query (utils/topicOrganizations.nonprofitsHeadline); this is the fallback.
     return { headline: "Who's working on data centers", context: '', empty: false, failed: false }
+  }
+  if (screen.kind === 'timeline') {
+    // The page words this screen from its own query (utils/siteTimeline.timelineHeadline); this is the fallback.
+    return { headline: 'Data center sites over time', context: '', empty: false, failed: false }
   }
   if (screen.kind === 'upcoming') {
     // The page words this screen from its own query (utils/topicUpcoming.upcomingHeadline); this is the fallback.

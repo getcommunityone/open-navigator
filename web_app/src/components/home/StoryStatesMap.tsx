@@ -28,6 +28,8 @@ import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { isCurrentPage } from '../../utils/currentPage'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
+import { pickBoxQuote } from '../../utils/mapQuote'
+import { layoutHoverBadge } from '../../utils/mapHoverBadge'
 import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
 export interface StateMarker {
@@ -51,6 +53,8 @@ export interface StateQuote {
   place: string
   /** A speaker's recorded side, when the quote is a speaker's own words (#995); absent for a meeting passage. */
   side?: 'for' | 'against' | 'question' | null
+  /** Optional map-band stance for meeting passages (e.g. topic stories' public_stance, #1357) without setting a speaker side badge. */
+  band?: Stance | null
   /** The speaker's name as served ("Rob D."), when one was heard. */
   speakerName?: string | null
   /** The speaker's role on record ("Resident"), when given. */
@@ -197,9 +201,13 @@ interface Box {
   code: string | null
   /** Index among its state's boxes, sorted left to right. */
   rank: number
+  /** Total boxes belonging to this state. */
+  stateCount: number
   side: Stance | null
   /** Index among its state's boxes in the same side's band. */
   bandRank: number
+  /** Total boxes in the same side's band within this state. */
+  bandCount: number
 }
 
 /**
@@ -272,11 +280,16 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       // Left to right, then top to bottom, so each side fills one contiguous band of the state.
       const sorted = [...ds].sort((a, b) => a.x - b.x || a.y - b.y)
       const sides = bandSides(code ? stanceBy.get(code) : undefined, sorted.length)
+      const bandTotals: Partial<Record<Stance, number>> = {}
+      for (const side of sides) {
+        if (side) bandTotals[side] = (bandTotals[side] ?? 0) + 1
+      }
       const seen: Partial<Record<Stance, number>> = {}
       sorted.forEach((d, rank) => {
         const side = sides[rank] ?? null
         const bandRank = side ? (seen[side] = (seen[side] ?? -1) + 1) : rank
-        out.push({ x: d.x, y: d.y, code, rank, side, bandRank })
+        const bandCount = side ? (bandTotals[side] ?? sorted.length) : sorted.length
+        out.push({ x: d.x, y: d.y, code, rank, stateCount: sorted.length, side, bandRank, bandCount })
       })
     }
     return out
@@ -337,15 +350,10 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
 
   const shown = hover != null ? boxes[hover] : undefined
   const shownCode = shown?.code ?? null
-  // The card (#1277): one passage per state, the same wherever the mouse is in it, so its recording keeps playing while the
-  // pointer moves over the state's boxes. A named speaker's own words ("Rob D.") first, else the state's first passage (the
-  // order #1230 chose). Desktop only: a phone has no card.
-  let quote: StateQuote | undefined
-  if (!touch && shown && shownCode) {
-    const all = quotes?.get(shownCode) ?? []
-    const named = all.filter((q) => q.speakerName)
-    quote = (named.length ? named : all)[0]
-  }
+  // The card (#1277, #1357): moving across a state's stance bands or zones walks through its real speaker/meeting
+  // passages (named speakers first, matching the hovered band when available) in contiguous zones so small mouse moves
+  // keep the current recording playing while moving to another band or part of the state swaps cleanly. Desktop only.
+  const quote = !touch && shown && shownCode ? pickBoxQuote(shown, quotes?.get(shownCode) ?? []) : undefined
   const shownFeat = shownCode ? grid.feats.find((f) => STATE_FIPS_TO_CODE[f.id] === shownCode) : undefined
   // Autoplay only for the mouse, and not for a reader who asked for less motion or data: then the still image and a play button.
   const inlineVideo = keyNav.keyed || prefersStillMedia() ? 'click' : 'autoplay'
@@ -359,8 +367,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const size = grid.step * 0.8
   const pad = grid.zoomed ? grid.step * 2 : 4
   const [fx0, fy0, fx1, fy1] = grid.zoomed ? grid.frame : [0, 0, W, H]
-  const vb = `${fx0 - pad} ${fy0 - pad} ${fx1 - fx0 + pad * 2} ${fy1 - fy0 + pad * 2}`
+  const vbTuple: [number, number, number, number] = [fx0 - pad, fy0 - pad, fx1 - fx0 + pad * 2, fy1 - fy0 + pad * 2]
+  const vb = vbTuple.join(' ')
   const pinPt = grid.zoomed && zoom?.pin ? albersPoint(zoom.pin.lon, zoom.pin.lat) : null
+  // Desktop hover drill-down pill anchored right beside the hovered state (#1360) so clicking to drill down is unmistakable.
+  const drillCueLabel = !touch && shownCode && shownFeat && !shownIsHere ? `${stateName(shownCode)} · Click to drill down →` : null
+  const drillCue = drillCueLabel && shownFeat ? layoutHoverBadge(shownFeat.bbox, vbTuple, drillCueLabel, grid.step) : null
 
   const summary =
     `Map of the United States drawn as small boxes in each state's shape. ${plural(withMeetings, 'state has', 'states have')} at least one meeting where ${subject} came up.` +
@@ -488,9 +500,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
               data-active={active ? '' : undefined}
               fill={colorOf(b)}
               opacity={muted ? (shownCode ? 0.45 : 0.7) : 1}
-              // The whole hovered state stands out (#1277), so it reads as one thing to click.
+              // The whole hovered state stands out (#1277), with the hovered box itself crisp so per-meeting moves read (#1357).
               stroke={active ? '#1c1917' : undefined}
-              strokeWidth={active ? grid.step * 0.075 : undefined}
+              strokeWidth={i === hover ? grid.step * 0.16 : active ? grid.step * 0.06 : undefined}
               style={{ cursor: b.code ? 'pointer' : 'default' }}
               onMouseEnter={
                 touch || !b.code
@@ -498,7 +510,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                   : () => {
                       keepCard()
                       keyNav.pointed()
-                      setHover(firstBox.get(b.code!) ?? i)
+                      setHover(i)
                     }
               }
               onClick={() => onBox(i)}
@@ -514,6 +526,31 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         {/* The hovered (or keyboard-chosen) state's outline, raised: dark and thick over everything else (#1277). */}
         {shownFeat && (
           <path d={featPath(shownFeat)} fill="none" stroke="#1c1917" strokeWidth={grid.step * 0.2} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
+        )}
+        {/* On-map drill-down cue (#1360): non-blocking teal pill anchored to the hovered state on desktop. */}
+        {drillCue && drillCueLabel && (
+          <g pointerEvents="none" data-hover-drill-cue="">
+            <rect
+              x={drillCue.x}
+              y={drillCue.y}
+              width={drillCue.width}
+              height={drillCue.height}
+              rx={drillCue.rx}
+              fill="#0f766e"
+              stroke="#ffffff"
+              strokeWidth={Math.max(1.5, grid.step * 0.16)}
+            />
+            <text
+              x={drillCue.textX}
+              y={drillCue.textY}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="#ffffff"
+              style={{ fontSize: drillCue.fontSize, fontWeight: 700, fontFamily: "'Source Sans 3', system-ui, sans-serif" }}
+            >
+              {drillCueLabel}
+            </text>
+          </g>
         )}
         {/* The asked city (#1285), at the coordinate its meeting record holds: the map's most prominent mark. */}
         {pinPt && zoom?.pin && (
@@ -543,12 +580,28 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
-        {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? 'Tap a state to open its story.' : `Click ${stateName(shownCode)} to open its story.`}`
-          : grid.zoomed && zoom
-            ? // Zoomed (#1285): the one state's own line, not the national count.
-              `${stateName(zoom.stateCode)}: ${plural(meetings.get(zoom.stateCode) ?? 0, 'meeting', 'meetings')} where ${subject} came up${lineOf(stanceBy.get(zoom.stateCode)) ? `; ${lineOf(stanceBy.get(zoom.stateCode))}` : ''}. ${touch ? 'Tap the map to open its story.' : 'Hover to hear what was said; click to open its story.'}`
-            : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a state to hear what was said; click it to open that state’s story.'}`}
+        {shown && shownCode ? (
+          <>
+            {`${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} `}
+            {shownIsHere ? (
+              'You’re reading its story.'
+            ) : touch ? (
+              'Tap a state to open its story.'
+            ) : (
+              <strong className="font-semibold text-teal-800">{`Click ${stateName(shownCode)} to open its story →`}</strong>
+            )}
+          </>
+        ) : grid.zoomed && zoom ? (
+          <>
+            {`${stateName(zoom.stateCode)}: ${plural(meetings.get(zoom.stateCode) ?? 0, 'meeting', 'meetings')} where ${subject} came up${lineOf(stanceBy.get(zoom.stateCode)) ? `; ${lineOf(stanceBy.get(zoom.stateCode))}` : ''}. `}
+            {touch ? 'Tap the map to open its story.' : <strong className="font-semibold text-teal-800">Hover to hear what was said · click to open its story →</strong>}
+          </>
+        ) : (
+          <>
+            {`${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. `}
+            {touch ? 'Tap a state to open its story.' : <strong className="font-semibold text-teal-800">Hover a state to hear what was said · click any state to drill down →</strong>}
+          </>
+        )}
       </p>
 
       <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-tight text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>

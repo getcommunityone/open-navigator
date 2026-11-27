@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -30,12 +30,17 @@ import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { useStoryScope } from '../hooks/useStoryScope'
 import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesMap'
+import { stanceFromPublicLean } from '../utils/mapQuote'
+import TopicCountyMap from '../components/stance/TopicCountyMap'
+import type { MapPassage } from '../components/stance/StoryDotMap'
+import { overviewLead } from '../utils/overviewLead'
 import TimelineChart from '../components/stance/TimelineChart'
 import DumbbellChart from '../components/stance/DumbbellChart'
 import PlaceControl from '../components/stance/PlaceControl'
 import ProgressPips from '../components/stance/ProgressPips'
 import StoryClose from '../components/stance/StoryClose'
 import ScopeBar from '../components/stance/ScopeBar'
+import ScopeNote from '../components/stance/ScopeNote'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
@@ -149,6 +154,11 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   // A city picked in the place dialog: topic stories are drawn by state (#1186), so its state applies and the cover says so.
   // A deep link with ?city= gets the same note (the page shows its state only).
   const [cityAsked, setCityAsked] = useState<string | null>(() => (stateCode ? (sp.get('city') ?? '').trim() || null : null))
+  // A town ring on the county map (#1349) opens the story with ?city=: the note and the map's highlighted county follow it.
+  const urlCity = stateCode ? (sp.get('city') ?? '').trim() || null : null
+  useEffect(() => {
+    if (urlCity) setCityAsked(urlCity)
+  }, [urlCity])
   const [placeOpen, setPlaceOpen] = useState(false)
   const applyPlace = useCallback(
     (code: string | null, community: string | null) => {
@@ -169,8 +179,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
 
   // The map always shows the whole country (each state its own count); the headline and lists follow the scope.
   const national = useQuery({
-    queryKey: ['topic-story', def.topicId, 'states'],
-    queryFn: () => fetchTopicStates(def.topicId),
+    queryKey: ['topic-story', def.topicId, 'states', 3],
+    queryFn: () => fetchTopicStates(def.topicId, { quotes_per_state: 3 }),
     staleTime: 5 * 60_000,
   })
   // The four-colour split (#1127): the AI reading of each state's meetings, national like the map.
@@ -195,6 +205,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       if (!out.has(m.state_code)) out.set(m.state_code, list)
       list.push({
         place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
+        band: stanceFromPublicLean(m.public_stance),
         text: m.excerpt,
         date: m.date ?? null,
         meeting: m.title ?? null,
@@ -220,6 +231,24 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       return seen < last.total ? seen : undefined
     },
   })
+  // The county map's hover quotes (#1349): the scope's meeting passages already loaded for "What was said".
+  const mapPassages = useMemo<MapPassage[]>(
+    () =>
+      (meetings.data?.pages.flatMap((p) => p.items) ?? [])
+        .filter((m) => m.excerpt)
+        .map((m) => ({
+          state_code: m.state_code,
+          jurisdiction_name: m.jurisdiction_name ?? m.city,
+          meeting_date: m.date ?? null,
+          meeting_title: m.title ?? null,
+          evidence: m.excerpt,
+          video_url: m.video_url ?? null,
+          video_id: m.video_id ?? null,
+          speaker_display_name: m.speaker_display_name ?? null,
+          speaker_role: m.speaker_display_name ? (m.speaker_role ?? null) : null,
+        })),
+    [meetings.data],
+  )
   // Decisions on the topic and ones that only mention it (#1293): a keyword hit is not a decision on the topic.
   const decisions = useQuery({
     queryKey: ['topic-story', def.topicId, 'decisions', stateCode ?? '', 'split'],
@@ -307,6 +336,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const titleTemplate = withTopicBlank(template, topicWord)
   const placeDisplay = noMeetings ? (stateName ?? 'America') : caption.place
   const subhead = noMeetings ? null : captionSubhead(caption, def.slug, scope)
+  // The Overview says "where it came up" once (#1349): its headline. A subhead or lede that only restates it is dropped.
+  const lead = overviewLead(subhead, def.lede)
   const basis = caption.basis
   // Close and the last screen's Done go home, keeping the scope (owner 2026-11-27: readers pick the next story there).
   const homeHref = storyCloseHref(def.slug, scopeQ)
@@ -320,6 +351,22 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const where = stateName ? `in ${stateName}` : 'nationally'
   const decisionsSearch = `/search?types=decisions&topic_id=${def.topicId}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`
 
+  // The national box map; at state scope, the outline kept when no meeting there can be placed on a county (#1349).
+  const statesMap = (
+    <StoryStatesMap
+      byState={national.data?.states}
+      quotes={quotes}
+      highlight={stateCode}
+      // A chosen state is drawn as that state, never the national map (#1316, owner 27 Nov 2026).
+      zoom={stateCode ? { stateCode } : null}
+      href={(code) => `/stories/${def.slug}?state=${encodeURIComponent(code)}&screen=overview`}
+      subject={subject}
+      stance={stance}
+      stanceUnit="meetings"
+      positions={words}
+    />
+  )
+
   const screen = (id: TopicScreenId): { headline: string; context: ReactNode; right: ReactNode; lead?: ReactNode } => {
     switch (id) {
       case 'overview':
@@ -331,12 +378,12 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           // The opening's subhead, lede and notes (#1282) sit in the left column under the headline: Overview is screen 1.
           lead: (
             <div className="stance-overview-lead">
-              {subhead && <p className="stance-title-subhead">{subhead}</p>}
-              <p className="stance-title-subhead topic-story-lede">{def.lede}</p>
+              {lead.subhead && <p className="stance-title-subhead">{lead.subhead}</p>}
+              {lead.lede && <p className="stance-title-subhead topic-story-lede">{lead.lede}</p>}
               {!captionQ.isPending && !COUNTED_FROM.test(basis ?? '') && basis != null && <p className="stance-note">{COUNTED_LINE}</p>}
               {cityAsked && stateName && (
                 <p className="stance-note" role="status">
-                  Topic stories are drawn by state, so this shows all of {stateName}; {cityAsked} on its own isn't available yet.
+                  Topic stories are counted by state, so this shows all of {stateName}; {cityAsked}&rsquo;s county is highlighted on the map, but {cityAsked} on its own isn&rsquo;t available yet.
                 </p>
               )}
               {note && <p className="stance-note">{note}</p>}
@@ -344,29 +391,35 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           ),
           right: (
             <>
-              {national.isError ? (
+{national.isError ? (
                 <p className="stance-nodata" role="status">
                   The map could not be loaded right now.
                 </p>
-              ) : (
-                <StoryStatesMap
-                  byState={national.data?.states}
-                  quotes={quotes}
-                  highlight={stateCode}
-                  // A chosen state is drawn as that state, never the national map (#1316, owner 27 Nov 2026).
-                  zoom={stateCode ? { stateCode } : null}
-                  href={(code) => `/stories/${def.slug}?state=${encodeURIComponent(code)}&screen=overview`}
-                  subject={subject}
-                  stance={stance}
-                  stanceUnit="meetings"
+              ) : stateCode ? (
+                // A chosen state (#1349): its counties with a ring for each town where the topic came up, like the Data
+                // Center Story. The state outline is kept only when none of its meetings can be placed.
+                <TopicCountyMap
+                  topicId={def.topicId}
+                  stateCode={stateCode}
+                  scopeCity={cityAsked}
+                  scopeLabel={label}
+                  subject={topicWord}
                   positions={words}
+                  passages={mapPassages}
+                  labelledBy="story-h-overview"
+                  onPickState={(code) => applyPlace(code, null)}
+                  onDrill={(city) => {
+                    const p = new URLSearchParams({ state: stateCode, screen: 'overview' })
+                    if (city) p.set('city', city)
+                    else setCityAsked(null)
+                    navigate(`/stories/${def.slug}?${p.toString()}`)
+                  }}
+                  fallback={statesMap}
                 />
+              ) : (
+                statesMap
               )}
-              <p className="stance-note">
-                {stateName
-                  ? `${stateName} only. Topic meetings are not counted by county yet, so the state is drawn whole; choose National in the header to compare states.`
-                  : 'Drawn by state: choose a state to narrow the story to it.'}
-              </p>
+              {!stateCode && <p className="stance-note">Drawn by state: choose a state to narrow the story to it.</p>}
             </>
           ),
         }
@@ -677,9 +730,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         note={
           placeScope.resolved.reason ? (
             // Why the story shows a wider place than the one asked (#1285); the URL keeps the reader's choice.
-            <p className="story-scope-note" role="note" data-scope-level={placeScope.resolved.level}>
-              {placeScope.resolved.reason}
-            </p>
+            <ScopeNote short={placeScope.resolved.short ?? placeScope.resolved.reason} full={placeScope.resolved.reason} level={placeScope.resolved.level} />
           ) : undefined
         }
         close={<StoryClose to={homeHref} escape={!placeOpen} />}
@@ -771,6 +822,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         <StoryBottomBar
           active={active}
           count={n}
+          labels={labels}
+          onJump={goTo}
           nextLabel={null}
           onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
           withNext={false}

@@ -1,0 +1,23 @@
+/* The recording-coverage line (#1348): small, quiet, one line on a phone. */
+.coverage-line {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--ink-2, #5b6166);
+}
+.coverage-line-short {
+  display: none;
+}
+@media (max-width: 640px) {
+  .coverage-line-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .coverage-line-short {
+    display: inline;
+  }
+}

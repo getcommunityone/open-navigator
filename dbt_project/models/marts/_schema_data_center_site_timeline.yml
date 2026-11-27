@@ -1,0 +1,80 @@
+version: 2
+
+# #1348: the Data Center Story's "Over time" screen. One row per data_center_site, with the year of its
+# earliest real date and its coordinates. Built into gold and published to public (publish_public_serving).
+
+models:
+  - name: data_center_site_timeline
+    description: >
+      One row per data center site (PK data_center_site_id, FK data_center_site): the year of its earliest
+      date on record (appear_year; the registry's announced date or Epoch AI's first dated timeline row,
+      appear_basis says which, appear_precision how precise), Epoch's first operating year (operating_year,
+      operating_is_expected when after today) and the coordinates the sources publish. A site with no date
+      on record has appear_year null: it is counted as undated, never placed at a guessed year.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [data_center_site_id]
+        to: ref('data_center_site')
+        to_columns: [data_center_site_id]
+    columns:
+      - name: data_center_site_id
+        description: "Primary key; also the foreign key to data_center_site."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('data_center_site')
+                field: data_center_site_id
+      - name: state_code
+        description: "2-letter state code, as on data_center_site."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: latitude
+        description: "Registry latitude (an Epoch site takes its same-name registry record's); null when none."
+        data_type: double precision
+      - name: longitude
+        description: "Registry longitude, same rule."
+        data_type: double precision
+      - name: appear_year
+        description: "Year of the earliest real date on record; null when the site has none."
+        data_type: integer
+        constraints:
+          - type: check
+            expression: "appear_year is null or appear_year between 1990 and 2100"
+      - name: appear_basis
+        description: "announced (registry announced_date) or first_report (Epoch's first dated timeline row); null with appear_year."
+        data_type: text
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['announced', 'first_report']
+      - name: appear_precision
+        description: "day, month or year: how precise the date behind appear_year is."
+        data_type: text
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['day', 'month', 'year']
+      - name: first_report_year
+        description: "Epoch only: year of the first dated timeline row (work on the site on record); null for registry sites."
+        data_type: integer
+      - name: operating_year
+        description: "Epoch only: year of the first timeline row with a building operational; null for registry sites."
+        data_type: integer
+      - name: operating_is_expected
+        description: "True when operating_year is Epoch's projection (its date is after today)."
+        data_type: boolean
+        constraints:
+          - type: not_null

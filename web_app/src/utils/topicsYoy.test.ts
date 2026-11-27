@@ -1,12 +1,33 @@
 import { describe, expect, it } from 'vitest'
-import { changeLabel, relChange, scopeQuery, splitTopics, yearBLabel } from './topicsYoy'
+import {
+  changeLabel,
+  filterTopics,
+  parseTopicFilter,
+  parseYoySort,
+  relChange,
+  scopeQuery,
+  splitTopics,
+  topicDestination,
+  yearBLabel,
+} from './topicsYoy'
 import type { YoyTopic } from '../api/topicsYoy'
 
 // Test-only rows: nothing here is served by the app.
-const t = (slug: string, ma: number, mb: number, comparable = true, ra = 1000, rb = 2000): YoyTopic => ({
-  topic_id: 1,
+const t = (
+  slug: string,
+  ma: number,
+  mb: number,
+  comparable = true,
+  ra = 1000,
+  rb = 2000,
+  hasStory = true,
+  topicId = 1,
+): YoyTopic => ({
+  topic_id: topicId,
   slug,
   name: slug,
+  source: hasStory ? 'curated' : 'civicsearch',
+  has_story: hasStory,
   year_a: '2025',
   year_b: '2026',
   meetings_a: ma,
@@ -18,7 +39,7 @@ const t = (slug: string, ma: number, mb: number, comparable = true, ra = 1000, r
   comparable,
 })
 
-describe('Browse all topics (#1343)', () => {
+describe('Browse all topics (#1343, #1361)', () => {
   it('labels a partial year by its months', () => {
     expect(yearBLabel({ year_b: '2026', year_b_through: '2026-11-23', year_b_partial: true })).toBe('Jan–Nov 2026')
     expect(yearBLabel({ year_b: '2026', year_b_through: '2026-01-09', year_b_partial: true })).toBe('Jan 2026')
@@ -47,6 +68,38 @@ describe('Browse all topics (#1343)', () => {
     const count = splitTopics([flat, down, up], 'count').rows.map((r) => [r.topic.slug, changeLabel(r.change)])
     expect(count[0]).toEqual(['up', '+500%'])
     expect(count[1]).toEqual(['flat', '+100%'])
+  })
+
+  it('supports sorting by most discussed in the latest year', () => {
+    const smallFast = t('fast', 10, 60)
+    const bigSteady = t('big', 200, 300)
+    const sorted = splitTopics([smallFast, bigSteady], 'share', 'latest').rows.map((r) => r.topic.slug)
+    expect(sorted).toEqual(['big', 'fast'])
+  })
+
+  it('filters between all topics, candidate topics without a story, and live stories', () => {
+    const items = [t('guns', 10, 20, true, 1000, 2000, true, 100005), t('housing', 20, 40, true, 1000, 2000, false, 83)]
+    expect(filterTopics(items, 'all').map((x) => x.slug)).toEqual(['guns', 'housing'])
+    expect(filterTopics(items, 'candidates').map((x) => x.slug)).toEqual(['housing'])
+    expect(filterTopics(items, 'stories').map((x) => x.slug)).toEqual(['guns'])
+  })
+
+  it('parses URL filter and sort params safely', () => {
+    expect(parseTopicFilter('candidates')).toBe('candidates')
+    expect(parseTopicFilter('stories')).toBe('stories')
+    expect(parseTopicFilter('bogus')).toBe('all')
+    expect(parseTopicFilter(null)).toBe('all')
+    expect(parseYoySort('latest')).toBe('latest')
+    expect(parseYoySort('change')).toBe('change')
+    expect(parseYoySort(null)).toBe('change')
+  })
+
+  it('routes live stories to /stories/<slug> and candidate topics to /browse-topics?topic_id= keeping place', () => {
+    const story = t('guns', 10, 20, true, 1000, 2000, true, 100005)
+    const candidate = t('affordable-housing', 20, 40, true, 1000, 2000, false, 83)
+    expect(topicDestination(story, 'GA', 'Atlanta')).toBe('/stories/guns?state=GA&city=Atlanta')
+    expect(topicDestination(candidate, 'GA', 'Atlanta')).toBe('/browse-topics?topic_id=83&state=GA&city=Atlanta')
+    expect(topicDestination(candidate, null, 'Atlanta')).toBe('/browse-topics?topic_id=83')
   })
 
   it('a topic the API cannot compare is listed, never drawn', () => {

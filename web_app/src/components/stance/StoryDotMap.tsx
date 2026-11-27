@@ -12,6 +12,8 @@ import { dataCenterQuoteNote } from '../../utils/topicPositions'
 import { resolveVideoId, startFromUrl } from './quoteCardUtils'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
+import { pickZoneIndex } from '../../utils/mapQuote'
+import { layoutHoverBadge } from '../../utils/mapHoverBadge'
 import { featPath } from '../home/StoryStatesMap'
 
 /** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
@@ -72,6 +74,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
  */
 export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null, scopeLabel, onPickState, labelledBy, passages }: Props) {
   const [hover, setHover] = useState<string | null>(null)
+  const [hoverDot, setHoverDot] = useState<number | null>(null)
   const quoted = useMemo(() => (passages ?? []).filter((m) => m.evidence), [passages])
   const qc = useQueryClient()
   const { data: topo, isError, refetch } = useQuery({
@@ -80,6 +83,24 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     staleTime: 1000 * 60 * 60,
   })
   const grid = useMemo(() => (topo ? nationalGrid(topo) : null), [topo])
+  // Per-dot left-to-right rank inside its state so hovering different parts of a state cycles across its passages (#1357).
+  const dotMeta = useMemo(() => {
+    if (!grid) return null
+    const byFips = new Map<string, Array<{ i: number; x: number; y: number }>>()
+    grid.dots.forEach((d, i) => {
+      const list = byFips.get(d.id)
+      if (list) list.push({ i, x: d.x, y: d.y })
+      else byFips.set(d.id, [{ i, x: d.x, y: d.y }])
+    })
+    const meta = new Array<{ rank: number; total: number }>(grid.dots.length)
+    for (const list of byFips.values()) {
+      list.sort((a, b) => a.x - b.x || a.y - b.y)
+      list.forEach((item, rank) => {
+        meta[item.i] = { rank, total: list.length }
+      })
+    }
+    return meta
+  }, [grid])
 
   const counts = useMemo(() => new Map((byState ?? []).map((s) => [s.state_code, s])), [byState])
   const max = Math.max(0, ...(byState ?? []).map((s) => s.meetings))
@@ -104,7 +125,18 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   // Keyboard (#1146): one tab stop, the arrows move state to state west to east, Enter tells that state's story.
   const order = useMemo(() => (grid ? westToEast(grid.dots, (i) => (codeOf(grid.dots[i]!.id) ? grid.dots[i]!.id : null)) : []), [grid])
   const scopeFips = scopeStateCode ? grid?.feats.find((f) => codeOf(f.id) === scopeStateCode)?.id ?? null : null
-  const keyNav = useMapKeyboard<string>({ keys: order, active: hover, setActive: setHover, initial: scopeFips, noun: 'state', describe: readout, onActivate: pick })
+  const keyNav = useMapKeyboard<string>({
+    keys: order,
+    active: hover,
+    setActive: (fips) => {
+      setHoverDot(null)
+      setHover(fips)
+    },
+    initial: scopeFips,
+    noun: 'state',
+    describe: readout,
+    onActivate: pick,
+  })
   const touch = isTouchOnly()
   // A click, or a tap on a phone (no card there, #1277), tells the state's story at once.
   const onDot = (fips: string) => pick(fips)
@@ -114,9 +146,15 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   if (!grid || byState == null) return <MapSkeleton aspect={NATIONAL_MAP_ASPECT} />
 
   const hoverCode = hover ? codeOf(hover) : null
-  // Only while a state is hovered, on a desktop: that state's newest passage in scope, if any (no card at rest, #1002; none
-  // on a phone, #1277).
-  const passage = hoverCode && !touch ? quoted.find((m) => m.state_code === hoverCode) : undefined
+  // Only while a state is hovered, on a desktop: walk across that state's passages by hovered zone (#1357). No card at
+  // rest (#1002); none on a phone (#1277).
+  const passage = (() => {
+    if (!hoverCode || touch) return undefined
+    const statePassages = quoted.filter((m) => m.state_code === hoverCode)
+    if (statePassages.length === 0) return undefined
+    const meta = hoverDot != null ? dotMeta?.[hoverDot] : undefined
+    return statePassages[meta ? pickZoneIndex(meta.rank, meta.total, statePassages.length) : 0]
+  })()
   const hoverFeat = hover ? grid.feats.find((f) => f.id === hover) : undefined
   const inlineVideo = keyNav.keyed || prefersStillMedia() ? 'click' : 'autoplay'
   const pickLabel = (code: string) =>
@@ -125,7 +163,17 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   const listed = [...(byState ?? [])].sort((a, b) => b.meetings - a.meetings || a.state_code.localeCompare(b.state_code))
   const r = grid.step * 0.38
   const pad = NATIONAL_PAD
-  const vb = `${-pad} ${-pad} ${NATIONAL_BBOX[2] + pad * 2} ${NATIONAL_BBOX[3] + pad * 2}`
+  const vbTuple: [number, number, number, number] = [-pad, -pad, NATIONAL_BBOX[2] + pad * 2, NATIONAL_BBOX[3] + pad * 2]
+  const vb = vbTuple.join(' ')
+  const drillCueLabel =
+    !touch && hoverCode && hoverFeat
+      ? hoverCode === scopeStateCode
+        ? scopeCity
+          ? `${stateNameOf(hoverCode)} · Click for whole state →`
+          : 'Click for United States →'
+        : `${stateNameOf(hoverCode)} · Click to drill down →`
+      : null
+  const drillCue = drillCueLabel && hoverFeat ? layoutHoverBadge(hoverFeat.bbox, vbTuple, drillCueLabel, grid.step) : null
   const options = [...grid.feats]
     .map((f) => ({ code: codeOf(f.id), name: f.name }))
     .filter((o): o is { code: string; name: string } => !!o.code)
@@ -136,7 +184,10 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     <figure
       className="stance-map map-fade-in"
       aria-labelledby={labelledBy}
-      onMouseLeave={() => setHover(null)}
+      onMouseLeave={() => {
+        setHover(null)
+        setHoverDot(null)
+      }}
       // The state's county shapes, fetched on the first hover so the drill-down is ready when a state is picked (#1328).
       onMouseEnter={() => void qc.prefetchQuery({ queryKey: ['us-atlas-counties-albers'], queryFn: () => fetchTopo(COUNTIES_ALBERS_TOPO), staleTime: 1000 * 60 * 60 })}
       {...keyNav.stageProps}
@@ -196,6 +247,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
                   : () => {
                       keyNav.pointed()
                       setHover(d.id)
+                      setHoverDot(i)
                     }
               }
               onClick={() => onDot(d.id)}
@@ -205,6 +257,31 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
         {/* The hovered state's outline, raised (#1277), so the whole state reads as one thing to click. */}
         {hoverFeat && (
           <path d={featPath(hoverFeat)} fill="none" stroke="#1c1917" strokeWidth={2.4} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
+        )}
+        {/* On-map drill-down cue (#1360): non-blocking teal pill anchored to the hovered state on desktop. */}
+        {drillCue && drillCueLabel && (
+          <g pointerEvents="none" data-hover-drill-cue="">
+            <rect
+              x={drillCue.x}
+              y={drillCue.y}
+              width={drillCue.width}
+              height={drillCue.height}
+              rx={drillCue.rx}
+              fill="#0f766e"
+              stroke="#ffffff"
+              strokeWidth={Math.max(1.5, grid.step * 0.16)}
+            />
+            <text
+              x={drillCue.textX}
+              y={drillCue.textY}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="#ffffff"
+              style={{ fontSize: drillCue.fontSize, fontWeight: 700, fontFamily: "'Source Sans 3', system-ui, sans-serif" }}
+            >
+              {drillCueLabel}
+            </text>
+          </g>
         )}
       </svg>
       </div>

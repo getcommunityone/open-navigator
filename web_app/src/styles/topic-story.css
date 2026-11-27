@@ -241,3 +241,9 @@
 .topic-story .topic-story-people li + li {
   margin-top: 2px;
 }
+
+/* The county map (#1349) fills its column on a phone: the stacked screen is a flex column aligned to the start, so a
+   right column holding only the map would otherwise shrink to the map's minimum width. */
+.topic-story .stance-right:has(.stance-map--county) {
+  align-self: stretch;
+}

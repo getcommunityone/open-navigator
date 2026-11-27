@@ -81,6 +81,19 @@ class _TopicConn:
 
     async def fetch(self, sql: str, *params: Any):
         self.calls.append(sql)
+        if "DISTINCT ON (l.state_code, l.video_id)" in sql:
+            if "meeting_video_kind" in sql:
+                if self.kind_missing:
+                    raise asyncpg.exceptions.UndefinedTableError('relation "meeting_video_kind" does not exist')
+                return [
+                    _topic_row(video_id="v1", public_stance="against"),
+                    _topic_row(video_id="v2", public_stance="for", event_title="Council 2"),
+                    _topic_row(video_id="v3", public_stance="split", event_title="Council 3"),
+                ][: int(params[2])]
+            return [
+                _topic_row(public_stance=None, video_id="newest1"),
+                _topic_row(public_stance=None, video_id="newest2"),
+            ][: int(params[2])]
         if "DISTINCT ON (l.state_code)" in sql:
             if "meeting_video_kind" in sql:
                 if self.kind_missing:
@@ -110,6 +123,26 @@ def test_topic_states_falls_back_to_newest_without_meeting_kind(monkeypatch) -> 
     assert r.status_code == 200
     (q,) = r.json()["newest"]
     assert q["video_id"] == "newest" and q["public_stance"] is None
+
+
+def test_topic_states_quotes_per_state_returns_multiple_distinct_meetings(monkeypatch) -> None:
+    conn = _TopicConn()
+    r = _call(monkeypatch, topics, conn, "/api/topics/100005/states", {"quotes_per_state": 3})
+    assert r.status_code == 200
+    newest = r.json()["newest"]
+    assert [m["video_id"] for m in newest] == ["v1", "v2", "v3"]
+    assert [m["public_stance"] for m in newest] == ["against", "for", "split"]
+    pick = next(s for s in conn.calls if "DISTINCT ON (l.state_code, l.video_id)" in s)
+    assert "k.is_public_meeting IS NOT FALSE" in pick
+    assert "stance_rn" in pick
+
+
+def test_topic_states_quotes_per_state_fallback_and_bounds(monkeypatch) -> None:
+    r = _call(monkeypatch, topics, _TopicConn(kind_missing=True), "/api/topics/100005/states", {"quotes_per_state": 2})
+    assert r.status_code == 200
+    assert [m["video_id"] for m in r.json()["newest"]] == ["newest1", "newest2"]
+    bad = _call(monkeypatch, topics, _TopicConn(), "/api/topics/100005/states", {"quotes_per_state": 20})
+    assert bad.status_code == 422
 
 
 def _dc_item(**kw) -> dict[str, Any]:

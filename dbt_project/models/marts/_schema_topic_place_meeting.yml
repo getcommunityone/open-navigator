@@ -1,0 +1,94 @@
+version: 2
+
+# #1349: a topic story's meetings per government, for the state county map. Built into gold and published to public
+# (publish_public_serving's served list). Lean counts are an AI reading per meeting, never tied to a person.
+
+models:
+  - name: topic_place_meeting
+    description: >
+      One row per (topic, government): the distinct topic_transcript_link meetings whose recording is attached to that
+      government (event_youtube_with_jurisdiction), when the government is in jurisdictions, in the link's state, and is
+      a county with a geoid or has coordinates. Meetings that can't be placed are left out; the API reports them as
+      unplaced (state total minus the sum here). The lean counts are the AI reading (topic_meeting_lean) of those
+      meetings, with the same thresholds as /api/topics/{id}/state-map.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'topics', 'serving']
+      indexes:
+        - columns: [topic_id, state_code]
+    constraints:
+      - type: primary_key
+        columns: [topic_place_meeting_id]
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [topic_id, jurisdiction_id]
+    columns:
+      - name: topic_place_meeting_id
+        description: "md5(topic_id|jurisdiction_id). Primary key."
+        data_type: text
+        constraints:
+          - type: not_null
+        tests: [unique, not_null]
+      - name: topic_id
+        description: "Curated topic (civicsearch_topic)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: jurisdiction_id
+        description: "The government the meetings' recordings are attached to (jurisdictions)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code (the government's, equal to the topic link's)."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: jurisdiction_name
+        description: "The government's name as the Census gives it (e.g. 'Tuscaloosa city', 'Jefferson County')."
+        data_type: text
+      - name: jurisdiction_type
+        description: "county, city, town or school_district."
+        data_type: text
+      - name: geoid
+        description: "Census GEOID (5 digits for a county)."
+        data_type: text
+      - name: latitude
+        description: "The government's point (jurisdictions.latitude)."
+        data_type: double precision
+      - name: longitude
+        description: "The government's point (jurisdictions.longitude)."
+        data_type: double precision
+      - name: meetings
+        description: "Distinct meetings (videos) on the topic attached to this government."
+        data_type: integer
+      - name: lean_meetings
+        description: "Of those, meetings the AI read for this topic (topic_meeting_lean)."
+        data_type: integer
+      - name: public_against_meetings
+        description: "Read as the public mostly opposed (p >= 0.7)."
+        data_type: integer
+      - name: public_for_meetings
+        description: "Read as the public mostly supportive (p >= 0.7)."
+        data_type: integer
+      - name: no_side_meetings
+        description: "Read as split: mixed, or a lean under p 0.7."
+        data_type: integer
+      - name: silent_meetings
+        description: "Read, but the public didn't speak on the topic."
+        data_type: integer
+      - name: disagreement_meetings
+        description: "Public mostly opposed while officials mostly supported and the body didn't block it."
+        data_type: integer

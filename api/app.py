@@ -706,6 +706,12 @@ from api.routes import data_center_drill as data_center_drill_routes
 app.include_router(data_centers_routes.router, prefix="/api")
 app.include_router(data_center_comments_routes.router, prefix="/api")
 app.include_router(data_center_drill_routes.router, prefix="/api")
+# Data center sites over time and recording coverage (#1348).
+from api.routes import data_center_sites_timeline as data_center_sites_timeline_routes
+from api.routes import recorded_coverage as recorded_coverage_routes
+
+app.include_router(data_center_sites_timeline_routes.router, prefix="/api")
+app.include_router(recorded_coverage_routes.router, prefix="/api")
 # Data-center job-application links (#248): public list + admin screen.
 from api.routes import application_links as application_links_routes
 
