@@ -480,3 +480,8 @@ outputPorts:
   contractId: open-navigator-public-recorded_meeting_year
   type: table
   description: 'One row per (state_code, jurisdiction_id, jurisdiction_name, meeting_year): distinct meeting videos in event_youtube_with_jurisdiction that have a usable transcript.'
+- name: meeting_passage_speaker
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_passage_speaker
+  type: table
+  description: 'One row per quoted story-map passage (topic_transcript_link evidence or data_center_meeting_mention excerpt) inside a speaker''s introduction window: the nearest preceding introduction in the same recording within 2,500 characters; a two-fragment excerpt only when both fragments take the same introduction.'
