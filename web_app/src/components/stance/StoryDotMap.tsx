@@ -8,9 +8,10 @@ import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
-import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
-import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
-import { isTouchOnly } from '../../utils/touchOnly'
+import { resolveVideoId, startFromUrl } from './quoteCardUtils'
+import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
+import { featPath } from '../home/StoryStatesMap'
 
 /** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
 export interface MapPassage {
@@ -59,28 +60,14 @@ interface Props {
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
-/** The card's pick button on a phone (#1229): full width, 44px, the story teal. */
-const PICK_STYLE = {
-  display: 'block',
-  width: '100%',
-  margin: '12px 0 0',
-  padding: '12px 16px',
-  minHeight: 44,
-  boxSizing: 'border-box',
-  border: 0,
-  borderRadius: 999,
-  background: '#0f766e',
-  color: '#fff',
-  fontSize: 15,
-  fontWeight: 700,
-  cursor: 'pointer',
-} as const
 /**
  * Overview dot map (#970): the country as a grid of dots, each state's dots shaded by the real number of its meetings where a
  * data center came up, nationally. A state with none stays the empty colour. When the story is scoped to a state, that state
  * stands out and the others are muted, still shaded by their own counts, so no state reads as empty because it wasn't counted.
  * Clicking or choosing a state narrows the whole story to it (the scope in the URL); from a city, clicking its state broadens
- * to the state, and United States broadens to the country.
+ * to the state, and United States broadens to the country. On a desktop, hovering a state outlines it and shows its newest
+ * passage in a card at the map's bottom-left, the recording playing muted at the quoted moment (#1277); on a phone there is
+ * no card, and a tap narrows the story at once.
  */
 export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null, scopeLabel, onPickState, labelledBy, passages }: Props) {
   const [hover, setHover] = useState<string | null>(null)
@@ -117,18 +104,8 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   const scopeFips = scopeStateCode ? grid?.feats.find((f) => codeOf(f.id) === scopeStateCode)?.id ?? null : null
   const keyNav = useMapKeyboard<string>({ keys: order, active: hover, setActive: setHover, initial: scopeFips, noun: 'state', describe: readout, onActivate: pick })
   const touch = isTouchOnly()
-  // On a phone nothing depends on hover (#1229): the first tap on a state with a passage shows its card (whose button tells
-  // its story); a second tap on it, or a tap on a state with no passage, tells the story at once (#1120).
-  const onDot = (fips: string) => {
-    const code = codeOf(fips)
-    if (!code) return
-    const shownCode = hover ? codeOf(hover) : null
-    if (touch && code !== shownCode && quoted.some((m) => m.state_code === code)) {
-      setHover(fips)
-      return
-    }
-    pick(fips)
-  }
+  // A click, or a tap on a phone (no card there, #1277), tells the state's story at once.
+  const onDot = (fips: string) => pick(fips)
 
   if (isError) {
     return (
@@ -146,12 +123,13 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   }
 
   const hoverCode = hover ? codeOf(hover) : null
-  // Only while a state is hovered: that state's newest passage in scope, if any (no card at rest, #1002).
-  const passage = hoverCode ? quoted.find((m) => m.state_code === hoverCode) : undefined
-  // The card goes on the side of the map away from the hovered state, so it never covers the pointer.
-  const hoverDots = hover ? grid.dots.filter((d) => d.id === hover) : []
-  const hoverX = hoverDots.length ? hoverDots.reduce((a, d) => a + d.x, 0) / hoverDots.length / NATIONAL_BBOX[2] : 0
-  const cardSide = hoverX < 0.5 ? 'stance-map-card is-right' : 'stance-map-card'
+  // Only while a state is hovered, on a desktop: that state's newest passage in scope, if any (no card at rest, #1002; none
+  // on a phone, #1277).
+  const passage = hoverCode && !touch ? quoted.find((m) => m.state_code === hoverCode) : undefined
+  const hoverFeat = hover ? grid.feats.find((f) => f.id === hover) : undefined
+  const inlineVideo = keyNav.keyed || prefersStillMedia() ? 'click' : 'autoplay'
+  const pickLabel = (code: string) =>
+    code === scopeStateCode ? (scopeCity ? `Click to show all of ${stateNameOf(code)}` : 'Click to show the whole country') : `Click ${stateNameOf(code)} to open its story`
 
   const listed = [...(byState ?? [])].sort((a, b) => b.meetings - a.meetings || a.state_code.localeCompare(b.state_code))
   const r = grid.step * 0.38
@@ -163,7 +141,8 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     .sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <figure className="stance-map" aria-labelledby={labelledBy}>
+    // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
+    <figure className="stance-map" aria-labelledby={labelledBy} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
       <figcaption className="stance-map-head">
         <span>
           Meetings where a data center came up, by state · National{scopeStateCode ? ` (${stateNameOf(scopeStateCode)} highlighted${scopeCity ? `, which contains ${scopeCity}` : ''})` : ''}
@@ -189,8 +168,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           </select>
         </span>
       </figcaption>
-      {/* Leaving the map and its card (not just the dots) hides the card, so its link can be reached. */}
-      <div className="stance-map-stage" onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+      <div className="stance-map-stage">
       {keyNav.sr}
       <svg
         viewBox={vb}
@@ -207,55 +185,38 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
             <circle
               key={i}
               data-state={code ?? undefined}
+              data-active={hover === d.id ? '' : undefined}
               cx={d.x}
               cy={d.y}
               r={n ? r : r * 0.55}
               fill={colorFor(n)}
-              opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
+              opacity={(hover && hover !== d.id) || (!hover && !mine) ? 0.3 : 1}
               style={{ cursor: code ? 'pointer' : 'default' }}
-              onMouseEnter={touch ? undefined : () => setHover(d.id)}
+              onMouseEnter={
+                touch
+                  ? undefined
+                  : () => {
+                      keyNav.pointed()
+                      setHover(d.id)
+                    }
+              }
               onClick={() => onDot(d.id)}
             />
           )
         })}
+        {/* The hovered state's outline, raised (#1277), so the whole state reads as one thing to click. */}
+        {hoverFeat && (
+          <path d={featPath(hoverFeat)} fill="none" stroke="#1c1917" strokeWidth={2.4} strokeLinejoin="round" pointerEvents="none" data-active-outline="" />
+        )}
       </svg>
-      {passage && (
-        // While a state is hovered, on the side away from it.
-        <QuoteCard
-          className={cardSide}
-          place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
-          date={passage.meeting_date}
-          quote={excerptAroundMark(passage.evidence ?? '')}
-          meeting={passage.meeting_title}
-          stanceNote={dataCenterQuoteNote(passage.ai_public_lean)}
-          videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
-          startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
-          url={passage.jump_url ?? passage.video_url}
-          speakerName={passage.speaker_display_name ?? null}
-          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
-          summary={passage.meeting_summary ?? null}
-          analysisUrl={scopedMeetingHref(passage.meeting_url, { state: scopeStateCode, city: scopeCity })}
-        >
-          {touch && hover && hoverCode && (
-            <>
-              {/* The way into the state on a phone (#1229), as the home map's card button (#1187). */}
-              <button type="button" className="map-card-pick" onClick={() => pick(hover)} style={PICK_STYLE}>
-                {hoverCode === scopeStateCode ? (scopeCity ? `Show all of ${stateNameOf(hoverCode)}` : 'Show the whole country') : `Show ${stateNameOf(hoverCode)}`}{' '}
-                <span aria-hidden="true">→</span>
-              </button>
-              <MapCardClose onClose={keyNav.close} what={stateNameOf(hoverCode)} />
-            </>
-          )}
-        </QuoteCard>
-      )}
       </div>
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the select and the table. */}
       <p className="stance-map-readout">
-        {hover
-          ? readout(hover)
-          : touch
-            ? 'Tap a state to see what was said there, then tap it again, or choose one, to tell its story.'
-            : 'Hover a state, or choose one, to see its count. Click a state to tell its story.'}
+        {touch
+          ? 'Tap a state to open its story, or choose one.'
+          : hover
+            ? `${readout(hover)}. ${hoverCode ? `${pickLabel(hoverCode)}.` : ''}`
+            : 'Hover a state to hear what was said there; click it, or choose one, to open its story.'}
       </p>
       {max > 0 && (
         <div className="stance-map-legend" aria-hidden="true">
@@ -283,6 +244,29 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
             <span style={{ background: HOUSE_THEME.neutral }} /> none on record
           </span>
         </div>
+      )}
+      {passage && hover && hoverCode && (
+        // Desktop only (#1277): under the legend, never over the map; one recording at a time.
+        <QuoteCard
+          className="map-hover-card"
+          compact
+          inlineVideo={inlineVideo}
+          place={[passage.jurisdiction_name, passage.state_code].filter(Boolean).join(', ')}
+          date={passage.meeting_date}
+          quote={excerptAroundMark(passage.evidence ?? '')}
+          meeting={passage.meeting_title}
+          stanceNote={dataCenterQuoteNote(passage.ai_public_lean)}
+          videoId={resolveVideoId(passage.video_id, passage.jump_url, passage.video_url)}
+          startSeconds={passage.start_seconds ?? startFromUrl(passage.jump_url)}
+          url={passage.jump_url ?? passage.video_url}
+          speakerName={passage.speaker_display_name ?? null}
+          role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
+        >
+          {/* The same action as a click on the state (#1277). */}
+          <button type="button" className="map-hover-open" onClick={() => pick(hover)}>
+            {keyNav.keyed ? 'Press Enter to show it' : pickLabel(hoverCode)} <span aria-hidden="true">→</span>
+          </button>
+        </QuoteCard>
       )}
       <details className="stance-map-table">
         <summary>Show data table</summary>

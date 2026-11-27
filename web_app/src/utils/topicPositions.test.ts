@@ -36,8 +36,8 @@ describe('topic position vocabulary', () => {
     const w = topicPositions('pickleball')
     expect(w.split).toBe('Split')
     expect(w.silent).toBe("Public didn't speak on it")
-    expect(w.unread).toBe('No AI reading yet')
-    expect(MISSING_LEGEND).toBe("No AI reading yet, or the public didn't speak on it")
+    expect(w.unread).toBe('Not read yet')
+    expect(MISSING_LEGEND).toBe("Not read yet, or the public didn't speak on it")
   })
 
   // The stored guns readings (question_version 48468cc5296e) were written by the gun-control question: mostly_supportive =

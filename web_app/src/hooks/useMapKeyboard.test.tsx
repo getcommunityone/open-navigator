@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { nextMapKey, pressedOutside, useMapKeyboard, westToEast } from './useMapKeyboard'
+import { nextMapKey, useMapKeyboard, westToEast } from './useMapKeyboard'
 
 describe('nextMapKey (#1146)', () => {
   const keys = ['WA', 'TX', 'NY']
@@ -70,32 +70,15 @@ describe('useMapKeyboard focus', () => {
   })
 })
 
-describe('pressedOutside (#1229: a tap outside closes the card on a phone)', () => {
-  const inside = { id: 'box' } as unknown as EventTarget
-  const outside = { id: 'page' } as unknown as EventTarget
-  const stage = { contains: (n: Node | null) => (n as unknown) === inside }
-  it('is true for a press anywhere but the map and its card', () => {
-    expect(pressedOutside(stage, outside)).toBe(true)
-  })
-  it('is false for a press on the map or its card (the next state, the card buttons)', () => {
-    expect(pressedOutside(stage, inside)).toBe(false)
-  })
-  it('is false with no stage or no target', () => {
-    expect(pressedOutside(null, outside)).toBe(false)
-    expect(pressedOutside(stage, null)).toBe(false)
-  })
-})
-
-describe('useMapKeyboard close (#1229)', () => {
-  it('returns a close that hides the card', () => {
-    const setActive = vi.fn()
-    let close: (() => void) | null = null
+describe('useMapKeyboard keyed (#1277)', () => {
+  it('starts not keyed and returns pointed()', () => {
+    let out: { keyed: boolean; pointed: () => void } | null = null
     function Probe() {
-      close = useMapKeyboard({ keys: ['WA'], active: 'WA', setActive, describe: (k) => k, noun: 'state' }).close
+      out = useMapKeyboard({ keys: ['WA'], active: null, setActive: () => {}, describe: (k) => k, noun: 'state' })
       return null
     }
     renderToStaticMarkup(<Probe />)
-    close!()
-    expect(setActive).toHaveBeenCalledWith(null)
+    expect(out!.keyed).toBe(false)
+    expect(typeof out!.pointed).toBe('function')
   })
 })

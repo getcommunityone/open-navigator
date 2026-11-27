@@ -2621,29 +2621,7 @@ html.stance-snap {
   z-index: 2;
   pointer-events: none;
 }
-/* The hovered county's newest meeting passage (#999, #1002), as a QuoteCard (#1108); at rest nothing shows. */
-.stance-map-card {
-  position: absolute;
-  left: 0;
-  bottom: 2%;
-  z-index: 2;
-  width: min(300px, 42%);
-}
-.stance-map-card.is-right {
-  left: auto;
-  right: 0;
-  bottom: auto;
-  top: 2%;
-}
-@media (max-width: 640px) {
-  .stance-map-card,
-  .stance-map-card.is-right {
-    position: relative;
-    inset: auto;
-    width: auto;
-    margin-top: 8px;
-  }
-}
+/* The hovered area's passage is a QuoteCard fixed at the map's bottom-left on desktop (.map-hover-card, QuoteCard.css, #1277). */
 .stance-map-readout {
   min-height: 1.4em;
   margin: 4px 0 6px;

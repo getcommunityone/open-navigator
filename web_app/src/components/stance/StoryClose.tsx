@@ -24,6 +24,8 @@ export default function StoryClose({ to, escape = true }: Props) {
       const ae = document.activeElement as HTMLElement | null
       if (document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')) return
       if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.tagName === 'TEXTAREA')) return
+      // A story map showing a state's card: its Escape hides the card (#1277), not the story.
+      if (ae?.closest?.('[data-map-keys][data-map-active]')) return
       navigate(to)
     }
     // Capture phase: this runs before a dialog's own Escape closes it, so an open dialog is still seen and keeps its Escape.

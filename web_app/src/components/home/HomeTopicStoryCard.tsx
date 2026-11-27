@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '../../api/topics'
@@ -30,6 +30,8 @@ interface Props {
  * and the map of meetings per state with each state's newest verbatim passage. Every figure is a real count.
  */
 export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceApply }: Props) {
+  // The map's hover card goes in the text column, under Start (#1277), never over the map.
+  const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   const states = useQuery({
     queryKey: ['topic-story', def.topicId, 'states'],
     queryFn: () => fetchTopicStates(def.topicId),
@@ -109,7 +111,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceAp
             {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
           </Link>
         </div>
-        <HomeStoryDrill />
+        <HomeStoryDrill slotRef={setCardSlot} />
       </div>
       <div className="home-story-map">
         {states.isError ? (
@@ -124,6 +126,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceAp
             stance={stance && stance.length > 0 ? stance : undefined}
             stanceUnit="meetings"
             positions={topicPositions(def.slug)}
+            cardSlot={cardSlot}
           />
         )}
       </div>
@@ -134,8 +137,13 @@ export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceAp
 /**
  * The drill-down line under the hero's buttons (#1176): says how to go deeper, so the reader knows the map is the way in.
  * The scope in effect is named by the title's place control (#1206; CLAUDE.md, scope label rule), so this line no longer
- * repeats it.
+ * repeats it. It is also the slot the map's desktop hover card fills (#1277): the card replaces the line while a state is
+ * hovered, and the slot keeps its height so the page doesn't jump.
  */
-export function HomeStoryDrill() {
-  return <p className="home-story-drill">Pick a state on the map to open its story.</p>
+export function HomeStoryDrill({ slotRef }: { slotRef?: (el: HTMLDivElement | null) => void }) {
+  return (
+    <div className="map-card-slot" ref={slotRef}>
+      <p className="home-story-drill map-card-slot-hint">Pick a state on the map to open its story.</p>
+    </div>
+  )
 }

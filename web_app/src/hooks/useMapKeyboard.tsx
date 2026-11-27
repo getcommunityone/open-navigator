@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react'
 
 /** The key a map's arrow keys move to (#1146): next/previous in `keys`, wrapping; Home/End go to the ends. */
 export function nextMapKey<K>(keys: readonly K[], current: K | null, key: string): K | null {
@@ -37,15 +37,6 @@ export function westToEast<K>(dots: readonly { x: number; y: number }[], idOf: (
     .map((a) => a.id)
 }
 
-/**
- * True when a press landed outside the map and its card (#1229): on a phone nothing may depend on hover, so a tap
- * anywhere else on the page closes the card a tap opened, the way moving the mouse away closes it on a desktop.
- */
-export function pressedOutside(stage: Pick<Node, 'contains'> | null, target: EventTarget | null): boolean {
-  if (!stage || !target) return false
-  return !stage.contains(target as Node)
-}
-
 /** A focus this soon after a press on the map came from the press. */
 const POINTER_FOCUS_MS = 800
 
@@ -69,18 +60,24 @@ interface Options<K> {
  * Keyboard and screen-reader support for the story box maps (#1146): the map is one tab stop, the arrow keys move between its
  * areas (showing the quote card as hover does), Enter opens the area's story, Escape hides the card. Each move is announced
  * politely. Spread `svgProps` on the map's svg, `stageProps` on the element holding the svg and its card, and render `sr`.
+ * `keyed` is true while the area shown came from the keys; call `pointed()` when the mouse picks one. The hover card plays
+ * its recording on its own only for the mouse, never from keyboard focus (#1277).
  */
 export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, onActivate, noun }: Options<K>) {
   const hintId = useId()
   const [said, setSaid] = useState('')
+  const [keyed, setKeyed] = useState(false)
   const move = (k: K | null) => {
+    setKeyed(k != null)
     setActive(k)
     setSaid(k == null ? '' : describe(k))
   }
   const onKeyDown = (e: KeyboardEvent<Element>) => {
     if (e.key === 'Escape') {
       if (active != null) {
+        // Hides the card only: the story's own Escape (close the story, #1234) must not also fire.
         e.preventDefault()
+        e.stopPropagation()
         move(null)
       }
       return
@@ -118,34 +115,21 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
     'aria-roledescription': 'map',
     'aria-describedby': hintId,
     'data-map-keys': '',
+    // A shown area: Escape hides its card first, and the story's Escape (StoryClose) leaves it alone.
+    'data-map-active': active != null ? '' : undefined,
     onKeyDown,
     onFocus,
     onPointerDown,
   }
-  // A tap (or click) outside the map and its card closes the card (#1229). Not left to blur: a tap on a page's plain
-  // text moves no focus on iOS, and the svg may never have had focus. On pointerup, not pointerdown: a touch that turns
-  // into a scroll ends in pointercancel, so scrolling the page (to read a tall card) doesn't close it.
-  const stageRef = useRef<HTMLDivElement>(null)
-  // The latest setter, so the listener added when the card opened never calls a stale one.
-  const setActiveRef = useRef(setActive)
-  setActiveRef.current = setActive
-  const shown = active != null
-  useEffect(() => {
-    if (!shown) return
-    const onUp = (e: PointerEvent) => {
-      if (pressedOutside(stageRef.current, e.target)) {
-        setActiveRef.current(null)
-        setSaid('')
-      }
-    }
-    document.addEventListener('pointerup', onUp, true)
-    return () => document.removeEventListener('pointerup', onUp, true)
-  }, [shown])
   // Leaving the map and its card (not moving between them) hides the card, as leaving with the mouse does.
   const stageProps = {
-    ref: stageRef,
     onBlur: (e: FocusEvent<HTMLElement>) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActive(null)
+      const to = e.relatedTarget as Element | null
+      // The hover card may sit outside the stage (the home page's text column, #1277): moving into it is not leaving.
+      if (!e.currentTarget.contains(to) && !to?.closest?.('.map-hover-card')) {
+        setKeyed(false)
+        setActive(null)
+      }
     },
   }
   const sr: ReactNode = (
@@ -158,45 +142,9 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
       </span>
     </>
   )
-  /** Closes the card: the card's own close control (#1229), so a phone reader never needs hover to dismiss it. Focus goes
-   *  back to the map (the button it was on is gone), so a screen reader keeps its place. */
-  const close = () => {
-    move(null)
-    // Marked as a pointer focus, so onFocus doesn't open the page's own area again.
-    pointerAt.current = Date.now()
-    stageRef.current?.querySelector<SVGElement>('[data-map-keys]')?.focus({ preventScroll: true })
+  /** The mouse picked the area shown: the hover card may play its recording (#1277). */
+  const pointed = () => {
+    if (keyed) setKeyed(false)
   }
-  return { svgProps, stageProps, sr, close }
-}
-
-/**
- * The close control on a map card (#1229): a real button, 44px tall, so a tap closes the card on a phone. Inline styles so
- * it looks the same on the home page and in the stories.
- */
-export function MapCardClose({ onClose, label = 'Close', what }: { onClose: () => void; label?: string; what?: string }) {
-  return (
-    <button
-      type="button"
-      className="map-card-close"
-      aria-label={what ? `Close the ${what} card` : undefined}
-      onClick={onClose}
-      style={{
-        display: 'block',
-        width: '100%',
-        margin: '8px 0 0',
-        minHeight: 44,
-        padding: '10px 16px',
-        boxSizing: 'border-box',
-        border: '1px solid #d6d3d1',
-        borderRadius: 999,
-        background: '#fff',
-        color: '#44403c',
-        fontSize: 14,
-        fontWeight: 600,
-        cursor: 'pointer',
-      }}
-    >
-      {label}
-    </button>
-  )
+  return { svgProps, stageProps, sr, keyed, pointed }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clockTime, youtubeEmbedUrl, youtubeVideoId } from './youtubeEmbed'
+import { clockTime, youtubeEmbedUrl, youtubeHoverEmbedUrl, youtubeVideoId } from './youtubeEmbed'
 
 describe('youtubeVideoId (#972)', () => {
   it('reads watch, short and embed URLs', () => {
@@ -33,5 +33,17 @@ describe('clockTime', () => {
   it('formats minutes and hours', () => {
     expect(clockTime(247)).toBe('4:07')
     expect(clockTime(7747.4)).toBe('2:09:07')
+  })
+})
+
+describe('youtubeHoverEmbedUrl (#1277)', () => {
+  it('autoplays muted at the quoted second, inline, with controls, on the privacy-enhanced host', () => {
+    const u = youtubeHoverEmbedUrl('7VghnjHd_1w', 247.9)
+    expect(u).toContain('https://www.youtube-nocookie.com/embed/7VghnjHd_1w?')
+    expect(u).toContain('autoplay=1&mute=1&start=247&playsinline=1&controls=1')
+  })
+  it('leaves out start with no moment', () => {
+    expect(youtubeHoverEmbedUrl('7VghnjHd_1w', null)).toContain('autoplay=1&mute=1&playsinline=1&controls=1')
+    expect(youtubeHoverEmbedUrl('7VghnjHd_1w', 0)).not.toContain('start=')
   })
 })

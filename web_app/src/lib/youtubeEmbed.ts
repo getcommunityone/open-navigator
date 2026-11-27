@@ -33,6 +33,16 @@ export function youtubeEmbedUrl(videoId: string, start?: number | null): string 
   return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?${q.toString()}`
 }
 
+/**
+ * The map hover card's embed (#1277): plays on its own, muted, at `start` seconds, inline on iOS, with YouTube's own controls.
+ * The owner asked for this on desktop hover only; the maps never build it on a phone, from keyboard focus, or under reduced
+ * motion / data saving. Privacy-enhanced host, as above.
+ */
+export function youtubeHoverEmbedUrl(videoId: string, start?: number | null): string {
+  const s = start != null && Number.isFinite(start) && start > 0 ? `&start=${Math.floor(start)}` : ''
+  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?autoplay=1&mute=1${s}&playsinline=1&controls=1&rel=0`
+}
+
 /** "1:02:05" / "4:07" for a start time in seconds, for the modal's "from" line. */
 export function clockTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds))
