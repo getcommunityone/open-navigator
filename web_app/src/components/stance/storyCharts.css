@@ -84,6 +84,7 @@
 .sc-delta-down { fill: var(--vermilion-ink); font-size: 13px; font-weight: 500; }
 .sc-dot-early { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
 .sc-dot-late { fill: var(--violet); }
+.sc-dot-late.sc-dot-down { fill: var(--vermilion); stroke: var(--vermilion-ink); stroke-width: 1.5; }
 /* #1209: a single-value row (no comparison) is a stem from zero to the filled dot. */
 .sc-stem { stroke: var(--rule); }
 .sc-delta-flat { fill: var(--ink-2); font-size: 13px; font-weight: 500; }
@@ -97,6 +98,7 @@
 /* #1264 compact (phone) dumbbell: each value printed over its dot, muted for the earlier one and accent for the later. */
 .sc-dumbbell-compact .sc-bar { stroke-width: 2.5; stroke-linecap: round; }
 .sc-val-b { fill: var(--violet-ink); font-weight: 600; }
+.sc-val-b.sc-val-down { fill: var(--vermilion-ink); }
 .sc-dumbbell-compact .sc-delta-up, .sc-dumbbell-compact .sc-delta-down { font-size: 13px; font-weight: 600; }
 
 /* Sort buttons on a phone: small pills in one row that scrolls sideways, never wrapping under the title. */
