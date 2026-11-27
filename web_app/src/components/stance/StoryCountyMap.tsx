@@ -23,7 +23,7 @@ import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { useChartWidth } from './useChartWidth'
-import { MAP_MIN_COUNTY_PX, MAP_MIN_LABEL_PX, labelUnits, mapAspect } from '../../utils/mapFit'
+import { MAP_MIN_COUNTY_PX, MAP_MIN_LABEL_PX, TALL_ASPECT, labelUnits, mapAspect } from '../../utils/mapFit'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
 export interface PlaceCount extends LeanCounts {
@@ -359,12 +359,19 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
 
   return (
     // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
-    <figure className="stance-map" aria-labelledby={labelledBy} onMouseLeave={leaveMap} onMouseEnter={keepCard} {...keyNav.stageProps}>
+    // The layout follows the state's shape (#1309, owner 27 Nov 2026): a tall state in a wide column puts the title, key and
+    // notes beside the map so the map can use the screen's height; a wide state keeps them above and below.
+    <figure
+      className="stance-map stance-map--county"
+      data-shape={mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide'}
+      aria-labelledby={labelledBy}
+      onMouseLeave={leaveMap}
+      onMouseEnter={keepCard}
+      {...keyNav.stageProps}
+    >
       <figcaption className="stance-map-head">
-        <span>
-          Meetings where a data center came up, by county · {stateName}
-          {scopeCity ? ` (the county containing ${scopeCity} highlighted)` : ''}
-        </span>
+        {/* One short line; the highlighted city is named in the key, not appended here. */}
+        <span className="stance-map-title">Data center meetings by county · {stateName}</span>
         <span className="stance-map-controls">
           <button type="button" className="folio-link-btn" onClick={() => onPickState(null)}>
             United States
@@ -487,6 +494,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         </svg>
         </div>
       </div>
+      <div className="stance-map-side">
       <p className="stance-map-readout">
         {hover
           ? readout(hover)
@@ -497,6 +505,11 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       {max > 0 && (
         <>
           <div className="stance-map-legend" aria-hidden="true">
+            {scopeCity && (
+              <span className="stance-map-none">
+                <span className="stance-map-swatch-focus" /> {scopeCity}&rsquo;s county (others faded)
+              </span>
+            )}
             {stances.size > 0 &&
               LEGEND_STANCES.map((k) => (
                 <span key={k} className="stance-map-none">
@@ -569,6 +582,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           </table>
         )}
       </details>
+      </div>
     </figure>
   )
 }

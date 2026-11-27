@@ -3485,3 +3485,54 @@ html.stance-snap .stance-intro {
     font-size: 14px;
   }
 }
+
+/* #1309 (owner: "reorganize text above and below and zoom so it fits better"): the county figure's layout follows the
+   state's shape. A tall state in a column wide enough puts the title, picker, key and notes beside the map, so the map
+   uses the screen's height; a wide state keeps a one-line title above and the key below. */
+.stance-map--county {
+  container-type: inline-size;
+}
+.stance-map--county .stance-map-title {
+  min-width: 0;
+}
+.stance-map-swatch-focus {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+}
+@container (min-width: 600px) {
+  .stance-map--county[data-shape='tall'] {
+    display: grid;
+    grid-template-columns: auto minmax(200px, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'stage head'
+      'stage side';
+    column-gap: 28px;
+    align-items: start;
+  }
+  .stance-map--county[data-shape='tall'] > .stance-map-head {
+    grid-area: head;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .stance-map--county[data-shape='tall'] > .stance-map-stage {
+    grid-area: stage;
+  }
+  .stance-map--county[data-shape='tall'] > .stance-map-side {
+    grid-area: side;
+  }
+  /* Beside the map, the title no longer sits above it: the map takes more of the screen's height, up to 60% of the width. */
+  .stance-map--county[data-shape='tall'] .stance-map-fit {
+    --map-chrome: 150px;
+    width: min(60cqi, calc((100svh - var(--map-chrome)) * var(--map-ar, 1)));
+    margin: 0;
+  }
+  .stance-map--county[data-shape='tall'] .stance-map-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}

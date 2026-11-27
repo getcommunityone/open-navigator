@@ -15,6 +15,9 @@ export function labelUnits(base: number, vbWidth: number, renderedPx: number, mi
   return Math.max(base, (minPx * vbWidth) / renderedPx)
 }
 
+/** Below this width / height a state is "tall" (Alabama 0.64, Indiana 0.6): its title and key go beside the map. */
+export const TALL_ASPECT = 0.95
+
 /** The map's width over its height, for `--map-ar` (1 for a degenerate box). */
 export function mapAspect(vbWidth: number, vbHeight: number): number {
   return vbWidth > 0 && vbHeight > 0 ? vbWidth / vbHeight : 1
