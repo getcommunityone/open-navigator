@@ -383,6 +383,7 @@ Up to eleven screens, in this order (a chart screen with nothing on record for t
 | Opener | Overview | `overview` | A dot map of the country: each state's dots shaded by its real number of meetings where a data center came up, nationally (none stays grey). Hover or choose a state to read its count; clicking a state narrows the whole story to it (`?state=`). In a state or city scope that state stands out and the rest are muted but keep their own counts; clicking it again broadens (city → state → country), and **United States** goes straight to the country. A data table lists every state with a count. In a state or city scope the map is that state's counties instead, like the Census map's state drill-down, in the home box map's colours: where its governments have speakers on record, a county's dots are split in bands by the real counts of those who spoke against, for, asked a question or took no side; a county with meetings but no stance on record is grey, light to dark by its real meeting count; a county with none takes the empty colour, and the legend matches the home map's ([#1106](https://github.com/getcommunityone/open-navigator/issues/1106)). A county government counts by its geoid; a city, town or school district is placed by its coordinates and drawn as a ring. Hovering a county quotes one of its passages and gives its stance counts, and the data table lists counties with their governments. A government that can't be placed is named under the map, not shaded ([#1039](https://github.com/getcommunityone/open-navigator/issues/1039)). Each ring's government is named beside it in the Data Explorer's label style (dark text, white halo), largest meeting counts first, and a label that would overlap one already drawn is left out; a county government is named at its county's centre only when that spot is free. At a state or city scope the Overview headline says which way speakers leaned once at least as many are on record as the national headline needs (10): two thirds or more against reads "Arizona pushed back: 11 of 12 speakers spoke against data centers.", two thirds or more for reads "… welcomed data centers …", otherwise "… was split …"; the meeting count moves to the line under it, and with fewer speakers the neutral count stays ([#1115](https://github.com/getcommunityone/open-navigator/issues/1115)). On a phone the maps say **Tap** instead of **Hover**, and tapping a county selects it like hovering does ([#1057](https://github.com/getcommunityone/open-navigator/issues/1057)). Then the row of large real counts ([#970](https://github.com/getcommunityone/open-navigator/issues/970)) |
 | Who spoke up | Who spoke up | `voices` | The five figures, one dot per speaker, and up to three of the speakers' own words on each side, each linked to the moment in the recording |
 | Where they are | Sites | `sites` | Data center sites by status (one dot per site) |
+| How they grew | Over time | `over-time` | For context ([#1348](https://github.com/getcommunityone/open-navigator/issues/1348)): a map of data center sites by the year of their earliest real date, a year slider that plays from the first year to the last projected one, a stacked strip of the running total by phase per year, and a card for the site tapped. See [Data centers over time](#data-centers-over-time-1348) |
 | What is proposed | Proposals | `projects` | Projects by status (one dot per project) |
 | What is promised | Promises | `jobs` | Jobs claims by phase (one dot per claim) |
 | What is raised | Concerns | `concerns` | A dumbbell ([#1209](https://github.com/getcommunityone/open-navigator/issues/1209)): in a state or city, one row per concern, hollow dot = its share of national concern mentions, filled dot = its share of the place's, the difference in percentage points on the right (a fall in the warning colour), sorted **By [place]**, **By difference** or **Nationally**. Nationally there is one dot per concern, its share of all mentions: the records count objections per area, not per concern, so there is no second value to compare. Concerns with fewer than 2 mentions in the place are left out and the note names them. **Show data table** lists every row |
@@ -391,6 +392,43 @@ Up to eleven screens, in this order (a chart screen with nothing on record for t
 | What was decided | Decisions | `decisions` | Decisions on data center items, debated or taken up without debate (one dot per decision, titled with its outcome as recorded); a debated one links to its page, one without debate to the meeting recording. "Not loaded yet" when the table isn't in the database ([#933](https://github.com/getcommunityone/open-navigator/issues/933)) |
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
+
+### Data centers over time (#1348)
+
+The **Over time** screen (`?screen=over-time`) answers "how many data centers are there here, and since when?" from
+`GET /api/data-centers/sites-timeline?state=`, backed by the dbt mart `data_center_site_timeline` (one row per site, PK and
+FK `data_center_site_id`).
+
+- **Only real dates.** A site appears in the year of its earliest date on record: the US Data Center Registry's
+  announced date (it publishes day, month or year-only dates; staging now keeps the year of all three) or Epoch AI's first
+  dated timeline row. The registry publishes no opening or completion date. A site with no date is never placed at a
+  guessed year: the footnote counts them by status ("60 sites have no date on record …"). Coverage on 27 Nov 2026: 728 of
+  2,379 sites have a date: 649 by a registry announced date (217 to the day, 322 to the month, 110 year only) and 79 by
+  Epoch's first dated report. All 96 Epoch sites have an operating year, 20 of them projected (2027–2028). 2,307 sites have
+  coordinates.
+- **Phase in a year.** An Epoch AI site is proposed before its first dated row, under construction from it, and operating
+  from its first row with a building operational; a year after this one is Epoch's projection and the screen says
+  "projected". A registry site keeps its status today, because the registry has no history. The per-year totals are
+  counted in SQL (`PHASE_SQL` in `api/routes/data_center_sites_timeline.py`); the dots use the same rule
+  (`web_app/src/utils/siteTimeline.ts`), and a shared test fixture keeps them equal.
+- **Drawing.** Operating, under construction and cancelled sites are filled dots in their colour; proposed (planned) sites
+  are outlined and dashed, and hatched in the strip. A site the source gives no coordinates is counted in the strip and
+  named in the footnote, not mapped.
+- **Motion.** The years play once when the screen comes on view. Under `prefers-reduced-motion` there is no autoplay and no
+  pop-in: the slider and the ‹ › buttons step through the years.
+- **Small counts.** The shared display rule (`utils/displayFit.ts`) decides: 1–5 dated sites (or under 20 with one status)
+  are a plain list with their year, status and source link, not an animation. A place with no dated site drops the screen.
+- **Scope.** Sites narrow by state only, so a city's story shows its state and the screen says so.
+
+### Recording coverage (#1348)
+
+A story's counts are counts of our recordings, and some states have few. Under the basis line on the Overview and the
+home hero, a small line states the scope's recording coverage from `GET /api/coverage/recorded-meetings?state=&city=`
+(`recorded_meeting_year`): "From recordings of 29 Florida local governments (1,035 meetings). Many Florida governments
+aren't in our recordings yet." Phones show the short form ("Recorded: 29 FL governments, 1,035 meetings."). It renders
+nothing until the real counts load. There is no "29 of N": the `jurisdictions` mart counts census places, census-designated
+places included, as cities (Florida: 956 "cities" against about 411 municipalities), so it is not a reliable count of local
+governments. A denominator can be added once a Census of Governments count is loaded.
 
 ### Start, short titles, swipe and the phone Back (#1234, 26 Nov 2026)
 

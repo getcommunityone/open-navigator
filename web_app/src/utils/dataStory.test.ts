@@ -90,6 +90,7 @@ describe('story structure', () => {
       'outcomes',
       'voices',
       'sites',
+      'over-time',
       'projects',
       'jobs',
       'concerns',
@@ -325,8 +326,8 @@ describe('landConcernNote', () => {
 
 describe('context screens', () => {
   it('names the source of every figure-only screen', () => {
-    for (const s of DATA_CENTER_STORY.filter((x) => x.kicker)) expect(contextSourceFor(s.chart)).toBeTruthy()
-    expect(DATA_CENTER_STORY.filter((x) => x.kicker).map((x) => x.id)).toEqual(['sites', 'projects'])
+    for (const s of DATA_CENTER_STORY.filter((x) => x.kicker)) expect(contextSourceFor(s.chart ?? s.id)).toBeTruthy()
+    expect(DATA_CENTER_STORY.filter((x) => x.kicker).map((x) => x.id)).toEqual(['sites', 'over-time', 'projects'])
     expect(contextSourceFor('concerns')).toBeNull()
   })
 })
