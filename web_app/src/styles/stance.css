@@ -3175,7 +3175,9 @@ html.stance-snap .stance-intro {
 }
 .stories-card.is-soon {
   border-style: dashed;
-  opacity: 0.75;
+}
+.stories-card.is-soon .stories-card-title {
+  color: var(--ink-2);
 }
 .stories-card .folio-eyebrow {
   margin: 0;
@@ -3183,8 +3185,8 @@ html.stance-snap .stance-intro {
 .stories-detail summary {
   cursor: pointer;
   min-height: 44px;
-  display: flex;
-  align-items: center;
+  display: list-item;
+  line-height: 44px;
   font-size: 14px;
   text-decoration: underline;
 }

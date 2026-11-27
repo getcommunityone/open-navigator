@@ -152,7 +152,8 @@ export default function DataStories() {
           const meetings = storyCardMeetings(fq?.data, scope)
           return (
             <li key={card.key} data-story-card={card.key} data-status="live">
-              <article className="stories-card" aria-labelledby={headingId}>
+              {/* Named by the topic too, so the card has a name while its title's place is held during loading. */}
+              <article className="stories-card" aria-labelledby={pending ? undefined : headingId} aria-label={pending ? card.title : undefined}>
                 <p className="folio-eyebrow">{card.title}</p>
                 {/* While the record loads the title's place is held (invisible), so the question doesn't flash first. */}
                 <h2 className="stories-card-title" id={headingId} aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
@@ -162,6 +163,8 @@ export default function DataStories() {
                   <p className="stance-note" data-testid="story-card-meetings">
                     {fmt(meetings)} {meetings === 1 ? 'meeting' : 'meetings'} on record{label === 'National' ? ' nationally' : ` in ${label}`}
                   </p>
+                ) : fq?.isSuccess && label !== 'National' ? (
+                  <p className="stance-note">No meetings on record in {label}.</p>
                 ) : !pending ? (
                   <p className="stance-note">{card.blurb}</p>
                 ) : null}
