@@ -46,6 +46,8 @@ None.
 - The State bills step shows `topic_legislation_bill` status as is, so a dead 2023-24 bill can read "pending" (GA fluoridation: 1). What's next already applies #1302's guard. The root fix is #1308.
 - `meeting_bill_link` takes about 17 minutes to build locally (regex over every transcript that mentions a bill form). It is not in the nightly selector (#1311 covers the serving tables). Consider an incremental build on `event_documents.created_at` if it joins the nightly run.
 
+- The automated scan (#648) flagged the live tests' default `postgresql://user:password@localhost` URL as a possible credential. It was the local warehouse's documented default, not a secret, but the tests now connect by parts with the password read from `POSTGRES_PASSWORD` (no literal). Fixed in this PR for both topic test files.
+
 ### 🔵 Nits / suggestions (Minor)
 - The topic story's header can state a stepped-up scope (the #1297 rule: "America mostly wants fluoridation ended" on `?state=GA`) while this screen's panel says Georgia. The panel matches its own data and query; the header belongs to on-mapcard.
 - "See all" on a Data Center Story step whose target screen dropped out (no data) does nothing. It is rare; the button could hide when the screen is absent.
