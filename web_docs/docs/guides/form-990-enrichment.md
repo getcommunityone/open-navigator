@@ -25,8 +25,8 @@ The search API now uses this priority:
  ```json
  {
  "data_sources": ["form_990_cached", "everyorg"],
- "website": "https://www.carequest.org/",
- "mission": "Advancing oral health for all...",
+ "website": "https://www.example.org/",
+ "mission": "...",
  "logo_url": "...",
  "causes": ["health"]
  }
@@ -115,14 +115,14 @@ import pandas as pd
 
 df = pd.read_parquet('data/gold/states/MA/nonprofits_organizations.parquet')
 
-# Check CareQuest specifically
-cq = df[df['ein'] == '384016550'].iloc[0]
+# Check one organization by EIN (replace with a real EIN)
+org = df[df['ein'] == '<ein>'].iloc[0]
 
-print(' CareQuest Institute for Oral Health')
-print(f' Website: {cq.get(\"form_990_website\", \"N/A\")}')
-print(f' Mission: {cq.get(\"form_990_mission\", \"N/A\")[:150]}...')
-print(f' Tax Year: {cq.get(\"form_990_tax_year\", \"N/A\")}')
-print(f' Revenue: \${cq.get(\"form_990_total_revenue\", 0):,.0f}')
+print(f' {org.get(\"name\", \"N/A\")}')
+print(f' Website: {org.get(\"form_990_website\", \"N/A\")}')
+print(f' Mission: {org.get(\"form_990_mission\", \"N/A\")[:150]}...')
+print(f' Tax Year: {org.get(\"form_990_tax_year\", \"N/A\")}')
+print(f' Revenue: \${org.get(\"form_990_total_revenue\", 0):,.0f}')
 print()
 
 # Overall stats
@@ -145,14 +145,14 @@ After enrichment, you should see:
 
 ```json
 {
- "title": "CAREQUEST INSTITUTE FOR ORAL HEALTH",
- "description": "Advancing oral health for all, particularly those most vulnerable...",
+ "title": "EXAMPLE HEALTH FOUNDATION",
+ "description": "<mission from the Form 990>",
  "metadata": {
- "ein": "384016550",
- "website": "https://www.carequest.org/",
+ "ein": "<ein>",
+ "website": "https://www.example.org/",
  "data_sources": ["form_990_cached"],
- "revenue": "$297,919,860",
- "assets": "$2,601,509,658"
+ "revenue": "<total revenue>",
+ "assets": "<total assets>"
  }
 }
 ```

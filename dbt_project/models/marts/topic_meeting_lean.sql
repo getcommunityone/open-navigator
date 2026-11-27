@@ -7,7 +7,7 @@
     for the meeting, never a count of speakers and never tied to a person (AGENTS.md, Privacy).
 
     Labels. Most topics use mostly_supportive / mostly_opposed / mixed / did_not_speak. Water fluoridation uses
-    CareQuest's five poll positions (support_require_all, support_local_choice, no_opinion, oppose_local_choice,
+    five positions (support_require_all, support_local_choice, no_opinion, oppose_local_choice,
     oppose_ban_all) plus did_not_speak; they are kept as public_position / official_position and rolled up here so
     the four-colour map reads the same columns for every topic:
         support_*  -> mostly_supportive    oppose_*  -> mostly_opposed    no_opinion -> no_opinion
