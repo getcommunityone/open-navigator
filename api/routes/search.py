@@ -306,28 +306,112 @@ def convert_pg_result(pg_result: search_postgres.SearchResult) -> 'SearchResult'
 # "leaders" response category, separate from the "persons" category (mdm_person).
 
 
+async def _org_filter_where(
+    state: Optional[str] = None,
+    ntee_code: Optional[str] = None,
+    query: Optional[str] = None,
+    city: Optional[str] = None,
+    county_fips: Optional[str] = None,
+    jurisdiction_id: Optional[str] = None,
+    org_types: Optional[List[str]] = None,
+) -> tuple:
+    """WHERE clause + params over ``mdm_organization m LEFT JOIN mdm_organization_nonprofit s``.
+
+    Mirrors search_postgres.search_organizations_pg: location precedence
+    jurisdiction_id > county_fips > city (all via the MDM org<->jurisdiction bridge)
+    > bare state_code; then the org-type predicate (searchable types only, narrowed
+    to ``org_types``), the NTEE prefix and the org-name FTS. Shared by
+    count_organizations and count_organization_types so totals and facets agree.
+    """
+    norm_state = search_postgres.normalize_state_input(state)
+    where_clauses: List[str] = []
+    params: List[Any] = []
+    param_idx = 1
+
+    if jurisdiction_id:
+        where_clauses.append(
+            f"EXISTS (SELECT 1 FROM mdm_bridge_org_jurisdiction b "
+            f"WHERE b.master_org_id = m.master_org_id AND b.jurisdiction_id = ${param_idx})"
+        )
+        params.append(jurisdiction_id)
+        param_idx += 1
+    elif county_fips and county_fips.strip():
+        _county_names = await search_postgres.resolve_county_city_names(county_fips)
+        county_pred = (
+            f"m.master_org_id IN ("
+            f"SELECT b.master_org_id FROM mdm_bridge_org_jurisdiction b "
+            f"JOIN jurisdictions j ON j.jurisdiction_id = b.jurisdiction_id "
+            f"WHERE lower(j.name) = ANY(${param_idx}) "
+            f"AND j.jurisdiction_type IN ('city','town')"
+        )
+        params.append([n.lower() for n in _county_names])
+        param_idx += 1
+        if norm_state:
+            county_pred += f" AND j.state_code = ${param_idx}"
+            params.append(norm_state.upper())
+            param_idx += 1
+        county_pred += ")"
+        where_clauses.append(county_pred)
+    elif city and city.strip():
+        city_pred = (
+            f"m.master_org_id IN ("
+            f"SELECT b.master_org_id FROM mdm_bridge_org_jurisdiction b "
+            f"JOIN jurisdictions j ON j.jurisdiction_id = b.jurisdiction_id "
+            f"WHERE lower(j.name) = lower(${param_idx}) "
+            f"AND j.jurisdiction_type IN ('city','town')"
+        )
+        params.append(city.strip())
+        param_idx += 1
+        if norm_state:
+            city_pred += f" AND j.state_code = ${param_idx}"
+            params.append(norm_state.upper())
+            param_idx += 1
+        city_pred += ")"
+        where_clauses.append(city_pred)
+    elif norm_state:
+        where_clauses.append(f"m.state_code = ${param_idx}")
+        params.append(norm_state.upper())
+        param_idx += 1
+
+    # Same org-type predicate as search_organizations_pg (#1221).
+    where_clauses.append(search_postgres.org_type_where(org_types))
+
+    if ntee_code:
+        where_clauses.append(f"s.ntee_code LIKE ${param_idx}")
+        params.append(f"{ntee_code}%")
+        param_idx += 1
+
+    if query and query.strip():
+        where_clauses.append(
+            "to_tsvector('english', m.org_name) @@ "
+            f"plainto_tsquery('english', ${param_idx})"
+        )
+        params.append(query)
+        param_idx += 1
+
+    return " AND ".join(where_clauses), params
+
+
 async def count_organizations(
     state: Optional[str] = None,
     ntee_code: Optional[str] = None,
     query: Optional[str] = None,
     city: Optional[str] = None,
     county_fips: Optional[str] = None,
+    org_types: Optional[List[str]] = None,
+    jurisdiction_id: Optional[str] = None,
 ) -> int:
-    """Count total nonprofit organizations matching browse/search criteria.
+    """Count total organizations matching browse/search criteria.
 
-    Postgres-backed (replaces the retired nonprofits_organizations.parquet read).
-    Mirrors the table + WHERE filters of
-    search_postgres.search_organizations_pg so the browse-mode total agrees with
-    the paginated org results: the same
-    `mdm_organization m JOIN mdm_organization_nonprofit s USING (master_org_id)`
-    join, with the same state_code / ntee_code / name-FTS predicates. The call
-    site (unified_search browse mode) only passes state + ntee_code + an empty q,
-    but query is still mirrored for parity. Result cached for 1 hour.
-
-    Signature kept as (state, ntee_code, query) so the call site is unchanged.
+    Mirrors the table + WHERE filters of search_postgres.search_organizations_pg
+    (the same ``mdm_organization m LEFT JOIN mdm_organization_nonprofit s`` and
+    predicates, via _org_filter_where) so the browse-mode total agrees with the
+    paginated org results. Result cached for 1 hour.
     """
-    # Create cache key
-    cache_key = f"count_{state}_{ntee_code}_{query}_{city}_{county_fips}"
+    cache_key = (
+        f"count_{state}_{ntee_code}_{query}_{city}_{county_fips}_{jurisdiction_id}_"
+        f"{','.join(org_types or [])}"
+    )
 
     # Check cache (1 hour TTL)
     now = datetime.now()
@@ -341,77 +425,15 @@ async def count_organizations(
         span.set_attribute("search.has_ntee", bool(ntee_code))
         span.set_attribute("search.has_query", bool(query and query.strip()))
         span.set_attribute("search.has_county", bool(county_fips and county_fips.strip()))
+        span.set_attribute("search.org_types", ",".join(org_types or []))
         try:
-            # Mirror search_organizations_pg: normalize state to 2-letter code.
-            norm_state = search_postgres.normalize_state_input(state)
-
-            where_clauses: List[str] = []
-            params: List[Any] = []
-            param_idx = 1
-
-            # Location scope mirrors search_organizations_pg precedence: a county
-            # (resolved via the crosswalk to its city/town name set) SUPERSEDES a
-            # city, and both go through the MDM org<->jurisdiction bridge. A bare
-            # state stays a direct state_code match. county_fips/city are only
-            # passed in by paths that need them; the common org-browse call omits
-            # them, so behavior there is unchanged.
-            if county_fips and county_fips.strip():
-                _county_names = await search_postgres.resolve_county_city_names(county_fips)
-                county_pred = (
-                    f"m.master_org_id IN ("
-                    f"SELECT b.master_org_id FROM mdm_bridge_org_jurisdiction b "
-                    f"JOIN jurisdictions j ON j.jurisdiction_id = b.jurisdiction_id "
-                    f"WHERE lower(j.name) = ANY(${param_idx}) "
-                    f"AND j.jurisdiction_type IN ('city','town')"
-                )
-                params.append([n.lower() for n in _county_names])
-                param_idx += 1
-                if norm_state:
-                    county_pred += f" AND j.state_code = ${param_idx}"
-                    params.append(norm_state.upper())
-                    param_idx += 1
-                county_pred += ")"
-                where_clauses.append(county_pred)
-            elif city and city.strip():
-                city_pred = (
-                    f"m.master_org_id IN ("
-                    f"SELECT b.master_org_id FROM mdm_bridge_org_jurisdiction b "
-                    f"JOIN jurisdictions j ON j.jurisdiction_id = b.jurisdiction_id "
-                    f"WHERE lower(j.name) = lower(${param_idx}) "
-                    f"AND j.jurisdiction_type IN ('city','town')"
-                )
-                params.append(city.strip())
-                param_idx += 1
-                if norm_state:
-                    city_pred += f" AND j.state_code = ${param_idx}"
-                    params.append(norm_state.upper())
-                    param_idx += 1
-                city_pred += ")"
-                where_clauses.append(city_pred)
-            elif norm_state:
-                where_clauses.append(f"m.state_code = ${param_idx}")
-                params.append(norm_state.upper())
-                param_idx += 1
-
-            if ntee_code:
-                where_clauses.append(f"s.ntee_code LIKE ${param_idx}")
-                params.append(f"{ntee_code}%")
-                param_idx += 1
-
-            if query and query.strip():
-                where_clauses.append(
-                    "to_tsvector('english', m.org_name) @@ "
-                    f"plainto_tsquery('english', ${param_idx})"
-                )
-                params.append(query)
-                param_idx += 1
-
-            where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
-
+            where_sql, params = await _org_filter_where(
+                state, ntee_code, query, city, county_fips, jurisdiction_id, org_types
+            )
             sql = f"""
                 SELECT count(*)
                 FROM mdm_organization m
-                JOIN mdm_organization_nonprofit s USING (master_org_id)
+                LEFT JOIN mdm_organization_nonprofit s USING (master_org_id)
                 WHERE {where_sql}
             """
 
@@ -431,6 +453,80 @@ async def count_organizations(
             logger.error(f"Count error: {e}")
             span.record_exception(e)
             return 0
+
+
+# A facet count over a common word nationally ("church" ~300k matches) takes a
+# few seconds even with the FTS GIN index; it is cached for an hour, and bounded
+# here so the counts call never waits on it longer than this. On timeout the facet
+# is omitted (the UI shows no count) rather than guessed.
+ORG_TYPE_FACET_TIMEOUT_S = float(os.getenv("SEARCH_ORG_TYPE_FACET_TIMEOUT_S", "6.0"))
+_org_type_facet_cache: Dict[str, tuple] = {}
+
+
+async def count_organization_types(
+    state: Optional[str] = None,
+    ntee_code: Optional[str] = None,
+    query: Optional[str] = None,
+    city: Optional[str] = None,
+    county_fips: Optional[str] = None,
+    jurisdiction_id: Optional[str] = None,
+    org_types: Optional[List[str]] = None,
+) -> Optional[Dict[str, int]]:
+    """Real per-sub-type organization counts for the same query/place scope (#1221).
+
+    Returns ``{nonprofit, foundation, church, government, company, healthcare,
+    education, political, selected}`` where ``selected`` is the exact total for
+    the requested ``org_types`` (all searchable types when empty) — it never
+    double-counts foundations, which are a subset of nonprofits. Facets ignore the
+    org_type narrowing itself (standard faceting) but honour every other filter.
+    Returns None on timeout/error so the caller omits the facet instead of guessing.
+    """
+    cache_key = (
+        f"{state}|{ntee_code}|{query}|{city}|{county_fips}|{jurisdiction_id}|"
+        f"{','.join(org_types or [])}"
+    )
+    hit = _org_type_facet_cache.get(cache_key)
+    if hit and (datetime.now() - hit[0]).total_seconds() < 3600:
+        return hit[1]
+
+    with tracer.start_as_current_span("search.count_organization_types") as span:
+        span.set_attribute("search.has_query", bool(query and query.strip()))
+        span.set_attribute("search.has_state", bool(state))
+        try:
+            where_sql, params = await _org_filter_where(
+                state, ntee_code, query, city, county_fips, jurisdiction_id, None
+            )
+            facet_cols = ",\n".join(
+                f"count(*) FILTER (WHERE {pred.format(m='m.', s='s.')}) AS {key}"
+                for key, pred in search_postgres.ORG_TYPE_PREDICATES.items()
+            )
+            selected = search_postgres.org_type_where(org_types)
+            sql = f"""
+                SELECT {facet_cols},
+                       count(*) FILTER (WHERE {selected}) AS selected
+                FROM mdm_organization m
+                LEFT JOIN mdm_organization_nonprofit s USING (master_org_id)
+                WHERE {where_sql}
+            """
+            pool = await search_postgres.get_db_pool()
+
+            async def _run() -> Any:
+                async with pool.acquire() as conn:
+                    return await conn.fetchrow(sql, *params)
+
+            row = await asyncio.wait_for(_run(), timeout=ORG_TYPE_FACET_TIMEOUT_S)
+            out = {k: int(row[k] or 0) for k in [*search_postgres.ORG_TYPE_PREDICATES, 'selected']}
+            _org_type_facet_cache[cache_key] = (datetime.now(), out)
+            return out
+        except TimeoutError:
+            logger.warning(f"⏱️ org_type facet exceeded {ORG_TYPE_FACET_TIMEOUT_S}s — omitting")
+            span.set_attribute("search.timed_out", True)
+            return None
+        except Exception as e:
+            logger.error(f"org_type facet error: {e}")
+            span.record_exception(e)
+            return None
+
 
 
 async def count_leaders(
@@ -1805,6 +1901,8 @@ async def unified_search(
     county_fips: Optional[str] = Query(None, description="Broaden the geo scope to a whole county (5-digit FIPS, e.g. '01125'). SUPERSEDES `city`: the geo-scoped legs (meetings, decisions, documents, leaders, organizations) match ANY city/town in that county via public.jurisdiction_county_crosswalk."),
     jurisdiction_levels: Optional[str] = Query(None, description="Comma-separated jurisdiction levels: city,county,town,village,school_district,special_district,state"),
     ntee_code: Optional[str] = Query(None, description="Filter organizations by NTEE code"),
+    org_type: Optional[str] = Query(None, description="Comma-separated organization sub-types (OR'd), applied to the organizations type: nonprofit, foundation (private foundations, IRS foundation_code 02/03/04), church (places of worship), government, company (businesses + companies), healthcare, education, political. Omit for every searchable org type."),
+    facets: Optional[str] = Query(None, description="Comma-separated facet counts to compute. 'org_type' adds org_type_totals (real per-sub-type org counts for this query/place scope) when organizations is requested."),
     ein: Optional[str] = Query(None, description="Filter organizations by exact EIN (for direct organization links)"),
     session: Optional[str] = Query(None, description="Filter bills by legislative session"),
     document_type: Optional[str] = Query(None, description="Filter meeting_documents by type: 'agenda', 'minutes', or 'attachment'"),
@@ -1877,6 +1975,18 @@ async def unified_search(
         # 'persons' above, so they're covered too. See PERSONS_SEARCH_ENABLED.
         if not PERSONS_SEARCH_ENABLED:
             requested_types = [t for t in requested_types if t != 'persons']
+
+        # Organization sub-types (#1221): whitelisted vocabulary, 400 on unknown
+        # (same convention as an unknown cause_id).
+        try:
+            org_types = search_postgres.parse_org_types(org_type)
+        except ValueError as bad:
+            raise HTTPException(status_code=400, detail=f"unknown org_type {bad}")
+        facet_set = {f.strip().lower() for f in (facets or '').split(',') if f.strip()}
+        unknown_facets = facet_set - {'org_type'}
+        if unknown_facets:
+            raise HTTPException(status_code=400, detail=f"unknown facets {','.join(sorted(unknown_facets))}")
+        want_org_type_facets = 'org_type' in facet_set and 'organizations' in requested_types and not ein
 
         # Advanced "Topic" / "Question" filters. Each narrows the result set to the
         # types it can honor, dropping the rest so the filter genuinely constrains
@@ -1978,7 +2088,7 @@ async def unified_search(
             search_tasks.append(('meetings', search_postgres.search_events_pg(q, state, city=city, limit=search_limit, offset=search_offset, topic_tsquery=topic_tsquery, county_fips=county_fips, sort=sort)))
 
         if 'organizations' in requested_types:
-            search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort, county_fips=county_fips)))
+            search_tasks.append(('organizations', search_postgres.search_organizations_pg(q, state, city, ntee_code, ein, jurisdiction_id=jurisdiction_id, limit=search_limit, offset=search_offset, sort=sort, county_fips=county_fips, org_types=org_types)))
 
         if 'bills' in requested_types:
             search_tasks.append(('bills', search_postgres.search_bills_pg(q, state, session, city=city, limit=search_limit, offset=search_offset)))
@@ -2154,12 +2264,24 @@ async def unified_search(
         # whole search: that type silently falls back to its fetched-length
         # estimate (the pre-existing type_totals value).
         count_tasks: List[tuple] = []
+        org_type_totals: Optional[Dict[str, int]] = None
 
         if not q and len(requested_types) == 1 and 'organizations' in requested_types:
             # Single-type org browse: accurate count (unchanged behavior, now
             # county/city-aware so a county-broadened browse pager stays honest).
             count_tasks.append(('organizations', count_organizations(
-                state=state, ntee_code=ntee_code, query=q, city=city, county_fips=county_fips
+                state=state, ntee_code=ntee_code, query=q, city=city, county_fips=county_fips,
+                org_types=org_types, jurisdiction_id=jurisdiction_id,
+            )))
+
+        # Organization sub-type facets (#1221), on request: real per-sub-type counts
+        # for this query/place scope, plus the exact org total for the selected
+        # sub-types (replaces the capped fetched-length estimate). Time-boxed inside
+        # count_organization_types; None (timeout) omits the facet.
+        if want_org_type_facets:
+            count_tasks.append(('__org_type_facets', count_organization_types(
+                state=state, ntee_code=ntee_code, query=q, city=city,
+                county_fips=county_fips, jurisdiction_id=jurisdiction_id, org_types=org_types,
             )))
 
         # Accurate per-type counts for the paginated people categories whenever
@@ -2264,6 +2386,11 @@ async def unified_search(
                     # in type_totals rather than failing the whole search.
                     logger.error(f"❌ {key} count failed: {outcome}")
                     continue
+                if key == '__org_type_facets':
+                    if outcome:
+                        org_type_totals = {k: v for k, v in outcome.items() if k != 'selected'}
+                        type_totals['organizations'] = outcome['selected']
+                    continue
                 type_totals[key] = outcome
 
         # NOTE: the per-type counts are dispatched once, concurrently, in the
@@ -2309,6 +2436,7 @@ async def unified_search(
                 "county_name": county_name,
                 "jurisdiction_id": jurisdiction_id,
                 "ntee_code": ntee_code,
+                "org_type": org_types,
                 "topic_id": topic_id,
                 "cause_id": cause_id,
                 "question_id": question_id,
@@ -2321,9 +2449,15 @@ async def unified_search(
             }
         }
         
+        if org_type_totals is not None:
+            response_data["org_type_totals"] = org_type_totals
+
         logger.info(f"✅ Search complete - returning {total_results} total results, {len(paginated_results)} on this page")
         return response_data
-    
+
+    except HTTPException:
+        # Validation errors (unknown org_type / facets / cause_id) keep their 4xx.
+        raise
     except Exception as e:
         logger.error(f"❌ Search error: {type(e).__name__}: {e}")
         logger.exception("Full traceback:")

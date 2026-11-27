@@ -35,6 +35,7 @@ import { StoryCard, CONTESTED_LENS, TRANSCRIPT_LENS, type RenderCard } from '../
 import { parseSpeaker } from '../lib/speakers'
 import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
 import { useDocumentTitle } from '../utils/useDocumentTitle'
+import { ORG_SUBTYPES, orgTypesLabel, parseOrgTypes } from '../lib/searchCategories'
 
 type SearchResultType =
   | 'leader'
@@ -98,6 +99,8 @@ interface SearchResponse {
     grant_opportunities?: number
     questions?: number
   }
+  /** Real per-sub-type organization counts (requested with facets=org_type, #1221). */
+  org_type_totals?: Record<string, number>
   results: {
     leaders?: SearchResult[]
     persons?: SearchResult[]
@@ -126,6 +129,7 @@ interface SearchResponse {
     state?: string
     city?: string
     ntee_code?: string
+    org_type?: string[]
     types: string[]
     // True when the backend parsed a "<city> <state>" query (e.g.
     // "atlanta georgia") into the state/city scope rather than them being
@@ -170,6 +174,9 @@ const RESULT_TYPES = [
   { type: 'grant_opportunities', label: 'Grant Opportunities' },
   // Cross-jurisdiction policy questions (the "big questions" registry).
   { type: 'questions', label: 'Questions' },
+  // Cities, counties, states, school districts (public.jurisdictions) — the API
+  // has always returned these; the checkbox was missing so the tab was unreachable (#1221).
+  { type: 'jurisdictions', label: 'Places' },
 ] as const
 
 const ALL_RESULT_TYPE_KEYS = RESULT_TYPES.map((t) => t.type) as readonly string[]
@@ -196,7 +203,7 @@ const RESULT_TABS = [
   { key: 'questions', label: 'Questions' },
   { key: 'grants', label: 'Grants' },
   { key: 'grant_opportunities', label: 'Grant Opportunities' },
-  { key: 'jurisdictions', label: 'Jurisdictions' },
+  { key: 'jurisdictions', label: 'Places' },
 ] as const
 
 // Advanced "Cause" filter options — the EveryOrg cause taxonomy. The `id` is the
@@ -459,6 +466,20 @@ function UnifiedSearchInner() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [sortBy, setSortBy] = useState(() => searchParams.get('sort') || 'relevance')
   const [nteeCategory, setNteeCategory] = useState(() => searchParams.get('ntee') || '')
+  // Organization sub-types (#1221), read straight from ?org_type= — the URL is the
+  // authority for both the chip/tab label and the API query, so they can't drift.
+  const orgTypes = parseOrgTypes(searchParams.get('org_type'))
+  const orgTypesKey = orgTypes.join(',')
+  const setOrgTypes = (next: string[]) => {
+    setCurrentPage(1)
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev)
+      if (next.length) p.set('org_type', next.join(','))
+      else p.delete('org_type')
+      p.delete('page')
+      return p
+    })
+  }
   // Advanced "Topic" (named civic-topic catalog) + "Question" (policy-question
   // registry) filters. Held as the raw id string the <select> binds to.
   const [selectedTopicId, setSelectedTopicId] = useState(() => searchParams.get('topic_id') || '')
@@ -522,6 +543,7 @@ function UnifiedSearchInner() {
     selectedState,
     sortBy !== 'relevance' ? 'sorted' : null,
     nteeCategory,
+    orgTypesKey,
     selectedTopicId,
     selectedCauseId,
     selectedQuestionId,
@@ -622,7 +644,7 @@ function UnifiedSearchInner() {
     }
     if (typesParam) {
       const types = typesParam.split(',').map(t => t.trim()).map(normalizeTypeAlias).filter(t =>
-        ['leaders', 'persons', 'meetings', 'organizations', 'causes', 'bills', 'topics', 'decisions', 'questions'].includes(t)
+        ALL_RESULT_TYPE_KEYS.includes(t)
       )
       if (types.length > 0) {
         setSelectedTypes(types)
@@ -706,6 +728,7 @@ function UnifiedSearchInner() {
     if (selectedCity) params.city = selectedCity
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee_code = nteeCategory
+    if (orgTypesKey) params.org_type = orgTypesKey
     if (selectedTopicId) params.topic_id = selectedTopicId
     if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
@@ -720,10 +743,12 @@ function UnifiedSearchInner() {
   // cached counts; only a changed query/filter set refetches. limit=1 keeps the
   // per-type fetch minimal — we only consume `type_totals`, not the rows.
   const { data: tabCountsData, isLoading: isCountsLoading } = useQuery<SearchResponse>({
-    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
+    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, orgTypesKey, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
     queryFn: async () => {
       if (!searchEnabled) return null
-      const params = { ...buildSearchParams(), types: selectedTypes.join(','), limit: 1, page: 1 }
+      const params: Record<string, unknown> = { ...buildSearchParams(), types: selectedTypes.join(','), limit: 1, page: 1 }
+      // Real per-sub-type org counts for the Filters' organization-type list (#1221).
+      if (selectedTypes.includes('organizations')) params.facets = 'org_type'
       const response = await api.get('/search/', { params })
       return response.data
     },
@@ -749,6 +774,10 @@ function UnifiedSearchInner() {
       })
     : []
   const availableTabKeys: string[] = availableTabs.map((t) => t.key)
+  // The Organizations tab names its sub-type scope when ?org_type= narrows it
+  // ("Nonprofits", "Places of worship") — scope-label rule (#1221).
+  const tabLabel = (key: string, label: string): string =>
+    key === 'organizations' && orgTypesKey ? orgTypesLabel(orgTypes) : label
   // Default to the tab with the MOST results so the grand-total headline and the
   // tab actually shown line up — otherwise "license plates" lands on Meetings (1)
   // while the headline reads 82 (mostly Bills). Ties keep RESULT_TABS order.
@@ -761,10 +790,13 @@ function UnifiedSearchInner() {
   // Active-tab results — fetches ONLY the active tab's type, so `page`/`limit`
   // paginate within that single type instead of across a mixed result set.
   const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
+    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, orgTypesKey, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
     queryFn: async () => {
       if (!effectiveTab) return null
-      const params = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
+      const params: Record<string, unknown> = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
+      // The org facet also returns the exact org total for the selected sub-types,
+      // so the pager reads the real count rather than the capped fetch (#1221).
+      if (effectiveTab === 'organizations') params.facets = 'org_type'
 
       // Trace the search data-load. Low-cardinality attributes only — query
       // length/presence and enum-ish facets, never the raw query string.
@@ -859,6 +891,7 @@ function UnifiedSearchInner() {
       }
       if (sortBy && sortBy !== 'relevance') params.sort = sortBy
       if (nteeCategory) params.ntee = nteeCategory
+      if (orgTypesKey) params.org_type = orgTypesKey
       if (selectedTopicId) params.topic_id = selectedTopicId
       if (selectedCauseId) params.cause_id = selectedCauseId
       if (selectedQuestionId) params.question_id = selectedQuestionId
@@ -880,6 +913,7 @@ function UnifiedSearchInner() {
     }
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (orgTypesKey) params.org_type = orgTypesKey
     if (selectedTopicId) params.topic_id = selectedTopicId
     if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
@@ -918,6 +952,7 @@ function UnifiedSearchInner() {
     params.types = category
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (orgTypesKey) params.org_type = orgTypesKey
     if (selectedTopicId) params.topic_id = selectedTopicId
     if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
@@ -943,6 +978,7 @@ function UnifiedSearchInner() {
     }
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee = nteeCategory
+    if (orgTypesKey) params.org_type = orgTypesKey
     if (selectedTopicId) params.topic_id = selectedTopicId
     if (selectedCauseId) params.cause_id = selectedCauseId
     if (selectedQuestionId) params.question_id = selectedQuestionId
@@ -2024,7 +2060,7 @@ function UnifiedSearchInner() {
           </div>
 
           {/* Active Filters Display */}
-          {(selectedState || selectedCity || sortBy !== 'relevance' || nteeCategory || selectedTopicId || selectedQuestionId || jurisdictionDetails.length > 0 || includeFullText) && (
+          {(selectedState || selectedCity || sortBy !== 'relevance' || nteeCategory || orgTypesKey || selectedTopicId || selectedQuestionId || jurisdictionDetails.length > 0 || includeFullText) && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-600">Active filters:</span>
               {selectedState && (
@@ -2093,6 +2129,19 @@ function UnifiedSearchInner() {
                       setTimeout(() => handleSearch(), 0)
                     }}
                     className="hover:bg-purple-200 rounded-full p-0.5"
+                  >
+                    <XMarkIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {/* Organization sub-type chip — names the applied ?org_type= scope (#1221). */}
+              {orgTypesKey && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                  Organization type: {orgTypesLabel(orgTypes)}
+                  <button
+                    onClick={() => setOrgTypes([])}
+                    aria-label="Clear organization type filter"
+                    className="hover:bg-green-200 rounded-full p-0.5"
                   >
                     <XMarkIcon className="h-3 w-3" />
                   </button>
@@ -2308,6 +2357,38 @@ function UnifiedSearchInner() {
                     </optgroup>
                   </select>
                 </div>
+
+                {/* Organization type (#1221) — sub-types of the Organizations result
+                    type, carried as ?org_type=. Counts are the API's real
+                    org_type_totals for this query/place; blank when not counted. */}
+                <fieldset disabled={!selectedTypes.includes('organizations')} className="disabled:opacity-50">
+                  <legend className="block text-sm font-medium text-gray-700 mb-2">
+                    Organization type
+                  </legend>
+                  <div className="space-y-1.5">
+                    {ORG_SUBTYPES.map(({ id, label }) => {
+                      const n = tabCountsData?.org_type_totals?.[id]
+                      return (
+                        <label key={id} className="flex items-center gap-2 cursor-pointer group py-1">
+                          <input
+                            type="checkbox"
+                            checked={orgTypes.includes(id)}
+                            onChange={() =>
+                              setOrgTypes(
+                                orgTypes.includes(id) ? orgTypes.filter((o) => o !== id) : [...orgTypes, id],
+                              )
+                            }
+                            className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                          />
+                          <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">{label}</span>
+                          {n != null && (
+                            <span className="text-xs text-gray-500 tabular-nums">{n.toLocaleString('en-US')}</span>
+                          )}
+                        </label>
+                      )
+                    })}
+                  </div>
+                </fieldset>
 
                 {/* Cause / NTEE category (for organizations) */}
                 <div>
@@ -2574,7 +2655,7 @@ function UnifiedSearchInner() {
                       Showing {searchResults.pagination.offset + 1}–
                       {Math.min(searchResults.pagination.offset + searchResults.pagination.limit, searchResults.total_results)}
                       {' '}of {searchResults.total_results.toLocaleString()}{' '}
-                      {(RESULT_TABS.find((t) => t.key === effectiveTab)?.label ?? effectiveTab).toLowerCase()}
+                      {tabLabel(effectiveTab, RESULT_TABS.find((t) => t.key === effectiveTab)?.label ?? effectiveTab).toLowerCase()}
                       {selectedState && ` · State: ${selectedState}`}
                       {selectedCity && ` · City: ${selectedCity}`}
                     </p>
@@ -2748,7 +2829,7 @@ function UnifiedSearchInner() {
                               <span className={isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}>
                                 {getTypeIcon(key)}
                               </span>
-                              {label}
+                              {tabLabel(key, label)}
                               <span
                                 className={`ml-auto rounded-full px-2.5 py-1 text-sm font-bold ${
                                   isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'
@@ -2786,7 +2867,7 @@ function UnifiedSearchInner() {
                             <span className={isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}>
                               {getTypeIcon(key)}
                             </span>
-                            {label}
+                            {tabLabel(key, label)}
                             <span
                               className={`rounded-full px-2.5 py-1 text-sm font-bold ${
                                 isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'
@@ -2824,7 +2905,7 @@ function UnifiedSearchInner() {
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <UserIcon className="h-6 w-6 text-sky-600" />
-                      Nonprofit Leaders ({searchResults.type_totals?.persons?.toLocaleString() || searchResults.results.persons.length})
+                      People ({searchResults.type_totals?.persons?.toLocaleString() || searchResults.results.persons.length})
                     </h3>
                     {(() => {
                       const persons = searchResults.results.persons
