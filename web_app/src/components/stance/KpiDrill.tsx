@@ -224,14 +224,35 @@ export function KpiDrillSheet({
     staleTime: 5 * 60_000,
   })
 
+  // On a phone the sheet is modal: the story behind it is inert, so Tab stays in the sheet. Declared first so
+  // its cleanup runs first and the opener can take focus again.
+  useEffect(() => {
+    if (!phone) return
+    const root = document.getElementById('root')
+    if (!root) return
+    root.setAttribute('inert', '')
+    return () => root.removeAttribute('inert')
+  }, [phone])
+
+  // Focus moves into the list (again when it moves into the phone sheet), and back to the number that opened it when
+  // the list closes.
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    return () => {
+      if (opener && opener.isConnected) opener.focus()
+    }
+  }, [])
   useEffect(() => {
     ref.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+  }, [phone])
+
+  // Escape closes this list only when focus is in it (two lists can be open on one screen).
+  const onKeyDown = (e: { key: string; stopPropagation: () => void }) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation()
+      onClose()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, phone])
+  }
 
   const pages = q.data?.pages ?? []
   const first = pages[0]
@@ -249,6 +270,8 @@ export function KpiDrillSheet({
         aria-modal={phone ? true : undefined}
         aria-labelledby={headingId}
         data-testid="kpi-drill"
+        onKeyDown={onKeyDown}
+        data-keeps-escape
         data-lenis-prevent
       >
         <header className="kpi-drill-head">

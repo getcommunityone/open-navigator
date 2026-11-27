@@ -373,7 +373,7 @@ async def data_center_caption_comments(
     """
     scope = build_scope(state, city, None)
     year_filter = year or None
-    company_key = company.strip().lower() if company and company.strip() else None
+    company_key = company.strip() if company and company.strip() else None
     count_sql, params, page_sql, page_params = build_comment_queries(
         scope, year_filter, ai, company_key, limit, offset
     )

@@ -26,6 +26,8 @@ export default function StoryClose({ to, escape = true }: Props) {
       if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.tagName === 'TEXTAREA')) return
       // A story map showing a state's card: its Escape hides the card (#1277), not the story.
       if (ae?.closest?.('[data-map-keys][data-map-active]')) return
+      // A KPI list that is open and focused (#1288): its Escape closes the list, not the story.
+      if (ae?.closest?.('[data-keeps-escape]')) return
       navigate(to)
     }
     // Capture phase: this runs before a dialog's own Escape closes it, so an open dialog is still seen and keeps its Escape.
