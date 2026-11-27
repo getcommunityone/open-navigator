@@ -69,6 +69,10 @@
 .sc-delta-down { fill: var(--vermilion-ink); font-size: 13px; font-weight: 500; }
 .sc-dot-early { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
 .sc-dot-late { fill: var(--violet); }
+/* #1209: a single-value row (no comparison) is a stem from zero to the filled dot. */
+.sc-stem { stroke: var(--rule); }
+/* A stacked row's label sits over the gridlines: a paper halo keeps it legible. */
+.sc-label-halo { paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
 
 @media (prefers-reduced-motion: reduce) {
   .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq { transition: none !important; }

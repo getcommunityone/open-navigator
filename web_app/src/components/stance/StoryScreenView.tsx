@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
-import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
+import type { AreaConcernsResponse, DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
 import PayrollJobsPanel from './PayrollJobsPanel'
 import PositionsBlock from './PositionsBlock'
@@ -10,6 +10,7 @@ import ScreenNav from './ScreenNav'
 import StatRow from './StatRow'
 import StoryDotMap from './StoryDotMap'
 import DumbbellChart from './DumbbellChart'
+import ConcernsDumbbell from './ConcernsDumbbell'
 import StoryCountyMap from './StoryCountyMap'
 import StoryStatement from './StoryStatement'
 import type { ScreenStatement } from './useStoryStatements'
@@ -205,6 +206,14 @@ export default function StoryScreenView(p: Props) {
                 {text.failed ? 'The counts could not be loaded right now.' : 'No counts available for this place.'}
               </p>
             )
+          ) : screen.chart === 'concerns' ? (
+            // The concerns dumbbell (#1209): the place's share of mentions against the nation's, or one dot each nationally.
+            <ConcernsDumbbell
+              data={p.data.concerns as AreaConcernsResponse | null | undefined}
+              status={p.status.concerns ?? 'loading'}
+              place={chartScopeLabel('concerns', scope) === 'National' ? null : chartScopeLabel('concerns', scope)}
+              idBase={`story-${screen.id}`}
+            />
           ) : screen.chart === 'job-claims' && jobsData && noClaims ? (
             // No claims on record: the screen shows actual payroll jobs and where jobs are tracked instead (#1019).
             <PayrollJobsPanel data={jobsData} />
