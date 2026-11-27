@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react'
 
 /** The key a map's arrow keys move to (#1146): next/previous in `keys`, wrapping; Home/End go to the ends. */
 export function nextMapKey<K>(keys: readonly K[], current: K | null, key: string): K | null {
@@ -35,6 +35,15 @@ export function westToEast<K>(dots: readonly { x: number; y: number }[], idOf: (
     .map(([id, s]) => ({ id, x: s.x / s.n, y: s.y / s.n }))
     .sort((a, b) => a.x - b.x || a.y - b.y)
     .map((a) => a.id)
+}
+
+/**
+ * True when a press landed outside the map and its card (#1229): on a phone nothing may depend on hover, so a tap
+ * anywhere else on the page closes the card a tap opened, the way moving the mouse away closes it on a desktop.
+ */
+export function pressedOutside(stage: Pick<Node, 'contains'> | null, target: EventTarget | null): boolean {
+  if (!stage || !target) return false
+  return !stage.contains(target as Node)
 }
 
 /** A focus this soon after a press on the map came from the press. */
@@ -113,8 +122,22 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
     onFocus,
     onPointerDown,
   }
+  // A tap (or click) outside the map and its card closes the card (#1229). Not left to blur: a tap on a page's plain
+  // text moves no focus on iOS, and the svg may never have had focus.
+  const stageRef = useRef<HTMLDivElement>(null)
+  const shown = active != null
+  useEffect(() => {
+    if (!shown) return
+    const onDown = (e: PointerEvent) => {
+      if (pressedOutside(stageRef.current, e.target)) move(null)
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    return () => document.removeEventListener('pointerdown', onDown, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- move only wraps setActive; re-subscribing on every render is waste.
+  }, [shown])
   // Leaving the map and its card (not moving between them) hides the card, as leaving with the mouse does.
   const stageProps = {
+    ref: stageRef,
     onBlur: (e: FocusEvent<HTMLElement>) => {
       if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActive(null)
     },
@@ -129,5 +152,38 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
       </span>
     </>
   )
-  return { svgProps, stageProps, sr }
+  /** Closes the card: the card's own close control (#1229), so a phone reader never needs hover to dismiss it. */
+  const close = () => move(null)
+  return { svgProps, stageProps, sr, close }
+}
+
+/**
+ * The close control on a map card (#1229): a real button, 44px tall, so a tap closes the card on a phone. Inline styles so
+ * it looks the same on the home page and in the stories.
+ */
+export function MapCardClose({ onClose, label = 'Close' }: { onClose: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      className="map-card-close"
+      onClick={onClose}
+      style={{
+        display: 'block',
+        width: '100%',
+        margin: '8px 0 0',
+        minHeight: 44,
+        padding: '10px 16px',
+        boxSizing: 'border-box',
+        border: '1px solid #d6d3d1',
+        borderRadius: 999,
+        background: '#fff',
+        color: '#44403c',
+        fontSize: 14,
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  )
 }

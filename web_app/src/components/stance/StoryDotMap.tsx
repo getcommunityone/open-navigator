@@ -8,7 +8,7 @@ import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
 import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
-import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { isTouchOnly } from '../../utils/touchOnly'
 
 /** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
@@ -56,6 +56,22 @@ interface Props {
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
+/** The card's pick button on a phone (#1229): full width, 44px, the story teal. */
+const PICK_STYLE = {
+  display: 'block',
+  width: '100%',
+  margin: '12px 0 0',
+  padding: '12px 16px',
+  minHeight: 44,
+  boxSizing: 'border-box',
+  border: 0,
+  borderRadius: 999,
+  background: '#0f766e',
+  color: '#fff',
+  fontSize: 15,
+  fontWeight: 700,
+  cursor: 'pointer',
+} as const
 /**
  * Overview dot map (#970): the country as a grid of dots, each state's dots shaded by the real number of its meetings where a
  * data center came up, nationally. A state with none stays the empty colour. When the story is scoped to a state, that state
@@ -97,6 +113,19 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   const order = useMemo(() => (grid ? westToEast(grid.dots, (i) => (codeOf(grid.dots[i]!.id) ? grid.dots[i]!.id : null)) : []), [grid])
   const scopeFips = scopeStateCode ? grid?.feats.find((f) => codeOf(f.id) === scopeStateCode)?.id ?? null : null
   const keyNav = useMapKeyboard<string>({ keys: order, active: hover, setActive: setHover, initial: scopeFips, noun: 'state', describe: readout, onActivate: pick })
+  const touch = isTouchOnly()
+  // On a phone nothing depends on hover (#1229): the first tap on a state with a passage shows its card (whose button tells
+  // its story); a second tap on it, or a tap on a state with no passage, tells the story at once (#1120).
+  const onDot = (fips: string) => {
+    const code = codeOf(fips)
+    if (!code) return
+    const shownCode = hover ? codeOf(hover) : null
+    if (touch && code !== shownCode && quoted.some((m) => m.state_code === code)) {
+      setHover(fips)
+      return
+    }
+    pick(fips)
+  }
 
   if (isError) {
     return (
@@ -174,14 +203,15 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           return (
             <circle
               key={i}
+              data-state={code ?? undefined}
               cx={d.x}
               cy={d.y}
               r={n ? r : r * 0.55}
               fill={colorFor(n)}
               opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
               style={{ cursor: code ? 'pointer' : 'default' }}
-              onMouseEnter={() => setHover(d.id)}
-              onClick={() => pick(d.id)}
+              onMouseEnter={touch ? undefined : () => setHover(d.id)}
+              onClick={() => onDot(d.id)}
             />
           )
         })}
@@ -201,15 +231,26 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
           summary={passage.meeting_summary ?? null}
           analysisUrl={scopedMeetingHref(passage.meeting_url, { state: scopeStateCode, city: scopeCity })}
-        />
+        >
+          {touch && hover && hoverCode && (
+            <>
+              {/* The way into the state on a phone (#1229), as the home map's card button (#1187). */}
+              <button type="button" className="map-card-pick" onClick={() => pick(hover)} style={PICK_STYLE}>
+                {hoverCode === scopeStateCode ? (scopeCity ? `Show all of ${stateNameOf(hoverCode)}` : 'Show the whole country') : `Show ${stateNameOf(hoverCode)}`}{' '}
+                <span aria-hidden="true">→</span>
+              </button>
+              <MapCardClose onClose={keyNav.close} />
+            </>
+          )}
+        </QuoteCard>
       )}
       </div>
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the select and the table. */}
       <p className="stance-map-readout">
         {hover
           ? readout(hover)
-          : isTouchOnly()
-            ? 'Tap a state, or choose one, to tell its story.'
+          : touch
+            ? 'Tap a state to see what was said there, then tap it again, or choose one, to tell its story.'
             : 'Hover a state, or choose one, to see its count. Click a state to tell its story.'}
       </p>
       {max > 0 && (

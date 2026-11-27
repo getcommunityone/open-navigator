@@ -19,7 +19,7 @@ import QuoteCard from './QuoteCard'
 import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
 import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly } from '../../utils/touchOnly'
-import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
+import { MapCardClose, useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
 export interface PlaceCount extends LeanCounts {
@@ -145,6 +145,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     const withMeetings = westToEast(grid.dots, (i) => ((placed.counts.get(grid.dots[i]!.id) ?? 0) > 0 ? grid.dots[i]!.id : null))
     return withMeetings.length ? withMeetings : westToEast(grid.dots, (i) => grid.dots[i]!.id)
   }, [grid, placed])
+  const touch = isTouchOnly()
   const keyNav = useMapKeyboard<string>({
     keys: order,
     active: hover,
@@ -312,7 +313,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
                 r={n ? r : r * 0.55}
                 fill={colorFor(i, n)}
                 opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
-                onMouseEnter={() => setHover(d.id)}
+                onMouseEnter={touch ? undefined : () => setHover(d.id)}
                 onClick={() => setHover(d.id)}
               />
             )
@@ -328,7 +329,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
               stroke={HOUSE_THEME.ramp[5] ?? 'currentColor'}
               strokeWidth={grid.step * 0.18}
               opacity={hover && hover !== g.county ? 0.3 : 1}
-              onMouseEnter={() => setHover(g.county)}
+              onMouseEnter={touch ? undefined : () => setHover(g.county)}
               onClick={() => setHover(g.county)}
             >
               <title>{`${g.place.jurisdiction_name ?? g.place.jurisdiction_id}: ${plural(g.place.meetings)}`}</title>
@@ -393,11 +394,14 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
             role={passage.speaker_display_name ? passage.speaker_role ?? null : null}
             summary={passage.meeting_summary ?? null}
             analysisUrl={scopedMeetingHref(passage.meeting_url, { state: stateCode, city: scopeCity })}
-          />
+          >
+            {/* On a phone nothing depends on hover (#1229): the card a tap opened closes here, or on a tap outside the map. */}
+            {touch && <MapCardClose onClose={keyNav.close} />}
+          </QuoteCard>
         )}
       </div>
       <p className="stance-map-readout">
-        {hover ? readout(hover) : `${isTouchOnly() ? 'Tap' : 'Hover'} a county to see its count. Rings mark the cities, towns and school districts on record.`}
+        {hover ? `${readout(hover)}${touch ? ' Tap outside the map to close.' : ''}` : `${touch ? 'Tap' : 'Hover'} a county to see its count. Rings mark the cities, towns and school districts on record.`}
       </p>
       {max > 0 && (
         <>
