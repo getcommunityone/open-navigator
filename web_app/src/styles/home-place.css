@@ -76,3 +76,27 @@
     border-radius: 12px 12px 0 0;
   }
 }
+
+/* The topic word in the home title (#1350): the place blank's look, sized to the word shown where the browser can. */
+.home-topic-blank .stance-blank-wrap {
+  vertical-align: baseline;
+}
+.home-topic-blank select.stance-blank {
+  field-sizing: content;
+  max-width: 100%;
+  font-weight: inherit;
+  border-bottom: 0.06em dotted #0f766e;
+  color: inherit;
+  padding-right: 0.7em;
+}
+.home-topic-blank select.stance-blank:hover {
+  background: #f0fdfa;
+}
+.home-topic-blank select.stance-blank:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 2px;
+}
+.home-topic-blank .stance-blank-caret {
+  font-size: 0.45em;
+  color: #0f766e;
+}

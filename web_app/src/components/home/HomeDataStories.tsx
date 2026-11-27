@@ -7,6 +7,9 @@ import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { fetchTopicCaptionFacts } from '../../api/topics'
 import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
 import '../../styles/story-actions.css'
+import HomeTopicBar from './HomeTopicBar'
+import { askedStory as askedStoryOf, withStory } from '../../utils/homeTopic'
+import { storyTopicOptions } from '../../utils/storyNav'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
 import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
@@ -80,19 +83,14 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   // Any live topic story can be shown (#1133); an unknown or not-yet-loaded ?story= shows data centers.
   const topicStories = useTopicStories()
-  const askedStory = sp.get('story') ?? ''
+  const askedStory = askedStoryOf(sp)
   const topicDef = askedStory ? topicStories.stories[askedStory] : undefined
   const story: HomeStoryKey = topicDef ? askedStory : 'data-centers'
-  const selectStory = (next: HomeStoryKey) =>
-    setSp(
-      (prev) => {
-        const n = new URLSearchParams(prev)
-        if (next === 'data-centers') n.delete('story')
-        else n.set('story', next)
-        return n
-      },
-      { replace: true, preventScrollReset: true },
-    )
+  // ?topic= (the legacy ?story= still reads) keeps the place and replaces history, so Back leaves the page (#1350).
+  const selectStory = (next: HomeStoryKey) => setSp((prev) => withStory(prev, next), { replace: true, preventScrollReset: true })
+  // The topic word in the headline: a dropdown of every live story, the same list as the chip row and the story pages.
+  const topicWord = topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : dcTopic
+  const topicControl = { value: story, options: storyTopicOptions(topicStories.live, story, topicWord), onPick: selectStory }
   // National: every state's own count, and each state's passages to quote (#1230): real public meetings only, meetings
   // where the public mostly opposed first, then newest first (the API's map-quote pick).
   const national = useQuery({
@@ -184,8 +182,10 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   return (
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
+        <HomeTopicBar topics={topicStories.live} selected={story} onSelect={selectStory} query={q} panelId="home-story-panel" />
+        <div id="home-story-panel" role="tabpanel" aria-labelledby={`home-tab-${story}`}>
         {topicDef ? (
-          <HomeTopicStoryCard def={topicDef} scope={asked} query={q} onPlaceApply={onPlaceApply} />
+          <HomeTopicStoryCard def={topicDef} scope={asked} query={q} onPlaceApply={onPlaceApply} topicControl={topicControl} />
         ) : (
         <div className="home-story-card">
           <div className="home-story-text">
@@ -193,7 +193,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
             {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}
             <h1 id="home-story-dc" className={`font-display home-story-headline${isLongTitle(dcTitle) ? ' is-long' : ''}`} aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
               {/* The place in the title is the place control (#1206): "[America ▾] hates data centers." */}
-              <HomeStoryTitle caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} />
+              <HomeStoryTitle caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} topicControl={topicControl} />
             </h1>
             {/* The subhead speaks only for the caption's scope (#1134): never a national claim on a place's page. */}
             {!pending && <HomeStorySubhead caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} subhead={dcSubhead} />}
@@ -246,6 +246,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
           </div>
         </div>
         )}
+        </div>
 
         {/* Story -> what happens next (#1302): below the story and its map, above Browse topics; Coming up first. It follows
             the place asked in the URL (each card says when that place has nothing and offers the wider view). */}

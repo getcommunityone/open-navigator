@@ -1,0 +1,78 @@
+/* The home topic switcher (#1350): a compact, sideways-scrolling chip row above the hero headline. */
+.home-tbar {
+  position: relative;
+  margin: 0 0 6px;
+  min-height: 44px;
+}
+.home-tbar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 3px 28px 3px 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.home-tbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+.home-tbar-list {
+  display: flex;
+  gap: 8px;
+}
+.home-tbar-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #d6d3d1;
+  background: #fff;
+  color: #44403c;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.home-tbar-chip:hover {
+  background: #f0fdfa;
+  border-color: #0f766e;
+  color: #0f766e;
+}
+.home-tbar-chip.is-on,
+.home-tbar-chip.is-on:hover {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+.home-tbar-chip.is-all {
+  border-style: dashed;
+  color: #0f766e;
+}
+.home-tbar-chip:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 2px;
+}
+/* The fade on the right edge says "more this way"; it goes once the row is scrolled to its end. */
+.home-tbar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(250, 250, 249, 0), #fafaf9);
+  transition: opacity 120ms;
+}
+.home-tbar[data-at-end]::after {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-tbar::after {
+    transition: none;
+  }
+}
