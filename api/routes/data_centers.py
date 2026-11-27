@@ -841,6 +841,16 @@ class DataCenterMeetingMention(BaseModel):
         "exists (never guessed), or when two different speakers match.",
     )
     speaker_role: str | None = Field(None, description="That speaker's role as recorded; null with no speaker.")
+    ai_outcome: str | None = Field(
+        None,
+        description="AI reading (#1140, data_center_meeting_lean.dc_outcome) of what officials did with the item: "
+        "approved, denied, tabled_or_deferred, moratorium or discussed_no_action. Null when not screened or no item.",
+    )
+    ai_public_lean: str | None = Field(
+        None,
+        description="AI reading of how the public leaned at that meeting (data_center_meeting_lean.public_lean): "
+        "mostly_opposed, mostly_supported, mixed or no_public_comment_on_data_center. Null when not screened.",
+    )
 
 
 class DataCenterMeetingMentionStateCount(BaseModel):
@@ -1131,6 +1141,30 @@ async def _mention_extras(conn: Any, rows: list[dict[str, Any]]) -> None:
             r["speaker_role"] = (sp.get("speaker_role") or None) if r["speaker_display_name"] else None
 
 
+MENTION_LEAN_SQL = (
+    "SELECT video_id, CASE WHEN coalesce(excluded_no_item, false) THEN NULL ELSE dc_outcome END AS ai_outcome, "
+    "public_lean AS ai_public_lean FROM data_center_meeting_lean WHERE video_id = ANY($1::text[])"
+)
+
+
+async def _mention_lean(conn: Any, rows: list[dict[str, Any]]) -> None:
+    """Stamp each passage with its meeting's AI reading (#1140), for the unit matrix's outcome and public groupings.
+    A serving copy without data_center_meeting_lean leaves both null."""
+    ids = sorted({r["video_id"] for r in rows if r.get("video_id")})
+    if not ids:
+        return
+    try:
+        lean = {r["video_id"]: dict(r) for r in await conn.fetch(MENTION_LEAN_SQL, ids)}
+    except asyncpg.exceptions.PostgresError as e:
+        logger.warning("data-centers: meeting lean unavailable ({})", e)
+        return
+    for r in rows:
+        hit = lean.get(r.get("video_id"))
+        if hit:
+            r["ai_outcome"] = hit["ai_outcome"]
+            r["ai_public_lean"] = hit["ai_public_lean"]
+
+
 def jump_url(video_url: str, start_seconds: float | None) -> str | None:
     """The recording at the passage's moment (YouTube ``t=`` in whole seconds)."""
     if start_seconds is None or "youtu" not in video_url:
@@ -1196,6 +1230,7 @@ async def list_data_center_meeting_mentions(
                 item_rows = [dict(r) for r in rows]
                 with tracer.start_as_current_span("data-centers.meeting-mentions.card-extras"):
                     await _mention_extras(conn, item_rows)
+                    await _mention_lean(conn, item_rows)
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("meeting_mentions.relation_missing", True)
             logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)

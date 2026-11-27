@@ -3165,3 +3165,22 @@ html.stance-snap {
   pointer-events: none;
   visibility: hidden;
 }
+
+/* #1138: on a wide screen the story's one nav row (ScreenNav) sits at the same spot on every screen: the bottom of the left
+   column, as wide as that column, whatever the screen's text or chart height. Back at the left, Next at the right; the first
+   screen has no Back and keeps Next in place. The left column keeps room for the row so nothing sits under it. Phones keep
+   the nav in the flow, with the floating and bottom-bar Next as before. */
+.stance-story[data-mode='pinned'] .stance-act .stance-grid > .stance-left > .stance-nav[data-screen-nav] {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
+  width: calc((100% - 36px) * 0.45);
+  min-height: 52px;
+  padding: 0 6px 0 2px;
+  /* Text that scrolls in a tall left column passes under the row, not through the buttons. */
+  background: var(--paper);
+}
+.stance-story[data-mode='pinned'] .stance-act .stance-grid > .stance-left {
+  padding-bottom: 72px;
+}

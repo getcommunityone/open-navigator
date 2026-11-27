@@ -1,5 +1,6 @@
 // Pure helpers for the Data Center Challenge (#852) and the data stories (#884). Nothing here invents a number: every figure comes
 // from an API response, and missing or empty data gives null.
+import { outcomeFromDc, outcomeFromText, sideFromLean, type DotFacets } from './unitMatrix'
 import { youtubeVideoId } from '../lib/youtubeEmbed'
 import type {
   AreaConcernsResponse,
@@ -270,6 +271,8 @@ export interface Dot {
   video?: { videoId: string; start: number | null }
   /** The verbatim passage the dot stands for, matched words in <mark> (#1036): shown with the video. */
   quote?: string | null
+  /** Real fields the unit matrix can regroup this record by (#1140): year, state, town, AI outcome, AI public lean. */
+  facets?: DotFacets
 }
 
 /** A stance a dot group stands for: it picks the group's colour and its shape, so colour is never the only signal. */
@@ -527,6 +530,7 @@ export function chartSpec(
         place: c.body_name ?? null,
         date: c.meeting_date ?? null,
         url: c.video_id ? `https://www.youtube.com/watch?v=${c.video_id}${c.start_seconds != null ? `&t=${Math.max(0, Math.floor(c.start_seconds))}s` : ''}` : null,
+        facets: { year: yearOf(c.meeting_date) ?? null },
       })
       return dots(
         CHART_TITLES['job-claims'],
@@ -608,6 +612,13 @@ export function chartSpec(
               url: m.jump_url ?? m.video_url ?? null,
               ...meetingVideo(m.video_url, m.start_seconds),
               quote: m.evidence ?? null,
+              facets: {
+                year: yearOf(m.meeting_date) ?? null,
+                state: m.state_code ?? null,
+                town: m.jurisdiction_name ?? null,
+                outcome: outcomeFromDc(m.ai_outcome),
+                side: sideFromLean(m.ai_public_lean),
+              },
             })),
         })),
         res.counts?.passages ?? null,
@@ -623,6 +634,7 @@ export function chartSpec(
         place: joinPlace(a.jurisdiction_name, a.state_code),
         date: a.doc_date ?? null,
         url: a.document_url ?? null,
+        facets: { year: yearOf(a.doc_date) ?? null, state: a.state_code ?? null, town: a.jurisdiction_name ?? null },
       })
       return dots(
         CHART_TITLES['agenda-items'],
@@ -648,6 +660,12 @@ export function chartSpec(
         date: d.meeting_date ?? null,
         // a debated decision has its own page; one taken up without debate links to the meeting recording
         url: d.decision_url ?? d.video_url ?? null,
+        facets: {
+          year: yearOf(d.meeting_date) ?? null,
+          state: d.state_code ?? null,
+          town: d.jurisdiction_name ?? null,
+          outcome: outcomeFromText(d.outcome),
+        },
       })
       return dots(
         CHART_TITLES.decisions,
