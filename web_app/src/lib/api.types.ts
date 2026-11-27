@@ -645,7 +645,8 @@ export interface paths {
         /**
          * List Data Center Meeting Mentions
          * @description Meeting passages where a data center was discussed, newest meeting first, each with a
-         *     quoted, highlighted excerpt of the transcript and the moment to jump to.
+         *     quoted, highlighted excerpt of the transcript and the moment to jump to. With ``quotes_per_state``, each state's
+         *     map quotes instead (see ``build_mention_state_quotes_query``).
          *
          *     Example:
          *         GET /api/data-centers/meeting-mentions?state=NC&city=Charlotte
@@ -1231,6 +1232,34 @@ export interface paths {
          * @description Get status of a running workflow.
          */
         get: operations["get_workflow_status_api_workflow__workflow_id__status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/{full_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serve React App
+         * @description Serve a real static file if one exists, else the React app (SPA routing).
+         *
+         *     Top-level public assets (e.g. /pdf/*, /communityone_logo.svg,
+         *     /robots.txt, /wikimedia/*) live in static_dir but are not under the
+         *     mounted /assets or /data trees. Without this file check they fall through
+         *     to index.html, so the browser loads the SPA into e.g. an <iframe
+         *     src="/pdf/..."> and React Router renders the NotFound (404) page instead
+         *     of the file. Vite's dev server serves these from public/ at the root, so
+         *     the gap only shows in production.
+         */
+        get: operations["serve_react_app__full_path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5048,6 +5077,8 @@ export interface operations {
                 /** @description site_specific (names a tracked site/owner) or data_center. */
                 strength?: ("site_specific" | "data_center") | null;
                 limit?: number;
+                /** @description For the story map cards (#1230): instead of the newest `limit` passages, up to this many per state, one per meeting, real public meetings only, meetings where the public mostly opposed first, newest first. Counts are unchanged. */
+                quotes_per_state?: number | null;
             };
             header?: never;
             path?: never;
@@ -5960,6 +5991,37 @@ export interface operations {
             header?: never;
             path: {
                 workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serve_react_app__full_path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                full_path: string;
             };
             cookie?: never;
         };

@@ -68,11 +68,61 @@ GET /api/search?q=dental&types=meetings,organizations&state=AL
 ```
 
 **Parameters:**
-- `q` (required): Search query (min 2 characters)
-- `types` (optional): Comma-separated types (contacts, meetings, organizations, causes)
-- `state` (optional): 2-letter state code (AL, GA, MA, WA, WI)
-- `ntee_code` (optional): Filter organizations by NTEE code
+- `q` (optional): Search query; omit to browse by filters
+- `types` (optional): Comma-separated types: `leaders`, `meetings`, `documents` (meeting videos), `meeting_documents`, `decisions`, `bills`, `topics`, `questions`, `causes`, `organizations`, `jurisdictions` (places), `grants`, `grant_opportunities`
+- `state` (optional): 2-letter state code; `city` / `county_fips` / `jurisdiction_id` narrow further
+- `ntee_code` (optional): Filter organizations by NTEE code prefix
+- `org_type` (optional): Comma-separated organization sub-types, OR'd together; applies to `organizations` (see below). An unknown value returns 400.
+- `facets` (optional): `org_type` adds `org_type_totals` to the response
 - `limit` (optional): Max results per type (default: 20)
+
+### Organization sub-types (`org_type`)
+
+Organization search reads the golden org master `mdm_organization`, left-joined to the
+`mdm_organization_nonprofit` satellite for 990 and NTEE detail, so it returns every
+searchable organization type, not only nonprofits (#1221).
+
+| `org_type` | What it matches | Rows (2026-11-26, local warehouse) |
+|---|---|---:|
+| `nonprofit` | `org_type = 'nonprofit'` | 3,731,149 |
+| `foundation` | private foundations: nonprofit `foundation_code` 02, 03 or 04 (IRS BMF) | 134,259 |
+| `church` | places of worship | 251,285 |
+| `government` | townships, municipalities, police, school districts, counties, agencies | 110,102 |
+| `company` | `org_type` `business` + `company` (includes the curated data-center companies) | 5,864 |
+| `healthcare` | mostly hospitals | 7,783 |
+| `education` | schools and education organizations | 1,227 |
+| `political` | parties and political committees | 101 |
+
+`org_type = 'other'` (39,787 rows) is **never** searchable: sampled rows are private family
+and living trusts from property records, so they name private persons (see AGENTS.md,
+"Privacy and data ethics").
+
+`facets=org_type` returns `org_type_totals` (one real count per sub-type for the same
+query and place scope, ignoring the `org_type` narrowing itself) and `organizations_total`
+(the exact total for the selected sub-types). `type_totals.organizations`, which drives
+the pager, is that exact total in browse mode (no `q`). With a text query it is clamped to
+`ORG_CANDIDATE_CAP` (2,000), the most rows the capped candidate scan can return, so every
+page the pager offers is reachable.
+
+The facet runs only when `organizations` survives the topic, cause and question narrowing,
+and never for an `ein` lookup. It is cached for an hour and time-boxed
+(`SEARCH_ORG_TYPE_FACET_TIMEOUT_S`, default 6s). On a timeout the facet is omitted, the
+timeout is cached for 5 minutes, and the UI shows no count rather than a guess.
+
+On `/search`, `?org_type=` is ignored (no chip, not sent) while the Organizations result
+type is unticked.
+
+### Search categories in the UI
+
+The home search box's **Search in** picker and the `/search` Filters share one list,
+`web_app/src/lib/searchCategories.ts`: All, Meetings, Videos, Meeting Documents, Decisions,
+Bills, Topics, Questions, Causes, Leaders, **Organizations** (all types) with the sub-types
+Nonprofits, Foundations, Places of worship, Government bodies, Companies & businesses,
+Healthcare, Schools & education and Political groups, then **Places**, Grants and Grant
+Opportunities. A sub-type is carried in the URL as `?types=organizations&org_type=<id>`.
+`/search` reads it, shows an "Organization type" chip, names the Organizations tab after
+it, and offers the sub-types as checkboxes under Filters. Add a category here only when the
+API returns real rows for it.
 
 **Response:**
 ```json
@@ -123,10 +173,9 @@ Search queries across:
 - Titles, bodies, dates, jurisdictions
 - Files: `data/gold/states/{STATE}/meetings.parquet`
 
-**Organizations** (Nonprofits):
-- 3.9M+ nonprofit organizations
-- Names, cities, states, NTEE codes
-- Files: `data/gold/national/nonprofits_organizations.parquet`
+**Organizations** (all searchable types, see "Organization sub-types" above):
+- `public.mdm_organization` (golden org master, ~4.1M rows) left-joined to `public.mdm_organization_nonprofit`
+- Names, cities, states, org type and subtype, NTEE codes and 990 figures for nonprofits
 
 **Causes** (NTEE Categories):
 - 196 nonprofit categories

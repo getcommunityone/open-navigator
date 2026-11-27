@@ -282,9 +282,13 @@ export async function fetchDataCenterMeetingMentions(params: {
   state?: string
   city?: string
   limit?: number
+  /** For the story map cards (#1230): up to this many passages per state, real meetings only, meetings where the
+   *  public mostly opposed first, newest first (instead of the newest `limit`). Counts are unchanged. */
+  quotesPerState?: number
 }): Promise<DataCenterMeetingMentionsResponse> {
   const q: Record<string, string> = {}
   if (params.limit) q.limit = String(params.limit)
+  if (params.quotesPerState) q.quotes_per_state = String(params.quotesPerState)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { GENERIC_POSITIONS, MISSING_LEGEND, TOPIC_POSITIONS, positionVerdict, topicPositions } from './topicPositions'
+import { GENERIC_POSITIONS, MISSING_LEGEND, TOPIC_POSITIONS, dataCenterQuoteNote, positionVerdict, quoteStanceNote, topicPositions } from './topicPositions'
 
 // The Jev question definitions: the one source of which way "for" points per topic.
 const TOPIC_LEAN = readFileSync(resolve(__dirname, '../../../packages/llm/src/llm/typesafe/topic_lean.py'), 'utf8')
@@ -72,5 +72,27 @@ describe('positionVerdict', () => {
   })
   it('below the floor there is no conclusion', () => {
     expect(positionVerdict(c(9, 0, 0, 900), 10)).toEqual({ kind: 'too_few', of: 9 })
+  })
+})
+
+describe('map quote stance line (#1230)', () => {
+  it("names the public side in the topic's own words, or says the passage only mentions the topic", () => {
+    // The words come from TOPIC_POSITIONS, never hard-coded here: a topic can be reworded without touching this line.
+    const w = topicPositions('guns')
+    expect(quoteStanceNote('guns', 'guns', 'against')).toBe(`Public: ${w.against}`)
+    expect(quoteStanceNote('guns', 'guns', 'for')).toBe(`Public: ${w.for}`)
+    expect(quoteStanceNote('guns', 'guns', 'split')).toBe(`Public: ${w.split}`)
+    expect(quoteStanceNote('guns', 'guns', 'silent')).toBe('Mentions guns; no public stance in this meeting')
+    expect(quoteStanceNote('guns', 'guns', null)).toBe('Mentions guns')
+  })
+  it('never says "AI reading" in the line', () => {
+    for (const s of ['against', 'for', 'split', 'silent', null] as const) expect(quoteStanceNote('guns', 'guns', s)).not.toMatch(/AI reading/)
+  })
+  it('data centers: only the served readings get a line', () => {
+    expect(dataCenterQuoteNote('mostly_opposed')).toBe(`Public: ${TOPIC_POSITIONS['data-centers']!.against}`)
+    expect(dataCenterQuoteNote('no_public_comment_on_data_center')).toBe('Mentions data centers; no public stance in this meeting')
+    expect(dataCenterQuoteNote('mostly_supported')).toBeNull()
+    expect(dataCenterQuoteNote('mixed')).toBeNull()
+    expect(dataCenterQuoteNote(null)).toBeNull()
   })
 })
