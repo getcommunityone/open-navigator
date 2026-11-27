@@ -131,3 +131,45 @@ def test_this_is_from_needs_first_and_last_name():
 def test_chair_call_followed_by():
     r = _one("first speaker will be patricia wilson followed by tom")
     assert r.name_tokens == ("patricia", "wilson")
+
+
+def test_greeting_an_official_is_not_the_speakers_name():
+    for text in (
+        "good evening Mayor Walt Maddox, I live on Elm Street and I oppose this",
+        "good evening Councilman John Smith, I live on Elm",
+    ):
+        assert find_intros("vid", text) == [], text
+
+
+def test_ordinary_words_are_not_names():
+    for text in (
+        "my name is spelled wrong on the list",
+        "my name is listed twice",
+        "I'm frustrated and I live here",
+        "I'm disgusted, I live in ward three",
+        "this is common sense with all due respect",
+        "this is bad news from the state",
+        "good evening Elm Street here",
+        "good evening Mount Pleasant, I live",
+        "our next speaker is signed up",
+        "the next speaker is online",
+    ):
+        assert find_intros("vid", text) == [], text
+
+
+def test_student_mentioned_before_the_name():
+    r = _one("I'm a junior at Central High School and my name is Jane Doe and I care")
+    assert r.mentions_minor is True
+    r = _one("As a student at Tuscaloosa High my name is Jane Doe and I care")
+    assert r.mentions_minor is True
+
+
+def test_bare_age_under_18():
+    assert _one("My name is Jane Doe. I'm 16 and I care").mentions_minor is True
+    assert _one("my name is jane doe i am sixteen and i care").mentions_minor is True
+    assert _one("my name is jane doe i'm 12 years in this community").mentions_minor is False
+
+
+def test_two_short_intros_in_one_window():
+    rows = find_intros("vid", "I'm Al Bo and I live here. I'm Cy Dunn and I live there.")
+    assert [r.name_tokens for r in rows] == [("al", "bo"), ("cy", "dunn")]

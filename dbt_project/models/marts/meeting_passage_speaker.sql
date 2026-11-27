@@ -12,7 +12,7 @@
     Rule (no model, nothing guessed):
       * The passage's place in the transcript is the character offset of its quoted words in event_documents.content
         (= bronze raw_text, the text the extractor scanned): the first 80 characters of each ts_headline fragment,
-        <mark> tags removed. A fragment that can't be found gets no speaker.
+        <mark> tags removed. A fragment that can't be found, or whose words occur more than once, gets no speaker.
       * Each fragment takes the NEAREST PRECEDING introduction in the same recording, within 2,500 characters
         (about three minutes of speech, a usual public-comment limit, and the same window
         int_data_center_transcript__passage uses for untimed text). A nearer introduction always wins, so a later
@@ -78,6 +78,8 @@ located as (
     from fragment as f
     join doc as d on d.video_id = f.video_id
     where length(f.needle) >= 20
+      -- Words said more than once (a motion read twice) can't place the passage: no speaker rather than a guess.
+      and strpos(substr(d.content, strpos(d.content, f.needle) + 1), f.needle) = 0
 ),
 
 assigned as (

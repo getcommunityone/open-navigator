@@ -12,9 +12,12 @@
     speaker_kind, decided in this order:
       suppressed  the speaker's next words say they are a student, in a grade or school, or under 18
                   (suppressed_reason 'student_or_minor'); or a resident speaking at a school board meeting
-                  (jurisdiction_type school_district, or a title naming a school board / board of education /
-                  school committee; 'school_board_meeting'). No name is shown (AGENTS.md: minors and students).
-      official    first and last name equal exactly one current official of the meeting's own government
+                  (jurisdiction_type school_district; a jurisdiction named for a school, ISD, USD or board of
+                  education; or a title naming a school(s) board, school district, school committee, board of ed,
+                  BOE, USD/ISD or students; 'school_board_meeting'). No name is shown (AGENTS.md: minors and
+                  students). An unknown meeting type is not a school board; the title and name checks still apply.
+      official    a "my name is" / "I'm ... I live" introduction (never a greeting or chair call, which can name
+                someone else) whose first and last name equal exactly one current official of the meeting's own government
                   (person_government, office 'government', same state, jurisdiction "<name> Government"):
                   shown by full name and title from our officials data (public role).
       resident    everyone else: "First L." from the words heard (two words -> "Jane D."; one or three words ->
@@ -71,6 +74,8 @@ official_match as (
         on o.state_code = m.state_code
        and o.jurisdiction_key = lower(btrim(m.jurisdiction_name))
        and i.name_token_count >= 2
+       -- Only the speaker's own "my name is" / "I'm ... I live": a greeting or chair call can name someone else.
+       and i.pattern_id in ('my_name_is', 'i_am_live')
        and o.name_words[1] = i.name_tokens[1]
        and o.name_words[array_length(o.name_words, 1)] = i.name_tokens[i.name_token_count]
     group by 1, 2, 3
@@ -82,8 +87,12 @@ classified as (
         m.state_code,
         m.jurisdiction_name,
         case when om.n_matches = 1 then om.person_id end as person_id,
-        (m.jurisdiction_type = 'school_district'
-            or coalesce(m.event_title, '') ~* '(school\s+board|board\s+of\s+education|school\s+committee|board\s+of\s+trustees.*(isd|school))'
+        coalesce(
+            m.jurisdiction_type = 'school_district'
+            or coalesce(m.jurisdiction_name, '') ~* '(school|\misd\M|\musd\M|board\s+of\s+ed)'
+            or coalesce(m.event_title, '') ~* ('(schools?\s+board|school\s+district|school\s+committee|board\s+of\s+ed'
+                || '|\mboe\M|\musd\M|\misd\M|board\s+of\s+trustees.*school|student)'),
+            false
         ) as is_school_board
     from intro as i
     left join meeting as m on m.video_id = i.video_id

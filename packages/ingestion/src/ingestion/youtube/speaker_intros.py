@@ -154,6 +154,8 @@ STOPWORDS = frozenset(
     daughter wife husband family member live living lived reside residing located local area community
     neighborhood behalf regarding concerning re against support supporting opposed opposition favor
     unable able sure aware afraid concerned worried disappointed sad sorry tired confused curious
+    spelled listed signed online common bad sense news power energy elm mount pleasant fair
+    sure mad upset angry disgusted frustrated tired worried concerned glad
     somewhat different similar separate consistent exempt important critical
     followed following running economic development background welcome welcoming presenting addressing regard regards thereof
     not never nothing something anything everything someone anyone everyone nobody somebody anybody
@@ -161,17 +163,23 @@ STOPWORDS = frozenset(
     """.split()
 )
 
+# Words with these endings are verbs, adverbs or adjectives in this position ("my name is spelled wrong", "I'm
+# disgusted", "listed twice"), not names.
+_NOT_A_NAME_SUFFIX = re.compile(r"(?:ed|ly|ing|ful|ous|ness)$")
+
 # Said by the speaker in the words after the introduction: suppress the name (minors and students are never named).
 _MINOR_RE = re.compile(
     r"\b(?:student|students|freshman|sophomore|junior|juniors|senior\s+at|grader|"
     r"(?:\d{1,2}(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth)"
     r"\s+grade|high\s+school|middle\s+school|elementary|junior\s+high|"
     r"(?:i'm|i’m|i\s+am)\s+(?:(?:[1-9]|1[0-7])|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
-    r"thirteen|fourteen|fifteen|sixteen|seventeen)\s+(?:years?\s+old|yrs?\s+old)|"
+    r"thirteen|fourteen|fifteen|sixteen|seventeen)(?:\s+(?:years?|yrs?)\s+old)?(?!\w|\.\d|\s+(?:years?\s+)?(?:of\s+service|in\b|on\b|here\b|percent))|"
     r"(?:i'm|i’m|i\s+am)\s+(?:a\s+)?(?:minor|kid|child|teen|teenager))\b",
     re.I,
 )
 MINOR_WINDOW_CHARS = 300
+# Words before the introduction count too ("I'm a junior at Central High and my name is ...").
+MINOR_WINDOW_BEFORE_CHARS = 200
 
 
 @dataclass(frozen=True)
@@ -270,15 +278,22 @@ def find_intros(video_id: str, raw_text: str, segments: Any = None) -> list[Spea
         words, before, after = ANCHORS[pattern_id]
         matches = []
         for k in _anchor_positions(low, words):
-            m = rx.search(raw_text, max(0, k - before), min(n, k + after))
-            if m is not None:
-                matches.append(m)
+            # Every match in the window, not only the first: two short intros can share one window.
+            matches.extend(rx.finditer(raw_text, max(0, k - before), min(n, k + after)))
         for m in matches:
             title, tokens = clean_name_tokens(m.group("name"))
             if not tokens:
                 continue
-            if pattern_id == "this_is_from" and len(tokens) != 2:
+            if pattern_id in ("this_is_from", "greeting_name") and len(tokens) != 2:
                 # "this is separate from", "this is Carolina Environmental Systems with": only a first and last name.
+                continue
+            if pattern_id in ("greeting_name", "next_speaker", "this_is_from") and title:
+                # "good evening Mayor Walt Maddox, I live ..." greets the mayor; it doesn't name the speaker.
+                continue
+            if pattern_id == "i_am_live" and len(tokens) < 2:
+                # "I'm frustrated and I live here": a feeling, not a name.
+                continue
+            if any(_NOT_A_NAME_SUFFIX.search(t) for t in tokens):
                 continue
             offset = m.start()
             # End of the last kept name token (the matched group can run on into "and", "here", ...).
@@ -287,7 +302,7 @@ def find_intros(video_id: str, raw_text: str, segments: Any = None) -> list[Spea
                 if tok.group(0).strip("'\u2019-.").lower() == tokens[-1]:
                     name_end = m.start("name") + tok.end()
                     break
-            window = raw_text[m.start("name") : name_end + MINOR_WINDOW_CHARS]
+            window = raw_text[max(0, offset - MINOR_WINDOW_BEFORE_CHARS) : name_end + MINOR_WINDOW_CHARS]
             key = (offset, pattern_id)
             found[key] = SpeakerIntro(
                 video_id=video_id,
