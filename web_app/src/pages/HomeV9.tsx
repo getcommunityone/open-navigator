@@ -37,6 +37,7 @@ import { fetchMeetings, type MeetingCard } from '../api/meetings'
 import { highlightSnippet } from '../lib/highlight'
 import HomeDataStories from '../components/home/HomeDataStories'
 import { STATE_CODES } from '../lib/usStates'
+import { SEARCH_CATEGORIES, SEARCH_CATEGORY_TYPES, countForCategory, type SearchCategory } from '../lib/searchCategories'
 
 // The brand teal, the same as the data stories' primary action and Tailwind's primary-600 (#975).
 const TEAL = '#0f766e'
@@ -238,27 +239,9 @@ function meetingToCard(m: MeetingCard): ApiCard {
   }
 }
 
-// Left-side search scope. `types` is the comma list handed to /search (UnifiedSearch
-// reads ?types=); 'all' sends no types param so the search spans everything.
-const SEARCH_CATEGORIES: { id: string; label: string; types: string }[] = [
-  { id: 'all', label: 'All', types: '' },
-  { id: 'meetings', label: 'Meetings', types: 'meetings' },
-  { id: 'transcripts', label: 'Videos', types: 'documents' },
-  // Official meeting PDFs (agenda / minutes / attachments) from
-  // public.event_meeting_document — full-text searched over extracted PDF body
-  // where present. Distinct from 'Videos' (transcripts) above; backend type is
-  // 'meeting_documents' (UnifiedSearch renders the tab + the agenda/minutes/
-  // attachment document_type filter).
-  { id: 'meeting_documents', label: 'Meeting Documents', types: 'meeting_documents' },
-  { id: 'decisions', label: 'Decisions', types: 'decisions' },
-  { id: 'leaders', label: 'Leaders', types: 'leaders' },
-  { id: 'nonprofits', label: 'Nonprofits', types: 'organizations' },
-  { id: 'causes', label: 'Causes', types: 'causes' },
-  { id: 'questions', label: 'Questions', types: 'questions' },
-  { id: 'topics', label: 'Topics', types: 'topics' },
-  { id: 'bills', label: 'Bills', types: 'bills' },
-  { id: 'grants', label: 'Grants', types: 'grants' },
-]
+// Left-side search scope: the shared category list (lib/searchCategories, #1221).
+// `types` is handed to /search as ?types= and an organization sub-type row adds
+// ?org_type=; 'All' sends no types param so the search spans everything.
 
 // ---- /api/lenses response (the subset we render) ----
 interface LensActivity {
@@ -628,7 +611,7 @@ export default function HomeV9() {
   const [query, setQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   // Left-side category scope for the hero search box.
-  const [cat, setCat] = useState(SEARCH_CATEGORIES[0])
+  const [cat, setCat] = useState<SearchCategory>(SEARCH_CATEGORIES[0])
   const [catOpen, setCatOpen] = useState(false)
   const catRef = useRef<HTMLButtonElement>(null)
   const catMenuRef = useRef<HTMLDivElement>(null)
@@ -819,11 +802,34 @@ export default function HomeV9() {
   // many real results that scope would return. Fetched lazily (only while the
   // menu is open) with limit=1 — we want `type_totals`, not rows — so it never
   // slows the hero. No fabricated numbers: a type the API doesn't count is blank.
+  // Organization sub-type counts (#1221) in their OWN organizations-only call, so
+  // the sub-rows get real numbers (and the exact org total) without waiting on
+  // the slow transcript legs of the all-types call below. The API omits
+  // org_type_totals on timeout, and those rows then show no badge.
+  const { data: orgFacetData, isFetching: orgFacetFetching } = useQuery<{
+    total?: number
+    byType?: Record<string, number>
+  }>({
+    queryKey: ['home-v9-org-facets', debouncedQuery, national, stateCode, city],
+    queryFn: async () => {
+      const params: Record<string, string> = { types: 'organizations', facets: 'org_type', limit: '1' }
+      if (debouncedQuery.length >= 2) params.q = debouncedQuery
+      if (!national && stateCode) params.state = stateCode
+      if (!national && city) params.city = city
+      const res = await api.get('/search/', { params }).then((r) => r.data).catch(() => null)
+      if (!res?.org_type_totals) return {}
+      return { total: res.organizations_total, byType: res.org_type_totals as Record<string, number> }
+    },
+    enabled: catOpen,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
+  })
+  const orgFacetSettled = !orgFacetFetching
   const { data: catCountsData, isFetching: catCountsFetching } = useQuery<Record<string, number>>({
     queryKey: ['home-v9-cat-counts', debouncedQuery, national, stateCode, city],
     queryFn: async () => {
       const params: Record<string, string> = {
-        types: 'meetings,documents,meeting_documents,decisions,leaders,organizations,causes,questions,topics,bills,grants',
+        types: SEARCH_CATEGORY_TYPES.join(','),
         limit: '1',
       }
       if (debouncedQuery.length >= 2) params.q = debouncedQuery
@@ -832,19 +838,25 @@ export default function HomeV9() {
       const res = await api.get('/search/', { params }).then((r) => r.data).catch(() => null)
       return (res?.type_totals ?? {}) as Record<string, number>
     },
-    enabled: catOpen,
+    // Starts once the cheap org facet call below has settled, so the two don't
+    // contend for the DB at the same moment (the all-types call is the heavy one).
+    enabled: catOpen && orgFacetSettled,
     staleTime: 60 * 1000,
     placeholderData: (prev) => prev, // keep last counts while the next query loads
   })
-  const catCounts = catCountsData ?? {}
   // Each row maps 1:1 to its type_totals key (c.types); undefined when the API
   // didn't count that type (→ no badge). 'All' intentionally shows NO count: its
   // only honest value would be the sum across every type, but those catalogs sit
   // at different geographic grains (local meetings/decisions vs. state bills,
   // grants, and national questions/topics), so a single total reads as nonsense
   // next to the local rows. The per-category numbers are the coherent signal.
-  const countForCat = (c: { id: string; types: string }): number | undefined =>
-    c.id === 'all' ? undefined : catCounts[c.types]
+  const countForCat = (c: SearchCategory): number | undefined =>
+    countForCategory(
+      c,
+      // The facet call's exact org total wins over the all-types estimate.
+      orgFacetData?.total != null ? { ...catCountsData, organizations: orgFacetData.total } : catCountsData,
+      orgFacetData?.byType,
+    )
 
   // ── Search typeahead (real /api/search results) ──
   // Queries only the FAST search types — `documents` (transcript full-text) runs
@@ -890,6 +902,7 @@ export default function HomeV9() {
     const params = new URLSearchParams()
     if (term) params.set('q', term)
     if (cat.types) params.set('types', cat.types)
+    if (cat.orgType) params.set('org_type', cat.orgType)
     if (!national && stateCode) params.set('state', stateCode)
     // Carry the city through so a drill-down from e.g. Tuscaloosa reads
     // "City: Tuscaloosa" rather than just "State: AL" (UnifiedSearch reads ?city=).
@@ -1094,13 +1107,16 @@ export default function HomeV9() {
                   // have a number for this row, show a skeleton instead of a blank
                   // so the counts read as "loading", not "missing". 'All' never
                   // shows a count, so it never shows a skeleton.
-                  const showCountSkeleton = c.id !== 'all' && n == null && catCountsFetching
+                  const showCountSkeleton =
+                    c.id !== 'all' && n == null && (c.types === 'organizations' ? orgFacetFetching : catCountsFetching || !orgFacetSettled)
                   return (
                     <button
                       key={c.id}
                       type="button"
                       role="option"
                       aria-selected={selected}
+                      // Sub-type rows are only indented visually; name the parent for screen readers.
+                      aria-label={c.child ? `Organizations: ${c.label}${n != null ? `, ${n.toLocaleString('en-US')}` : ''}` : undefined}
                       onClick={() => {
                         setCat(c)
                         setCatOpen(false)
@@ -1114,8 +1130,8 @@ export default function HomeV9() {
                         background: selected ? '#f0fdfa' : 'none',
                         border: 'none',
                         borderRadius: 9,
-                        padding: '9px 12px',
-                        fontSize: 14.5,
+                        padding: c.child ? '7px 12px 7px 28px' : '9px 12px',
+                        fontSize: c.child ? 13.5 : 14.5,
                         fontWeight: selected ? 700 : 500,
                         color: selected ? TEAL_DARK : '#44403c',
                         cursor: 'pointer',

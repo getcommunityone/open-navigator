@@ -5,7 +5,8 @@
     indexes=[
       {'columns': ["to_tsvector('english', org_name)"], 'type': 'gin'},
       {'columns': ["org_name_norm"], 'type': 'btree'},
-      {'columns': ["state_code"], 'type': 'btree'}
+      {'columns': ["state_code"], 'type': 'btree'},
+      {'columns': ["org_type", "org_name_norm"], 'type': 'btree'}
     ],
     post_hook=["{{ swap_guard_check() }}"]
   )
@@ -22,6 +23,9 @@
     a btree on state_code so a state-scoped name search BitmapAnds the state index
     with the FTS index instead of scanning the full match set
     (see api/routes/search_postgres.py search_organizations_pg / search_persons_pg).
+    A btree on (org_type, org_name_norm) serves the org sub-type search filter
+    (?org_type=, #1221): a sub-type browse in name order is an index range scan
+    instead of walking org_name_norm and filtering out ~99% of rows.
 
     Survivorship has two tracks:
       - IDENTITY / LOCATION (city, geocode, ein, website): the most-complete,
