@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { TopicDecision, TopicMeeting } from '../../api/topics'
 import { highlightSnippet } from '../../lib/highlight'
-import { commentersLine, positionChips, speakerLine } from '../../utils/saidCards'
+import { commentersLine, decisionPeopleLines, positionChips, speakerLine } from '../../utils/saidCards'
 import { pickDisplay } from '../../utils/displayFit'
 
 const fmtDate = (d?: string | null) => {
@@ -90,6 +90,13 @@ export function TopicDecisionCard({ d }: { d: TopicDecision }) {
         {d.outcome ? ` · ${d.outcome}` : ''}
       </p>
       {d.excerpt && <p className="topic-story-item-body">{highlightSnippet(d.excerpt)}</p>}
+      {decisionPeopleLines(d).length > 0 && (
+        <ul className="topic-story-people" aria-label="Who was on each side" data-testid="decision-people">
+          {decisionPeopleLines(d).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
       <p className="topic-story-card-links">
         {meetingHref ? (
           <AnyLink href={meetingHref} label={`${meetingText}${d.video_url ? ' (plays the recording)' : ' (opens the meeting)'}`}>

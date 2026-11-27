@@ -1,6 +1,7 @@
 // Pure helpers for the Data Center Challenge (#852) and the data stories (#884). Nothing here invents a number: every figure comes
 // from an API response, and missing or empty data gives null.
 import { dataCenterQuoteNote } from './topicPositions'
+import { decisionPeopleLines } from './saidCards'
 import { outcomeFromDc, outcomeFromText, sideFromLean, type DotFacets } from './unitMatrix'
 import { youtubeVideoId } from '../lib/youtubeEmbed'
 import type {
@@ -277,6 +278,8 @@ export interface Dot {
   role?: string | null
   /** Where the public stood at the passage's meeting, labelled as the meeting's (#1230, #1293); null: no line. */
   stanceNote?: string | null
+  /** More lines a record list shows under the record (#1320: who supported and opposed a decision, its vote). */
+  detail?: string[]
   /** Real fields the unit matrix can regroup this record by (#1140): year, state, town, AI outcome, AI public lean. */
   facets?: DotFacets
 }
@@ -688,6 +691,7 @@ export function chartSpec(
         date: d.meeting_date ?? null,
         // a debated decision has its own page; one taken up without debate links to the meeting page, else its recording
         url: d.decision_url ?? d.meeting_url ?? d.video_url ?? null,
+        detail: decisionPeopleLines(d),
         facets: {
           year: yearOf(d.meeting_date) ?? null,
           state: d.state_code ?? null,
