@@ -29,6 +29,8 @@ export function useScreenKeys(opts: Options) {
       const t = e.target as HTMLElement | null
       if (o.current.enabled === false) return
       if (t && t !== document.body && t.closest?.(OWN_KEYS)) return
+      // A modal sheet or dialog owns the keyboard: the story behind it stays on its screen.
+      if (t?.closest?.('[role="dialog"]') || document.querySelector('[role="dialog"][aria-modal="true"]')) return
       const scrollsInside = t?.closest?.('[data-lenis-prevent]') != null
       const onControl = t != null && (t.tagName === 'BUTTON' || t.tagName === 'A' || t.closest?.('summary') != null)
       let act: (() => void) | null = null
