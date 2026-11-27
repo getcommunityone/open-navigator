@@ -1,0 +1,9 @@
+pattern_key,place_kind,pattern
+road_1,road,"\m(?:(?:U\.?S\.?|State|County|Farm to Market|FM|SR|CR|Interstate|I-|Route|Highway|Hwy|Rte\.?) ?-?\d{1,4}[A-Z]?)\M"
+road_2,road,"\m(?:[A-Z][A-Za-z'\-]+ ){1,3}(?:Road|Rd|Pike|Highway|Parkway|Turnpike|Boulevard|Avenue|Street|Lane|Drive|Trail)\M"
+school_1,school,"\m(?:[A-Z][A-Za-z'\-]+ ){1,3}(?:Elementary|Middle|High|Intermediate|Junior High|Primary)(?: School)?\M"
+school_2,school,"\m(?:[A-Z][A-Za-z'\-]+ ){1,3}(?:School District|Schools|Academy|Community College|University)\M"
+county_1,county,"\m(?:[A-Z][A-Za-z'\-]+ ){1,3}(?:County|Parish|Township)\M"
+neighborhood_1,neighborhood,"\m(?:[A-Z][A-Za-z'\-]+ ){1,3}(?:Subdivision|Estates|Heights|Neighborhood|Village|Park|Farms|Acres|Hills|Creek|Lake|River)\M"
+district_1,district,"\m(?:District|Ward|Precinct) (?:\d{1,2}|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\M"
+site_1,site,"\m(?:the )?(?:[A-Z][A-Za-z'\-]+ ){1,3}(?:site|campus|project|property|tract)\M"

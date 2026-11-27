@@ -1,0 +1,10 @@
+version: 2
+
+models:
+  - name: stg_meeting_comment_segment
+    description: "Typed view over bronze_meeting_comment_segment (#1233). One row per segmented comment."
+    columns:
+      - name: comment_segment_id
+        tests: [unique, not_null]
+      - name: video_id
+        tests: [not_null]

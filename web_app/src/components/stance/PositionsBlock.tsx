@@ -4,6 +4,7 @@ import { POSITIONS_NOT_LOADED, positionFigures, positionsCaption, positionsLoade
 import { chartSpec, fmt } from '../../utils/stanceGame'
 import { Dots } from './ChartPanel'
 import { SideColumn, type Passage } from './SidesBlock'
+import CommentMetricsBlock from './CommentMetricsBlock'
 
 interface Props {
   data: DataCenterPositionsResponse | null | undefined
@@ -78,6 +79,7 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
         </figure>
       )}
       <p className="stance-note stance-voices-caption">{positionsCaption(data, scope)}</p>
+      <CommentMetricsBlock scope={scope} />
       {quotes && sides.length > 0 && (
         <div className="stance-sides stance-voices-quotes" data-testid="positions-quotes" data-lenis-prevent>
           {sides.map((s) => (
