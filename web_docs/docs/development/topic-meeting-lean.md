@@ -72,6 +72,21 @@ cd dbt_project && dbt build --select stg_jev__transcript_topic_lean+            
 ```
 </details>
 
+## Positions shown on the stories (#1200)
+
+Each meeting's reading is shown as one of four positions, in the topic's own words (`web_app/src/utils/topicPositions.ts`,
+which restates the "for" column above; a vitest checks it against `TOPICS`):
+
+- **Against** (`public_against`: mostly opposed, P ≥ 0.7), e.g. "Want limits on short-term rentals", "Opposed the gun
+  proposal".
+- **For** (mostly supportive, P ≥ 0.7), e.g. "Want to allow short-term rentals", "Backed the gun proposal".
+- **Split** (neutral): mixed, or a for/against lean under P 0.7.
+- **Missing**: no reading yet, or `did_not_speak`. Never shown as split.
+
+A `public_lean` outside the question's choices (the water-fluoridation rows on 26 Nov 2026 carry `oppose_local_choice`
+and similar, #1204) is in none of the four. The headline's conclusion and its thresholds:
+[Story captions](story-captions.md#decision-each-topics-position-in-its-own-words-and-the-places-conclusion-in-the-title-1200).
+
 ## Hand check
 
 To do after the first run: 10 meetings per topic, read against the recording, the same way as the data-center check.

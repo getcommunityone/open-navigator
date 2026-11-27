@@ -1,5 +1,6 @@
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import type { Stance } from '../../utils/boxSplit'
+import { TOPIC_POSITIONS } from '../../utils/topicPositions'
 
 /** Box colours: the house theme's segment colours (no red/green pair), a grey for meetings without a stance, the empty tint. */
 export const BOX_COLORS: Record<Stance | 'meetings' | 'none', string> = {
@@ -35,7 +36,8 @@ export function tint(hex: string, amount: number): string {
 export const PUBLIC_AGAINST_COLOR = tint(BOX_COLORS.against, 0.45)
 /** #1117: the outline around an area where Jev read officials as siding against the public. */
 export const DISAGREEMENT_STROKE = '#1c1917'
-export const PUBLIC_AGAINST_LABEL = 'Public mostly opposed (AI reading of meetings)'
+// Only the data center maps draw this tint (the speaker maps), so it takes that topic's words (#1200).
+export const PUBLIC_AGAINST_LABEL = `${TOPIC_POSITIONS['data-centers']!.against} (AI reading of meetings)`
 export const DISAGREEMENT_LABEL = 'Officials sided against the public'
 
 /** Jev's two served meeting counts for an area (#1117); missing means 0. */

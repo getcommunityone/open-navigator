@@ -81,6 +81,9 @@ class CaptionWiderLean(BaseModel):
     lean_meetings: int
     public_against_meetings: int
     public_against_states: int
+    public_for_meetings: int = 0
+    public_split_meetings: int = 0
+    public_silent_meetings: int = 0
     disagreement_meetings: int
 
 
@@ -111,7 +114,17 @@ class TopicCaptionFacts(BaseModel):
         None, description="AI reading: states with at least one public-against meeting in scope (#1134). Null when not loaded."
     )
     public_for_meetings: int | None = Field(
-        None, description="AI reading: meetings where the public mostly supported. Null when not loaded or not read."
+        None, description="AI reading: meetings where the public mostly supported (P >= 0.7). Null when not loaded."
+    )
+    public_split_meetings: int | None = Field(
+        None,
+        description=(
+            "AI reading (#1200): meetings where the public spoke but was split, or the reading was not sure which way "
+            "(mixed, or a lean under P 0.7). Null when not loaded."
+        ),
+    )
+    public_silent_meetings: int | None = Field(
+        None, description="AI reading (#1200): meetings read where the public didn't speak on the topic. Null when not loaded."
     )
     disagreement_meetings: int | None = Field(
         None, description="AI reading: meetings where officials sided against the public. Null when not loaded."
@@ -182,9 +195,29 @@ SPEAKERS_SQL = (
 )
 
 
+# The four positions of one meeting's AI reading (#1200), the same for both lean marts (their ``public_lean`` labels
+# differ only in spelling): against = ``public_against`` (mostly opposed, P >= 0.7); for = mostly supportive, P >= 0.7;
+# silent = the public didn't speak on the topic; split = mixed, or a for/against lean under P 0.7. A label outside the
+# question's choices (an older or broken writer, #1201) is in none of the four: never shown as a position.
+PUBLIC_FOR_SQL = (
+    "l.public_lean IN ('mostly_supportive', 'mostly_supported') AND coalesce(l.public_lean_p, 0) >= 0.7"
+)
+PUBLIC_SILENT_SQL = "l.public_lean IN ('did_not_speak', 'no_public_comment_on_data_center')"
+PUBLIC_SPLIT_SQL = (
+    "(l.public_lean = 'mixed' OR (l.public_lean IN ('mostly_opposed', 'mostly_supportive', 'mostly_supported') "
+    "AND coalesce(l.public_lean_p, 0) < 0.7))"
+)
+
+
+def split_count(row: dict[str, Any]) -> int:
+    """Meetings read as split (counted in SQL; 0 when absent)."""
+    return int(row.get("public_split_meetings") or 0)
+
+
 def build_lean_sql(topic_id: int, state_code: str | None, city_like: str | None) -> tuple[str, list[Any]]:
     """AI-reading counts in scope. Data centers read ``data_center_meeting_lean``; other topics ``topic_meeting_lean``
-    (#1126, one row per meeting x topic). ``public_for`` is read defensively: the data-center mart has no such column."""
+    (#1126, one row per meeting x topic). Both carry ``public_lean`` and ``public_lean_p``, which the for and silent
+    counts read (#1200)."""
     params: list[Any] = []
     where: list[str] = []
     if topic_id == DATA_CENTERS_TOPIC_ID:
@@ -203,8 +236,9 @@ def build_lean_sql(topic_id: int, state_code: str | None, city_like: str | None)
         "SELECT count(*)::int AS lean_meetings, "
         "count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings, "
         "count(DISTINCT l.state_code) FILTER (WHERE l.public_against)::int AS public_against_states, "
-        "count(*) FILTER (WHERE (to_jsonb(l) ->> 'public_for')::boolean)::int AS public_for_meetings, "
-        "bool_or(to_jsonb(l) ? 'public_for') AS has_public_for, "
+        f"count(*) FILTER (WHERE {PUBLIC_FOR_SQL})::int AS public_for_meetings, "
+        f"count(*) FILTER (WHERE {PUBLIC_SILENT_SQL})::int AS public_silent_meetings, "
+        f"count(*) FILTER (WHERE {PUBLIC_SPLIT_SQL})::int AS public_split_meetings, "
         "count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings, "
         "count(DISTINCT l.state_code) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_states "
         f"FROM {table} l WHERE {' AND '.join(where) or 'TRUE'}"
@@ -246,6 +280,9 @@ def wider_lean(level: str, state_code: str | None, state: str | None, row: Any) 
         lean_meetings=int(r["lean_meetings"]),
         public_against_meetings=int(r.get("public_against_meetings") or 0),
         public_against_states=int(r.get("public_against_states") or 0),
+        public_for_meetings=int(r.get("public_for_meetings") or 0),
+        public_split_meetings=split_count(r),
+        public_silent_meetings=int(r.get("public_silent_meetings") or 0),
         disagreement_meetings=int(r.get("disagreement_meetings") or 0),
     )
 
@@ -370,7 +407,9 @@ async def topic_caption_facts(
                 "lean_meetings": int(r["lean_meetings"]),
                 "public_against_meetings": int(r["public_against_meetings"] or 0),
                 "public_against_states": int(r.get("public_against_states") or 0),
-                "public_for_meetings": int(r["public_for_meetings"] or 0) if r.get("has_public_for") else None,
+                "public_for_meetings": int(r.get("public_for_meetings") or 0),
+                "public_split_meetings": split_count(r),
+                "public_silent_meetings": int(r.get("public_silent_meetings") or 0),
                 "disagreement_meetings": int(r["disagreement_meetings"] or 0),
                 "disagreement_states": int(r["disagreement_states"] or 0),
             }

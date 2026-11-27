@@ -36,7 +36,7 @@ The basis line under the title gives the numbers. For (b) it reads "In 23 meetin
 centers while the public pushed back (AI reading)." Every AI reading says "(AI reading)" in the basis, and a tile (which
 shows no basis) is prefixed **AI reading**.
 
-**Only the confident "against" reading is used.** Jev's "for" and "mixed" labels were unreliable in hand checks
+**Only the confident "against" reading is used** (titles: superseded 26 Nov 2026, #1200, below). Jev's "for" and "mixed" labels were unreliable in hand checks
 ([Data center meeting lean](data-center-meeting-lean.md)), so they are never counted and never used in a ratio, and (a) is
 a count of confident against-meetings, not a share of meetings read.
 
@@ -113,6 +113,59 @@ and 585 meetings.", "California took up short-term rentals in 570 meetings, more
 per million). Meeting coverage varies hugely by state, so a per-resident rate measures our coverage, not the state's
 interest. It was dropped. When the top two states are within `STATE_GAP_MIN_RATIO` of each other, both are named: "California
 and North Carolina took up guns most: 659 and 585 meetings."
+
+## Decision: each topic's position in its own words, and the place's conclusion in the title (#1200)
+
+The owner (26 Nov 2026), with a phone screenshot of `/stories/guns` (an all-grey map, title "California and North
+Carolina took up guns most: 659 and 585 meetings."): "We need for, against, neutral and missing — use best words
+available — for positions on each of our topics, and state the conclusion summary position in the state in headline."
+
+- **One vocabulary.** `web_app/src/utils/topicPositions.ts` holds each topic's words for the four positions, restating
+  the stance Jev was asked about in `llm.typesafe.topic_lean.TOPICS` (data centers: their own screen). A vitest reads
+  `topic_lean.py` and fails if a topic has no words, or if guns or short-term rentals stop following its stance.
+
+  | Topic | Against | For | Neutral | Missing |
+  |---|---|---|---|---|
+  | Data centers | Against data centers | For data centers | Split | No AI reading yet / Public didn't speak on it |
+  | Short-term rentals | Want limits on short-term rentals | Want to allow short-term rentals | Split | same |
+  | Flock and license plate readers | Against the cameras | For the cameras | Split | same |
+  | Guns | Opposed the gun proposal | Backed the gun proposal | Split | same |
+  | Pickleball | Against the courts | For the courts | Split | same |
+  | Water fluoridation | End fluoridation | Keep fluoride in the water | Split | same |
+  | Bike lanes | Against the bike lanes | For the bike lanes | Split | same |
+
+  Guns is "the proposal before the body" (a range, show, store, rule or ShotSpotter contract), as `topic_lean` asks it:
+  never "more gun limits", which would invent a direction.
+- **Neutral and missing are kept apart.** Per meeting (AI reading): against = mostly opposed with P ≥ 0.7; for = mostly
+  supportive with P ≥ 0.7; **split** = mixed, or a for/against lean under P 0.7 (the public spoke but no confident side);
+  **missing** = no reading yet, or read and the public didn't speak on the topic. A label outside the question's choices
+  is in none of the four (#1204). The grey on the map says "No AI reading yet, or the public didn't speak on it", and the
+  note under it defines split.
+- **Rule (p) `position`, before every other rule.** With at least `HATES_MIN_MEETINGS` meetings where the public spoke
+  (for + against + split; 50 national, 10 state, 3 city), the title states the place's conclusion with the count:
+  - a side with more than half: "In Ohio, most meetings that took up guns backed the gun proposal before them: 41 of 63
+    where the public spoke (AI reading)."; nationally "Across America, most meetings that took up short-term rentals
+    wanted limits on short-term rentals: …";
+  - against, for data centers, Flock and license plate readers, and pickleball only: "America hates data centers: the
+    public was against them in 283 of 341 meetings where it spoke (AI reading).";
+  - no side over half: "America is split on short-term rentals (AI reading of 641 meetings where the public spoke)."
+  The denominator leaves out meetings where the public didn't speak: they hold no position. The basis line gives every
+  count, larger first and no zeros: "AI reading of each meeting's transcript: of 1,203 meetings read nationwide, the
+  public spoke in 221 (186 against the cameras, 19 for the cameras and 16 split). In 982 it didn't speak on it."
+- **(p2) `wider_position`.** A city or state below the floor takes the nearest broader scope with a conclusion, named,
+  as (a2) did: "America hates data centers: … (AI reading); Tuscaloosa, Alabama brought them up in 2 meetings."
+- **Too few.** Below the floor the earlier rules (a) to (e) run unchanged, and the line under the title says how far the
+  reading has got: "20 of 7,623 meetings have an AI reading so far; the public spoke on guns in 1, too few for a
+  conclusion." or "No meeting in Ohio has an AI reading of the public's position yet."
+- **Supersedes** "Only the confident 'against' reading is used" (#1125) for titles: the owner asked for for, against and
+  neutral. The for and split readings are still unverified by hand check (2 of 4 right for data centers), so every title
+  and basis says "AI reading". The national subhead of a "hates" conclusion keeps the story's own subhead.
+- **API.** caption-facts adds `public_split_meetings` and `public_silent_meetings` and fills `public_for_meetings` for
+  data centers too; each `wider[]` entry adds the same three. state-map adds `silent_meetings` per state, and
+  `no_side_meetings` is the split count above.
+- **Where the words show.** Topic map legend, hover line and data table (`StoryStatesMap`'s `positions` prop, with a
+  "Public didn't speak on it" column), the Data Center Story's unit matrix "By who spoke" groups (`sideLabelsFor`), and
+  the Overview, which states the same title.
 
 ## Thresholds and why
 

@@ -40,9 +40,30 @@ describe('topicStanceForMap (#1127)', () => {
         speakers_for: 1,
         speakers_neutral: 2,
         speakers_question: 0,
+        silent_meetings: 0,
         disagreement_meetings: 1,
       },
     ])
+  })
+
+  it('carries meetings read where the public did not speak as silent, outside the split (#1200)', () => {
+    const map: TopicStanceMap = { topic_id: 100005, available: true, by_state: [{ ...row('CA', 659, 0, 1, 0), lean_meetings: 20, silent_meetings: 19 }] }
+    const [ca] = topicStanceForMap(map)!
+    expect(ca).toMatchObject({ speakers_for: 1, speakers_neutral: 0, silent_meetings: 19 })
+  })
+})
+
+describe('positionLine (#1200)', () => {
+  it('names the topic positions and the meetings where the public did not speak, no zeros', async () => {
+    const { positionLine } = await import('../components/home/StoryStatesMap')
+    const { topicPositions } = await import('./topicPositions')
+    const s = { state_code: 'CA', speakers_against: 30, speakers_for: 6, speakers_neutral: 9, speakers_question: 0, silent_meetings: 180 }
+    expect(positionLine(s, topicPositions('license-plate-readers'))).toBe(
+      "AI reading of 45 meetings where the public spoke: 30 against the cameras · 6 for the cameras · 9 split; in 180 more meetings the public didn't speak on it",
+    )
+    expect(positionLine({ ...s, speakers_against: 0, speakers_for: 0, speakers_neutral: 0, silent_meetings: 19 }, topicPositions('guns'))).toBe(
+      "AI reading: in 19 meetings the public didn't speak on it",
+    )
   })
 })
 
