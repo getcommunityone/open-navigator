@@ -115,7 +115,7 @@ export default function DumbbellChart({ topic, stateCode, scopeLabel, subject, i
         Share of recorded meetings that discussed {subject}, {y0} and {y1}, by {place} · {scopeLabel}
       </p>
       <div className="sc-controls">
-        <div className="folio-seg" role="group" aria-label="Sort the rows">
+        <div className="folio-seg sc-chips" role="group" aria-label="Sort the rows">
           {(
             [
               ['later', `By ${y1}`],

@@ -167,11 +167,25 @@ in the area`), so there is no per-concern share of objections either.
 - The rows: `buildConcernRows` in `web_app/src/utils/concernDumbbell.ts`, tested in `concernDumbbell.test.ts`. The
   screen's headline (#1139/#1147) is unchanged.
 
-### Phone layout (#1228)
+### Phone layout (#1228, compact since #1264)
 
-Under 460px the dumbbell stacks: each row's label sits on its own line with the change right-aligned on the same line,
-and the track sits below it. The gridlines are drawn per row as short segments around the track, so no line, the zero
-line included, crosses a label. The axis labels stay at the bottom.
+Below a chart width of 560px (the timeline's compact breakpoint), each dumbbell row is compact:
+
+- **Line 1:** the label on the left, wrapping to at most 2 lines (`wrapLabel`), and the change right-aligned in the
+  accent colour (the warning colour when it falls).
+- **Line 2:** a thin light-grey track across the full row width. The hollow dot and the filled dot are joined by an
+  accent segment, and each value is printed directly above its dot, muted for the earlier value and accent for the
+  later one.
+- **Label collisions:** labels that would overlap are pushed apart, an equal distance either side of their dots'
+  midpoint, and slid inward at an edge. When the row leaves no room for both side by side, the earlier value goes below
+  the track (`placeValueLabels` in `web_app/src/utils/dumbbellLabels.ts`, tested in `dumbbellLabels.test.ts`).
+- **Single-value rows:** the national Concerns chart has one value per row. It gets the same track with an accent stem
+  from zero and one value label, and its right column is dropped because the label already prints the share.
+- **Removed on phones:** the gridlines, axis ticks and % scale row. Rows are 64px high, or 72px when a label wraps.
+- **Sort buttons:** small pills in one row that scrolls sideways (`.folio-seg.sc-chips`, at 640px and below).
+- **Motion:** the value labels fade in as their dots land.
+
+Desktop keeps the label column, the % axis with gridlines and the change column.
 
 ## Unit matrix
 
