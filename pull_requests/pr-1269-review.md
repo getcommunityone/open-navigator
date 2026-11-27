@@ -20,7 +20,7 @@ in Firefox against a local Vite that serves `.geojson` as octet-stream, like pro
 in 1418935c. Verdict: approve.
 
 ## Scope of Change
-- Files changed: 6 code/docs (+106 / -27, excluding this review)
+- Files changed: 6 code/docs (+121 / -27, excluding this review)
 - Areas touched: api, web_app, web_docs, tests
 - Commits:
   - eea1dc57 fix(data-explorer): draw Cities & towns on the live site, where .geojson is served as octet-stream
