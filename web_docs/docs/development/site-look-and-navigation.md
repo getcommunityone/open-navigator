@@ -71,3 +71,12 @@ reader always knows where a detail page came from.
   a scroller.
 
 Change a face, the teal or the primary button here first, then in those three token places.
+
+## Decision (27 Nov 2026, #1301): the place selector stays in the phone header
+
+The owner asked for the location selector to stay in the header on phones, in the simple pin + ZIP form, with a quick
+toggle to National. Below the menu breakpoint the header row now holds `HeaderPlacePhone`. With no town, it is a pin and
+a ZIP field (`AddressLookup`'s ZIP mode, the same `resolveZipToChoices`). With a town, it is `[📍 town | National]`, one
+tap each way. It folds in #1285's phone "× National" and uses the same `?scope=national` on Home. Narrow phones drop the
+"Open Navigator" name, keeping the C1 mark, so the selector and the menu button fit at 390px. Details:
+[Site navigation](../guides/site-navigation.md#phone-header-place-selector).

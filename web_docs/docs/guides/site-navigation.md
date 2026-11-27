@@ -26,7 +26,7 @@ sections: [Site look and navigation](../development/site-look-and-navigation.md)
 
 ## Place control
 
-The place control sits in the header on desktop and at the top of the phone menu. On a page whose data follows
+The place control sits in the header on desktop and at the top of the phone menu; phones also keep a compact selector in the header row (see below). On a page whose data follows
 `?state=&city=`, it names that page's **actual scope**
 ([#1205](https://github.com/getcommunityone/open-navigator/issues/1205), CLAUDE.md scope label rule). The scope-aware
 pages are `/stories*`, `/search`, `/jurisdictions`, `/browse-topics`, `/browse-causes`, `/decisions-map`,
@@ -61,6 +61,26 @@ A pick goes through `usePlacePick()` (`web_app/src/hooks/usePlacePick.ts`):
 4. It fires `open-navigator:place-picked`; the home page resets its City / State / National level to the new place's.
 
 The dialog traps Tab and locks the page's scroll while open.
+
+## Phone header place selector
+
+Below the 1024px menu breakpoint the header row keeps a place selector on every page, beside the C1 mark and outside the
+☰ menu ([#1301](https://github.com/getcommunityone/open-navigator/issues/1301); owner, 27 Nov 2026: *"the location
+selector should always be in the header on mobile … the simple pin + ZIP version … a way to quickly toggle national"*).
+On a phone narrower than 520px the "Open Navigator" name is hidden so the selector fits; the C1 mark stays.
+
+| State | Selector |
+| --- | --- |
+| No town saved or in the URL | `📍 [ZIP] Go`: a 5-digit field (numeric keyboard). The ZIP resolves through the same `resolveZipToChoices` as the picker; a ZIP that spans places lists its real choices; an unknown ZIP says so |
+| A town, scope-aware page | `[📍 Tuscaloosa, AL \| National]`. The pressed side is the page's scope: the town writes `?state=&city=`, National clears them |
+| A town, Home | The same toggle. National sets `?scope=national` (#1285), and the town side removes it |
+| A town, a page with no place scope | `📍 Tuscaloosa, AL` only (nothing to toggle) |
+
+One tap switches sides and the saved town is kept, so going back needs no retyping. Tapping the pressed town side opens
+the ZIP field to change it (✕ keeps the current place). The toggle replaces #1285's phone-bar "× National"; desktop keeps
+"× National" beside its place control. The rules are `phonePlaceState()` and `searchForScope()` in
+`web_app/src/utils/headerPlace.ts` (tested in `headerPlacePhone.test.ts`). The component is
+`web_app/src/components/HeaderPlacePhone.tsx`. Check it in a browser with `node web_app/e2e/phone-place-header.check.mjs`.
 
 ## Phone menu
 
