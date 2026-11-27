@@ -84,7 +84,7 @@ export default function TopicCompaniesPanel({ queryId, title, stateCode, city = 
                             (c.newest.url.startsWith('/') ? (
                               <> · <Link to={c.newest.url}>Open</Link></>
                             ) : (
-                              <> · <a href={c.newest.url} target="_blank" rel="noopener noreferrer">Watch ↗</a></>
+                              <> · <a href={c.newest.url} target="_blank" rel="noopener noreferrer" className="underline">Watch ↗</a></>
                             ))}
                         </footer>
                       </blockquote>

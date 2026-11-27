@@ -860,3 +860,47 @@ input.range-x:disabled::-moz-range-thumb { border-color: #d6d3d1; cursor: defaul
 .page-bg {
   background-color: #fafaf9;
 }
+
+/* ── Accessibility, site-wide (#1146; web_docs/docs/development/accessibility.md) ─────────────────────────────── */
+/* Skip link: off-screen until focused, then the first thing on the page. */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -100px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: #0f766e;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: 12px;
+  outline: 3px solid #134e4a;
+  outline-offset: 2px;
+}
+/* A visible focus ring on every interactive element. :where() keeps the specificity at zero, so a component's own
+   focus style still wins; this only fills in where none is set. */
+:where(a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex='-1']), [role='button']):focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+/* The story box maps are one tab stop each (useMapKeyboard). */
+[data-map-keys]:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+/* Reduced motion: no animation, transition or smooth scroll for anyone who asks the OS for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

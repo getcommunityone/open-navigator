@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
+import SkipLink from './components/SkipLink'
 import ScrollToTop from './components/ScrollToTop'
 import Home from './pages/Home'
 import HomeV9 from './pages/HomeV9'
@@ -181,6 +182,7 @@ function StoryRoute() {
 function App() {
   return (
     <>
+      <SkipLink />
       <ScrollToTop />
       <RouteChangeTracer />
       <Routes>

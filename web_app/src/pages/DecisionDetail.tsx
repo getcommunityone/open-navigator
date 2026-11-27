@@ -464,7 +464,7 @@ function DecisionThread({ id }: { id: string }) {
         )}
       </div>
       {anyDelay && (
-        <p className="mt-1 text-[12.5px] text-[#8a958f]">
+        <p className="mt-1 text-[12.5px] text-[#5f6b66]">
           Includes a delay — follow how it moved from meeting to meeting.
         </p>
       )}
@@ -494,7 +494,7 @@ function DecisionThread({ id }: { id: string }) {
                       {it.outcome}
                     </span>
                   )}
-                  {it.meeting_name && <span className="text-[12px] text-[#8a958f]">{it.meeting_name}</span>}
+                  {it.meeting_name && <span className="text-[12px] text-[#5f6b66]">{it.meeting_name}</span>}
                   {it.is_current && (
                     <span className="rounded-full bg-[#e8f4f4] px-2 py-0.5 text-[10.5px] font-semibold text-[#1d6b5f]">
                       This page
@@ -637,7 +637,7 @@ function CompetingViews({
 
       {debate && (
         <div className="mt-4">
-          <div className="text-[13px] text-[#8a958f]">The debate</div>
+          <div className="text-[13px] text-[#5f6b66]">The debate</div>
           <p className="mt-1 whitespace-pre-line text-[22px] leading-snug text-[#16201d]" style={CV_SERIF}>
             {debate}
           </p>
@@ -681,7 +681,7 @@ function CompetingViews({
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-3 border-t border-[#e1ebe7] pt-3 text-[12.5px]">
-        <span className="flex items-center gap-1.5 text-[#8a958f]">
+        <span className="flex items-center gap-1.5 text-[#5f6b66]">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M4 6h16M4 12h16M4 18h10" strokeLinecap="round" />
           </svg>
@@ -757,7 +757,7 @@ function ToneSide({ label, accent, side }: { label: string; accent: string; side
         <span className="text-[12px] font-bold uppercase tracking-wide" style={{ color: accent }}>
           {label}
         </span>
-        {intensity && <span className="text-[11.5px] font-medium text-[#8a958f]">Intensity: {intensity}</span>}
+        {intensity && <span className="text-[11.5px] font-medium text-[#5f6b66]">Intensity: {intensity}</span>}
       </div>
       {emotions.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -816,7 +816,7 @@ function HumanElement({ data }: { data: unknown }) {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <span className="text-[15px] font-semibold text-[#16201d]">{sp.name}</span>
-                    {sp.role && <span className="text-[12px] text-[#8a958f]">{sp.role}</span>}
+                    {sp.role && <span className="text-[12px] text-[#5f6b66]">{sp.role}</span>}
                   </div>
                   {s.story_headline && <div className="mt-0.5 text-[13.5px] font-medium text-[#16201d]">{s.story_headline}</div>}
                   {s.story_detail && (
@@ -826,7 +826,7 @@ function HumanElement({ data }: { data: unknown }) {
                     </p>
                   )}
                   {s.why_it_mattered_to_the_decision && (
-                    <p className="mt-1.5 border-l-2 border-[#e1ebe7] pl-3 text-[12.5px] italic leading-relaxed text-[#8a958f]">
+                    <p className="mt-1.5 border-l-2 border-[#e1ebe7] pl-3 text-[12.5px] italic leading-relaxed text-[#5f6b66]">
                       Why it mattered: {s.why_it_mattered_to_the_decision}
                     </p>
                   )}
@@ -858,7 +858,7 @@ function HumanElement({ data }: { data: unknown }) {
                   <span aria-hidden>😄</span>
                   <span>
                     {typeof h.summary === 'string' ? h.summary : ''}
-                    {sp && <span className="text-[#8a958f]"> — {sp.name}</span>}
+                    {sp && <span className="text-[#5f6b66]"> — {sp.name}</span>}
                     {typeof h.summary === 'string' && <EvidenceLink text={h.summary} />}
                   </span>
                 </li>
@@ -911,7 +911,7 @@ function DecisionBlock({ statement }: { statement: string }) {
 function SBSection({ label, body }: { label: string; body: string }) {
   return (
     <div className="mt-5 first:mt-0">
-      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a958f]">
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#5f6b66]">
         {label}
       </div>
       <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#56635e]">{body}</p>
@@ -1258,7 +1258,7 @@ function MeetingRecordCard({ record }: { record?: MeetingRecordEntry[] | null })
       <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1d6b5f]">
         <DocumentTextIcon className="h-4 w-4" /> Official record
       </div>
-      <p className="mt-1 text-[12.5px] text-[#8a958f]">
+      <p className="mt-1 text-[12.5px] text-[#5f6b66]">
         Straight from the meeting’s agenda &amp; minutes — item numbers, motions, and recorded votes.
       </p>
       <div className="mt-4 space-y-5">
@@ -1273,7 +1273,7 @@ function MeetingRecordCard({ record }: { record?: MeetingRecordEntry[] | null })
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[12px] font-bold uppercase tracking-wide text-[#16201d]">
                   {e.doc_kind === 'minutes' ? 'Minutes' : 'Agenda'}
-                  {e.meeting_body ? <span className="font-normal text-[#8a958f]"> · {e.meeting_body}</span> : null}
+                  {e.meeting_body ? <span className="font-normal text-[#5f6b66]"> · {e.meeting_body}</span> : null}
                 </span>
                 {url && (
                   <a href={url} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-medium text-[#1d6b5f] hover:underline">
@@ -1315,7 +1315,7 @@ function MeetingRecordCard({ record }: { record?: MeetingRecordEntry[] | null })
                     {motions.slice(0, 8).map((m, j) => (
                       <li key={j}>
                         {m.text || m.on_item || 'Motion'}
-                        {m.moved_by ? <span className="text-[#8a958f]"> — moved by {m.moved_by}{m.seconded_by ? `, 2nd ${m.seconded_by}` : ''}</span> : null}
+                        {m.moved_by ? <span className="text-[#5f6b66]"> — moved by {m.moved_by}{m.seconded_by ? `, 2nd ${m.seconded_by}` : ''}</span> : null}
                       </li>
                     ))}
                     {motions.length > 8 && <li className="text-[#9bb8b8]">…and {motions.length - 8} more</li>}

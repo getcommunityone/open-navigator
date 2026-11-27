@@ -1637,9 +1637,10 @@ function UnifiedSearchInner() {
                     setActiveQuery('')
                     searchInputRef.current?.focus()
                   }}
-                  className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-3.5 text-gray-500 hover:text-gray-700"
+                  aria-label="Clear search"
                 >
-                  <XMarkIcon className="h-6 w-6" />
+                  <XMarkIcon className="h-6 w-6" aria-hidden="true" />
                 </button>
               )}
             </div>
