@@ -29,6 +29,7 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
+from api.routes.decision_people import DecisionPeople
 from api.routes.search_postgres import get_db_pool
 
 router = APIRouter(prefix="/api/topics", tags=["topics"])
@@ -849,7 +850,7 @@ async def topic_states(
 # --- Decisions: on the topic or in passing (#1293) ------------------------------------------------------------------------
 
 
-class TopicDecision(BaseModel):
+class TopicDecision(DecisionPeople):
     """One decision whose headline or statement matched the topic's keywords, with where it was taken and why it is (or
     isn't) counted as a decision on the topic."""
 
@@ -890,6 +891,8 @@ class TopicDecisionList(BaseModel):
 
 _TOPIC_DECISIONS_SQL = """
     SELECT d.event_decision_id, d.headline, d.decision_statement, d.outcome, d.jurisdiction_name, d.state_code, d.state,
+           d.jurisdiction_type, d.competing_views::text AS competing_views, d.vote_tally::text AS vote_tally,
+           (SELECT ds.speaker_ids::text FROM decision_speakers ds WHERE ds.event_decision_id = d.event_decision_id) AS speaker_ids,
            m.event_meeting_id, m.body_name, m.video_id,
            CASE WHEN COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
                 THEN left(COALESCE(NULLIF(m.event_date, ''), NULLIF(m.meeting_date, '')), 10) END AS meeting_date,
@@ -928,8 +931,15 @@ def youtube_url(video_id: Optional[str]) -> Optional[str]:
     return None
 
 
+def decision_people_fields(r: dict[str, Any], officials: Any = None) -> dict[str, Any]:
+    """The decision's people and vote (#1320); see api/routes/decision_people.py."""
+    from api.routes.decision_people import people_fields
+
+    return people_fields(r, officials)
+
+
 def shape_topic_decisions(
-    topic_id: int, slug: Optional[str], rows: List[Any], lean: dict[str, dict[str, Any]], limit: int
+    topic_id: int, slug: Optional[str], rows: List[Any], lean: dict[str, dict[str, Any]], limit: int, officials: Any = None
 ) -> TopicDecisionList:
     """Classify every decision in scope (topic_relevance) and keep the newest `limit` of each group."""
     from api.routes.topic_relevance import classify_decision
@@ -970,6 +980,7 @@ def shape_topic_decisions(
                 video_id=r.get("video_id") if youtube_url(r.get("video_id")) else None,
                 relevance=rel,
                 relevance_basis=basis,
+                **decision_people_fields(r, officials),
             )
         )
     return TopicDecisionList(
@@ -1004,6 +1015,9 @@ async def list_topic_decisions(
                 slug = await conn.fetchval("SELECT query_id FROM civicsearch_topic WHERE topic_id = $1", topic_id)
                 rows = [dict(r) for r in await conn.fetch(_TOPIC_DECISIONS_SQL, tsq, state_code, city_like)]
                 videos = sorted({str(r["video_id"]) for r in rows if r.get("video_id")})
+                from api.routes.decision_people import load_officials
+
+                officials = await load_officials(conn, {(r.get("state_code"), r.get("jurisdiction_name")) for r in rows})
                 lean: dict[str, dict[str, Any]] = {}
                 if videos:
                     try:
@@ -1014,7 +1028,7 @@ async def list_topic_decisions(
             logger.exception("topic decisions failed")
             span.record_exception(exc)
             raise HTTPException(status_code=503, detail="Decisions for this topic are unavailable right now.") from exc
-        out = shape_topic_decisions(topic_id, slug, rows, lean, limit)
+        out = shape_topic_decisions(topic_id, slug, rows, lean, limit, officials)
         span.set_attribute("topics.decisions_total", out.total)
         span.set_attribute("topics.decisions_on_topic", out.on_topic_total)
         return out
