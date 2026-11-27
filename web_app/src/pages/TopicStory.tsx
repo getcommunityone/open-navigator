@@ -39,6 +39,7 @@ import PlaceControl from '../components/stance/PlaceControl'
 import ProgressPips from '../components/stance/ProgressPips'
 import StoryClose from '../components/stance/StoryClose'
 import ScopeBar from '../components/stance/ScopeBar'
+import ScopeNote from '../components/stance/ScopeNote'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
@@ -707,9 +708,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         note={
           placeScope.resolved.reason ? (
             // Why the story shows a wider place than the one asked (#1285); the URL keeps the reader's choice.
-            <p className="story-scope-note" role="note" data-scope-level={placeScope.resolved.level}>
-              {placeScope.resolved.reason}
-            </p>
+            <ScopeNote short={placeScope.resolved.short ?? placeScope.resolved.reason} full={placeScope.resolved.reason} level={placeScope.resolved.level} />
           ) : undefined
         }
         close={<StoryClose to={homeHref} escape={!placeOpen} />}
@@ -801,6 +800,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         <StoryBottomBar
           active={active}
           count={n}
+          labels={labels}
+          onJump={goTo}
           nextLabel={null}
           onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
           withNext={false}

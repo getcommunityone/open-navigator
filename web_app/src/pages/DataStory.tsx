@@ -8,6 +8,7 @@ import StoryNextButton from '../components/stance/StoryNextButton'
 import ProgressPips from '../components/stance/ProgressPips'
 import PlaceControl from '../components/stance/PlaceControl'
 import ScopeBar from '../components/stance/ScopeBar'
+import ScopeNote from '../components/stance/ScopeNote'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenView from '../components/stance/StoryScreenView'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
@@ -393,9 +394,7 @@ export default function DataStory() {
         note={
           placeScope.resolved.reason ? (
             // Why the story shows a wider place than the one asked (#1285); the URL keeps the reader's choice.
-            <p className="story-scope-note" role="note" data-scope-level={placeScope.resolved.level}>
-              {placeScope.resolved.reason}
-            </p>
+            <ScopeNote short={placeScope.resolved.short ?? placeScope.resolved.reason} full={placeScope.resolved.reason} level={placeScope.resolved.level} />
           ) : undefined
         }
         close={<StoryClose to={storyCloseHref(storyId, askedQuery)} escape={!dialogOpen} />}
@@ -577,6 +576,8 @@ export default function DataStory() {
         <StoryBottomBar
           active={active}
           count={n}
+          labels={labels}
+          onJump={goTo}
           nextLabel={active < n - 1 ? (screens[active + 1]?.eyebrow ?? null) : null}
           onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
           withNext={false}
