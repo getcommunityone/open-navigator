@@ -1949,6 +1949,8 @@ html.stance-snap {
   height: 100%;
   max-height: 100%;
   overflow-y: auto;
+  /* A long screen scrolls inside itself; at its ends the gesture is not handed to the page (which would snap to another screen). */
+  overscroll-behavior-y: contain;
   padding-bottom: 14px;
   scrollbar-width: none;
 }
