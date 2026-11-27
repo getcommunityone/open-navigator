@@ -201,7 +201,7 @@ export function storyConclusion(
   if (leanPass) {
     const states = lean?.states ?? 0
     const where = placePhrase ? ` ${placePhrase}` : states > 0 ? ` across ${pluralN(states, 'state')}` : ''
-    parts.push(`The public mostly opposed ${story.topic} in ${pluralN(against, 'meeting')}${where} (AI reading of meetings).`)
+    parts.push(`The public mostly opposed ${story.topic} in ${pluralN(against, 'meeting')}${where}.`)
   }
   const hand = counts ? handCountSentence(counts, c.side, placePhrase) : null
   if (hand) parts.push(hand)
@@ -718,6 +718,18 @@ export function overviewLean(res: DataCenterPositionsResponse | null | undefined
   return `${place} was split: ${fmt(c.for)} spoke for and ${fmt(c.against)} against data centers.`
 }
 
+const normTitle = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+
+/**
+ * A screen headline that is not the page's title (#1222): the first candidate that differs from `title` (ignoring case and
+ * punctuation), or null. The story header states the title; the Overview (and a topic story's) leads with its own line.
+ */
+export function distinctHeadline(title: string | null | undefined, ...candidates: (string | null | undefined)[]): string | null {
+  const t = title ? normTitle(title) : ''
+  for (const c of candidates) if (c && normTitle(c) !== t) return c
+  return null
+}
+
 function overviewText(data: StoryData, scope: StoryScope, caption?: ScreenCaption | null): ScreenText {
   const stats = storyStats(data)
   const place = scope.stateName ? storyScopeLabel(scope) : null
@@ -729,15 +741,16 @@ function overviewText(data: StoryData, scope: StoryScope, caption?: ScreenCaptio
   // The opener's headline is always a claim from meeting records; sites and projects never lead it.
   // At a state or city scope with enough speakers on record, the headline says which way they spoke (#1115) and the meeting
   // count becomes the context line. Below the national conclusion's minimum the neutral count stays: nothing is overstated.
-  // The Overview states the same title as the header and the home hero (#1125, #1134) whenever the caption is not the question.
-  // Any caption but the bare question is the title, so the Overview never makes a different (or stronger) claim.
+  // The title is said once (#1222, owner 2026-11-26): the header states the caption; the Overview never repeats it. With a
+  // conclusion caption it leads with its own count of the record instead (and never a different, stronger speaker claim).
   if (caption && caption.kind !== 'question' && caption.text) {
-    return {
-      headline: caption.text,
-      context: meetings ? `A data center came up in ${plural(meetings, 'meeting')}${place ? ` in ${place}` : ''}. ${context}` : context,
-      empty: false,
-      failed: false,
-    }
+    const lead = distinctHeadline(
+      caption.text,
+      meetings ? `A data center came up in ${plural(meetings, 'meeting')} ${where(place)}.` : null,
+      passages ? `Meeting passages that mention a data center ${where(place)} number ${fmt(passages)}.` : null,
+      agendas ? `Meeting agendas that name a data center ${where(place)} number ${fmt(agendas)}.` : null,
+    )
+    if (lead) return { headline: lead, context, empty: false, failed: false }
   }
   const lean = place ? overviewLean(data.positions as DataCenterPositionsResponse | null | undefined, place) : null
   if (lean) {

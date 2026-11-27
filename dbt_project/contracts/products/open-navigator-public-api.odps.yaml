@@ -474,12 +474,37 @@ outputPorts:
   version: 1.0.0
   contractId: open-navigator-public-topic_meeting_lean
   type: table
-  description: Jev's AI reading of how the public and elected officials leaned on a curated topic, per meeting (#1126).
+  description: One row per meeting video and topic (topic_transcript_link) with a Jev screen under the topic's current question version.
+- name: meeting_video_kind
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_video_kind
+  type: table
+  description: 'What kind of video each quoted recording is (#1230): Jev''s meeting_kind for every video a topic link or a data-center mention quotes and that Jev screened.'
 - name: recorded_meeting_year
   version: 1.0.0
   contractId: open-navigator-public-recorded_meeting_year
   type: table
   description: 'One row per (state_code, jurisdiction_id, jurisdiction_name, meeting_year): distinct meeting videos in event_youtube_with_jurisdiction that have a usable transcript.'
+- name: segmented_meeting
+  version: 1.0.0
+  contractId: open-navigator-public-segmented_meeting
+  type: table
+  description: One row per meeting video whose captions were split into comments by `python -m ingestion.meetings.comment_segments` (at least one comment found).
+- name: meeting_comment
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_comment
+  type: table
+  description: One row per comment segmented from a meeting's captions, with free keyword flags (seeds comment_concern_terms, comment_entity_terms, comment_role_terms, curated_topics).
+- name: data_center_comment
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_comment
+  type: table
+  description: 'Public comments about a data center: the data-center view over meeting_comment (see the model header for own_words vs same_block).'
+- name: data_center_comment_place
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_comment_place
+  type: table
+  description: 'Public places named in a data-center public comment (phase 1b): roads/routes, schools, counties, neighborhoods, districts, sites (seed comment_place_patterns) and gazetteer hits on our own jurisdictions and curated data_center_project names.'
 - name: meeting_passage_speaker
   version: 1.0.0
   contractId: open-navigator-public-meeting_passage_speaker

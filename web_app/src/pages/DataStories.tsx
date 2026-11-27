@@ -9,6 +9,7 @@ import PlaceControl from '../components/stance/PlaceControl'
 import PositionsBlock from '../components/stance/PositionsBlock'
 import StatRow from '../components/stance/StatRow'
 import { useStoryData } from '../components/stance/useStoryData'
+import { storyStartHref } from '../utils/storyNav'
 import { useTopicStories } from '../hooks/useTopicStories'
 import { STATE_CODES } from '../lib/usStates'
 import {
@@ -169,7 +170,7 @@ export default function DataStories() {
                   <p className="stance-note">{card.blurb}</p>
                 ) : null}
                 <div className="stories-actions">
-                  <Link className="folio-btn stance-next stories-start" to={`/stories/${encodeURIComponent(card.story)}${q}`}>
+                  <Link className="folio-btn stance-next stories-start" to={storyStartHref(card.story, q)}>
                     {storyStartLabel(card.captionKey, label, card.title)} <span aria-hidden="true">→</span>
                   </Link>
                 </div>

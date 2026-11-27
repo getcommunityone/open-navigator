@@ -1928,6 +1928,26 @@ sources:
             description: "When the file was fetched."
           - name: record
             description: "The whole record as published (JSON object, or the CSV row header -> value)."
+      - name: bronze_meeting_comment_segment
+        config:
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 30, period: day}
+        description: >
+          Public comments split out of meeting captions (#1233, epic #1232), one row per detected comment,
+          landed by `python -m ingestion.meetings.comment_segments`. Segmentation is topic-agnostic and runs
+          once per meeting (every meeting a curated topic links to, plus the data-center set). A comment runs
+          from a speaker boundary (a self-introduction or the chair calling a speaker) to the next boundary,
+          a closing ("your time is up"), a 20-second pause or 8 minutes. comment_text and intro_text are the
+          caption words with any home address or street of residence replaced by "[address removed]"
+          before storing; intro_name is the name as heard and is never served (dbt serves "First L." only).
+        columns:
+          - name: comment_segment_id
+            description: "PK: md5(video_id | start_seconds | end_seconds)."
+            tests: [unique, not_null]
+          - name: video_id
+            description: "YouTube video id of the meeting recording."
+            tests: [not_null]
       - name: bronze_data_center_news_item
         config:
           loaded_at_field: last_seen_at
@@ -2198,26 +2218,60 @@ sources:
           - name: question_probabilities
           - name: screened_at
 
+      - name: bronze_video_meta_screen_jev
+        description: >
+          Jev (TypeSafe) screen of a video's title and description, one row per video (PK video_id), landed by
+          ``llm.typesafe.screen_video_meta``. Its meeting_kind (government_meeting, town_hall, government_other,
+          not_government) backs stg_jev__video_meeting_kind where the transcript screen hasn't read the video (#1230).
+        columns:
+          - name: video_id
+          - name: question_version
+          - name: model
+          - name: meeting_kind
+          - name: meeting_kind_probabilities
+          - name: screened_at
+
       - name: bronze_transcript_topic_lean_jev
         description: >
-          Jev (TypeSafe) reading of how the public and elected officials leaned on one curated topic, per meeting
-          (#1126). One row per (video_id, topic_id, question_version). Landed by
-          ``python -m llm.typesafe.screen_transcripts --topic <slug>`` (llm.typesafe.topic_lean), only for meetings
-          linked to the topic. Classifier probabilities only; Jev writes no text and nothing is tied to a person.
-          The table is created by the first run; until then stg_jev__transcript_topic_lean builds empty.
+          Jev (TypeSafe) reading of how the public and the elected officials leaned on one topic in one meeting, and
+          what the body did (#1126). PK (video_id, topic_id, question_version). Landed by
+          ``python -m llm.typesafe.screen_transcripts --topic <slug|all>`` (llm.typesafe.topic_lean, whose CREATE_SQL
+          defines these columns; a test keeps this list in step, #1201) for the meetings in topic_transcript_link.
+          Classifier probabilities only; Jev writes no text. An aggregate per meeting, never tied to a person. Water
+          fluoridation uses CareQuest's five poll positions instead of the shared lean labels. Until the first run
+          creates the table, stg_jev__transcript_topic_lean builds empty.
         columns:
           - name: video_id
             description: "Meeting video (with topic_id and question_version, the primary key)."
           - name: topic_id
             description: "Curated topic id (civicsearch_topic)."
           - name: question_version
-            description: "Hash of the topic's question wording."
+            description: "Hash of the topic's question wording (llm.typesafe.topic_lean.question_version)."
+          - name: topic_slug
+            description: "The topic's CLI slug (guns, short-term-rentals, pickleball, license-plate-readers, water-fluoridation)."
+          - name: model
           - name: public_lean
-            description: "mostly_opposed, mostly_supportive, mixed or did_not_speak."
+            description: "mostly_supportive, mostly_opposed, mixed or did_not_speak (water fluoridation: the five CareQuest positions or did_not_speak)."
+          - name: public_lean_probabilities
           - name: official_lean
             description: "Same labels, for the elected officials."
+          - name: official_lean_probabilities
           - name: outcome
-            description: "approved, denied, tabled_or_deferred, moratorium, discussed_no_action or no_item."
+            description: "advanced, blocked, tabled_or_deferred, discussed_no_action or no_item (water fluoridation: its own five outcomes)."
+          - name: outcome_probabilities
+          - name: chunk_count
+          - name: chunks_screened
+          - name: keyword_chunks
+            description: "Chunks of the transcript that hold one of the topic's keywords."
+          - name: chunk_selection
+            description: "keyword_passages (the chunks holding the topic's keyword passages) or evenly_spaced (no keyword in the captions), #1145."
+          - name: passages_covered
+            description: "How many of the screened chunks hold a keyword passage (of keyword_chunks), #1145."
+          - name: transcript_chars
+          - name: input_tokens
+          - name: answers
+            description: "Jev's per-chunk answers (probabilities only)."
+          - name: screened_at
       - name: bronze_bls_qcew_industry
         description: >
           BLS Quarterly Census of Employment and Wages, annual averages for one industry (default NAICS 518210,
@@ -2687,6 +2741,17 @@ sources:
             description: "JSONB array/object of associated .gov domains (matched with the ? operator)."
 
 models:
+  - name: stg_jev__video_meeting_kind
+    description: >
+      Jev's meeting_kind per recording (#1230), one row per video_id: the transcript screen's answer where it read the
+      video, else the video-meta screen's. Feeds the meeting_video_kind mart. No classifier runs here.
+    columns:
+      - name: video_id
+        tests: [not_null, unique]
+      - name: meeting_kind
+        tests: [not_null]
+      - name: kind_source
+      - name: screened_at
   - name: stg_suiteone_meeting_documents
     description: >
       Cleaned SuiteOne agenda/minutes PDFs from the municipal-calendar crawl in

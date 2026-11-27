@@ -20,10 +20,10 @@ from api.routes import data_centers, topics
 NEWEST = [
     {"topic_transcript_link_id": "t1", "video_id": "v1", "event_title": "Council", "event_date": dt.date(2026, 3, 1),
      "state_code": "TX", "state": "Texas", "city": "Austin", "jurisdiction_name": "Austin", "video_url": "u",
-     "evidence_passage": "the <mark>pickleball</mark> courts", "n_keyword_hits": 1},
+     "evidence_passage": "the <mark>pickleball</mark> courts", "n_keyword_hits": 1, "public_stance": None},
     {"topic_transcript_link_id": "t2", "video_id": "v2", "event_title": "Council", "event_date": None,
      "state_code": "WI", "state": "Wisconsin", "city": None, "jurisdiction_name": "Madison", "video_url": "u",
-     "evidence_passage": "more <mark>pickleball</mark>", "n_keyword_hits": 1},
+     "evidence_passage": "more <mark>pickleball</mark>", "n_keyword_hits": 1, "public_stance": "against"},
 ]
 
 

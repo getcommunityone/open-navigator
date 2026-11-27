@@ -11,6 +11,58 @@ caption for every topic: lead with disagreement where it is high-volume, and oth
 differ. Only the data-center story had a conclusion ("America hates data centers."); the rest said "X talked about Y in N
 meetings." or showed a fixed blurb.
 
+## Decision (26 Nov 2026, #1234): the title is the short conclusion only, no "AI reading" text
+
+**This decision overrides the title wording in the older sections below** (#1182 "America hates data centers; Tuscaloosa,
+Alabama brought them up in 2 meetings.", #1200 "…: the public was against them in 283 of 341 meetings where it spoke (AI
+reading)."). The owner, on the live site on a phone, 26 Nov 2026:
+
+> "This title is terrible, we need the simple America hates conclusion we had before."
+> "If you are in Tuscaloosa scope it should not say the United States."
+> "This should not have same title twice and AI reading is garbage text, remove it."
+
+What `pickCaption` now returns, for every title (home cards, story header, `/stories` cards, topic stories):
+
+- **The title is only the conclusion sentence**, about 60 characters at most, nothing appended: "America hates data
+  centers.", "Alabama hates data centers." (only when Alabama's own reading passes its floor), "America hates Flock and
+  license plate readers.", "America is split on short-term rentals.", "California mostly wants limits on short-term
+  rentals." (the predicate is the topic's `againstTitle` / `forTitle` in `utils/topicPositions.ts`; a topic without them
+  says "mostly opposes / mostly supports [topic]"). "hates" stays limited to data centers, Flock / plate readers and
+  pickleball. A topic without "hates" whose (a) passes says "[Place] mostly opposes [topic]." (no count). No counts, no
+  "(AI reading)", no "; [place] brought them up …" clause.
+- **A place whose own reading is under the floor** (`wider_position`, `wider_sentiment`) gets the nearest broader
+  conclusion as that same simple sentence ("America hates data centers." at Tuscaloosa), so the title says what the map
+  beside it shows. The place's own facts open the basis line ("Tuscaloosa, Alabama talked about data centers in 2
+  meetings. Of its 2 meetings read, the public spoke in 1, under the 3 a conclusion of its own needs. Across America, the
+  public was against data centers in 300 of 340 meetings where it spoke. …"), and the subhead starts with the place
+  ("Tuscaloosa, Alabama has too few meetings where the public took a side for a conclusion of its own; the title is
+  America's."). No "In the United States," lead is added anywhere.
+- **No conclusion anywhere**: the count titles stay ("California and North Carolina took up guns most: 659 and 585
+  meetings.").
+- **Counts move to the basis**, which opens with the conclusion's count ("The public was against data centers in 283 of
+  341 meetings where it spoke.") and then the full split.
+- **No "AI reading" sentence text** in any title, subhead or basis line: "(AI reading)", "AI reading of each meeting's
+  transcript: …" and "with an AI reading" are gone ("Of 1,828 meetings read nationwide, …", "Of its 71 meetings read,
+  …", "20 of 700 meetings have a reading so far"). One plain disclosure stays where a reader can find it: the map legend
+  and its **How to read this map** note ("The AI reading is a classifier's reading of each meeting's transcript, not
+  counted speakers."). Compact chips stay ("AI reading" on milestone cards and the home topic tiles).
+- **The title is said once.** The story header states it; the Overview screen never repeats it but leads with its own
+  count of the record ("A data center came up in 17 meetings in Texas.", kicker "First, where are they?"), via
+  `distinctHeadline(title, ...candidates)` in `utils/dataStory.ts`, which a topic story's Overview can reuse.
+- **The home title's place control** (#1212): on the place word when the title names the scope ("[America ▾] hates data
+  centers."). When it names a broader place (or, nationally, the leading state), `splitCaptionAtPlace` returns null and
+  the control goes in the line under the title, on the place where that line names it, else as "Showing [place ▾]"
+  (`HomeStorySubhead`; on the story, the cover's subhead).
+
+Before and after, live data 26 Nov 2026 (data centers):
+
+| Scope | Before | After |
+|---|---|---|
+| National | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading). | America hates data centers. |
+| `?state=AL` | America hates data centers: the public was against them in 283 of 341 meetings where it spoke (AI reading); Alabama brought them up in 71 meetings. | America hates data centers. (subhead: "Alabama has too few meetings where the public took a side …") |
+| `?state=AL&city=Tuscaloosa` | America hates data centers: … (AI reading); Tuscaloosa, Alabama brought them up in 2 meetings. | America hates data centers. (subhead starts "Tuscaloosa, Alabama …", the place control) |
+| `?state=TX` | Texas hates data centers: the public was against them in 17 of 18 meetings where it spoke (AI reading). (header and Overview) | Texas hates data centers. (header only; Overview: "A data center came up in N meetings in Texas.") |
+
 ## Decision: one title, five rules, real counts only
 
 `pickCaption(topic, facts, scope)` in `web_app/src/utils/storyCaption.ts` returns `{kind, template, place, basis, ai}`. The
@@ -61,7 +113,7 @@ talked about data centers in 2 meetings." beside an almost all red national map 
   reading (`ai: true`). It runs after the place's own (a) and (b) and before (c), because (c) and (d) describe volume
   while the map beside the title is coloured by lean.
 - ~~**"Leaned against" for the other topics.**~~ (wording superseded 26 Nov 2026, #1190, below; the rule stands) `topic_meeting_lean` (#1126) fixes which way "for" points for each topic
-  (allowing short-term rentals, keeping fluoride, building lanes; for guns, the proposal before the body), so a confident
+  (allowing short-term rentals, keeping fluoride, building lanes; for guns, the proposal before the body, superseded by #1237: gun limits vs gun rights), so a confident
   "against" now has a stated direction. Those topics get (a) with "leaned against" (`CaptionCopy.against`) on the same
   thresholds, never "hates"; guns reads "leaned against what was proposed on guns". When (b) also passes for such a topic,
   "is divided" leads, as before.
@@ -84,7 +136,7 @@ mostly against, mostly for or split on the topic (`topic_meeting_lean`, `data_ce
 
 - **Titles for topics without "hates"** (everything but data centers, Flock and license plate readers, and pickleball) lead
   with the count: "In 81 meetings, the public mostly opposed water fluoridation."; at a place, "In 12 meetings in Arizona,
-  the public mostly opposed short-term rentals." Guns say "the public mostly opposed the gun measures proposed", because
+  the public mostly opposed short-term rentals." Gun control says "the public mostly opposed local gun-control measures", because
   opposing could mean opposing guns or opposing gun limits (`CaptionCopy.opposed`, which replaces `CaptionCopy.against`).
   Because the title states the AI count, it needs the meeting reading itself; "hates" may still rest on counted speakers.
   The "[Place] hates X." titles are unchanged.
@@ -104,7 +156,7 @@ Titles on 26 Nov 2026 after the change (local warehouse): water fluoridation "In
 fluoridation." (was "America leaned against water fluoridation."); data centers "America hates data centers." and, at
 `?state=AL&city=Tuscaloosa`, "America hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings." (unchanged
 titles, new basis wording). Guns (0 confident public-against meetings of 20 read) and short-term rentals (1 of 19) do not
-reach the national floor of 50, so they keep their volume titles ("California and North Carolina took up guns most: 659
+reach the national floor of 50, so they keep their volume titles ("California and North Carolina took up gun control most: 659
 and 585 meetings.", "California took up short-term rentals in 570 meetings, more than any other state.").
 
 **No zero clauses.** No title or basis states a zero ("0 spoke for"): a zero clause is left out (owner rule).
@@ -112,7 +164,34 @@ and 585 meetings.", "California took up short-term rentals in 570 meetings, more
 **No per-resident claim.** An earlier draft named the state with the most meetings per resident (guns: South Dakota, 268
 per million). Meeting coverage varies hugely by state, so a per-resident rate measures our coverage, not the state's
 interest. It was dropped. When the top two states are within `STATE_GAP_MIN_RATIO` of each other, both are named: "California
-and North Carolina took up guns most: 659 and 585 meetings."
+and North Carolina took up gun control most: 659 and 585 meetings."
+
+## Decision: "Gun control", with two named sides (#1237)
+
+The owner (26 Nov 2026), on the guns map legend "Opposed the gun proposal / Backed the gun proposal / Split": "On guns how
+are you defining oppose? We should probably label it gun control. I can't tell what we are doing and don't trust it."
+and "These titles are terrible. Is the proposal control or rights expansion? Define it better."
+
+- **The topic shows as "Gun control"** on the home tile, the /stories card, the story eyebrow, the Start button
+  ("Start the gun control story"), the tab ("Gun control — Data story | Open Navigator"), Next story labels and titles
+  (`CAPTION_COPY.guns.topic` = "gun control"). The names come from the web copy layer (`homeTopicTiles.ts`,
+  `topicStories.ts` `TOPIC_COPY`, `storyCaption.ts`), not the `curated_topics` seed: the seed's "Guns" is denormalized
+  into `meeting_topic_link.link_label` and the browse/search marts, so renaming it would mean rebuilding those marts and
+  the Neon copy for a label the story surfaces already override. Browse Topics and search keep the catalog's "Guns".
+  The topic id (100005), slug and `/stories/guns` are unchanged.
+- **Two named sides, not for/against a proposal.** The stored readings were written by the gun-control question
+  (`question_version` `48468cc5296e`): `mostly_supportive` = asking for a limit on firearms, **"Favor gun limits"**;
+  `mostly_opposed` = defending gun rights, opposing the limit, or backing a Second Amendment sanctuary or other
+  rights-expansion resolution, **"Favor gun rights"**. Split stays "Split"; missing reads "No reading yet, or the public
+  didn't speak on it".
+- **The map's "How to read this map" note defines both sides and what isn't counted:** "Gun limits = a local measure
+  restricting firearms (where they may be carried or fired, sales, ranges or shops near homes, storage). Gun rights =
+  opposing such limits or backing a Second Amendment sanctuary or rights-expansion resolution. Not counted: police
+  service weapons, ShotSpotter, tools called guns."
+- **Titles** follow whatever title rule is in force, with the topic's words: "In Ohio, most meetings that took up gun
+  control favored gun limits: …", "Ohio is split on gun control …". Main's `topic_lean.py` still holds the earlier
+  "proposal before the body" question; committing the data-writing one is
+  [#1239](https://github.com/getcommunityone/open-navigator/issues/1239), and a skipped vitest turns on once it lands.
 
 ## Decision: each topic's position in its own words, and the place's conclusion in the title (#1200)
 
@@ -129,13 +208,12 @@ available — for positions on each of our topics, and state the conclusion summ
   | Data centers | Against data centers | For data centers | Split | No AI reading yet / Public didn't speak on it |
   | Short-term rentals | Want limits on short-term rentals | Want to allow short-term rentals | Split | same |
   | Flock and license plate readers | Against the cameras | For the cameras | Split | same |
-  | Guns | Opposed the gun proposal | Backed the gun proposal | Split | same |
+  | Gun control (`guns`) | Favor gun rights | Favor gun limits | Split | No reading yet / Public didn't speak on it |
   | Pickleball | Against the courts | For the courts | Split | same |
   | Water fluoridation | End fluoridation | Keep fluoride in the water | Split | same |
   | Bike lanes | Against the bike lanes | For the bike lanes | Split | same |
 
-  Guns is "the proposal before the body" (a range, show, store, rule or ShotSpotter contract), as `topic_lean` asks it:
-  never "more gun limits", which would invent a direction.
+  Gun control names both sides instead of for/against a "proposal" (#1237, below).
 - **Neutral and missing are kept apart.** Per meeting (AI reading): against = mostly opposed with P ≥ 0.7; for = mostly
   supportive with P ≥ 0.7; **split** = mixed, or a for/against lean under P 0.7 (the public spoke but no confident side);
   **missing** = no reading yet, or read and the public didn't speak on the topic. A label outside the question's choices
@@ -143,7 +221,7 @@ available — for positions on each of our topics, and state the conclusion summ
   note under it defines split.
 - **Rule (p) `position`, before every other rule.** With at least `HATES_MIN_MEETINGS` meetings where the public spoke
   (for + against + split; 50 national, 10 state, 3 city), the title states the place's conclusion with the count:
-  - a side with more than half: "In Ohio, most meetings that took up guns backed the gun proposal before them: 41 of 63
+  - a side with more than half: "In Ohio, most meetings that took up gun control favored gun limits: 41 of 63
     where the public spoke (AI reading)."; nationally "Across America, most meetings that took up short-term rentals
     wanted limits on short-term rentals: …";
   - against, for data centers, Flock and license plate readers, and pickleball only: "America hates data centers: the

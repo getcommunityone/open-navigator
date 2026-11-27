@@ -1,10 +1,54 @@
 # YouTube Audio Downloader for Google Drive
 
+## Meeting audio to OneDrive (`download_meeting_audio`, #1255)
+
+The newer CLI downloads a scoped set of meetings and stores them on the owner's **personal** OneDrive
+through rclone, one file at a time, without filling the local disk. Why YouTube, and the limits every run
+keeps: `web_docs/docs/development/meeting-audio-source-decision.md`.
+
+One-time setup, by the owner (needs a browser sign-in to the **personal** Microsoft account, never the
+CDC work account):
+
+```bash
+rclone config create onedrive onedrive   # choose "OneDrive Personal" when asked
+rclone lsd onedrive:CommunityOne          # find the existing YouTube audio folder
+```
+
+Run:
+
+```bash
+# What is in scope, what we already hold (by location), and hours/GB left to download
+python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --dry-run
+
+# Three files as a test, then the rest (polite: 8 s + jitter between videos)
+python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --target onedrive --limit 3
+python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --target onedrive
+```
+
+- **Never downloads twice.** Before anything else it inventories the OneDrive folder (`rclone lsf -R`,
+  any audio extension), the bronze tracking columns and `data/cache/youtube_audio` (read only), keyed by
+  `video_id`. A `video_id` anywhere in a filename counts as held; so do legacy
+  `YYYY-MM-DD_<title>.opus` names and tracked paths. Held locally only → the existing file is uploaded.
+  Matches are saved to `bronze.bronze_meeting_audio_inventory` and the tracking columns.
+- **Where:** `onedrive:CommunityOne/youtube_audio/<state>/<channel_slug>_<channel_id>/YYYY-MM-DD_<title> [<video_id>].opus`
+  (the legacy layout plus the id). `--source suiteone|granicus` picks a sibling folder;
+  `--remote`, `--community-root` and `--remote-root` override the names.
+- **Targets:** `--target onedrive` (default), `local` or `drive` (a mounted folder, with `--output-dir`).
+- **Size:** re-encoded to 64 kbps Opus (~28 MB/h, ~2.5 CPU-minutes per audio hour); `--no-transcode` keeps
+  YouTube's ~120 kbps stream.
+- **Stops on blocks:** 403/429/bot checks double the pause; three in a row exit with code 3.
+- Records `audio_downloaded_at`, `audio_file_path` (the rclone path) and `audio_file_size_mb` on
+  `bronze.bronze_event_youtube`.
+
+---
+
+## Legacy: Google Drive downloader (`download_audio_to_drive.py`)
+
 Download audio-only files from YouTube videos in `bronze_event_youtube` table, organized by channel and date.
 
 ## ✨ Features
 
-- 🎵 Audio-only downloads (opus format, ~10-20 MB/hour)
+- 🎵 Audio-only downloads (opus format; YouTube's stream is ~120 kbps ≈ 50 MB/hour unless re-encoded)
 - 📁 Organized by channel → `YYYY-MM-DD_title.opus`
 - ⏭️ Skips already downloaded files
 - 📊 Progress tracking and resumable
@@ -96,8 +140,8 @@ youtube_audio/
 ## 🎵 Audio Format
 
 - **Codec**: Opus (best quality/size ratio)
-- **Size**: ~10-20 MB per hour of audio
-- **Quality**: 128 kbps
+- **Size**: ~50 MB per hour as YouTube serves it (~120 kbps); ~28 MB per hour re-encoded to 64 kbps
+- **Quality**: `--opus-bitrate` is ignored when yt-dlp copies an Opus stream; `download_meeting_audio` re-encodes
 - **Container**: .opus file
 
 ## 📊 Database Query

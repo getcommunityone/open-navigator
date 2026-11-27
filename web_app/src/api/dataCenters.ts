@@ -282,9 +282,13 @@ export async function fetchDataCenterMeetingMentions(params: {
   state?: string
   city?: string
   limit?: number
+  /** For the story map cards (#1230): up to this many passages per state, real meetings only, meetings where the
+   *  public mostly opposed first, newest first (instead of the newest `limit`). Counts are unchanged. */
+  quotesPerState?: number
 }): Promise<DataCenterMeetingMentionsResponse> {
   const q: Record<string, string> = {}
   if (params.limit) q.limit = String(params.limit)
+  if (params.quotesPerState) q.quotes_per_state = String(params.quotesPerState)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
@@ -343,4 +347,23 @@ export async function fetchDataCenterProjects(params: {
     },
     { 'data_centers.scope_level': scopeLevel },
   )
+}
+
+// --- comment-level metrics from our own captions (#1233) -----------------------------------------------------------
+// Shapes from the FastAPI schema (`CommentMetricsResponse` in api/routes/data_center_comments.py).
+export type DataCenterCommentMetrics = Schemas['CommentMetricsResponse']
+
+/** Public comments about data centers segmented from our captions, with free keyword counts (#1233). */
+export async function fetchDataCenterCommentMetrics(params: {
+  year?: number
+  state?: string
+  city?: string
+}): Promise<DataCenterCommentMetrics> {
+  return withSpan('fetch-data-center-comment-metrics', async () => {
+    const q: Record<string, string> = { year: String(params.year ?? 2026) }
+    if (params.state) q.state = params.state
+    if (params.city) q.city = params.city
+    const res = await api.get<DataCenterCommentMetrics>('/data-centers/comment-metrics', { params: q })
+    return res.data
+  })
 }

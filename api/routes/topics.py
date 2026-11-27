@@ -189,6 +189,10 @@ class TopicMeeting(BaseModel):
     # /states `newest` only.
     speaker_display_name: Optional[str] = None
     speaker_role: Optional[str] = None
+    # Only on /states `newest` (#1230): how the public leaned at this meeting in the AI reading (topic_meeting_lean):
+    # 'against' / 'for' (P >= 0.7), 'split' (mixed, or a lean under 0.7), 'silent' (read; the public didn't speak on it)
+    # or None (not read). Same thresholds as the map. Never a count of speakers.
+    public_stance: Optional[str] = None
 
 
 class TopicMeetingList(BaseModel):
@@ -286,7 +290,8 @@ class TopicStates(BaseModel):
     # Distinct meetings in scope (all states, or the one state asked for).
     total_meetings: int
     states: List[TopicStateCount]
-    # The newest matched meeting per state, with its verbatim passage (<mark>ed).
+    # Each state's map quote with its verbatim passage (<mark>ed): a real public meeting, where the public took a side
+    # when the state has one, newest first (#1230). Kept under its old name for the front end's contract.
     newest: List[TopicMeeting]
 
 
@@ -299,10 +304,44 @@ _TOPIC_STATES_SQL = """
     ORDER BY meetings DESC, l.state_code
 """
 
+# Each state's map quote (#1230). Only real public meetings: a video Jev read as `government_other` (media briefing,
+# ceremony, interview) or `not_government` (podcast, stream) is never quoted (meeting_video_kind); an unscreened video
+# is kept. Then meetings where the public took a side in the AI reading (topic_meeting_lean: mostly_opposed,
+# mostly_supportive or mixed), newest first; only when a state has none, its other meetings, screened meetings first,
+# newest first. The passage is the stored verbatim excerpt with the matched words in <mark>.
 _TOPIC_NEWEST_PER_STATE_SQL = """
     SELECT DISTINCT ON (l.state_code)
            l.topic_transcript_link_id, l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
-           l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits
+           l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits,
+           CASE
+               WHEN tml.public_lean IS NULL THEN NULL
+               WHEN tml.public_lean = 'did_not_speak' THEN 'silent'
+               WHEN tml.public_against THEN 'against'
+               WHEN tml.public_for THEN 'for'
+               ELSE 'split'
+           END AS public_stance
+    FROM topic_transcript_link l
+    LEFT JOIN topic_meeting_lean tml ON tml.video_id = l.video_id AND tml.topic_id = l.topic_id
+    LEFT JOIN meeting_video_kind k ON k.video_id = l.video_id
+    WHERE l.topic_id = $1 AND l.state_code IS NOT NULL AND l.evidence_passage IS NOT NULL
+      AND ($2::text IS NULL OR l.state_code = $2::text)
+      AND k.is_public_meeting IS NOT FALSE
+    ORDER BY l.state_code,
+             CASE
+                 WHEN tml.public_lean IN ('mostly_opposed', 'mostly_supportive', 'mixed') THEN 0
+                 WHEN k.is_public_meeting THEN 1
+                 ELSE 2
+             END,
+             l.event_date DESC NULLS LAST, l.n_keyword_hits DESC, l.video_id
+"""
+
+# The pre-#1230 pick, for a serving copy that hasn't published meeting_video_kind / topic_meeting_lean yet: the newest
+# passage per state. Never a 500 over a missing relation.
+_TOPIC_NEWEST_PER_STATE_FALLBACK_SQL = """
+    SELECT DISTINCT ON (l.state_code)
+           l.topic_transcript_link_id, l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
+           l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits,
+           NULL::text AS public_stance
     FROM topic_transcript_link l
     WHERE l.topic_id = $1 AND l.state_code IS NOT NULL AND l.evidence_passage IS NOT NULL
       AND ($2::text IS NULL OR l.state_code = $2::text)
@@ -343,6 +382,16 @@ async def _passage_speakers(conn: Any, link_ids: List[str]) -> dict[str, dict[st
         logger.warning("topic states: meeting_passage_speaker unavailable ({}); speakers null", e)
         return {}
     return {str(r["topic_transcript_link_id"]): dict(r) for r in rows}
+
+
+async def fetch_newest_per_state(conn: Any, topic_id: int, state_code: Optional[str]) -> List[Any]:
+    """Each state's map quote: real meetings, stance meetings first (#1230); the plain newest where the serving copy
+    lacks the tables that rule needs."""
+    try:
+        return list(await conn.fetch(_TOPIC_NEWEST_PER_STATE_SQL, topic_id, state_code))
+    except (asyncpg.exceptions.UndefinedTableError, asyncpg.exceptions.UndefinedColumnError) as e:
+        logger.warning("topic states: stance/meeting-kind tables unavailable ({}); newest passage per state", e)
+        return list(await conn.fetch(_TOPIC_NEWEST_PER_STATE_FALLBACK_SQL, topic_id, state_code))
 
 
 class TopicStanceStateCount(BaseModel):
@@ -467,7 +516,7 @@ async def topic_states(
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 counts = await conn.fetch(_TOPIC_STATES_SQL, topic_id, state_code)
-                newest = await conn.fetch(_TOPIC_NEWEST_PER_STATE_SQL, topic_id, state_code)
+                newest = await fetch_newest_per_state(conn, topic_id, state_code)
                 speakers = await _passage_speakers(
                     conn, [str(r["topic_transcript_link_id"]) for r in newest if r.get("topic_transcript_link_id")]
                 )
@@ -496,6 +545,7 @@ async def topic_states(
                     n_keyword_hits=r["n_keyword_hits"] or 0,
                     speaker_display_name=speaker_fields(speakers.get(str(r.get("topic_transcript_link_id"))))[0],
                     speaker_role=speaker_fields(speakers.get(str(r.get("topic_transcript_link_id"))))[1],
+                    public_stance=r["public_stance"],
                 )
                 for r in newest
             ],

@@ -20,9 +20,9 @@ describe('heroPoints', () => {
       [3, 'scale', "Officials don't always listen."],
     ])
     // Short, so it never repeats the title's basis line word for word (#1134).
-    expect(p[0]!.line).toBe('1,234 meetings across 17 states where the public mostly opposed data centers (AI reading).')
-    expect(p[1]!.line).toBe('42 meetings tabled, denied or paused a data center (AI reading).')
-    expect(p[2]!.line).toBe('Officials sided against the public in 9 meetings across 4 states (AI reading).')
+    expect(p[0]!.line).toBe('1,234 meetings across 17 states where the public mostly opposed data centers.')
+    expect(p[1]!.line).toBe('42 meetings tabled, denied or paused a data center.')
+    expect(p[2]!.line).toBe('Officials sided against the public in 9 meetings across 4 states.')
   })
 
   it('uses singular forms for 1', () => {
@@ -30,9 +30,9 @@ describe('heroPoints', () => {
       { public_against_meetings: 1, public_against_states: 1, stopped_meetings: 1, disagreement_meetings: 1, disagreement_states: 1 },
       { speakers_against: 1 },
     )
-    expect(p[0]!.line).toBe('1 meeting across 1 state where the public mostly opposed data centers (AI reading).')
-    expect(p[1]!.line).toBe('1 meeting tabled, denied or paused a data center (AI reading).')
-    expect(p[2]!.line).toBe('Officials sided against the public in 1 meeting across 1 state (AI reading).')
+    expect(p[0]!.line).toBe('1 meeting across 1 state where the public mostly opposed data centers.')
+    expect(p[1]!.line).toBe('1 meeting tabled, denied or paused a data center.')
+    expect(p[2]!.line).toBe('Officials sided against the public in 1 meeting across 1 state.')
   })
 
   it('leaves out points without data and renumbers', () => {
@@ -60,9 +60,9 @@ describe('heroPoints', () => {
       place: { label: 'Arizona', lean: { public_against_meetings: 14, stopped_meetings: 0, disagreement_meetings: 1 }, speakers: null },
     })
     expect(p.map((x) => x.line)).toEqual([
-      '14 meetings in Arizona where the public mostly opposed data centers (AI reading).',
-      'Nationally: 42 meetings tabled, denied or paused a data center (AI reading).',
-      'Officials sided against the public in 1 meeting in Arizona (AI reading).',
+      '14 meetings in Arizona where the public mostly opposed data centers.',
+      'Nationally: 42 meetings tabled, denied or paused a data center.',
+      'Officials sided against the public in 1 meeting in Arizona.',
     ])
   })
   it("falls back to the place's hand count, then to the national reading", () => {

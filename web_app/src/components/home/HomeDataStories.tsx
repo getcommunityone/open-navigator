@@ -9,11 +9,12 @@ import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, st
 import '../../styles/story-actions.css'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
-import HomeStoryTitle from './HomeStoryTitle'
+import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
-import { nextStoryLink } from '../../utils/storyNav'
+import { storyStartHref } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
+import { dataCenterQuoteNote } from '../../utils/topicPositions'
 
 
 interface Props {
@@ -28,7 +29,7 @@ interface Props {
 }
 
 const STORY = STORIES['data-centers']!
-/** A state's map passages, in order (speakers' own words first, then meeting passages, newest first), at most this many. */
+/** A state's map passages, in order (speakers' own words first, then the API's map-quote meetings, #1230), at most this many. */
 const QUOTES_PER_STATE = 12
 
 function pushQuote(out: Map<string, StateQuote[]>, code: string, q: StateQuote) {
@@ -82,10 +83,11 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
       },
       { replace: true, preventScrollReset: true },
     )
-  // National: every state's own count, and the newest passages to quote (newest first, so the first per state is its newest).
+  // National: every state's own count, and each state's passages to quote (#1230): real public meetings only, meetings
+  // where the public mostly opposed first, then newest first (the API's map-quote pick).
   const national = useQuery({
-    queryKey: ['home', 'story-map', 'meeting-mentions', 500],
-    queryFn: () => fetchDataCenterMeetingMentions({ limit: 500 }),
+    queryKey: ['home', 'story-map', 'meeting-mentions', 'quotes-per-state', 3],
+    queryFn: () => fetchDataCenterMeetingMentions({ quotesPerState: 3 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })
@@ -124,6 +126,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
         text: m.evidence,
         date: m.meeting_date ?? null,
         meeting: m.meeting_title ?? null,
+        stanceNote: dataCenterQuoteNote(m.ai_public_lean),
         url: m.jump_url ?? m.video_url ?? null,
         videoId: m.video_id ?? null,
         startSeconds: m.start_seconds ?? null,
@@ -136,13 +139,12 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
     }
     return out
   }, [national.data, speakers.data, stateCode, scope.city])
-  const nextDc = nextStoryLink('data-centers', q, topicStories.live)
 
   return (
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
         {topicDef ? (
-          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} next={nextStoryLink(topicDef.slug, q, topicStories.live)} onPlaceApply={onPlaceApply} />
+          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} onPlaceApply={onPlaceApply} />
         ) : (
         <div className="home-story-card">
           <div className="home-story-text">
@@ -153,7 +155,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
               <HomeStoryTitle caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} />
             </h1>
             {/* The subhead speaks only for the caption's scope (#1134): never a national claim on a place's page. */}
-            {!pending && dcSubhead && <p className="home-story-subhead">{dcSubhead}</p>}
+            {!pending && <HomeStorySubhead caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} subhead={dcSubhead} />}
             {dcCaption.basis && (
               <p className="home-story-basis">
                 {dcCaption.basis}
@@ -161,11 +163,8 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
             )}
             {/* Next steps first (#1176): Start, Next story and the drill-down hint sit in the first screen. */}
             <div className="home-story-actions">
-              <Link to={`/stories/data-centers${q}`} className="home-story-start">
+              <Link to={storyStartHref('data-centers', q)} className="home-story-start">
                 {storyStartLabel('data-centers', label)} <span aria-hidden="true">→</span>
-              </Link>
-              <Link to={nextDc.href} className="home-story-next">
-                {nextDc.label} <span aria-hidden="true">→</span>
               </Link>
             </div>
             <HomeStoryDrill />

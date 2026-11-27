@@ -17,7 +17,15 @@ a.home-story-next:hover { background: #f0fdfa; color: #0f766e; }
 a.home-story-start:focus-visible, button.home-story-start:focus-visible, a.home-story-next:focus-visible {
   outline: 3px solid #0f766e; outline-offset: 2px;
 }
+/* One primary button per card (#1234, owner 2026-11-27: "The two buttons is confusing"): "Next story" is a small text link
+   beside or under Start, not a second pill. 44px tall tap target, drawn without changing the line. */
+a.home-story-next-link {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px;
+  color: #0f766e; font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px;
+}
+a.home-story-next-link:hover { color: #115e59; }
+a.home-story-next-link:focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
 @media (max-width: 640px) {
-  .home-story-actions { flex-direction: column; }
-  .home-story-actions > a, .home-story-actions > button { display: block; width: 100%; }
+  .home-story-actions { flex-direction: column; align-items: flex-start; }
+  .home-story-actions > a:not(.home-story-next-link), .home-story-actions > button { display: block; width: 100%; }
 }

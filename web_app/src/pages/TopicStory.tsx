@@ -5,7 +5,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
 import { topicStanceForMap } from '../utils/topicStance'
-import { topicPositions } from '../utils/topicPositions'
+import { quoteStanceNote, topicPositions } from '../utils/topicPositions'
 import { CAPTION_COPY, captionText, pickCaption, storyStartLabel } from '../utils/storyCaption'
 import { nextStoryLink } from '../utils/storyNav'
 import { useTopicStories } from '../hooks/useTopicStories'
@@ -116,6 +116,8 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
         text: m.excerpt,
         date: m.date ?? null,
         meeting: m.title ?? null,
+        // Where the public stood at the quoted meeting (#1230): the API picks a meeting where it took a side first.
+        stanceNote: quoteStanceNote(def?.slug, CAPTION_COPY[def?.slug ?? '']?.topic ?? def?.subject.toLowerCase() ?? 'the topic', m.public_stance),
         url: m.video_url ?? null,
         videoId: m.video_id ?? null,
         // Named only where the speaker introduced themselves on the record (#1231).
@@ -124,7 +126,7 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
       })
     }
     return out
-  }, [national.data])
+  }, [national.data, def?.slug, def?.subject])
 
   const meetings = useInfiniteQuery({
     queryKey: ['topic-story', def?.topicId, 'meetings', stateCode ?? ''],

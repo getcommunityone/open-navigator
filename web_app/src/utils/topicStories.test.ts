@@ -41,6 +41,8 @@ describe('live topic rule', () => {
     expect(s['short-term-rentals']!.companiesPath).toBe('/short-term-rentals/companies')
     expect(s['animal-shelters']).toMatchObject({ topicId: 100009, title: 'Animal shelters', meetings: 12 })
     expect(s['animal-shelters']!.lede).toContain('animal shelters')
+    // Gun control (#1237): the web copy names the topic; the catalog keeps "Guns".
+    expect(s.guns).toMatchObject({ title: 'Gun control', subject: 'Gun control' })
     expect(deriveTopicStories(undefined)).toEqual({})
   })
 
@@ -53,7 +55,7 @@ describe('live topic rule', () => {
   it('the next-story link walks the live stories in order', () => {
     const live = liveStories(deriveTopicStories(CATALOG))
     expect(live.map((l) => l.id)).toEqual(['data-centers', 'guns', 'short-term-rentals', 'pickleball', 'license-plate-readers', 'animal-shelters'])
-    expect(nextStoryLink('data-centers', '?state=AL', live)).toMatchObject({ href: '/stories/guns?state=AL', label: 'Next story: Guns' })
+    expect(nextStoryLink('data-centers', '?state=AL', live)).toMatchObject({ href: '/stories/guns?state=AL', label: 'Next story: Gun control' })
     expect(nextStoryLink('animal-shelters', '', live)).toMatchObject({ href: '/stories', next: null })
   })
 })

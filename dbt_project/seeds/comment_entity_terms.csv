@@ -1,0 +1,26 @@
+entity_type,entity_key,entity_label,pattern
+company,google,Google / Alphabet,\y(google|alphabet)\y
+company,amazon,Amazon / AWS,\y(amazon|aws|amazon web services)\y
+company,meta,Meta / Facebook,\y(meta|facebook|instagram)\y
+company,microsoft,Microsoft,\y(microsoft)\y
+company,openai,OpenAI / ChatGPT,\y(open ?ai|chat ?gpt|stargate)\y
+company,xai,xAI / Grok,\y(x\.?ai|grok|colossus)\y
+company,anthropic,Anthropic / Claude,\y(anthropic|claude ai)\y
+company,nvidia,Nvidia,\y(nvidia)\y
+company,oracle,Oracle,\y(oracle)\y
+company,apple,Apple,\y(apple inc|apple'?s data cent(er|re)s?)\y
+company,tesla,Tesla,\y(tesla)\y
+company,blackstone_qts,Blackstone / QTS,\y(blackstone|qts)\y
+company,coreweave,CoreWeave,\y(core ?weave)\y
+person,elon_musk,Elon Musk,\y(elon|musk)\y
+person,sam_altman,Sam Altman,\y(altman)\y
+person,peter_thiel,Peter Thiel,\y(thiel)\y
+person,mark_zuckerberg,Mark Zuckerberg,\y(zuckerberg)\y
+person,jeff_bezos,Jeff Bezos,\y(bezos)\y
+person,bill_gates,Bill Gates,\y(bill gates)\y
+person,kevin_oleary,Kevin O'Leary,\y(kevin o'? ?leary|mr\.? wonderful)\y
+person,jensen_huang,Jensen Huang,\y(jensen huang)\y
+person,larry_ellison,Larry Ellison,\y(larry ellison|ellison)\y
+person,sundar_pichai,Sundar Pichai,\y(pichai)\y
+person,satya_nadella,Satya Nadella,\y(nadella)\y
+ai,ai,Any mention of AI,\y(ai|a\. ?i\.|artificial intelligence|chat ?gpt|machine learning|large language models?|llms?|generative ai|chatbots?)\y

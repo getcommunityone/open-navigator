@@ -1,0 +1,274 @@
+version: 2
+
+# #1233 (epic #1232): comment-level grain, segmented once per meeting (topic-agnostic).
+# Built into gold and published to public (publish_public_serving's served list). No comment text is served.
+
+models:
+  - name: segmented_meeting
+    description: >
+      One row per meeting video whose captions were split into comments by
+      `python -m ingestion.meetings.comment_segments` (at least one comment found). The parent of
+      meeting_comment. Place and date from event_youtube_with_jurisdiction; meeting_date is null when the
+      source date is in the future (#472); jurisdiction_id is null when the place isn't in jurisdictions.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: video_id
+        description: "Primary key: YouTube video id of the meeting recording."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        tests: [unique, not_null]
+      - name: video_url
+        data_type: text
+        description: "Link to the recording."
+      - name: meeting_title
+        data_type: text
+        description: "The video's title as the channel lists it."
+      - name: meeting_date
+        data_type: date
+        description: "Meeting date; null when unknown or future-dated."
+      - name: jurisdiction_id
+        data_type: text
+        description: "Government whose meeting it is (FK to jurisdictions)."
+        tests:
+          - relationships: {to: ref('jurisdictions'), field: jurisdiction_id}
+      - name: jurisdiction_name
+        data_type: text
+        description: "Jurisdiction name as resolved for the video."
+      - name: state_code
+        data_type: text
+        description: "2-letter state code."
+      - name: state
+        data_type: text
+        description: "Full state name."
+      - name: comment_count
+        data_type: int
+        description: "Comments segmented in the meeting."
+        constraints: [{type: not_null}]
+      - name: public_comment_count
+        data_type: int
+        description: "Of those, comments whose introduction doesn't say staff, applicant or consultant."
+        constraints: [{type: not_null}]
+      - name: segmenter_version
+        data_type: text
+        description: "Version of the segmenter that produced the rows."
+
+  - name: meeting_comment
+    description: >
+      One row per comment segmented from a meeting's captions, with free keyword flags (seeds
+      comment_concern_terms, comment_entity_terms, comment_role_terms, curated_topics). A comment runs from a
+      self-introduction or the chair calling a speaker to the next speaker, a closing ("your time is up"), a
+      20-second pause or 8 minutes. No text is carried. speaker_display_name is "First L." from the
+      self-introduction (never the full surname), null for a possible minor. Stance is not modeled yet: it needs
+      the per-comment classifier (epic #1232 phase 2, on hold).
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [video_id]
+        to: ref('segmented_meeting')
+        to_columns: [video_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: meeting_comment_id
+        description: "Primary key: the bronze comment_segment_id, md5(video_id | start | end)."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        tests: [unique, not_null]
+      - name: video_id
+        data_type: text
+        description: "The meeting (FK to segmented_meeting)."
+        constraints: [{type: not_null}]
+        tests:
+          - relationships: {to: ref('segmented_meeting'), field: video_id}
+      - name: meeting_date
+        data_type: date
+      - name: jurisdiction_id
+        data_type: text
+        description: "FK to jurisdictions."
+      - name: jurisdiction_name
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: state
+        data_type: text
+      - name: comment_index
+        data_type: int
+        description: "Order of the comment within the meeting, from 0."
+        constraints: [{type: not_null}]
+      - name: block_index
+        data_type: int
+        description: "Comment period within the meeting: comments less than 3 minutes apart share one."
+        constraints: [{type: not_null}]
+      - name: start_seconds
+        data_type: numeric(12, 3)
+        description: "Seconds into the recording where the comment starts."
+        constraints: [{type: not_null}]
+      - name: end_seconds
+        data_type: numeric(12, 3)
+        constraints: [{type: not_null}]
+      - name: word_count
+        data_type: int
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: ">= 30"}
+      - name: speaker_display_name
+        data_type: text
+        description: "\"First L.\" from the self-introduction; null when unknown or for a possible minor."
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "~ '^[A-Z][a-z]+( [A-Z]\\.)?$'"
+      - name: boundary_basis
+        data_type: text
+        description: "How the comment started and ended, e.g. self_intro>closing, chair_call>pause."
+        constraints: [{type: not_null}]
+      - name: in_public_comment_section
+        data_type: boolean
+        description: "The chair had opened a public comment / hearing section (and not closed it) where the comment starts."
+      - name: is_public_comment
+        data_type: boolean
+        description: "False when the introduction says staff, applicant or consultant (comment_role_terms.is_public_comment)."
+        constraints: [{type: not_null}]
+      - name: possible_minor
+        data_type: boolean
+        description: "The introduction gives a child's age, grade or school year. Name never shown."
+        constraints: [{type: not_null}]
+      - name: topic_ids
+        data_type: int[]
+        description: "curated_topics whose keywords the comment's own words say."
+      - name: concern_keys
+        data_type: text[]
+        description: "comment_concern_terms matched (multi-label)."
+      - name: company_keys
+        data_type: text[]
+        description: "comment_entity_terms companies named."
+      - name: person_keys
+        data_type: text[]
+        description: "comment_entity_terms public figures named."
+      - name: mentions_ai
+        data_type: boolean
+        description: "The comment says AI / artificial intelligence / ChatGPT / machine learning ..."
+      - name: role_keys
+        data_type: text[]
+        description: "Self-described roles from the introduction (comment_role_terms)."
+      - name: segmenter_version
+        data_type: text
+
+  - name: data_center_comment
+    description: >
+      Public comments about a data center: the data-center view over meeting_comment (see the model header
+      for own_words vs same_block). Read by GET /api/data-centers/comment-metrics.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [meeting_comment_id]
+        to: ref('meeting_comment')
+        to_columns: [meeting_comment_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: data_center_comment_id
+        description: "Primary key (= meeting_comment_id)."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        tests: [unique, not_null]
+      - name: meeting_comment_id
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - relationships: {to: ref('meeting_comment'), field: meeting_comment_id}
+      - name: video_id
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: meeting_date
+        data_type: date
+      - name: jurisdiction_id
+        data_type: text
+      - name: jurisdiction_name
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: state
+        data_type: text
+      - name: start_seconds
+        data_type: numeric(12, 3)
+      - name: end_seconds
+        data_type: numeric(12, 3)
+      - name: word_count
+        data_type: int
+      - name: speaker_display_name
+        data_type: text
+      - name: match_basis
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values: {values: ['own_words', 'same_block']}
+      - name: concern_keys
+        data_type: text[]
+        description: "Data-center concerns raised (comment_concern_terms, topic data-centers)."
+      - name: concern_count
+        data_type: int
+      - name: reference_concern_count
+        data_type: int
+        description: "Concerns on the reference list (in_reference_list), used for the multi-concern share."
+      - name: company_keys
+        data_type: text[]
+      - name: person_keys
+        data_type: text[]
+      - name: mentions_ai
+        data_type: boolean
+      - name: role_keys
+        data_type: text[]
+      - name: possible_minor
+        data_type: boolean
+
+  - name: data_center_comment_place
+    description: >
+      Public places named in a data-center public comment (phase 1b): roads/routes, schools, counties,
+      neighborhoods, districts, sites (seed comment_place_patterns) and gazetteer hits on our own jurisdictions
+      and curated data_center_project names. Home addresses were scrubbed before the text was stored, so only
+      public places are recorded.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [data_center_comment_id]
+        to: ref('data_center_comment')
+        to_columns: [data_center_comment_id]
+    columns:
+      - name: data_center_comment_place_id
+        description: "Primary key: md5(comment | place_kind | place_name)."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        tests: [unique, not_null]
+      - name: data_center_comment_id
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - relationships: {to: ref('data_center_comment'), field: data_center_comment_id}
+      - name: place_kind
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values:
+              values: ['road', 'school', 'county', 'neighborhood', 'district', 'site', 'jurisdiction', 'project']
+      - name: place_name
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: "!~* '(address removed|\\m\\d{2,6} [A-Z][a-z]+ (street|st|lane|ln|drive|dr|court|ct)\\M)'"}

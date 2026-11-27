@@ -51,6 +51,9 @@ export interface TopicMeeting {
   speaker_display_name?: string | null
   /** The official's title, or "Resident" when they said they live here; null otherwise. */
   speaker_role?: string | null
+  /** Only on `/states` `newest` (#1230): how the public leaned at this meeting in the AI reading (topic_meeting_lean,
+   *  same thresholds as the map): 'against' | 'for' | 'split' | 'silent', or null when not read. */
+  public_stance?: 'against' | 'for' | 'split' | 'silent' | null
 }
 
 export interface TopicMeetingList {
