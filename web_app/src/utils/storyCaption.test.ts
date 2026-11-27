@@ -139,7 +139,7 @@ describe('pickCaption (c) state gap', () => {
       { state_code: 'SD', state: 'South Dakota', meetings: 239, population: 900_000 },
     ]
     const c = pickCaption('guns', facts({ states }), nat)
-    expect(captionText(c, 'guns')).toBe('California and North Carolina took up guns most: 659 and 585 meetings.')
+    expect(captionText(c, 'gun control')).toBe('California and North Carolina took up gun control most: 659 and 585 meetings.')
     expect(c.basis).not.toContain('resident')
   })
 

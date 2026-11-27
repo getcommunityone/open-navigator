@@ -61,7 +61,7 @@ talked about data centers in 2 meetings." beside an almost all red national map 
   reading (`ai: true`). It runs after the place's own (a) and (b) and before (c), because (c) and (d) describe volume
   while the map beside the title is coloured by lean.
 - ~~**"Leaned against" for the other topics.**~~ (wording superseded 26 Nov 2026, #1190, below; the rule stands) `topic_meeting_lean` (#1126) fixes which way "for" points for each topic
-  (allowing short-term rentals, keeping fluoride, building lanes; for guns, the proposal before the body), so a confident
+  (allowing short-term rentals, keeping fluoride, building lanes; for guns, the proposal before the body, superseded by #1237: gun limits vs gun rights), so a confident
   "against" now has a stated direction. Those topics get (a) with "leaned against" (`CaptionCopy.against`) on the same
   thresholds, never "hates"; guns reads "leaned against what was proposed on guns". When (b) also passes for such a topic,
   "is divided" leads, as before.
@@ -104,7 +104,7 @@ Titles on 26 Nov 2026 after the change (local warehouse): water fluoridation "In
 fluoridation." (was "America leaned against water fluoridation."); data centers "America hates data centers." and, at
 `?state=AL&city=Tuscaloosa`, "America hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings." (unchanged
 titles, new basis wording). Guns (0 confident public-against meetings of 20 read) and short-term rentals (1 of 19) do not
-reach the national floor of 50, so they keep their volume titles ("California and North Carolina took up guns most: 659
+reach the national floor of 50, so they keep their volume titles ("California and North Carolina took up gun control most: 659
 and 585 meetings.", "California took up short-term rentals in 570 meetings, more than any other state.").
 
 **No zero clauses.** No title or basis states a zero ("0 spoke for"): a zero clause is left out (owner rule).
@@ -112,7 +112,7 @@ and 585 meetings.", "California took up short-term rentals in 570 meetings, more
 **No per-resident claim.** An earlier draft named the state with the most meetings per resident (guns: South Dakota, 268
 per million). Meeting coverage varies hugely by state, so a per-resident rate measures our coverage, not the state's
 interest. It was dropped. When the top two states are within `STATE_GAP_MIN_RATIO` of each other, both are named: "California
-and North Carolina took up guns most: 659 and 585 meetings."
+and North Carolina took up gun control most: 659 and 585 meetings."
 
 ## Decision: "Gun control", with two named sides (#1237)
 

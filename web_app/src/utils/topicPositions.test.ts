@@ -53,8 +53,10 @@ describe('topic position vocabulary', () => {
     for (const v of Object.values(g)) expect(v).not.toMatch(/proposal|proposed/i)
   })
 
-  // Once the gun-control question is in topic_lean.py on main (#1239), its sides must still match the words.
-  it.skipIf(!blockOf('guns').includes('sides='))('guns words match topic_lean\'s gun-control sides', () => {
+  // Main's topic_lean.py still holds the earlier "proposal before the body" guns question; the stored readings came from
+  // the gun-control one (#1239). Skipped only while the old wording is there: once it is replaced, whatever the field
+  // names, this runs and fails unless the new question still says gun limits are "for" and gun rights "against".
+  it.skipIf(/proposal before the body/.test(blockOf('guns')))('guns words match topic_lean\'s gun-control sides', () => {
     const b = blockOf('guns')
     expect(b).toMatch(/gun-control measure/)
     expect(b).toMatch(/asking for limits on guns[\s\S]*are for it/)

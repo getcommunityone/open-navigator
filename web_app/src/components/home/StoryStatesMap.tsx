@@ -317,7 +317,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const shownStance = shownCode ? lineOf(stanceBy.get(shownCode)) : null
   // The card's state is the page the reader is on: no button to it, and the caption says so.
   const shownIsHere = shownCode ? isCurrentPage(href(shownCode), location.pathname, location.search) : false
-  // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200).
+  // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200; guns: "No reading yet", #1237).
   const noReading = words ? words.unread.charAt(0).toLowerCase() + words.unread.slice(1) : 'no AI reading yet'
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
   const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
