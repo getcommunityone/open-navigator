@@ -12,7 +12,7 @@ import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
 import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
-import { nextStoryLink, storyStartHref } from '../../utils/storyNav'
+import { storyStartHref } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
 
 
@@ -136,13 +136,12 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
     }
     return out
   }, [national.data, speakers.data, stateCode, scope.city])
-  const nextDc = nextStoryLink('data-centers', q, topicStories.live)
 
   return (
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
         {topicDef ? (
-          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} next={nextStoryLink(topicDef.slug, q, topicStories.live)} onPlaceApply={onPlaceApply} />
+          <HomeTopicStoryCard def={topicDef} scope={scope} query={q} label={label} onPlaceApply={onPlaceApply} />
         ) : (
         <div className="home-story-card">
           <div className="home-story-text">
@@ -163,9 +162,6 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
             <div className="home-story-actions">
               <Link to={storyStartHref('data-centers', q)} className="home-story-start">
                 {storyStartLabel('data-centers', label)} <span aria-hidden="true">→</span>
-              </Link>
-              <Link to={nextDc.href} className="home-story-next">
-                {nextDc.label} <span aria-hidden="true">→</span>
               </Link>
             </div>
             <HomeStoryDrill />

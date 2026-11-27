@@ -43,6 +43,19 @@ export function storyStartHref(storyId: string, query = ''): string {
   return `/stories/${encodeURIComponent(storyId)}?${qs.toString()}`
 }
 
+/**
+ * Where a story's Close (×) goes (#1234, owner 2026-11-27: "Just make Close go back to home and pick next story."): the
+ * home page with the scope kept, on the data-stories section, with the same story card shown (`?story=` for a topic story;
+ * data centers is the default card).
+ */
+export function storyCloseHref(storyId: string, query = ''): string {
+  const qs = new URLSearchParams(query.replace(/^\?/, ''))
+  qs.delete('screen')
+  if (storyId && storyId !== 'data-centers') qs.set('story', storyId)
+  const q = qs.toString()
+  return `/${q ? `?${q}` : ''}#data-stories`
+}
+
 /** Where the end of a story leads: the next live story, or every data story when there is none. The scope query is kept. */
 export function nextStoryLink(currentId: string, query: string, stories: LiveStory[] = LIVE_STORIES): { href: string; label: string; next: LiveStory | null } {
   const next = nextLiveStory(currentId, stories)

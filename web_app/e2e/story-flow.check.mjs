@@ -5,6 +5,9 @@
 //   4. Phones (Pixel 7, iPhone 13): the bottom bar has Back ("Back: <previous>", >= 44px) from the second screen, none on
 //      the first; a swipe left moves to the next screen and a swipe right back; a vertical swipe never turns a screen.
 //   5. Titles are short, with no "AI reading" text and no count, and the Overview never repeats the title.
+//   6. (owner 2026-11-27) Close (×) sits at the same top-right box on the cover and every screen, and the one fixed Next at
+//      the same bottom-right box, at Pixel 7, iPhone 13 and 1440x900; the last screen's Next is a quiet "Done"; no
+//      "← Data stories", no "Showing:" row, no Next story button; Close and Escape go home with the place kept.
 //
 //   node e2e/story-flow.check.mjs [--base http://localhost:5173] [--shots <dir>]
 //
@@ -25,7 +28,9 @@ const check = (ok, what) => {
 }
 const shot = async (page, name) => shots && page.screenshot({ path: `${shots}/${name}.png` })
 
-const browser = await chromium.launch()
+// Software GL: on some machines (WSL after a restart) headless Chromium produces no frames with the default GPU path,
+// so screenshots and clicks wait forever.
+const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--disable-gpu', '--disable-software-rasterizer'] })
 const state = (page) =>
   page.evaluate(() => ({
     label: document.querySelector('[data-testid="stance-current"]')?.textContent?.trim() ?? '',
@@ -158,6 +163,69 @@ for (const [dev, opts] of [['pixel7', devices['Pixel 7']], ['iphone13', devices[
   s = await state(page)
   check(s.label === 'Overview', `Back button -> ${s.label}`)
   await shot(page, `${dev}-after-back`)
+  await ctx.close()
+}
+
+// 6. Close top right, Next bottom right, on every screen.
+const boxOf = (page, sel) =>
+  page.evaluate((sel) => {
+    const el = document.querySelector(sel)
+    if (!el || !el.getClientRects().length) return null
+    const r = el.getBoundingClientRect()
+    return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), r: Math.round(innerWidth - r.right), b: Math.round(innerHeight - r.bottom), text: el.textContent.trim() }
+  }, sel)
+const near = (a, b, tol = 2) => a && b && Math.abs(a.r - b.r) <= tol && Math.abs(a.b - b.b) <= tol && Math.abs(a.h - b.h) <= tol
+const sameTopRight = (a, b, tol = 2) => a && b && Math.abs(a.r - b.r) <= tol && Math.abs(a.y - b.y) <= tol && a.w === b.w && a.h === b.h
+for (const [dev, opts] of [['pixel7', devices['Pixel 7']], ['iphone13', devices['iPhone 13']], ['desk', { viewport: { width: 1440, height: 900 } }]]) {
+  console.log(`\n${dev} Close and Next on every screen`)
+  const ctx = await browser.newContext(opts)
+  const page = await ctx.newPage()
+  await page.goto(`${base}/stories/data-centers?state=TX`, { waitUntil: 'networkidle', timeout: 120_000 })
+  await page.waitForSelector('[data-testid="story-close"]', { timeout: 120_000 })
+  await page.waitForSelector('[data-testid="story-next"]', { timeout: 120_000 })
+  await settle(page, 4000)
+  const header = await page.evaluate(() => ({
+    crumb: [...document.querySelectorAll('.stance-top a')].some((a) => /Data stories/.test(a.textContent)),
+    showing: Boolean(document.querySelector('[data-testid="stance-scope"]')),
+    pair: Boolean(document.querySelector('[data-cover] .home-story-next, [data-cover] .home-story-start')),
+  }))
+  check(!header.crumb && !header.showing && !header.pair, `header: no "← Data stories", no Showing row, no cover button pair ${JSON.stringify(header)}`)
+  const close0 = await boxOf(page, '[data-testid="story-close"]')
+  const next0 = await boxOf(page, '[data-testid="story-next"]')
+  check(close0 && close0.w >= 44 && close0.h >= 44 && close0.r <= 32, `Close top right, 44px: ${JSON.stringify(close0)}`)
+  check(next0 && next0.h >= 44 && next0.r <= 40 && next0.b <= 40 && /^Next/.test(next0.text), `Next bottom right on the cover: ${JSON.stringify(next0)}`)
+  await shot(page, `${dev}-close-next-cover`)
+  const n = await page.locator('section[data-panel]').count()
+  // The sticky bar sits under the site header, which is taller at the top of the page (the cover): Close keeps its right
+  // edge and size there, and its exact box on every screen after.
+  let closeRef = null
+  for (let i = 0; i < n; i++) {
+    await page.locator('[data-testid="story-next"]').click()
+    await settle(page, 2200)
+    const c = await boxOf(page, '[data-testid="story-close"]')
+    const x = await boxOf(page, '[data-testid="story-next"]')
+    const label = (await state(page)).label
+    const last = i === n - 1
+    closeRef ??= c
+    const coverLike = c && close0 && Math.abs(c.r - close0.r) <= 2 && c.w === close0.w && c.h === close0.h
+    if (!last) {
+      check(coverLike && sameTopRight(c, closeRef) && near(x, next0) && /^Next/.test(x?.text ?? ''), `screen ${i + 1} ${label}: Close ${JSON.stringify(c)} Next ${JSON.stringify(x)}`)
+    } else {
+      check(coverLike && sameTopRight(c, closeRef) && x && /^Done/.test(x.text) && x.r <= 40 && x.b <= 40, `last screen ${label}: quiet Done ${JSON.stringify(x)}`)
+      await shot(page, `${dev}-last-screen`)
+      break
+    }
+  }
+  await page.locator('[data-testid="story-close"]').click()
+  await settle(page, 2500)
+  const url = await page.evaluate(() => location.pathname + location.search + location.hash)
+  check(/^\/\?state=TX#data-stories$/.test(url), `Close goes home with the place: ${url}`)
+  await page.goto(`${base}/stories/data-centers?state=AL&city=Tuscaloosa&screen=overview`, { waitUntil: 'networkidle', timeout: 120_000 })
+  await settle(page, 3000)
+  await page.keyboard.press('Escape')
+  await settle(page, 2500)
+  const url2 = await page.evaluate(() => location.pathname + location.search + location.hash)
+  check(/^\/\?state=AL&city=Tuscaloosa#data-stories$/.test(url2), `Escape closes, place kept: ${url2}`)
   await ctx.close()
 }
 

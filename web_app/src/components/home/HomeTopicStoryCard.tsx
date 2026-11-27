@@ -21,8 +21,6 @@ interface Props {
   /** "?state=AL&city=…" (or empty): carried by every link. */
   query: string
   label: string
-  /** The next live story (#1176), from `nextStoryLink`, so the reader can move on without scrolling. */
-  next: { href: string; label: string }
   /** A place picked in the title's place control (#1206); see `HomeDataStories`. */
   onPlaceApply?: (stateCode: string | null, city: string | null) => void
 }
@@ -31,7 +29,7 @@ interface Props {
  * The home card for one topic story (#1013, #1133): its caption for the page's scope (#1125), its lede, Start the story,
  * and the map of meetings per state with each state's newest verbatim passage. Every figure is a real count.
  */
-export default function HomeTopicStoryCard({ def, scope, query, label, next, onPlaceApply }: Props) {
+export default function HomeTopicStoryCard({ def, scope, query, label, onPlaceApply }: Props) {
   const states = useQuery({
     queryKey: ['topic-story', def.topicId, 'states'],
     queryFn: () => fetchTopicStates(def.topicId),
@@ -104,9 +102,6 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next, onP
         <div className="home-story-actions">
           <Link to={href} className="home-story-start">
             {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
-          </Link>
-          <Link to={next.href} className="home-story-next">
-            {next.label} <span aria-hidden="true">→</span>
           </Link>
         </div>
         <HomeStoryDrill />

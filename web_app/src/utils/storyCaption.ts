@@ -3,24 +3,21 @@
 //
 // Rules, in order; each needs its own real counts and otherwise falls through to the next (CLAUDE.md, No Fabricated Data).
 // Thresholds and the reasons for them: web_docs/docs/development/story-captions.md.
-//   p. position (#1200): the place's conclusion from the AI reading of its meetings, in the topic's own words
-//      (utils/topicPositions): a side with more than half of the meetings where the public spoke leads ("In Ohio, most
-//      meetings backed the gun proposal before them."; "[Place] hates [topic]." only for the "hates" topics), else
-//      "[Place] is split on [topic].". The title is the conclusion only (#1222): its count ("the public was against data
-//      centers in 283 of 341 meetings where it spoke (AI reading)") opens the basis line. Needs at least
-//      HATES_MIN_MEETINGS meetings where the public spoke at the scope's level. Below that the rules below run and the
-//      basis says how many meetings have a reading so far. A broader scope's conclusion can stand in (p2, like a2).
-//   a. sentiment ("[Place] hates [topic]." or, for a topic without "hates", "In 81 meetings, the public mostly opposed
-//      [topic]." (#1190)): confident public-against meetings at volume (AI reading), or (for "hates") the story's
-//      counted-speaker gate. The AI's "for" and "mixed"
-//      labels are unreliable and never used, in a count or a ratio.
+//   p. position (#1200): the place's conclusion from the AI reading (Jev) of its meetings, in the topic's own words
+//      (utils/topicPositions): "[Ohio] mostly backs the gun proposals.", "[Place] hates [topic]." only for the "hates"
+//      topics, else "[Place] is split on [topic].". Since #1234 (owner, 26 Nov 2026) the title is the conclusion only: no
+//      count, no "(AI reading)", nothing appended; the count opens the basis line ("The public was against data centers
+//      in 283 of 341 meetings where it spoke."). No visible copy says "AI reading"; the map legend discloses the method.
+//      Needs at least HATES_MIN_MEETINGS meetings where the public spoke at the scope's level. Below that the rules below
+//      run and the basis says how many meetings have a reading so far.
+//   a. sentiment ("[Place] hates [topic]." or, for a topic without "hates", "[Place] mostly opposes [topic]."):
+//      confident public-against meetings at volume, or (for "hates") the story's counted-speaker gate. The AI's "for"
+//      and "mixed" labels are unreliable and never used here, in a count or a ratio.
 //   a2/p2. wider_sentiment (#1182) / wider_position (#1200): the place's own reading is too thin, but the broader scope
-//      the map colours (its state, then the country) passes (a) or (p). The title stays about the place in scope and
-//      leads with it, as its count ("Tuscaloosa, Alabama talked about data centers in 2 meetings.", #1222); the broader
-//      scope's conclusion, named, opens the basis ("Across America, the public was against data centers in 283 of 341
-//      meetings where it spoke (AI reading).") and the subhead names it, so a broader claim never sits under a place's
-//      label and the title never leads with America at a place's scope.
-//   b. disagreement ("[Place] is divided on [topic]."): officials sided against the public (AI reading) at volume, or
+//      the map colours (its state, then the country) passes (a) or (p). The title is that broader conclusion as the same
+//      simple sentence ("America hates data centers.", #1234); the place's own facts open the basis ("Tuscaloosa,
+//      Alabama talked about data centers in 2 meetings. …") and the subhead starts with the place.
+//   b. disagreement ("[Place] is divided on [topic]."): officials sided against the public at volume, or
 //      counted speakers split for and against.
 //   c. state_gap: the place leads the other states (or places in its state) by meetings; a near tie names both.
 //   d. volume: the place's meeting count.
@@ -458,9 +455,9 @@ function positionTemplate(copy: CaptionCopy, words: TopicPositions, v: Verdict, 
 }
 
 /**
- * The conclusion with its count, for the basis line (#1222): the title states no number, so this does, and names the AI
- * reading. `name` null: the scope's own ("The public was against data centers in 283 of 341 meetings where it spoke (AI
- * reading)."); a name: a broader scope's ("Across America, the public was against …").
+ * The conclusion with its count, for the basis line (#1222): the title states no number, so this does. `name` null: the
+ * scope's own ("The public was against data centers in 283 of 341 meetings where it spoke."); a name: a broader scope's
+ * ("Across America, the public was against …").
  */
 function positionClaim(copy: CaptionCopy, words: TopicPositions, v: Verdict, name: string | null): string {
   const lead = name ? `Across ${name}, ` : ''
@@ -471,13 +468,18 @@ function positionClaim(copy: CaptionCopy, words: TopicPositions, v: Verdict, nam
   if (v.side === 'against' && copy.hates) {
     return `${lead}${cap('the public was against ')}${copy.topic} in ${fmt(v.count)} of ${meetingsWord(v.of)} where it spoke.`
   }
+  if (words === GENERIC_POSITIONS) {
+    const side = v.side === 'against' ? 'mostly opposed' : 'mostly supported'
+    return `${lead}${cap(`the public ${side} `)}${copy.topic} in ${fmt(v.count)} of ${meetingsWord(v.of)} where it spoke.`
+  }
   const verb = v.side === 'against' ? words.againstVerb : words.forVerb
-  const on = words === GENERIC_POSITIONS ? ` on ${copy.topic}` : ''
-  return `${lead}${cap(`most meetings${on} `)}${verb}: ${fmt(v.count)} of ${fmt(v.of)} where the public spoke.`
+  return `${lead}${cap('most meetings ')}${verb}: ${fmt(v.count)} of ${fmt(v.of)} where the public spoke.`
 }
 
 /** The place's own meeting count, leading its facts when the title is a broader scope's (#1222). */
-function placeCount(copy: CaptionCopy, label: string, m: number): string {
+function placeCount(copy: CaptionCopy, label: string, m: number | null | undefined): string {
+  // An unknown count (null) says nothing: never a made-up zero.
+  if (m == null) return ''
   return m > 0 ? `${label} ${copy.verb} ${copy.topic} in ${meetingsWord(m)}.` : `${label} has no meetings on ${copy.topic} on record yet.`
 }
 
@@ -541,7 +543,7 @@ function widerPosition(
     if (v.kind === 'too_few') continue
     const name = w.level === 'national' ? 'America' : (w.state ?? w.state_code ?? null)
     if (!name) continue
-    const m = facts.meetings ?? 0
+    const m = facts.meetings
     const spoke = own ? own.against + own.for + own.split : 0
     // The place's own reading as it is; never a zero (owner rule), and nothing when its read failed (null).
     const ownLine = !own
@@ -594,14 +596,14 @@ function widerSentiment(
     if (!name) continue
     const states = w.public_against_states ?? 0
     const leanWhere = w.level === 'national' ? (states > 1 ? `across ${fmt(states)} states` : 'nationwide') : `in ${name}`
-    const m = facts.meetings ?? 0
+    const m = facts.meetings
     // The title is the broader scope's simple conclusion (#1222); the place's own facts open the basis.
     return {
       kind: 'wider_sentiment',
       template: copy.hates ? [`${name} ${copy.hates} `, T, '.'] : [`${name} mostly opposes `, ...object, '.'],
       place: label,
       widerPlace: name,
-      basis: `${placeCount(copy, label, m)} ${own} ${opposedBasis(against, leanWhere, fillTopic(object, copy.topic))}`,
+      basis: [placeCount(copy, label, m), own, opposedBasis(against, leanWhere, fillTopic(object, copy.topic))].filter(Boolean).join(' '),
       ai: true,
     }
   }
