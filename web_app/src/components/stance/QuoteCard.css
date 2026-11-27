@@ -102,6 +102,12 @@ div.qcard-media {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.qcard-stance {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #44403c;
+}
 .qcard-quote {
   position: relative;
   margin: 8px 0 0;

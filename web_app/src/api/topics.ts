@@ -46,6 +46,9 @@ export interface TopicMeeting {
    *  Render with highlightSnippet (React-escaped), never as raw HTML. */
   excerpt: string | null
   n_keyword_hits: number
+  /** Only on `/states` `newest` (#1230): how the public leaned at this meeting in the AI reading (topic_meeting_lean,
+   *  same thresholds as the map): 'against' | 'for' | 'split' | 'silent', or null when not read. */
+  public_stance?: 'against' | 'for' | 'split' | 'silent' | null
 }
 
 export interface TopicMeetingList {
