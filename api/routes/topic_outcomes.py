@@ -4,7 +4,8 @@ What happened next on a curated topic (#1314): the chain from the meetings where
 ``GET /api/topics/{topic}/outcomes?state=&city=``
     One count per step, each with up to three linked examples (source id, link, date, place):
 
-    ``meetings``      meetings whose transcript discussed the topic (``public.topic_transcript_link``).
+    ``meetings``      meetings whose transcript discussed the topic (``public.topic_transcript_link``; data centers:
+                      ``public.data_center_meeting_mention``, the count the Data Center Story shows).
     ``public``        of those read by the AI (Jev), meetings where the public spoke, by lean (opposed / mixed /
                       supportive): ``topic_meeting_lean.public_lean``, or ``data_center_meeting_lean`` for data centers.
                       Meetings, never speakers. Keyword false hits (``excluded_no_item``) are left out.
@@ -134,6 +135,21 @@ _MEETINGS_EX_SQL = f"""
     FROM topic_transcript_link k JOIN civicsearch_topic t ON t.topic_id = k.topic_id
     WHERE {_TOPIC_FILTER} AND {_PLACE.format(a='k')} AND k.evidence_passage LIKE '%<mark>%'
     ORDER BY k.event_date DESC NULLS LAST, k.video_id
+    LIMIT {EXAMPLES}
+"""
+
+# Data centers count meetings from their own mart, the figure the Data Center Story and its title show (#1125).
+_MEETINGS_DC_SQL = f"""
+    SELECT count(DISTINCT k.video_id)::int AS n
+    FROM data_center_meeting_mention k
+    WHERE $1::text IS NOT NULL AND {_PLACE.format(a='k')}
+"""
+_MEETINGS_DC_EX_SQL = f"""
+    SELECT DISTINCT ON (k.meeting_date, k.video_id) k.video_id, k.meeting_title AS event_title,
+           k.meeting_date AS event_date, k.state_code, k.jurisdiction_name, k.video_url, k.evidence AS evidence_passage
+    FROM data_center_meeting_mention k
+    WHERE $1::text IS NOT NULL AND {_PLACE.format(a='k')} AND k.evidence LIKE '%<mark>%'
+    ORDER BY k.meeting_date DESC NULLS LAST, k.video_id, k.passage_index
     LIMIT {EXAMPLES}
 """
 
@@ -327,8 +343,8 @@ async def topic_outcomes(
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
-                m_rows = await _try(conn, _MEETINGS_SQL, *args)
-                m_ex = await _try(conn, _MEETINGS_EX_SQL, *args) or []
+                m_rows = await _try(conn, _MEETINGS_DC_SQL if dc else _MEETINGS_SQL, *args)
+                m_ex = await _try(conn, _MEETINGS_DC_EX_SQL if dc else _MEETINGS_EX_SQL, *args) or []
                 lean_rows = await _try(conn, _lean_counts_sql(dc), *args)
                 lean_ex = await _try(conn, _examples_sql(dc, "lean", tuple(LEAN)), *args)
                 act_rows = await _try(conn, _action_counts_sql(dc), *args)

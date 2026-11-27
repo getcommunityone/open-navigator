@@ -27,7 +27,7 @@ class _Conn:
         for table in self.missing:
             if table in sql:
                 raise asyncpg.exceptions.UndefinedTableError(table)
-        if sql is to._MEETINGS_SQL:
+        if sql is to._MEETINGS_SQL or sql is to._MEETINGS_DC_SQL:
             return self.answers.get("meetings", [{"n": 0}])
         if sql is to._MEETINGS_EX_SQL:
             return self.answers.get("meetings_ex", [])
@@ -159,9 +159,14 @@ def test_live_counts_match_marts(monkeypatch, topic: str, state: str | None) -> 
             async with pool.acquire() as c:
                 try:
                     tid = await c.fetchval("SELECT topic_id FROM civicsearch_topic WHERE query_id = $1", topic)
-                    meetings = await c.fetchval(
-                        "SELECT count(DISTINCT video_id) FROM topic_transcript_link WHERE topic_id = $1"
-                        " AND ($2::text IS NULL OR state_code = $2)", tid, state)
+                    if topic == "data-centers":
+                        meetings = await c.fetchval(
+                            "SELECT count(DISTINCT video_id) FROM data_center_meeting_mention"
+                            " WHERE ($1::text IS NULL OR state_code = $1)", state)
+                    else:
+                        meetings = await c.fetchval(
+                            "SELECT count(DISTINCT video_id) FROM topic_transcript_link WHERE topic_id = $1"
+                            " AND ($2::text IS NULL OR state_code = $2)", tid, state)
                     bills = await c.fetchval(
                         "SELECT count(*) FROM topic_legislation_bill WHERE topic_id = $1"
                         " AND ($2::text IS NULL OR state_code = $2)", tid, state)

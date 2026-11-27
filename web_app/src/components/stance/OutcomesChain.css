@@ -24,10 +24,12 @@
   color: var(--violet-ink); cursor: pointer; min-height: 24px; }
 .oc-more:focus-visible { outline: 2px solid var(--violet-ink); outline-offset: 2px; }
 @media (min-width: 900px) {
-  .oc-list { flex-direction: row; overflow-x: auto; gap: 0; padding-bottom: 6px; scroll-snap-type: x proximity; }
-  .oc-step { flex: 0 0 210px; border-left: 0; border-top: 2px solid var(--violet); margin: 8px 12px 0 0; padding: 14px 4px 4px 0;
-    scroll-snap-align: start; }
+  /* Left to right in reading order: three steps a row, each joined to the next by its top rule. */
+  .oc-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 14px; row-gap: 10px; }
+  .oc-step { border-left: 0; border-top: 2px solid var(--violet); margin: 8px 0 0; padding: 14px 2px 4px 0; }
   .oc-step::before { left: 0; top: -7px; }
   .oc-step.is-empty::before { left: 0; top: -6px; }
   .oc-step:last-child { border-top-color: var(--rule); }
+  .oc-step:not(:nth-child(3n)):not(:last-child)::after { content: '→'; position: absolute; right: -12px; top: -13px;
+    font-size: 14px; color: var(--violet-ink); }
 }
