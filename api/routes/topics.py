@@ -679,9 +679,94 @@ async def _passage_speakers(conn: Any, link_ids: List[str]) -> dict[str, dict[st
     return {str(r["topic_transcript_link_id"]): dict(r) for r in rows}
 
 
-async def fetch_newest_per_state(conn: Any, topic_id: int, state_code: Optional[str]) -> List[Any]:
-    """Each state's map quote: real meetings, stance meetings first (#1230); the plain newest where the serving copy
-    lacks the tables that rule needs."""
+# Up to `quotes_per_state` distinct real public meetings per state (#1357): one passage per video, stance meetings first,
+# round-robin across public_stance so a state with multiple stance bands supplies a matching passage for each band.
+_TOPIC_QUOTES_PER_STATE_SQL = """
+    WITH per_video AS (
+        SELECT DISTINCT ON (l.state_code, l.video_id)
+               l.topic_transcript_link_id, l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
+               l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits,
+               CASE
+                   WHEN tml.public_lean IS NULL THEN NULL
+                   WHEN tml.public_lean = 'did_not_speak' THEN 'silent'
+                   WHEN tml.public_against THEN 'against'
+                   WHEN tml.public_for THEN 'for'
+                   ELSE 'split'
+               END AS public_stance,
+               CASE
+                   WHEN tml.public_lean IN ('mostly_opposed', 'mostly_supportive', 'mixed') THEN 0
+                   WHEN k.is_public_meeting THEN 1
+                   ELSE 2
+               END AS tier
+        FROM topic_transcript_link l
+        LEFT JOIN topic_meeting_lean tml ON tml.video_id = l.video_id AND tml.topic_id = l.topic_id
+        LEFT JOIN meeting_video_kind k ON k.video_id = l.video_id
+        WHERE l.topic_id = $1 AND l.state_code IS NOT NULL AND l.evidence_passage IS NOT NULL
+          AND ($2::text IS NULL OR l.state_code = $2::text)
+          AND k.is_public_meeting IS NOT FALSE
+        ORDER BY l.state_code, l.video_id, l.n_keyword_hits DESC, l.topic_transcript_link_id
+    ),
+    by_stance AS (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY state_code, COALESCE(public_stance, '')
+                   ORDER BY tier, event_date DESC NULLS LAST, n_keyword_hits DESC, video_id
+               ) AS stance_rn
+        FROM per_video
+    ),
+    ranked AS (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY state_code
+                   ORDER BY tier, stance_rn, event_date DESC NULLS LAST, n_keyword_hits DESC, video_id
+               ) AS state_rn
+        FROM by_stance
+    )
+    SELECT topic_transcript_link_id, video_id, event_title, event_date, state_code, state, city,
+           jurisdiction_name, video_url, evidence_passage, n_keyword_hits, public_stance
+    FROM ranked
+    WHERE state_rn <= $3
+    ORDER BY state_code, state_rn
+"""
+
+_TOPIC_QUOTES_PER_STATE_FALLBACK_SQL = """
+    WITH per_video AS (
+        SELECT DISTINCT ON (l.state_code, l.video_id)
+               l.topic_transcript_link_id, l.video_id, l.event_title, l.event_date, l.state_code, l.state, l.city,
+               l.jurisdiction_name, l.video_url, l.evidence_passage, l.n_keyword_hits,
+               NULL::text AS public_stance
+        FROM topic_transcript_link l
+        WHERE l.topic_id = $1 AND l.state_code IS NOT NULL AND l.evidence_passage IS NOT NULL
+          AND ($2::text IS NULL OR l.state_code = $2::text)
+        ORDER BY l.state_code, l.video_id, l.n_keyword_hits DESC, l.topic_transcript_link_id
+    ),
+    ranked AS (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY state_code
+                   ORDER BY event_date DESC NULLS LAST, n_keyword_hits DESC, video_id
+               ) AS state_rn
+        FROM per_video
+    )
+    SELECT topic_transcript_link_id, video_id, event_title, event_date, state_code, state, city,
+           jurisdiction_name, video_url, evidence_passage, n_keyword_hits, public_stance
+    FROM ranked
+    WHERE state_rn <= $3
+    ORDER BY state_code, state_rn
+"""
+
+
+async def fetch_newest_per_state(
+    conn: Any, topic_id: int, state_code: Optional[str], quotes_per_state: int = 1
+) -> List[Any]:
+    """Each state's map quote(s): real meetings, stance meetings first (#1230, #1357); the plain newest where the
+    serving copy lacks the tables that rule needs."""
+    if quotes_per_state > 1:
+        try:
+            return list(await conn.fetch(_TOPIC_QUOTES_PER_STATE_SQL, topic_id, state_code, quotes_per_state))
+        except (asyncpg.exceptions.UndefinedTableError, asyncpg.exceptions.UndefinedColumnError) as e:
+            logger.warning("topic states: stance/meeting-kind tables unavailable ({}); newest passages per state", e)
+            return list(await conn.fetch(_TOPIC_QUOTES_PER_STATE_FALLBACK_SQL, topic_id, state_code, quotes_per_state))
     try:
         return list(await conn.fetch(_TOPIC_NEWEST_PER_STATE_SQL, topic_id, state_code))
     except (asyncpg.exceptions.UndefinedTableError, asyncpg.exceptions.UndefinedColumnError) as e:
@@ -921,18 +1006,20 @@ async def topic_places(
 async def topic_states(
     topic_id: int = Path(..., description="Topic id (curated topics have meeting links)."),
     state: Optional[str] = Query(None, description="Optional 2-letter state code."),
+    quotes_per_state: int = Query(1, ge=1, le=6, description="Max distinct meeting passages returned per state (1..6)."),
 ) -> TopicStates:
-    """Meetings per state for a curated topic, and each state's newest matched passage (#1013): the data behind a
-    topic story's map and headline. Counts are distinct meetings; nothing is estimated."""
+    """Meetings per state for a curated topic, and each state's newest matched passage(s) (#1013, #1357): the data
+    behind a topic story's map and headline. Counts are distinct meetings; nothing is estimated."""
     with tracer.start_as_current_span("topic-states") as span:
         state_code = state.strip().upper() if state and state.strip() else None
         span.set_attribute("topics.topic_id", topic_id)
         span.set_attribute("topics.state", state_code or "")
+        span.set_attribute("topics.quotes_per_state", quotes_per_state)
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 counts = await conn.fetch(_TOPIC_STATES_SQL, topic_id, state_code)
-                newest = await fetch_newest_per_state(conn, topic_id, state_code)
+                newest = await fetch_newest_per_state(conn, topic_id, state_code, quotes_per_state)
                 speakers = await _passage_speakers(
                     conn, [str(r["topic_transcript_link_id"]) for r in newest if r.get("topic_transcript_link_id")]
                 )

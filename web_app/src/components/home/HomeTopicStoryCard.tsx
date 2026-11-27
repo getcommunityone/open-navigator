@@ -10,6 +10,7 @@ import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, st
 import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
+import { stanceFromPublicLean } from '../../utils/mapQuote'
 import TopicCountyMap from '../stance/TopicCountyMap'
 import HomeStoryTitle, { type TopicControl, HomeStorySubhead } from './HomeStoryTitle'
 import { storyStartHref } from '../../utils/storyNav'
@@ -42,8 +43,8 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   // The map's hover card goes in the text column, under Start (#1277), never over the map.
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   const states = useQuery({
-    queryKey: ['topic-story', def.topicId, 'states'],
-    queryFn: () => fetchTopicStates(def.topicId),
+    queryKey: ['topic-story', def.topicId, 'states', 3],
+    queryFn: () => fetchTopicStates(def.topicId, { quotes_per_state: 3 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })
@@ -69,6 +70,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
       if (!m.state_code || !m.excerpt) continue
       const q: StateQuote = {
         place: [m.jurisdiction_name ?? m.city, m.state_code].filter(Boolean).join(', '),
+        band: stanceFromPublicLean(m.public_stance),
         text: m.excerpt,
         date: m.date ?? null,
         meeting: m.title ?? null,
