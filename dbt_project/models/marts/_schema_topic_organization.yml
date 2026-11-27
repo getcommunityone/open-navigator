@@ -1,0 +1,124 @@
+version: 2
+
+models:
+  - name: topic_organization
+    description: >
+      The nonprofits tied to each curated topic (#1345). One row per (topic_id, master_org_id), with the strongest
+      evidence (named in one of the topic's meetings in its state, a 990 mission or name naming the topic, or an IRS
+      NTEE category in the topic's field). Rule and precision notes: web_docs/docs/development/topic-organizations.md.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: topic_organization_id
+        description: "Primary key: md5(topic_id | master_org_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: topic_id
+        description: "FK to civicsearch_topic."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: topic_slug
+        description: "The topic's slug (civicsearch_topic.query_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: master_org_id
+        description: "FK to mdm_organization."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: ein
+        description: "IRS EIN."
+        data_type: text
+      - name: org_name
+        description: "The organization's name as the IRS records it."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: city
+        description: "City (mdm_organization.city_norm, lower case)."
+        data_type: text
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: match_method
+        description: "The strongest tie: named_in_meeting | keyword_in_mission | keyword_in_name | ntee_code (cause_tag reserved)."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['named_in_meeting', 'keyword_in_mission', 'keyword_in_name', 'ntee_code', 'cause_tag']
+      - name: match_methods
+        description: "Every method that tied it."
+        data_type: text[]
+        constraints:
+          - type: not_null
+      - name: evidence_rank
+        description: "1 named in a meeting, 2 mission, 3 name, 4 IRS category. Lower is stronger."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: match_text
+        description: "The evidence: the meeting passage or mission with the matched words in <mark>, the name, or the NTEE category label."
+        data_type: text
+      - name: match_video_id
+        description: "named_in_meeting: the meeting's video id."
+        data_type: text
+      - name: match_source_url
+        description: "named_in_meeting: the meeting's recording."
+        data_type: text
+      - name: match_date
+        description: "named_in_meeting: the meeting's date."
+        data_type: date
+      - name: match_place
+        description: "named_in_meeting: the government that held the meeting."
+        data_type: text
+      - name: ntee_code
+        description: "IRS NTEE code."
+        data_type: text
+      - name: mission
+        description: "Latest Form 990 mission (first 400 characters), when filed."
+        data_type: text
+      - name: side
+        description: "A position only when a rule's stated words say it (e.g. gun rights, gun violence prevention); else null."
+        data_type: text
+      - name: revenue
+        description: "Latest total revenue: 990 (GivingTuesday) or else the IRS Business Master File."
+        data_type: bigint
+      - name: revenue_tax_year
+        description: "Tax year of revenue."
+        data_type: integer
+      - name: revenue_source
+        description: "irs_990 | irs_bmf."
+        data_type: text
+      - name: website_url
+        description: "The organization's website, when known (#1347)."
+        data_type: text
+      - name: built_at
+        description: "When this mart was built (freshness)."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

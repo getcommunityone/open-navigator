@@ -470,6 +470,11 @@ outputPorts:
   contractId: open-navigator-public-meeting_bill_link
   type: table
   description: 'The state bills a meeting names (#1314, porting #1072''s draft).'
+- name: topic_organization
+  version: 1.0.0
+  contractId: open-navigator-public-topic_organization
+  type: table
+  description: The nonprofits tied to each curated topic (#1345).
 - name: company_grant
   version: 1.0.0
   contractId: open-navigator-public-company_grant

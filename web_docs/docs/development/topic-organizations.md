@@ -1,0 +1,121 @@
+---
+title: How organizations are tied to topics
+description: How the topic_organization mart ties curated topics to nonprofits (named in a meeting, 990 mission, name, IRS NTEE category), the curated rules, which rules were dropped as noisy after a spot-check, the counts, and what the API and story show (#1345).
+---
+
+# How organizations are tied to topics
+
+**Issue:** [#1345](https://github.com/getcommunityone/open-navigator/issues/1345) · **Parent:**
+[#1344](https://github.com/getcommunityone/open-navigator/issues/1344)
+
+Owner, 27 Nov 2026: "We also need to better integrate nonprofits that are tied to topics and any upcoming events they
+may have." A topic story now says which nonprofits in the place are working on the topic. This page records how an
+organization is tied to a topic and why. Events: [Upcoming events of nonprofits](organization-events.md).
+
+## The decision
+
+An organization is tied to a topic only by something in the record, never by a guess or a model's opinion. Four ways,
+strongest first (`evidence_rank`):
+
+| Rank | `match_method` | The record says | Source |
+|---|---|---|---|
+| 1 | `named_in_meeting` | Its full name is said, word for word, in the evidence passage of one of the topic's recorded meetings in its own state (the transcript's own words around the topic's phrases) | `topic_transcript_link.evidence_passage` |
+| 2 | `keyword_in_mission` | Its latest Form 990 mission names the topic | GivingTuesday 990 missions (`stg_givingtuesday__990_missions`) |
+| 3 | `keyword_in_name` | Its name names the topic | `mdm_organization` |
+| 4 | `ntee_code` | Its IRS NTEE category is the topic's field | `mdm_organization_nonprofit.ntee_code` |
+
+`cause_tag` is reserved in the contract but has no rows: the EveryOrg cause tags in `tag` have no organization linkage
+in the warehouse, and `tag_organization` is NTEE-only, so a cause rule would only repeat the NTEE rule.
+
+The rules for ranks 2 to 4 are a curated seed, `dbt_project/seeds/topic_organization_rule.csv` (topic slug, rule type,
+a Postgres regex or an NTEE prefix, an optional side, a label). It is keyed by slug, not id, so a topic added later
+(the crime and safety topics of #1128) picks up its rows when it reaches `civicsearch_topic`.
+
+### Sides
+
+A side is shown only when the organization's own words state it, and labelled neutrally: a name or mission saying
+"Second Amendment", "right to bear arms" or "rifle association" is `gun rights`; "gun violence", "Moms Demand Action",
+"Brady Campaign", "Everytown", "Giffords" or "Sandy Hook Promise" is `gun violence prevention`; "Fluoride Action Network"
+`opposes fluoridation`. A rifle or gun club, a dental society or a bicycle coalition gets no side: what it does is not a
+stated position on the policy. An organization that matches rules for both sides gets none.
+
+### Named in a meeting: kept high precision
+
+A first try, matching any nonprofit's name anywhere in a topic meeting's transcript, was mostly noise in a spot-check
+of Alabama: "People Place", "All Hours of the Day", "Health Services" and "Team Confidence" matched ordinary speech,
+and named organizations (a food bank, a museum) were only in the same three-hour meeting as the topic. So:
+
+1. Only the passage near the topic's words counts: each meeting's stored evidence passage. Splitting every full
+   transcript at the topic's phrases took over 20 minutes on the local warehouse; widening it is
+   [#1364](https://github.com/getcommunityone/open-navigator/issues/1364).
+2. A candidate's cleaned name (Inc, Corp, The dropped) is at least 12 characters and two words, is held by no other
+   nonprofit in the state, and has a word that occurs in 2% of topic passages or fewer (0.1% for a two-word name, after
+   "Moving Forward", "Working Together" and "Young People" matched ordinary speech).
+3. It is based in the meeting's city, or already tied to the topic by a rule (a statewide advocacy group).
+4. The passage holds the whole name: a full-text phrase match, then a regex on the passage's own words.
+
+## Rules dropped after the spot-check
+
+About 20 random rows per topic and method were read (27 Nov 2026, local warehouse).
+
+| Topic | Rule | Why dropped |
+|---|---|---|
+| Data centers | Name contains "data center" | Mostly data repositories ("Geologic Data Center", "Travel Data Center", "Hospital Data Center") |
+| Data centers | NTEE C35 (energy) | Energy co-ops and fuel-cell groups: the field, not data centers |
+| Pickleball | NTEE N66 (racquet sports) | Coded on lacrosse, hockey and cricket clubs as well as tennis |
+| Guns | NTEE I21 (youth violence prevention) | Soccer clubs, boot camps, family services |
+| Guns | Name "Brady" (bare) | "Brady Cemetery Association"; now only "Brady Campaign / Center / United" |
+| Guns | "Gun owners" as gun rights | "Gun Owners for Responsible Ownership" is a safety group; a name does not state a side |
+| License plate readers | NTEE R60 (civil liberties) | Death-penalty, religious-liberty and gun groups |
+| License plate readers | Name "Crime Stoppers" | Tip lines, not about plate readers |
+| Violent crime | NTEE I21 | as for guns |
+| Immigration | NTEE P84 (ethnic and immigrant centers) | Cultural and home-town associations, not immigration policy |
+| Traffic safety | Name "MADD" (bare) | "Madd Skillz Society"; now "Mothers Against Drunk Driving" |
+| Homelessness | Mission "homeless" | "Homeless pets": now excludes pets and animals |
+| Water fluoridation | Name "dental" | Dental benefit plans and trusts excluded |
+| Short-term rentals | Mission "vacation rental" | Community centers and unrelated missions; mission rule is "short-term rental" only |
+| Bike lanes | Name "bike", "cycling" | Racing teams, BMX and mountain-bike clubs; now bicycle coalitions, alliances, advocates and "bike walk" |
+
+What stayed reads well in the samples: pickleball clubs and associations by name or mission, dental societies and
+oral-health groups for fluoridation (stakeholders in the debate, no side stated), short-term rental alliances, gun and
+rifle clubs and gun-policy groups by mission, bicycle coalitions, civil liberties unions, and for the crime topics the
+NTEE fields that name the work (family violence shelters, homeless services, animal shelters, fire departments).
+
+## Counts
+
+Organizations per topic and strongest method, local warehouse build of 27 Nov 2026 (`gold.topic_organization`,
+147,267 rows). The crime and safety topics are in the warehouse from the #1128 branch; on `main` their seed rows wait
+for those topics.
+
+| Topic | Total | Named in a meeting | Mission | Name | IRS category | With a side |
+|---|---:|---:|---:|---:|---:|---:|
+| Data centers | 9 | 2 | 7 | 0 | 0 | 0 |
+| Water fluoridation | 3,837 | 0 | 238 | 3,599 | 0 | 0 |
+| Short-term rentals | 46 | 3 | 3 | 40 | 0 | 0 |
+| License plate readers | 167 | 0 | 0 | 167 | 0 | 0 |
+| Guns | 3,550 | 12 | 119 | 3,419 | 0 | 317 |
+| Pickleball | 686 | 2 | 44 | 640 | 0 | 0 |
+| Bike lanes | 256 | 0 | 40 | 216 | 0 | 0 |
+| Violent crime | 6,033 | 0 | 0 | 0 | 6,033 | 0 |
+| Theft and break-ins | 3,928 | 0 | 0 | 1,267 | 2,661 | 0 |
+| Drugs and overdoses | 16,068 | 0 | 105 | 0 | 15,963 | 0 |
+| Traffic safety | 144 | 0 | 51 | 93 | 0 | 0 |
+| Police staffing | 5,273 | 0 | 0 | 5,273 | 0 | 0 |
+| Youth crime | 5,752 | 0 | 0 | 0 | 5,752 | 0 |
+| Domestic violence | 6,235 | 0 | 1,413 | 0 | 4,822 | 0 |
+| School safety | 14 | 0 | 14 | 0 | 0 | 0 |
+| Fire and EMS | 27,741 | 0 | 0 | 0 | 27,741 | 0 |
+| Parks funding | 9,503 | 0 | 0 | 2,261 | 7,242 | 0 |
+| Animal shelters | 41,999 | 0 | 0 | 6,595 | 35,404 | 0 |
+| Homelessness and shelters | 14,326 | 0 | 5,928 | 0 | 8,398 | 0 |
+| Immigration and sanctuary | 1,700 | 0 | 1,700 | 0 | 0 | 0 |
+
+The three test scopes: water fluoridation in Georgia 81 (the Georgia Dental Association and its foundation by mission,
+then dental societies by name), data centers in Virginia 1 (the Data Center Coalition, by mission), guns in Alabama 22
+(4 named in a meeting: Mothers Involved Against Gun Violence, Positive Parents Have Power, the Child Advocacy Center and
+Big Brothers Big Sisters of the Central Gulf Coast; then gun and rifle clubs by name).
+
+Named in a meeting, all 19 read: 17 are the organization named in the topic passage. Two are doubtful matches of a
+short name ("Love Inc Anchorage", "Heart of Ellsworth"); "Seattle Neighborhood Greenways" and "Atrium Health" are
+named in a passage about gun violence without being gun-policy groups, which the screen states as it is ("Named in a
+meeting on guns"), not as a position.
