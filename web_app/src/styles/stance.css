@@ -287,7 +287,13 @@
 .stance-game[data-mode='pinned'] .stance-right {
   max-height: 100%;
   overflow-y: auto;
+  /* Same as snap (#1369): tall Overview notes scroll inside the column without a visible bar. */
+  scrollbar-width: none;
   padding: 2px 6px 2px 2px;
+}
+.stance-game[data-mode='pinned'] .stance-left::-webkit-scrollbar,
+.stance-game[data-mode='pinned'] .stance-right::-webkit-scrollbar {
+  display: none;
 }
 .stance-card {
   align-self: flex-start;
