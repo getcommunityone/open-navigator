@@ -16,6 +16,7 @@ import {
   stepMarker,
   thinNote,
   thinYears,
+  timelinePads,
   MIN_RECORDED_FOR_ZERO,
   type SeriesMode,
 } from '../../utils/storyTimeline'
@@ -24,6 +25,7 @@ import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
 import { useChartReveal } from './useChartReveal'
 import { useChartWidth } from './useChartWidth'
+import { pickYearTicks } from '../../utils/axisTicks'
 import './storyCharts.css'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -131,9 +133,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
 
   const w = Math.max(280, width)
   const h = 240
-  const padL = 44
-  // Room on the right for the end value and the milestone lane names ("Moratorium · 51").
-  const padR = ms.length ? (w < 420 ? 84 : 112) : w < 420 ? 64 : 58
+  const { padL, padR } = timelinePads(w, ms.length > 0)
   const padT = 20
   const padB = 28
   const allYears = pts.map((p) => p.year)
@@ -150,7 +150,8 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const vmax = niceMax(Math.max(...pts.map((p) => p.value)))
   const ys = (v: number) => h - padB - (v / vmax) * (h - padT - padB)
   const ticks = [0, vmax / 2, vmax]
-  const yearTickEvery = span > 12 ? (w < 480 ? 4 : 2) : 1
+  // Year labels chosen by the room they have, so they never run together on a phone.
+  const yearTicks = pickYearTicks(Array.from({ length: span }, (_, i) => x0 + i), w - padL - padR)
   const valueText = (v: number) => (activeMode === 'share' ? `${v < 10 ? v.toFixed(1) : Math.round(v)}%` : fmt(v))
   const last = pts[pts.length - 1]!
   const compact = w < COMPACT_W
@@ -207,13 +208,11 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
               </text>
             </g>
           ))}
-          {Array.from({ length: span }, (_, i) => x0 + i)
-            .filter((y) => (y - x0) % yearTickEvery === 0 || y === x1)
-            .map((y) => (
-              <text key={y} className="sc-micro" x={xYear(y)} y={h - 8} textAnchor="middle">
-                {y}
-              </text>
-            ))}
+          {yearTicks.map((y) => (
+            <text key={y} className="sc-micro" x={xYear(y)} y={h - 8} textAnchor="middle">
+              {y}
+            </text>
+          ))}
           {pieces.flat().map((piece) => {
             const d = piece.points.map((p, i) => `${i ? 'L' : 'M'} ${xYear(p.year).toFixed(1)} ${ys(p.value).toFixed(1)}`).join(' ')
             return piece.dashed ? (
