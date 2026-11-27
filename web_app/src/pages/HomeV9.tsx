@@ -22,7 +22,6 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { useMediaQuery } from '../hooks/useMediaQuery'
-import { getLaunchCounty } from '../lib/launchCounties'
 import MoneyGameModal from '../components/MoneyGameModal'
 import MoneyMovesTeaser from '../components/MoneyMovesTeaser'
 import { useLocation as useLocationContext } from '../contexts/LocationContext'
@@ -34,7 +33,6 @@ import MeetingThumbnail from '../components/MeetingThumbnail'
 import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 import { fetchMeetings, type MeetingCard } from '../api/meetings'
 import { highlightSnippet } from '../lib/highlight'
-import { LAUNCH_CITIES } from '../lib/launchCoverage'
 import HomeDataStories from '../components/home/HomeDataStories'
 import { STATE_CODES } from '../lib/usStates'
 
@@ -64,6 +62,10 @@ html { scroll-behavior: smooth; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .v9 .home-stories { background: #fff; border-bottom: 1px solid #e7e5e4; padding: 28px 24px 30px; }
 .v9 .home-stories-inner { max-width: 1180px; margin: 0 auto; }
+.v9 .v9-find-town { display: inline-flex; align-items: center; gap: 10px; margin: 20px auto 0; max-width: 760px; padding: 11px 22px; border-radius: 999px; background: rgba(13,148,136,0.08); border: 1px solid rgba(13,148,136,0.3); font: inherit; font-size: 15px; color: #0f766e; line-height: 1.4; cursor: pointer; text-align: left; }
+.v9 .v9-find-town:hover { background: rgba(13,148,136,0.14); }
+.v9 .v9-find-town:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
+.v9 .v9-find-town strong { color: #115e59; }
 .v9 .home-story-card { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.2fr); gap: 28px; align-items: center; }
 .v9 .home-story-eyebrow { margin: 0; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; font-weight: 600; }
 .v9 .home-story-headline { font-size: clamp(40px, 5.6vw, 72px); font-weight: 800; line-height: 1.02; letter-spacing: -0.02em; margin: 8px 0 14px; color: #1c1917; }
@@ -557,12 +559,6 @@ export default function HomeV9() {
   // Inline "change location" picker inside the level menu (restores the ability
   // to switch to a different city/place, not just City/State/National scope).
   const [changingLoc, setChangingLoc] = useState(false)
-  // When the user picks a place we haven't loaded civic data for yet, we keep the
-  // picker open and show a friendly "not loaded yet" notice (with the launch
-  // cities as alternatives) instead of silently dropping them into an empty scope.
-  const [uncoveredPick, setUncoveredPick] = useState<{ city?: string; county?: string; state?: string } | null>(null)
-  const uncoveredLabel = (l: { city?: string; county?: string; state?: string } | null) =>
-    l ? [l.city, l.county, l.state].filter(Boolean).join(', ') : ''
   const levelRef = useRef<HTMLButtonElement>(null)
   const levelMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -879,14 +875,7 @@ export default function HomeV9() {
     if (!national && stateCode) params.set('state', stateCode)
     // Carry the city through so a drill-down from e.g. Tuscaloosa reads
     // "City: Tuscaloosa" rather than just "State: AL" (UnifiedSearch reads ?city=).
-    if (!national && city) {
-      params.set('city', city)
-      // Default a known launch city to the county-inclusive scope so search lands
-      // on the surrounding-county view (e.g. Seattle → King County) with the
-      // "Include surrounding county" checkbox shown and checked.
-      const lc = getLaunchCounty(city)
-      if (lc) params.set('county', '1')
-    }
+    if (!national && city) params.set('city', city)
     navigate(`/search?${params.toString()}`, { state: { fromHome: true } })
   }
 
@@ -916,41 +905,26 @@ export default function HomeV9() {
             Search your community
           </h2>
 
-          {/* ── Launch-coverage note: live in four cities (ordered by content
-              volume), each linking to its state-scoped search. ── */}
-          <div
-            style={{
-              display: 'inline-flex',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              alignItems: 'center',
-              columnGap: 8,
-              rowGap: 4,
-              margin: '20px auto 0',
-              maxWidth: 760,
-              padding: '9px 18px',
-              borderRadius: 999,
-              background: 'rgba(13,148,136,0.08)',
-              border: '1px solid rgba(13,148,136,0.25)',
-              fontSize: 14,
-              color: '#0f766e',
-              lineHeight: 1.45,
-            }}
+          {/* ── Find your town (#1179): opens the location picker. No place list is hard-coded; any town the
+              geocoder finds can be picked, and pages show an honest empty state where we have no meetings. ── */}
+          <button
+            type="button"
+            className="v9-find-town"
+            onClick={() => setChangingLoc(true)}
+            aria-haspopup="dialog"
           >
-            <span style={{ fontWeight: 700 }}>📍 Live in</span>
-            {LAUNCH_CITIES.map((c, i) => (
-              <span key={`${c.city}-${c.state}`}>
-                <Link
-                  to={`/search?state=${c.state}&city=${encodeURIComponent(c.city)}`}
-                  style={{ color: TEAL_DARK, fontWeight: 600, textDecoration: 'underline' }}
-                >
-                  {c.city}, {c.state}
-                </Link>
-                {i < LAUNCH_CITIES.length - 1 ? ' ·' : ''}
+            <span aria-hidden="true">📍</span>
+            {locState ? (
+              <span>
+                <strong>{[locCity, locState].filter(Boolean).join(', ')}</strong> · Find another town
               </span>
-            ))}
-            <span style={{ fontWeight: 600, color: '#0d9488' }}>— more cities coming soon</span>
-          </div>
+            ) : (
+              <span>
+                <strong>Find your town</strong> · see what its meetings said and decided
+              </span>
+            )}
+            <span aria-hidden="true">→</span>
+          </button>
 
           <div style={{ position: 'relative', maxWidth: 760, margin: '28px auto 0', textAlign: 'left' }}>
             <div
@@ -1248,7 +1222,6 @@ export default function HomeV9() {
                 className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
                 onClick={() => {
                   setChangingLoc(false)
-                  setUncoveredPick(null)
                 }}
                 style={{ animation: 'fadeIn 150ms ease' }}
               >
@@ -1264,7 +1237,6 @@ export default function HomeV9() {
                       type="button"
                       onClick={() => {
                         setChangingLoc(false)
-                        setUncoveredPick(null)
                       }}
                       aria-label="Close"
                       style={{ padding: 8, borderRadius: 10, border: 'none', background: 'none', color: '#78716c', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}
@@ -1280,49 +1252,8 @@ export default function HomeV9() {
                       : 'Enter your address to see the meetings, votes, spending, and debates near you.'}
                   </p>
 
-                  {/* "Not loaded yet" notice — shown when the picked place isn't one
-                      of our launch cities. We don't drop the user into an empty
-                      scope; we tell them honestly and offer the loaded cities. */}
-                  {uncoveredPick && (
-                    <div
-                      className="mb-6 rounded-xl border p-4"
-                      style={{ borderColor: '#fcd34d', background: '#fffbeb' }}
-                      role="status"
-                    >
-                      <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
-                        🚧 We haven&apos;t loaded {uncoveredLabel(uncoveredPick) || 'that area'} yet
-                      </p>
-                      <p className="mt-1 text-sm" style={{ color: '#92400e' }}>
-                        Civic data for {uncoveredLabel(uncoveredPick) || 'this location'} is on the way.
-                        For now, you can explore one of our launch cities:
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {LAUNCH_CITIES.map((c) => (
-                          <Link
-                            key={`${c.city}-${c.state}`}
-                            to={`/search?state=${c.state}`}
-                            onClick={() => {
-                              setChangingLoc(false)
-                              setUncoveredPick(null)
-                            }}
-                            className="rounded-full bg-white px-3 py-1.5 text-sm font-medium"
-                            style={{ border: '1px solid #fcd34d', color: '#92400e' }}
-                          >
-                            {c.city}, {c.state}
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   <AddressLookup
-                    onUncovered={(loc) => {
-                      // Block the switch and surface our custom in-modal notice
-                      // rather than dropping the user into an empty scope.
-                      setUncoveredPick({ city: loc.city, county: loc.county, state: loc.state })
-                    }}
                     onLocationFound={(loc) => {
-                      setUncoveredPick(null)
                       setLocation(loc)
                       // A place picked here replaces any place carried in the address.
                       if (urlHasPlace) {

@@ -33,7 +33,6 @@ import MeetingThumbnail from '../components/MeetingThumbnail'
 import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 import { StoryCard, CONTESTED_LENS, TRANSCRIPT_LENS, type RenderCard } from '../components/StoryLenses'
 import { parseSpeaker } from '../lib/speakers'
-import { getLaunchCounty } from '../lib/launchCounties'
 import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
 
 type SearchResultType =
@@ -514,37 +513,6 @@ function UnifiedSearchInner() {
     j.type === 'City' || j.type === 'city' || j.type === 'Place' || j.type === 'place'
   )?.name || searchParams.get('city') || ''
 
-  // "Include surrounding county" scope. When a known launch-city is the active
-  // city filter, the user can broaden results to its whole county. The backend
-  // accepts a 5-digit `county_fips` which SUPERSEDES `city` (every city in the
-  // county). The URL is the single source of truth: `county` param ('0' = off);
-  // when ABSENT we treat it as ON (default-checked) so a Home link that just
-  // carries ?city= lands county-scoped.
-  const launchCounty = getLaunchCounty(selectedCity)
-  const countyBroadenAvailable = !!launchCounty
-  // Scope is ON unless the URL explicitly says county=0.
-  const countyScopeOn = countyBroadenAvailable && searchParams.get('county') !== '0'
-  // The county FIPS to send when county scope is active (else undefined → send city).
-  const activeCountyFips = countyScopeOn ? launchCounty!.countyFips : undefined
-  // The visible scope label for the active place filter — county when broadened,
-  // else the city. Kept in lockstep with the API call below (MANDATORY rule).
-  const placeScopeLabel = countyScopeOn ? launchCounty!.countyName : selectedCity
-
-  // Toggle the county-broaden checkbox: write/clear ?county= while preserving
-  // every other param so the scope survives refresh / back-button.
-  const setCountyScope = (on: boolean) => {
-    const params = new URLSearchParams(searchParams)
-    if (on) {
-      params.delete('county') // absent == default ON
-    } else {
-      params.set('county', '0')
-    }
-    // Switching scope changes the result set; reset to page 1.
-    params.delete('page')
-    setCurrentPage(1)
-    setSearchParams(params)
-  }
-
   // Result types count as "active" once the user narrows away from the full set.
   const typesNarrowed = selectedTypes.length !== RESULT_TYPES.length
   // Badge count on the Filters button — how many advanced filters are engaged.
@@ -733,14 +701,7 @@ function UnifiedSearchInner() {
     if (activeQuery) params.q = activeQuery
     if (selectedEin) params.ein = selectedEin
     if (selectedState) params.state = selectedState
-    // County scope SUPERSEDES city: when broadened to the surrounding county,
-    // send `county_fips` and DO NOT send `city` (the backend widens to every
-    // city in the county). Otherwise filter by city as before.
-    if (activeCountyFips) {
-      params.county_fips = activeCountyFips
-    } else if (selectedCity) {
-      params.city = selectedCity
-    }
+    if (selectedCity) params.city = selectedCity
     if (sortBy && sortBy !== 'relevance') params.sort = sortBy
     if (nteeCategory) params.ntee_code = nteeCategory
     if (selectedTopicId) params.topic_id = selectedTopicId
@@ -757,7 +718,7 @@ function UnifiedSearchInner() {
   // cached counts; only a changed query/filter set refetches. limit=1 keeps the
   // per-type fetch minimal — we only consume `type_totals`, not the rows.
   const { data: tabCountsData, isLoading: isCountsLoading } = useQuery<SearchResponse>({
-    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, activeCountyFips ?? '', sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
+    queryKey: ['search-tab-counts', activeQuery, [...selectedTypes].sort().join(','), selectedState, selectedCity, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
     queryFn: async () => {
       if (!searchEnabled) return null
       const params = { ...buildSearchParams(), types: selectedTypes.join(','), limit: 1, page: 1 }
@@ -798,7 +759,7 @@ function UnifiedSearchInner() {
   // Active-tab results — fetches ONLY the active tab's type, so `page`/`limit`
   // paginate within that single type instead of across a mixed result set.
   const { data: searchResults, isLoading: isSearching, error } = useQuery<SearchResponse>({
-    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, activeCountyFips ?? '', currentPage, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
+    queryKey: ['unified-search', activeQuery, effectiveTab, selectedState, selectedCity, currentPage, sortBy, nteeCategory, selectedTopicId, selectedCauseId, selectedQuestionId, selectedDocType, selectedEin, includeFullText],
     queryFn: async () => {
       if (!effectiveTab) return null
       const params = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
@@ -1642,8 +1603,7 @@ function UnifiedSearchInner() {
             <Link
               to={`/chat?${new URLSearchParams({
                 ...(selectedState ? { state: selectedState } : {}),
-                ...(selectedCity && !countyScopeOn ? { city: selectedCity } : {}),
-                ...(activeCountyFips ? { county_fips: activeCountyFips } : {}),
+                ...(selectedCity ? { city: selectedCity } : {}),
               }).toString()}`}
               className="text-sm font-medium text-primary-600 hover:text-primary-700 hover:underline"
             >
@@ -2083,14 +2043,10 @@ function UnifiedSearchInner() {
                   </button>
                 </span>
               )}
-              {/* Place chip — reflects the ACTIVE scope: the county when broadened
-                  ("Include surrounding county" on), else the city. Label and data
-                  move in lockstep (MANDATORY scope-label rule). */}
+              {/* Place chip — the active city filter (MANDATORY scope-label rule). */}
               {selectedCity && (
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                  {countyScopeOn
-                    ? `County: ${placeScopeLabel}`
-                    : `City: ${selectedCity}`}
+                  {`City: ${selectedCity}`}
                   <button
                     onClick={() => {
                       const params = new URLSearchParams(window.location.search)
@@ -2103,20 +2059,6 @@ function UnifiedSearchInner() {
                     <XMarkIcon className="h-3 w-3" />
                   </button>
                 </span>
-              )}
-              {/* Include-surrounding-county toggle — only when the active city is a
-                  known launch city with a distinct county (SF excluded). Default
-                  ON via the absent `county` param. */}
-              {countyBroadenAvailable && launchCounty && (
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-sm text-teal-800">
-                  <input
-                    type="checkbox"
-                    checked={countyScopeOn}
-                    onChange={(e) => setCountyScope(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-teal-300 text-teal-600 focus:ring-teal-500"
-                  />
-                  Include all of {launchCounty.countyName}
-                </label>
               )}
               {jurisdictionDetails.length > 0 && (
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-sm">
@@ -2636,9 +2578,7 @@ function UnifiedSearchInner() {
                       {' '}of {searchResults.total_results.toLocaleString()}{' '}
                       {(RESULT_TABS.find((t) => t.key === effectiveTab)?.label ?? effectiveTab).toLowerCase()}
                       {selectedState && ` · State: ${selectedState}`}
-                      {selectedCity && (countyScopeOn
-                        ? ` · County: ${placeScopeLabel}`
-                        : ` · City: ${selectedCity}`)}
+                      {selectedCity && ` · City: ${selectedCity}`}
                     </p>
                   )}
                 </div>
