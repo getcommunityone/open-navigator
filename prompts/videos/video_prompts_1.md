@@ -81,7 +81,7 @@ Housing isn't a villain story.
 
 It's a tradeoff story.
 
-See how your city makes these decisions at carequest.org
+See how your city makes these decisions on Open Navigator
 
 ---
 
@@ -137,7 +137,7 @@ The real question isn't "Who's right?"
 
 It's "Which tradeoff are you willing to accept?"
 
-Learn more at carequest.org
+Learn more on Open Navigator
 
 ---
 

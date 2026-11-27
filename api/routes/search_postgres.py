@@ -686,7 +686,7 @@ async def search_persons_pg(
         # mdm_person is officer-derived (source_system='bronze_990_officers'), so a
         # chunk of "people" are really organization names that leaked in from the
         # Form 990 officer roster (e.g. "World Resources Institute", "Elias Law
-        # Group", "Carequest Institute For Oral Health"). Those belong under
+        # Group", "Example Health Foundation"). Those belong under
         # Organizations, not People. Drop any candidate whose normalized name is an
         # exact known organization name. name_norm and org_name_norm use the same
         # normalization, so this is precise (a real person like "Bill Center" has no

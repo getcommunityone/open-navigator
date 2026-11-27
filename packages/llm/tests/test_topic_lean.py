@@ -64,7 +64,7 @@ def test_generic_topics_ask_the_shared_labels() -> None:
     assert "noise" in tl.topic_questions(tl.TOPICS["pickleball"])["public_lean"]["instructions"]
 
 
-def test_fluoridation_mirrors_carequest_positions() -> None:
+def test_fluoridation_asks_five_positions() -> None:
     q = tl.topic_questions(tl.TOPICS["water-fluoridation"])
     positions = ["support_require_all", "support_local_choice", "no_opinion", "oppose_local_choice", "oppose_ban_all"]
     assert list(q["public_lean"]["criteria"]) == [*positions, "did_not_speak"]

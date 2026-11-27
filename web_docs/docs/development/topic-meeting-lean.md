@@ -1,7 +1,7 @@
 ---
 sidebar_position: 39
 title: Topic meeting lean
-description: How Jev reads how the public and elected officials leaned on guns, short-term rentals, pickleball, license plate readers and water fluoridation in each meeting, into topic_meeting_lean (#1126), the questions and their stored versions (#1201, #1239), the CareQuest mapping for fluoridation, the thresholds and what the stories show.
+description: How Jev reads how the public and elected officials leaned on guns, short-term rentals, pickleball, license plate readers and water fluoridation in each meeting, into topic_meeting_lean (#1126), the questions and their stored versions (#1201, #1239), fluoridation's five positions, the thresholds and what the stories show.
 ---
 
 # Topic meeting lean (AI reading)
@@ -70,25 +70,25 @@ Four topics share the labels:
 limit on firearms, adopted a sanctuary resolution or approved a range, shop or show; for pickleball it means courts
 were denied, removed or closed, hours cut, or play limited for noise.
 
-### Water fluoridation: CareQuest's poll positions
+### Water fluoridation: five positions
 
-At the owner's request (2026-11-26) the fluoridation leans mirror the national poll question "Which of the following
-comes closest to your position?", so the story can chart meetings beside the poll. Source: CareQuest Institute,
-"Attitudes about Fluoride: National Survey Results", Marketing for Change Co., July 7–9, 2025, n=1,114, ±2.94%.
+At the owner's request (2026-11-26) the fluoridation leans ask which of five positions comes closest to the group that
+spoke: for or against fluoridation, each split by whether every community should be required (or banned) or each
+community should decide, plus no opinion.
 
-| Jev label (public and officials) | CareQuest answer | Rolled up in the mart to |
+| Jev label (public and officials) | Position | Rolled up in the mart to |
 |---|---|---|
 | `support_require_all` | Support fluoridation; all communities should be required to fluoridate | `mostly_supportive` |
 | `support_local_choice` | Support fluoridation; each community should decide | `mostly_supportive` |
 | `no_opinion` | No opinion | `no_opinion` |
 | `oppose_local_choice` | Oppose fluoridation; each community should decide | `mostly_opposed` |
 | `oppose_ban_all` | Oppose fluoridation; all communities should be banned from fluoridating | `mostly_opposed` |
-| `did_not_speak` | (not a poll answer: nobody in the group took a position) | `did_not_speak` |
+| `did_not_speak` | (nobody in the group took a position) | `did_not_speak` |
 
 A speaker who only asks their own community to keep (or stop) fluoridating, without calling for a requirement (or a ban)
 everywhere, counts as `*_local_choice`.
 
-The outcome follows CareQuest's state legislation categories as far as a local meeting can:
+The outcome labels for a local meeting:
 
 | Jev outcome | `outcome_group` |
 |---|---|
@@ -106,7 +106,7 @@ question version (the version with the latest `screened_at`, `stg_jev__transcrip
 
 - `public_lean` / `official_lean` and their `_p`: for fluoridation, the group (support, oppose, no opinion) with the most
   summed probability, and that sum. `public_position` / `official_position` and their `_probabilities` keep the five
-  CareQuest answers (null for other topics).
+  positions (null for other topics).
 - **`public_against`**: `public_lean = 'mostly_opposed'` with p ≥ 0.7 (the data-center threshold).
 - **`public_for`**: `public_lean = 'mostly_supportive'` with p ≥ 0.7.
 - **`officials_sided_against_public`**: the public mostly opposed, officials mostly supportive, and the body did not
@@ -171,7 +171,7 @@ What changed on `main` with it, and why the stored version wins over the earlier
 
 ### Water fluoridation's labels (#1204)
 
-All 526 water-fluoridation rows carry `question_version` `5a7828a925fd`, the CareQuest poll question above. Their
+All 526 water-fluoridation rows carry `question_version` `5a7828a925fd`, the five-position question above. Their
 labels (`oppose_local_choice` 75, `support_local_choice` 22, `oppose_ban_all` 9, `no_opinion` 7, `did_not_speak` 413
 on 26 Nov 2026) are that question's own choices, not stray labels: [#1204](https://github.com/getcommunityone/open-navigator/issues/1204)
 compared them with the earlier `main` question, which never wrote any row. The data is unchanged. The mart rolls them

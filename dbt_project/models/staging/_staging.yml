@@ -2238,7 +2238,7 @@ sources:
           ``python -m llm.typesafe.screen_transcripts --topic <slug|all>`` (llm.typesafe.topic_lean, whose CREATE_SQL
           defines these columns; a test keeps this list in step, #1201) for the meetings in topic_transcript_link.
           Classifier probabilities only; Jev writes no text. An aggregate per meeting, never tied to a person. Water
-          fluoridation uses CareQuest's five poll positions instead of the shared lean labels. Until the first run
+          fluoridation uses five positions instead of the shared lean labels. Until the first run
           creates the table, stg_jev__transcript_topic_lean builds empty.
         columns:
           - name: video_id
@@ -2251,7 +2251,7 @@ sources:
             description: "The topic's CLI slug (guns, short-term-rentals, pickleball, license-plate-readers, water-fluoridation)."
           - name: model
           - name: public_lean
-            description: "mostly_supportive, mostly_opposed, mixed or did_not_speak (water fluoridation: the five CareQuest positions or did_not_speak)."
+            description: "mostly_supportive, mostly_opposed, mixed or did_not_speak (water fluoridation: the five positions or did_not_speak)."
           - name: public_lean_probabilities
           - name: official_lean
             description: "Same labels, for the elected officials."
