@@ -1,0 +1,58 @@
+version: 2
+
+# #1140: recorded meetings per government per year, the denominator for a topic's share of the record on the story
+# timeline and period dumbbell. Built into gold and published to public (publish_public_serving's served list).
+
+models:
+  - name: recorded_meeting_year
+    description: >
+      One row per (state_code, jurisdiction_id, jurisdiction_name, meeting_year): distinct meeting videos in
+      event_youtube_with_jurisdiction that have a usable transcript. Undated and future-dated meetings are left out.
+      Read by GET /api/topics/{topic}/timeline (all_recorded_meetings, share) and /period-compare.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['timeline', 'serving']
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: recorded_meeting_year_id
+        description: "Primary key: md5 of state_code | jurisdiction_id | jurisdiction_name | meeting_year."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests:
+          - unique
+          - not_null
+      - name: state_code
+        description: "2-letter state code of the meeting's government (null when unknown)."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: jurisdiction_id
+        description: "Foreign key to jurisdictions (null when the meeting has no resolved government)."
+        data_type: text
+      - name: jurisdiction_name
+        description: "Name of the government that met, as on the meeting video."
+        data_type: text
+      - name: meeting_year
+        description: "Calendar year of the meeting date (integer; serialized as a string on the wire)."
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: recorded_meetings
+        description: "Distinct recorded (transcribed) meetings for this government and year. Never null, at least 1."
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null

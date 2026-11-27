@@ -262,12 +262,26 @@ The hub, the story and the challenge use the Open Navigator house theme from `we
 
 ## What a chart shows
 
-The charts are the challenge's (`ChartPanel`). Every figure is a dot chart, and one dot is one real record: a speaker, a meeting, an agenda, a site, a project, a jobs claim, a mention of a concern. Dots are grouped under a heading with the group's real count and share. They appear one after another when their screen arrives. Each chart has a FIG. caption with source and scope, an honest note when the list is capped, and **Show data table**. A long figure scrolls inside its own frame so the headline stays in view.
+The charts are the challenge's (`ChartPanel`). The listed-record charts (meeting passages, agendas, decisions, jobs claims) are drawn as a unit matrix of squares (#1140, see the Meetings screen above); the others are dot charts, and one dot is one real record: a speaker, a meeting, an agenda, a site, a project, a jobs claim, a mention of a concern. Dots are grouped under a heading with the group's real count and share. They appear one after another when their screen arrives. Each chart has a FIG. caption with source and scope, an honest note when the list is capped, and **Show data table**. A long figure scrolls inside its own frame so the headline stays in view.
 
 There are two kinds of dot chart, and the caption says which:
 
 - **Listed records** (sites, projects, jobs claims, meeting passages, agendas, company-hosted meetings). The endpoint returns the records, up to 500, and each dot opens its source. When the endpoint also counts the whole scope, the heading states that count and its share and says how many are drawn ("Operating · 118 records · 60% · showing 24"). When it does not count per group (projects by status), the heading says only how many are drawn ("Planned · 5 shown") and gives no share. A share is never worked out from a capped list.
 - **Counts** (who spoke up, concerns, meetings in the opener). The endpoint returns totals, not records. Up to 240 the chart draws one dot per record. Above that one dot stands for 2, 5, 10, 20, 50... records, the smallest that fits, and the caption says so ("Each dot is 10 meetings; the last dot of a group is what is left over."). The last dot of a group stands for the remainder and is drawn smaller, so the dots always add up to the real count. The arithmetic is `dotRatio` and `countDots` in `web_app/src/utils/stanceGame.ts`, with tests.
+
+### Meetings screen: trend line, milestone track and period dumbbell (#1140)
+
+The Meetings screen (chart `meeting-mentions`) opens with three figures, all for the place in scope:
+
+- **Trend line.** Distinct meetings per year whose transcript discussed the topic, with the quoted passages in the tooltip. A toggle switches to the topic's **share of recorded meetings**: meetings on the topic divided by every recorded (transcribed) meeting in the same place and year (`recorded_meeting_year`). The line carries the note "Meetings in our record by year; recording coverage grew sharply in 2025–26, so the rise partly reflects coverage." A year with nothing recorded, or with no meetings on the topic and fewer than 25 recorded meetings, is a gap in the line, never a zero; the note names the gap years.
+- **Milestone track.** Under the line, on the same year scale, one lane per kind of event: meetings where officials approved, denied, tabled or adopted a moratorium (an **AI reading** of the transcript, labelled as such on the card), and state bills enacted once `topic_legislation_bill` is served. Click a square, or select one and use the arrow keys, Home and End; the card below gives the date, place, what happened and a link to the meeting or bill. Under 560px wide the track becomes a tap list, newest first.
+- **Period dumbbell.** Last year (hollow circle) against this year (filled dot) for each state in national scope, or each town in state scope, with a ±pp label and sort buttons (by this year, by change, by last year). Rows with too few recorded meetings are left out and the note says how many. In a city scope the dumbbell is not drawn (it compares places within the scope).
+
+Every other topic story (`/stories/<topic>`, for example `/stories/water-fluoridation`) shows the same trend line, milestone track and period dumbbell under its map, in a **Meetings over time** section that follows the page's state filter. Topics other than data centers count meetings from `topic_transcript_link` (no passage counts) and read their milestones from `topic_meeting_lean`.
+
+Below them, the passages are a **unit matrix**: one square per passage, regrouped by a toggle (All, By year, By state or By town, By outcome, By who spoke). The outcome and public-lean groupings are an AI reading and say so. The decisions, agenda and jobs-claim charts use the same matrix with their own grouping first. The design and thresholds: [Story charts: timeline, dumbbell and unit matrix](../development/story-charts-timeline-dumbbell.md).
+
+The headline names the year with the most meetings when the passage list is complete ("Data centers came up in 71 meetings in Texas, most of them in 2026 (278 quoted passages)."); when years tie or the list is capped it keeps the plain count.
 
 ## Add a story
 
