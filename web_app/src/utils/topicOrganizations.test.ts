@@ -81,6 +81,7 @@ describe('topic organizations words', () => {
   it('reads missions in sentence case, one line', () => {
     expect(sentenceCase('TO PROMOTE THE SPORT OF PICKLEBALL')).toBe('To promote the sport of pickleball')
     expect(sentenceCase('Already Mixed case')).toBe('Already Mixed case')
+    expect(sentenceCase('TO IMPROVE <mark>ORAL HEALTH</mark> IN GEORGIA')).toBe('To improve <mark>oral health</mark> in georgia')
     const long = 'word '.repeat(60)
     expect((oneLine(long) ?? '').length).toBeLessThanOrEqual(141)
   })

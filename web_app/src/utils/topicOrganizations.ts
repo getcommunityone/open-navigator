@@ -73,10 +73,10 @@ export function revenueLine(o: Pick<TopicOrganizationItem, 'revenue' | 'revenue_
   return `${money} revenue${o.revenue_tax_year ? ` (${o.revenue_tax_year})` : ''}`
 }
 
-/** 990 missions are often ALL CAPS: read them in sentence case. */
+/** 990 missions are often ALL CAPS: read them in sentence case (<mark> tags are kept, already lower case). */
 export function sentenceCase(text: string | null | undefined): string | null {
   if (!text) return null
-  const letters = text.replace(/[^A-Za-z]/g, '')
+  const letters = text.replace(/<\/?mark>/g, '').replace(/[^A-Za-z]/g, '')
   if (letters.length < 8 || letters !== letters.toUpperCase()) return text
   const lower = text.toLowerCase()
   return lower.charAt(0).toUpperCase() + lower.slice(1)
