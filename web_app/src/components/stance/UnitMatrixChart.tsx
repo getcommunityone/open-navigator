@@ -7,7 +7,8 @@ import { availableGroupings, groupRecords, layoutMatrix, sideLabelsFor, type Gro
 import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
 import { youtubeThumbnail } from '../../lib/youtubeThumbnail'
-import usePrefersReducedMotion from '../../hooks/usePrefersReducedMotion'
+import { staggerDelayMs } from '../../utils/folioMotion'
+import { useChartReveal } from './useChartReveal'
 import MeetingVideoModal, { type MeetingVideo } from './MeetingVideoModal'
 import { useChartWidth } from './useChartWidth'
 import './storyCharts.css'
@@ -43,12 +44,12 @@ interface Props {
 const DC_SIDE_LABELS = sideLabelsFor(topicPositions('data-centers'))
 
 export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, scopeLabel }: Props) {
-  const reduced = usePrefersReducedMotion()
   const { ref, width } = useChartWidth<HTMLDivElement>()
-  const svgRef = useRef<SVGSVGElement>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
   const { bind, tip, hide } = useTooltip()
   const [rove, setRove] = useState(0)
-  const [revealed, setRevealed] = useState(reduced)
+  // Squares fade in on a diagonal wave once the chart scrolls into view (#1228, the reference's §4.1); a new scope replays it.
+  const { ref: revealRef, revealed, reduced } = useChartReveal<SVGSVGElement>(`${chartKey}|${scopeLabel}`)
   const [tableOpen, setTableOpen] = useState(false)
   const [playing, setPlaying] = useState<MeetingVideo | null>(null)
   const playingFrom = useRef<number | null>(null)
@@ -86,15 +87,13 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
     return m
   }, [groups, records.length])
 
-  // Squares fade in once the chart is on screen.
-  useEffect(() => {
-    if (reduced) return setRevealed(true)
-    const el = svgRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return setRevealed(true)
-    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setRevealed(true), { threshold: 0.15 })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [reduced])
+  const svgRefs = useCallback(
+    (node: SVGSVGElement | null) => {
+      svgRef.current = node
+      revealRef(node)
+    },
+    [revealRef],
+  )
 
   const closeVideo = useCallback(() => {
     const from = playingFrom.current
@@ -141,7 +140,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
       )}
       <div ref={ref} data-keys-own onKeyDown={onKey}>
         <svg
-          ref={svgRef}
+          ref={svgRefs}
           className={`sc-svg sc-matrix${revealed ? ' is-revealed' : ''}`}
           viewBox={`0 0 ${layout.width} ${layout.height}`}
           role="group"
@@ -175,7 +174,10 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
                 window.open(r.d.url, '_blank', 'noopener,noreferrer')
               }
             }
-            const delay = reduced ? 0 : Math.min(500, Math.round((i / Math.max(1, records.length)) * 480))
+            // .sc-sq transitions transform, fill, opacity. A regrouping flies the squares in reading order (up to ~0.5 s);
+            // the entrance fades them in on the diagonal wave, top-left first, like the reference's first draw.
+            const fly = reduced ? 0 : Math.min(500, Math.round((i / Math.max(1, records.length)) * 480))
+            const wave = reduced ? 0 : Math.round(staggerDelayMs(s.x, s.y, layout.width + layout.height))
             return (
               <rect
                 key={r.d.id + i}
@@ -183,7 +185,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
                 className={`sc-sq${g?.tone ? ` sc-tone-${g.tone}` : g?.key === 'none' && active !== 'all' ? ' sc-tone-none' : ''}`}
                 width={s.size}
                 height={s.size}
-                style={{ transform: `translate(${s.x}px, ${s.y}px)`, transitionDelay: `${delay}ms`, fill: g?.key === 'none' && active !== 'all' ? undefined : colour(gi, g?.tone) }}
+                style={{ transform: `translate(${s.x}px, ${s.y}px)`, transitionDelay: `${fly}ms, ${fly}ms, ${wave}ms`, fill: g?.key === 'none' && active !== 'all' ? undefined : colour(gi, g?.tone) }}
                 tabIndex={i === rove ? 0 : -1}
                 role="img"
                 aria-label={label}
