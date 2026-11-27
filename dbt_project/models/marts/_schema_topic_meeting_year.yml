@@ -1,0 +1,73 @@
+version: 2
+
+# #1361: meetings per topic, government and year for every topic in civicsearch_topic (curated + civicsearch).
+# Built into gold and published to public (publish_public_serving's served list).
+
+models:
+  - name: topic_meeting_year
+    description: >
+      One row per (topic_id, state_code, jurisdiction_name, meeting_year): distinct recorded meetings that
+      discussed a topic in civicsearch_topic, per government and calendar year. Data centers comes from
+      data_center_meeting_mention; every other topic comes from int_transcript_keyword_topic joined to the
+      canonical transcript in event_documents. Read by GET /api/topics/yoy.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      tags: ['marts', 'topics', 'serving']
+      indexes:
+        - columns: [meeting_year, topic_id]
+        - columns: [state_code, meeting_year]
+    constraints:
+      - type: primary_key
+        columns: [topic_meeting_year_id]
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [topic_id, state_code, jurisdiction_name, meeting_year]
+    columns:
+      - name: topic_meeting_year_id
+        description: "Primary key: md5(topic_id|state_code|jurisdiction_name|meeting_year)."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+          - not_null
+      - name: topic_id
+        description: "Topic (civicsearch_topic.topic_id — curated or civicsearch)."
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: state_code
+        description: "2-letter state code of the meeting's government (null when unknown)."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: jurisdiction_name
+        description: "Name of the government that met, as on the meeting video (null when unknown)."
+        data_type: text
+      - name: meeting_year
+        description: "Calendar year of the meeting date (integer; serialized as a string on the wire)."
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: meetings
+        description: "Distinct recorded (transcribed) meetings discussing this topic for this government and year. Never null, at least 1."
+        data_type: integer
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: latest_meeting_date
+        description: "Latest meeting date in this (topic, government, year) cell (<= current_date)."
+        data_type: date

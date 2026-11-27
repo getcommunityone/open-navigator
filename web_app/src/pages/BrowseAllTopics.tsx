@@ -6,7 +6,19 @@ import DumbbellRows, { type DumbbellRow } from '../components/stance/DumbbellRow
 import { DataTable } from '../components/matrix/SectionShell'
 import { pctLabel } from '../utils/storyTimeline'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
-import { changeLabel, scopeQuery, splitTopics, yearBLabel, type YoyMetric } from '../utils/topicsYoy'
+import {
+  changeLabel,
+  filterTopics,
+  parseTopicFilter,
+  parseYoySort,
+  scopeQuery,
+  splitTopics,
+  topicDestination,
+  yearBLabel,
+  type YoyMetric,
+  type YoySort,
+  type YoyTopicFilter,
+} from '../utils/topicsYoy'
 import { useDocumentTitle } from '../utils/useDocumentTitle'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import '../styles/folio.css'
@@ -15,22 +27,26 @@ import '../components/stance/storyCharts.css'
 const fmt = (n: number) => n.toLocaleString('en-US')
 const countLabel = (v: number) => fmt(Math.round(v))
 
+const FILTER_LABEL: Record<YoyTopicFilter, string> = {
+  all: 'All major topics',
+  candidates: 'Not yet a story',
+  stories: 'Live stories',
+}
+
 /**
- * Browse all topics (#1343): one animated dumbbell, a row per main (curated) topic, last full year (hollow dot) against
- * this year to date (filled dot), sorted by change. The default metric is the share of recorded meetings that discussed
- * the topic, so a growing recordings base can't fake growth; a toggle shows raw meeting counts. Rising rows are teal,
- * falling rows ochre, and every change is also written out with its sign. Each row opens that topic's story in the same
- * place. A topic with too few meetings in either year is listed under "Too few meetings to compare", never drawn.
- *
- * Its own route rather than the top of Browse Topics: that page opens on decision cards (owner's call), and the chart
- * needs the full width and a deep link (`/browse-topics/all?state=GA`).
+ * Browse all topics (#1343, #1361): one animated dumbbell across all major meeting topics (both curated stories and
+ * CivicSearch meeting topics), last full year (hollow dot) against this year to date (filled dot). Supports filtering
+ * to topics that do not have a story yet (`?show=candidates`) and sorting by biggest rise or most discussed
+ * (`?sort=latest`) so you can spot which meeting topics to add next.
  */
 export default function BrowseAllTopics() {
   useDocumentTitle('Browse all topics')
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const stateParam = (searchParams.get('state') || '').trim().toUpperCase() || undefined
   const cityParam = stateParam ? (searchParams.get('city') || '').trim() || undefined : undefined
+  const filter = parseTopicFilter(searchParams.get('show'))
+  const sort = parseYoySort(searchParams.get('sort'))
   const [metric, setMetric] = useState<YoyMetric>('share')
   const [tableOpen, setTableOpen] = useState(false)
 
@@ -50,7 +66,23 @@ export default function BrowseAllTopics() {
   const here = scopeQuery(stateCode, city)
   const inPlace = city ? `in ${city}` : stateName ? `in ${stateName}` : 'nationally'
 
-  const { rows, tooFew } = useMemo(() => splitTopics(d?.topics ?? [], metric), [d, metric])
+  const updateParam = (key: 'show' | 'sort', value: string, def: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value === def) next.delete(key)
+    else next.set(key, value)
+    setSearchParams(next, { replace: true })
+  }
+
+  const keepViewQuery = (targetState?: string | null, targetCity?: string | null) => {
+    const p = new URLSearchParams(scopeQuery(targetState, targetCity))
+    if (filter !== 'all') p.set('show', filter)
+    if (sort !== 'change') p.set('sort', sort)
+    const s = p.toString()
+    return s ? `?${s}` : ''
+  }
+
+  const shown = useMemo(() => filterTopics(d?.topics ?? [], filter), [d, filter])
+  const { rows, tooFew } = useMemo(() => splitTopics(shown, metric, sort), [shown, metric, sort])
   // Topics with no tagged meeting in either year share one line; the rest show their two counts.
   const untagged = tooFew.filter((t) => t.meetings_a === 0 && t.meetings_b === 0)
   const thin = tooFew.filter((t) => t.meetings_a > 0 || t.meetings_b > 0)
@@ -61,6 +93,7 @@ export default function BrowseAllTopics() {
   const drawn: DumbbellRow[] = rows.map(({ topic: t, a, b, change }) => {
     const ch = changeLabel(change)
     const counts = `${fmt(t.meetings_a)} of ${fmt(t.recorded_a)} meetings in ${yA}; ${fmt(t.meetings_b)} of ${fmt(t.recorded_b)} in ${yB}`
+    const status = t.has_story ? 'Live story' : 'Not a story yet — opens Browse Topics'
     return {
       key: t.slug,
       label: t.name,
@@ -68,14 +101,18 @@ export default function BrowseAllTopics() {
       b,
       right: ch,
       negative: b < a,
-      ariaLabel: `${t.name}: ${yA} ${format(a)}, ${yB} ${format(b)}, ${ch.replace('−', 'minus ')} change. ${counts}. Opens the story.`,
-      tip: { cat: t.name, val: `${format(a)} → ${format(b)} (${ch})`, sub: counts },
+      ariaLabel: `${t.name} (${t.has_story ? 'live story' : 'not a story yet'}): ${yA} ${format(a)}, ${yB} ${format(b)}, ${ch.replace('−', 'minus ')} change. ${counts}. ${t.has_story ? 'Opens the story.' : 'Opens meetings in Browse Topics.'}`,
+      tip: { cat: t.name, val: `${format(a)} → ${format(b)} (${ch})`, sub: `${counts} · ${status}` },
     }
   })
 
-  const open = (slug: string) => navigate(`/stories/${encodeURIComponent(slug)}${here}`)
+  const open = (slug: string) => {
+    const hit = shown.find((t) => t.slug === slug)
+    if (hit) navigate(topicDestination(hit, stateCode, city))
+  }
   const rising = rows.filter((r) => r.b > r.a).length
   const falling = rows.filter((r) => r.b < r.a).length
+  const candidateRows = rows.filter((r) => !r.topic.has_story).length
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
@@ -95,13 +132,25 @@ export default function BrowseAllTopics() {
             📍 {scopeLabel}
           </span>
           {city && stateCode && (
-            <Link to={`/browse-topics/all${scopeQuery(stateCode, null)}`}>All of {stateCode}</Link>
+            <Link to={`/browse-topics/all${keepViewQuery(stateCode, null)}`}>All of {stateCode}</Link>
           )}
-          {stateCode && <Link to="/browse-topics/all">National</Link>}
+          {stateCode && <Link to={`/browse-topics/all${keepViewQuery(null, null)}`}>National</Link>}
         </div>
 
         <div className="sc-block" style={{ marginTop: 16 }}>
-          <div className="sc-controls">
+          <div className="sc-controls" style={{ flexWrap: 'wrap' }}>
+            <div className="folio-seg sc-chips" role="group" aria-label="Which topics to include">
+              {(['all', 'candidates', 'stories'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={filter === k}
+                  onClick={() => updateParam('show', k, 'all')}
+                >
+                  {FILTER_LABEL[k]}
+                </button>
+              ))}
+            </div>
             <div className="folio-seg sc-chips" role="group" aria-label="What the dots measure">
               <button type="button" aria-pressed={metric === 'share'} onClick={() => setMetric('share')}>
                 Share of meetings
@@ -110,8 +159,26 @@ export default function BrowseAllTopics() {
                 Meeting count
               </button>
             </div>
+            <div className="folio-seg sc-chips" role="group" aria-label="Sort order">
+              {(
+                [
+                  ['change', 'Biggest rise'],
+                  ['latest', 'Most discussed'],
+                ] as [YoySort, string][]
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={sort === k}
+                  onClick={() => updateParam('sort', k, 'change')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <p className="sc-h">
+            {FILTER_LABEL[filter]} ·{' '}
             {metric === 'share' ? 'Share of recorded meetings that discussed each topic' : 'Meetings that discussed each topic'}
             {yA ? `, ${yA} and ${yB}` : ''} · {scopeLabel}
           </p>
@@ -125,7 +192,7 @@ export default function BrowseAllTopics() {
 
           {d && rows.length === 0 && (
             <p className="sc-note">
-              No topic can be compared for {scopeLabel} yet: each needs at least {d.min_meetings} meetings on the topic in both{' '}
+              No {filter === 'candidates' ? 'candidate topics without a story' : filter === 'stories' ? 'live story topics' : 'topics'} can be compared for {scopeLabel} yet: each needs at least {d.min_meetings} meetings on the topic in both{' '}
               {yA} and {yB}
               {d.recorded_a < d.min_recorded_meetings || d.recorded_b < d.min_recorded_meetings
                 ? `, and the place needs at least ${d.min_recorded_meetings} recorded meetings in each year (${fmt(d.recorded_a)} and ${fmt(d.recorded_b)} are on record)`
@@ -137,17 +204,18 @@ export default function BrowseAllTopics() {
           {d && rows.length > 0 && (
             <>
               <p className="sc-note" aria-live="polite">
-                <b>{rising}</b> {rising === 1 ? 'topic is' : 'topics are'} up and <b>{falling}</b> down. Hollow dot = {yA}, filled dot ={' '}
-                {yB}; teal rises, ochre falls. Tap a topic for its story.
+                <b>{rising}</b> {rising === 1 ? 'topic is' : 'topics are'} up and <b>{falling}</b> down
+                {filter === 'all' && candidateRows > 0 ? ` (${candidateRows} without a story yet)` : ''}. Hollow dot = {yA}, filled dot ={' '}
+                {yB}; teal rises, ochre falls. Tap a row to open its story or meetings.
               </p>
               <DumbbellRows
                 rows={drawn}
                 aName={yA}
                 bName={yB}
-                ariaLabel={`Dumbbell chart of every compared topic, ${yA} against ${yB}, ${scopeLabel}`}
-                firstRows={30}
+                ariaLabel={`Dumbbell chart of ${FILTER_LABEL[filter].toLowerCase()}, ${yA} against ${yB}, ${scopeLabel}`}
+                firstRows={60}
                 unitPlural="topics"
-                replayKey={`${stateCode ?? ''}|${city ?? ''}`}
+                replayKey={`${stateCode ?? ''}|${city ?? ''}|${filter}`}
                 format={format}
                 valuesOverDots
                 toneDots
@@ -171,7 +239,7 @@ export default function BrowseAllTopics() {
                 </>
               )}{' '}
               {d.year_b_partial && `${d.year_b} runs through the latest meeting on record${d.year_b_through ? ` (${d.year_b_through})` : ''}.`}{' '}
-              A topic needs at least {d.min_meetings} meetings in each year to be compared.
+              Curated topics match hand-picked phrases (data centers from mentioned passages); major meeting topics match two or more distinct multi-word phrases in transcripts. A topic needs at least {d.min_meetings} meetings in each year to be compared.
               {d.thin_year && (
                 <>
                   {' '}
@@ -190,7 +258,7 @@ export default function BrowseAllTopics() {
               <ul className="sc-note" style={{ listStyle: 'none', padding: 0, maxWidth: 'none' }}>
                 {thin.map((t) => (
                   <li key={t.slug} style={{ padding: '2px 0' }}>
-                    <Link to={`/stories/${encodeURIComponent(t.slug)}${here}`}>{t.name}</Link> — {fmt(t.meetings_a)} in {yA},{' '}
+                    <Link to={topicDestination(t, stateCode, city)}>{t.name}</Link> — {fmt(t.meetings_a)} in {yA},{' '}
                     {fmt(t.meetings_b)} in {yB}
                   </li>
                 ))}
@@ -201,7 +269,7 @@ export default function BrowseAllTopics() {
                   {untagged.map((t, i) => (
                     <span key={t.slug}>
                       {i > 0 && ', '}
-                      <Link to={`/stories/${encodeURIComponent(t.slug)}${here}`}>{t.name}</Link>
+                      <Link to={topicDestination(t, stateCode, city)}>{t.name}</Link>
                     </span>
                   ))}
                   .
@@ -224,17 +292,19 @@ export default function BrowseAllTopics() {
               {tableOpen && (
                 <DataTable
                   id="all-topics-table"
-                  caption={`Data table: every compared topic, ${yA} and ${yB}, ${scopeLabel}`}
+                  caption={`Data table: ${FILTER_LABEL[filter].toLowerCase()}, ${yA} and ${yB}, ${scopeLabel}`}
                   spec={{
                     columns: [
                       { label: 'Topic' },
+                      { label: 'Status' },
                       { label: `${yA} share`, numeric: true },
                       { label: `${yB} share`, numeric: true },
                       { label: `Meetings ${yA} / ${yB}`, numeric: true },
-                      { label: 'Change', numeric: true },
+                      { label: metric === 'share' ? 'Share change' : 'Count change', numeric: true },
                     ],
                     rows: rows.map((r) => [
                       r.topic.name,
+                      r.topic.has_story ? 'Live story' : 'Not a story yet',
                       pctLabel(r.topic.share_a ?? 0),
                       pctLabel(r.topic.share_b ?? 0),
                       `${fmt(r.topic.meetings_a)} / ${fmt(r.topic.meetings_b)}`,
