@@ -88,7 +88,7 @@ export function evidenceFacts(e: RecordedEvidence): string {
   if (e.speakers == null) speakers = 'public speakers are not available yet'
   else if (!r) speakers = `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} on record`
   else {
-    const where = `in ${fmt(r)} ${r === 1 ? 'meeting' : 'meetings'} reviewed`
+    const where = `in ${fmt(r)} ${r === 1 ? 'meeting' : 'meetings'} reviewed by hand`
     speakers = e.speakers === 0 ? `no public speakers ${where}` : `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} ${where}`
   }
   return `${votes}; ${speakers}.`
