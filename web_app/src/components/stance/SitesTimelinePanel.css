@@ -14,23 +14,15 @@
   flex-wrap: wrap;
 }
 .dc-tl-year {
-  font-family: var(--font-display, inherit);
-  font-size: 34px;
+  font-family: var(--font-display, Georgia, serif);
   font-weight: 700;
-  line-height: 1;
+  fill: var(--ink, #121116);
   font-variant-numeric: tabular-nums;
 }
 .dc-tl-projected {
-  margin-left: 6px;
-  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-2, #555);
-  border: 1px dashed currentColor;
-  border-radius: 3px;
-  padding: 1px 4px;
-  vertical-align: middle;
+  letter-spacing: 0.08em;
+  fill: var(--ink-2, #555);
 }
 .dc-tl-counts {
   display: flex;
@@ -188,12 +180,19 @@
   color: var(--ink-2, #555);
 }
 @media (max-width: 640px) {
-  .dc-tl-year {
-    font-size: 26px;
+  .dc-tl {
+    gap: 4px;
   }
   .dc-tl-map svg,
   .dc-tl-map-skeleton {
-    max-height: 30vh;
+    max-height: 21vh;
+  }
+  .dc-tl-counts {
+    font-size: 11px;
+  }
+  .dc-tl-btn {
+    min-width: 30px;
+    height: 30px;
   }
   .dc-tl-strip {
     height: 28px;

@@ -181,24 +181,18 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
 
   return (
     <div className="dc-tl" data-display="animated" data-future={isFuture ? '' : undefined}>
-      <div className="dc-tl-head">
-        <span className="dc-tl-year" aria-live={playing ? 'off' : 'polite'}>
-          {year}
-          {isFuture && <span className="dc-tl-projected">projected</span>}
-        </span>
-        <ul className="dc-tl-counts" aria-label={`Sites on record by ${year}`}>
-          {PHASES.filter((p) => ((row?.[p] as number | undefined) ?? 0) > 0).map((p) => (
-            <li key={p} data-phase={p}>
-              <span className="dc-tl-key" style={p === 'planned' ? { borderColor: PHASE_COLOR[p] } : { background: PHASE_COLOR[p] }} aria-hidden="true" />
-              {PHASE_LABEL[p]} <strong>{fmt((row?.[p] as number | undefined) ?? 0)}</strong>
-            </li>
-          ))}
-        </ul>
-      </div>
-
       <div className="dc-tl-map">
         {geo ? (
           <svg viewBox={geo.vb.join(' ')} role="img" aria-label={`Map of ${fmt(atYear.length)} mapped data center sites on record in ${scopeLabel === 'National' ? 'the country' : scopeLabel} by ${year}`}>
+            {/* The year on the map itself, so the map and its year are one block. */}
+            <text className="dc-tl-year" x={geo.vb[0] + geo.vb[2] * 0.98} y={geo.vb[1] + geo.vb[2] * 0.1} textAnchor="end" fontSize={geo.vb[2] * 0.1} aria-hidden="true">
+              {year}
+            </text>
+            {isFuture && (
+              <text className="dc-tl-projected" x={geo.vb[0] + geo.vb[2] * 0.98} y={geo.vb[1] + geo.vb[2] * 0.15} textAnchor="end" fontSize={geo.vb[2] * 0.035} aria-hidden="true">
+                PROJECTED
+              </text>
+            )}
             <g className="dc-tl-land">
               {geo.feats.map((f) => (
                 <path key={f.id} d={featPath(f)} />
@@ -239,6 +233,22 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
         ) : (
           <div className="dc-tl-map-skeleton" aria-label="Loading the map" />
         )}
+      </div>
+
+      {/* The counts sit under the map: on a phone the map is the panel's first block, so it stays in view (useScreenFit). */}
+      <div className="dc-tl-head">
+        <span className="folio-sr-only" aria-live={playing ? 'off' : 'polite'}>
+          {year}
+          {isFuture ? ', projected' : ''}
+        </span>
+        <ul className="dc-tl-counts" aria-label={`Sites on record by ${year}`}>
+          {PHASES.filter((p) => ((row?.[p] as number | undefined) ?? 0) > 0).map((p) => (
+            <li key={p} data-phase={p}>
+              <span className="dc-tl-key" style={p === 'planned' ? { borderColor: PHASE_COLOR[p] } : { background: PHASE_COLOR[p] }} aria-hidden="true" />
+              {PHASE_LABEL[p]} <strong>{fmt((row?.[p] as number | undefined) ?? 0)}</strong>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="dc-tl-controls">

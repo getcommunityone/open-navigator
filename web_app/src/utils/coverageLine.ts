@@ -37,7 +37,7 @@ export function coverageText(cov: RecordedCoverageResponse | null | undefined, s
     if (g === 0) return { full: `No ${name} local government is in our meeting recordings yet.`, short: `No ${scope.stateCode} recordings yet.` }
     return {
       full: `From recordings of ${govs(g, name)} (${meetings(m)}). Many ${name} governments aren't in our recordings yet.`,
-      short: `Recorded: ${fmt(g)} ${scope.stateCode} ${g === 1 ? 'government' : 'governments'}, ${meetings(m)}.`,
+      short: `From ${fmt(g)} ${scope.stateCode} ${g === 1 ? 'government' : 'governments'}' recordings (${meetings(m)}); many aren't in yet.`,
     }
   }
   const states = cov.states && cov.states > 1 ? ` in ${fmt(cov.states)} states` : ''

@@ -9,7 +9,7 @@ describe('coverageText (#1348)', () => {
   it('states the real counts for a state, with the caveat, and a short phone form', () => {
     expect(coverageText(cov(29, 1035), { stateCode: 'FL', stateName: 'Florida', city: null })).toEqual({
       full: "From recordings of 29 Florida local governments (1,035 meetings). Many Florida governments aren't in our recordings yet.",
-      short: 'Recorded: 29 FL governments, 1,035 meetings.',
+      short: "From 29 FL governments' recordings (1,035 meetings); many aren't in yet.",
     })
   })
 
