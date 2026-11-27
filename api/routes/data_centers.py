@@ -1091,6 +1091,14 @@ MENTION_SPEAKER_SQL = (
 """Who said the quoted words (#1124), only where the record says so: a public comment from the same recording, with a
 name, whose whole verbatim quote (20+ characters) is inside the passage's excerpt. No timing guess, no fuzzy match."""
 
+MENTION_INTRO_SPEAKER_SQL = (
+    "SELECT s.data_center_meeting_mention_id, s.speaker_kind, s.speaker_display_name, s.speaker_role "
+    "FROM meeting_passage_speaker s "
+    "WHERE s.data_center_meeting_mention_id = ANY($1::text[]) AND s.speaker_display_name IS NOT NULL"
+)
+"""Who said the passage from their self-introduction in the recording (#1231): the nearest preceding "my name is ..."
+within the same meeting (meeting_passage_speaker). Used only where the hand-counted public comments name nobody."""
+
 _FIRST_L = re.compile(r"^\S+( \S\.)?$")
 
 
@@ -1129,6 +1137,14 @@ async def _mention_extras(conn: Any, rows: list[dict[str, Any]]) -> None:
                     speakers[str(row["data_center_meeting_mention_id"])] = row
         except asyncpg.exceptions.PostgresError as e:
             logger.warning("data-centers: data_center_public_comment unavailable for mention cards ({}); speakers null", e)
+    intro_speakers: dict[str, dict[str, Any]] = {}
+    unnamed = [m for m in mention_ids if str(m) not in speakers]
+    if unnamed:
+        try:
+            for r in await conn.fetch(MENTION_INTRO_SPEAKER_SQL, unnamed):
+                intro_speakers[str(r["data_center_meeting_mention_id"])] = dict(r)
+        except asyncpg.exceptions.PostgresError as e:
+            logger.warning("data-centers: meeting_passage_speaker unavailable for mention cards ({}); speakers null", e)
     for r in rows:
         meeting = meetings.get(str(r.get("video_id")))
         if meeting:
@@ -1139,6 +1155,17 @@ async def _mention_extras(conn: Any, rows: list[dict[str, Any]]) -> None:
         if sp:
             r["speaker_display_name"] = first_l(sp.get("speaker_display_name"))
             r["speaker_role"] = (sp.get("speaker_role") or None) if r["speaker_display_name"] else None
+            continue
+        intro = intro_speakers.get(str(r["data_center_meeting_mention_id"]))
+        if intro:
+            raw = intro.get("speaker_display_name")
+            # Officials (matched to our officials data) keep their name; everyone else is "First L." at most.
+            if intro.get("speaker_kind") == "official":
+                name = " ".join(str(raw or "").split()) or None
+            else:
+                name = first_l(raw)
+            r["speaker_display_name"] = name
+            r["speaker_role"] = (intro.get("speaker_role") or None) if name else None
 
 
 MENTION_LEAN_SQL = (

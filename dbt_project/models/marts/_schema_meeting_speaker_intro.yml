@@ -1,0 +1,165 @@
+version: 2
+
+# Speaker names from public-comment self-introductions (#1231).
+# Design: web_docs/docs/development/speaker-names-from-self-introductions.md
+# Privacy: neither model has a full private name column; residents are "First L." and students, minors and
+# residents at school board meetings get no name. meeting_speaker_intro stays in gold; meeting_passage_speaker is
+# published to public (publish_public_serving).
+
+models:
+  - name: meeting_speaker_intro
+    description: >
+      One row per speaker self-introduction heard in a recording ("my name is ...", the chair's "next speaker
+      is ..."), with the form we may show: an official's name and title, a resident's "First L.", or nothing
+      (suppressed: student, minor, resident at a school board meeting). Regex extraction, no model.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: meeting_speaker_intro_id
+        description: "PK: md5(video_id|char_offset|pattern_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: video_id
+        description: "Recording (event_documents.video_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: char_offset
+        description: "0-based character offset of the introduction in event_documents.content."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: start_seconds
+        description: "Seconds into the recording when the transcript is timed; else null."
+        data_type: numeric(10, 3)
+      - name: pattern_id
+        description: "my_name_is | i_am_live | this_is_from | greeting_name | next_speaker."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: confidence
+        description: "Pattern confidence (0.5 chair call to 0.9 'my name is')."
+        data_type: numeric(3, 2)
+      - name: state_code
+        description: "2-letter state code of the meeting (event_documents)."
+        data_type: text
+      - name: jurisdiction_name
+        description: "The meeting's jurisdiction (event_documents)."
+        data_type: text
+      - name: speaker_kind
+        description: "official | resident | suppressed."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['official', 'resident', 'suppressed']
+      - name: suppressed_reason
+        description: "student_or_minor | school_board_meeting; null unless speaker_kind = suppressed."
+        data_type: text
+      - name: speaker_display_name
+        description: "Official: full name. Resident: 'First L.' or first name only. Suppressed: null."
+        data_type: text
+      - name: speaker_role
+        description: "Official: title from person_government. Resident: 'Resident' only when they said they live here."
+        data_type: text
+      - name: person_id
+        description: "FK -> person_government.person_id when the speaker is a matched official."
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('person_government')
+            to_columns: [person_id]
+        data_tests:
+          - relationships:
+              to: ref('person_government')
+              field: person_id
+
+  - name: meeting_passage_speaker
+    description: >
+      One row per quoted story-map passage (topic_transcript_link evidence or data_center_meeting_mention excerpt)
+      inside a speaker's introduction window: the nearest preceding introduction in the same recording within
+      2,500 characters; a two-fragment excerpt only when both fragments take the same introduction. Served in
+      public; the speaker fields are the display form only (null when the introduction was suppressed).
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: meeting_passage_speaker_id
+        description: "PK: md5(passage_source|passage id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: passage_source
+        description: "topic | data_center."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['topic', 'data_center']
+      - name: topic_transcript_link_id
+        description: "FK -> topic_transcript_link (passage_source = topic), else null."
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('topic_transcript_link')
+            to_columns: [topic_transcript_link_id]
+        data_tests:
+          - unique
+          - relationships:
+              to: ref('topic_transcript_link')
+              field: topic_transcript_link_id
+      - name: data_center_meeting_mention_id
+        description: "FK -> data_center_meeting_mention (passage_source = data_center), else null."
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('data_center_meeting_mention')
+            to_columns: [data_center_meeting_mention_id]
+        data_tests:
+          - unique
+          - relationships:
+              to: ref('data_center_meeting_mention')
+              field: data_center_meeting_mention_id
+      - name: video_id
+        description: "Recording."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: passage_char_offset
+        description: "Character offset of the passage's first fragment in event_documents.content."
+        data_type: integer
+      - name: meeting_speaker_intro_id
+        description: "FK -> meeting_speaker_intro."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('meeting_speaker_intro')
+            to_columns: [meeting_speaker_intro_id]
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('meeting_speaker_intro')
+              field: meeting_speaker_intro_id
+      - name: intro_char_offset
+        description: "Character offset of the introduction."
+        data_type: integer
+      - name: speaker_kind
+        description: "official | resident | suppressed (from meeting_speaker_intro)."
+        data_type: text
+      - name: speaker_display_name
+        description: "Display form only; null when suppressed."
+        data_type: text
+      - name: speaker_role
+        description: "Official's title, 'Resident', or null."
+        data_type: text

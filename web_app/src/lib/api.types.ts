@@ -4929,6 +4929,8 @@ export interface operations {
                 city?: string | null;
                 /** @description Quotes per side. */
                 limit?: number;
+                /** @description If set, up to this many quotes per state and side instead of `limit` per side (the home map). */
+                per_state?: number;
             };
             header?: never;
             path?: never;

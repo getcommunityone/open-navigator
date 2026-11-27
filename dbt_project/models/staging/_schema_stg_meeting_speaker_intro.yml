@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: stg_bronze_meeting_speaker_intro
+    description: >
+      Speaker self-introductions heard in meeting transcripts (#1231), typed from
+      bronze.bronze_meeting_speaker_intro. One row per (video_id, char_offset, pattern_id).
+      name_tokens are private (never served); meeting_speaker_intro serves the display form only.
+    columns:
+      - name: video_id
+        data_tests: [not_null]
+      - name: char_offset
+        data_tests: [not_null]
+      - name: pattern_id
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['my_name_is', 'i_am_live', 'this_is_from', 'greeting_name', 'next_speaker']
+      - name: name_tokens
+        description: "Name words as heard (private)."
+      - name: name_token_count
+        description: "1-3."
+      - name: mentions_minor
+        description: "The speaker's next words mention a student, grade, school or an age under 18."
+      - name: says_resident
+        description: "The introduction says the speaker lives here or is a resident."
