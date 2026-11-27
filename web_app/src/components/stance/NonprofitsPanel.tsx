@@ -76,7 +76,9 @@ export default function NonprofitsPanel({ topic, stateCode, city, scopeLabel, su
       <div className="sc-block np">
         {title}
         <div className="up-empty" role="status">
-          <p className="up-empty-line">{noNonprofits(scopeLabel)}</p>
+          <p className="up-empty-line">
+            {d.partial ? `None of ${scopeLabel}'s nonprofits on record are among its state's strongest on ${subject}.` : noNonprofits(scopeLabel)}
+          </p>
           {wider && d.broader && (
             <p className="sc-note">
               {d.broader.total > 0 ? (

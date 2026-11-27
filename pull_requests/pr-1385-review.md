@@ -4,9 +4,9 @@ branch: perf/1382-slim-topic-organization
 title: "perf(topics): slim the published nonprofits-by-topic table to fit Neon"
 author: jcbowyer
 reviewed_at: 2026-11-27
-reviewer: github-actions
+reviewer: claude (read-only reviewer subagent + author verification)
 head_sha: e3740525e58cf0da6bfb220b99b43c761f39e088
-verdict: approve
+verdict: approve-with-nits
 ---
 
 # PR Review: perf(topics): slim the published nonprofits-by-topic table to fit Neon
@@ -78,14 +78,18 @@ See the PR checks on `e3740525e58c`.
 
 None.
 
-### 🟡 Should fix (Important)
+### 🟡 Should fix (Important) — found by the reviewer, fixed on the branch
 
-None from automated heuristics.
+- The 280-character cut started at the beginning, so a passage whose first `<mark>` sat later lost its highlight (match-evidence rule). Now the window starts 100 characters before the first mark, cuts at words, and drops the last word only when it stops before the end. Checked on the build: 0 evidence rows without a mark, 0 with unbalanced marks (13,813 rows).
+- A city whose nonprofits are all outside its state's served rows showed a confident 0. Now `partial` compares the state's total with the rows actually served for it (including every named-in-meeting row), stays true when the city shows none, and the screen says "None of <city>'s nonprofits on record are among its state's strongest" instead of "none on record". Test added.
 
-### 🔵 Nit (Minor)
+### 🔵 Nit (Minor) — fixed
 
-None from automated heuristics.
+- Mark balance now counts `<mark>` against `</mark>`, not every `<`.
+- The count model's comment said 40; it is 20.
+
+Checked by the reviewer: yml and SQL columns match; the API reads only served columns; no person data or invented numbers.
 
 ## Verdict
 
-**approve**
+**approve-with-nits**: the findings were fixed on the branch and re-tested.

@@ -15,7 +15,8 @@ from api.routes import topic_organizations as mod
 
 
 class _Conn:
-    def __init__(self, counts=None, items=None, up_counts=None, missing=False, city_counts=None):
+    def __init__(self, counts=None, items=None, up_counts=None, missing=False, city_counts=None, served=20):
+        self.served = served
         self.counts = counts or []
         self.city_counts = city_counts or []
         self.items = items or []
@@ -35,6 +36,16 @@ class _Conn:
         if sql is mod._ITEMS_SQL:
             return self.items
         return []
+
+    async def fetchrow(self, sql: str, *params: Any):
+        self.calls.append((sql, params))
+        if sql is mod._SERVED_SQL:
+            return {"n": self.served}
+        return None
+
+
+class _ConnRow(_Conn):
+    pass
 
 
 class _Acquire:
@@ -141,11 +152,18 @@ def test_empty_city_offers_its_state(monkeypatch) -> None:
     body = _get(monkeypatch, conn, "/api/topics/guns/organizations", {"state": "AL", "city": "Tuscaloosa"}).json()
     assert body["broader"] == {"state_code": "AL", "label": "Alabama", "total": 2}
     assert [p for s, p in conn.calls if s is mod._CITY_COUNTS_SQL] == [("guns", "AL", "Tuscaloosa")]
-    assert body["partial"] is False
+    assert body["partial"] is False  # every one of the state's 2 is served, so the city's none is real
+
+
+def test_city_with_none_served_is_partial_not_a_confident_zero(monkeypatch) -> None:
+    conn = _Conn(counts=[_count("ntee_code", 300)], up_counts=[_count("ntee_code", 300)], city_counts=[], served=21)
+    body = _get(monkeypatch, conn, "/api/topics/guns/organizations", {"state": "AL", "city": "Dothan"}).json()
+    assert body["total"] == 0 and body["partial"] is True
+    assert body["broader"]["total"] == 300
 
 
 def test_city_counts_are_partial_when_the_state_has_more(monkeypatch) -> None:
-    conn = _Conn(counts=[_count("keyword_in_name", 60)], city_counts=[_count("keyword_in_name", 3)], items=[_item()])
+    conn = _Conn(counts=[_count("keyword_in_name", 60)], city_counts=[_count("keyword_in_name", 3)], items=[_item()], served=21)
     body = _get(monkeypatch, conn, "/api/topics/guns/organizations", {"state": "AL", "city": "Mobile"}).json()
     assert body["total"] == 3 and body["partial"] is True
 

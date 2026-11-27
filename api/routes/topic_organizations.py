@@ -85,7 +85,8 @@ class TopicOrganizations(BaseModel):
     items: list[TopicOrganizationItem] = []
     broader: BroaderOrgScope | None = None
     built_at: str | None = None
-    #: True when the counts may be short: a city scope counted from the served rows of a state that has more.
+    #: True when the counts may be short: a city scope counted from the served rows of a state that has more
+    #: (a city then showing none means none among its state's strongest, not none at all).
     partial: bool = False
 
 
@@ -123,8 +124,12 @@ _CITY_COUNTS_SQL = f"""
     GROUP BY o.match_method
 """
 
-#: Rows served per topic and state (topic_organization_serving); a state with more is cut to its strongest.
-SERVED_PER_STATE = 20
+# $1 topic, $2 state: rows served for the state (the strongest 20 plus every named-in-meeting row).
+_SERVED_SQL = """
+    SELECT count(*)::int AS n
+    FROM topic_organization_serving o
+    WHERE (o.topic_slug = $1::text OR o.topic_id::text = $1::text) AND o.state_code = $2::text
+"""
 
 
 def _counts(rows: list[Any]) -> OrganizationCounts:
@@ -197,7 +202,8 @@ async def topic_organizations(
                 if city_name:
                     count_rows = list(await conn.fetch(_CITY_COUNTS_SQL, key, state_code, city_name))
                     state_total = _total(_counts(list(await conn.fetch(_COUNTS_SQL, key, state_code))))
-                    partial = state_total > SERVED_PER_STATE
+                    served = await conn.fetchrow(_SERVED_SQL, key, state_code)
+                    partial = state_total > int(served["n"] if served else 0)
                 else:
                     count_rows = list(await conn.fetch(_COUNTS_SQL, key, state_code))
                 item_rows = list(await conn.fetch(_ITEMS_SQL, key, state_code, city_name, limit))
@@ -212,7 +218,6 @@ async def topic_organizations(
                         total=_total(_counts(up_rows)),
                     )
                     count_rows = count_rows or up_rows  # still says the mart covers the topic
-                    partial = False
         except asyncpg.exceptions.UndefinedTableError:
             span.set_attribute("topics.relation_missing", True)
             return TopicOrganizations(**base)
@@ -233,5 +238,5 @@ async def topic_organizations(
             items=shape_items(item_rows),
             broader=broader,
             built_at=_iso(built_at),
-            partial=partial and _total(counts) > 0,
+            partial=partial,
         )

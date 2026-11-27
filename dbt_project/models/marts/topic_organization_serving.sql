@@ -29,6 +29,25 @@ with ranked as (
             order by o.evidence_rank, o.revenue desc nulls last, o.org_name, o.master_org_id
         ) as rn
     from {{ ref('topic_organization') }} as o
+),
+
+cut as (
+    select
+        r.*,
+        greatest(1, strpos(r.match_text, '<mark>') - 100)            as cut_from
+    from ranked as r
+),
+
+windowed as (
+    select
+        c.*,
+        regexp_replace(
+            -- The last, cut-off word goes only when the window stops before the end.
+            case when c.cut_from + 279 < length(c.match_text)
+                 then regexp_replace(substr(c.match_text, c.cut_from, 280), '\s+\S*$', '')
+                 else substr(c.match_text, c.cut_from) end,
+            case when c.cut_from > 1 then '^\S*\s+' else '^$' end, '')  as cut_text
+    from cut as c
 )
 
 select
@@ -41,10 +60,14 @@ select
     state_code::text                                                  as state_code,
     match_method::text                                                as match_method,
     evidence_rank::integer                                            as evidence_rank,
-    -- Cut at a word, never inside a <mark> tag (a cut tag would be shown as text).
+    -- Up to 280 characters starting a little before the first <mark> (so the highlight is always in it), cut at
+    -- words; an opened <mark> left open by the cut is closed.
     (case when length(match_text) <= 280 then match_text
-          else regexp_replace(left(match_text, 280), '\s+\S*$', '') ||
-               (case when (length(regexp_replace(left(match_text, 280), '[^<]', '', 'g'))) % 2 = 1 then '</mark>' else '' end) || '…'
+          else (case when cut_from > 1 then '…' else '' end) || cut_text ||
+               (case when (length(cut_text) - length(replace(cut_text, '<mark>', ''))) / 6
+                        > (length(cut_text) - length(replace(cut_text, '</mark>', ''))) / 7
+                     then '</mark>' else '' end) ||
+               (case when cut_from + 279 < length(match_text) then '…' else '' end)
      end)::text                                                       as match_text,
     match_source_url::text                                            as match_source_url,
     match_date::date                                                  as match_date,
@@ -56,5 +79,5 @@ select
     revenue_tax_year::integer                                         as revenue_tax_year,
     website_url::text                                                 as website_url,
     built_at::timestamptz                                             as built_at
-from ranked
+from windowed
 where rn <= {{ per_state }} or match_method = 'named_in_meeting'
