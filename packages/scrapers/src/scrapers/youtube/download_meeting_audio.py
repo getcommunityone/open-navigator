@@ -1,12 +1,12 @@
-"""Download meeting audio (Opus) and store it on OneDrive, a mounted Drive folder, or local disk.
+"""Download meeting audio (Opus) and store it on the owner's Google Drive (rclone) or local disk.
 
-Issue #1255. Owner decision on the YouTube source and the constraints we keep:
+Issues #1255, #1270. Owner decision on the YouTube source and the constraints we keep:
 ``web_docs/docs/development/meeting-audio-source-decision.md``.
 
 Hard rule (owner, 2026-11-27): **never re-download audio we already hold.** Every run first builds
 an inventory keyed by YouTube ``video_id`` from
 
-* the target folder (``rclone lsf -R`` of the whole OneDrive tree, any audio extension),
+* the target folder (``rclone lsf -R`` of the whole Google Drive folder tree, any audio extension),
 * the bronze tracking columns (``audio_downloaded_at`` / ``audio_file_path``),
 * local audio folders the older downloaders used (default ``data/cache/youtube_audio``; read only,
   nothing under ``data/cache`` is ever deleted).
@@ -27,7 +27,7 @@ agent; the repo's existing cookies file is used if present. YouTube is reached o
 Examples::
 
     python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --dry-run
-    python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --target onedrive --limit 3
+    python -m scrapers.youtube.download_meeting_audio --data-centers-2026 --limit 3
     python -m scrapers.youtube.download_meeting_audio --scope data-centers --year 2026 \\
         --target local --output-dir /tmp/audio --limit 5
 """
@@ -59,7 +59,16 @@ TRANSCODE_SLACK = 1.25
 AUDIO_FORMAT = "ba[acodec=opus][abr<=80]/wa[acodec=opus]/ba[abr<=96]/wa"
 #: Average length used for videos with no ``duration_minutes`` when estimating.
 FALLBACK_MINUTES = 100
-DEFAULT_REMOTE = "onedrive"
+#: rclone remote for the owner's personal Google Drive (owner, 2026-11-27: Google Drive, not OneDrive).
+DEFAULT_REMOTE = "gdrive"
+#: Shown when the remote is missing. ``scope=drive`` so existing folders (not only ours) are visible.
+REMOTE_SETUP_HINT = (
+    "One-time, as the owner, in a browser signed in to the personal Google account: "
+    "`rclone config create {remote} drive scope=drive`, then `rclone lsd {remote}:CommunityOne` "
+    "and `rclone about {remote}:` (about 45 GB free needed). Never write through the Drive-for-desktop "
+    "mount: its cache is on the full C: disk."
+)
+RCLONE_TARGETS = ("rclone", "gdrive", "onedrive")
 #: Parent folder on the remote; each source gets its own sibling folder under it (owner, 2026-11-27).
 DEFAULT_COMMUNITY_ROOT = "CommunityOne"
 SOURCE_FOLDERS: dict[str, str] = {
@@ -246,13 +255,13 @@ class Target(Protocol):
 
 
 @dataclass
-class OneDriveTarget:
-    """An rclone remote (the owner's personal OneDrive) under ``<remote>:<root>``."""
+class RcloneTarget:
+    """An rclone remote (default: the owner's personal Google Drive) under ``<remote>:<root>``."""
 
     remote: str = DEFAULT_REMOTE
     root: str = f"{DEFAULT_COMMUNITY_ROOT}/{SOURCE_FOLDERS['youtube']}"
     rclone: str = "rclone"
-    kind: str = "onedrive"
+    kind: str = "rclone"
 
     def _path(self, relpath: str = "") -> str:
         base = f"{self.remote}:{self.root.strip('/')}"
@@ -820,11 +829,11 @@ def run(
 
 
 def build_target(args: argparse.Namespace) -> Target:
-    if args.target == "onedrive":
+    if args.target in RCLONE_TARGETS:
         root = (
             args.remote_root or f"{args.community_root}/{SOURCE_FOLDERS[args.source]}"
         )
-        return OneDriveTarget(remote=args.remote, root=root, rclone=args.rclone)
+        return RcloneTarget(remote=args.remote, root=root, rclone=args.rclone)
     if not args.output_dir:
         raise SystemExit(f"--target {args.target} needs --output-dir")
     return LocalTarget(Path(args.output_dir))
@@ -840,7 +849,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Shortcut for --scope data-centers --year 2026",
     )
     p.add_argument(
-        "--target", default="onedrive", choices=["onedrive", "local", "drive"]
+        "--target",
+        default="rclone",
+        choices=[*RCLONE_TARGETS, "local", "drive"],
+        help="rclone (default; gdrive/onedrive are aliases, the remote is --remote) or a local folder",
     )
     p.add_argument(
         "--source",
@@ -918,16 +930,15 @@ def main(argv: list[str] | None = None) -> int:
     target = build_target(args)
     target_files: dict[str, int] = {}
     target_checked = True
-    if isinstance(target, OneDriveTarget) and not target.configured():
+    if isinstance(target, RcloneTarget) and not target.configured():
         target_checked = False
         msg = (
-            f"rclone remote {target.remote!r} is not configured. One-time, as the owner, signed in to the "
-            "PERSONAL Microsoft account (never the CDC work account): "
-            f"`rclone config create {target.remote} onedrive` and choose 'OneDrive Personal'."
+            f"rclone remote {target.remote!r} is not configured. "
+            + REMOTE_SETUP_HINT.format(remote=target.remote)
         )
         if not args.dry_run:
             raise SystemExit(msg)
-        logger.warning("{} Dry run continues without the OneDrive listing.", msg)
+        logger.warning("{} Dry run continues without the remote listing.", msg)
     else:
         target_files = target.listing()
         logger.info(
