@@ -17,15 +17,18 @@ inconsistent (25 Nov 2026). Measured in a browser, they were three different sit
 
 ## Decision: every main tab is a home section
 
-The header's main tabs (**Search**, **Data Stories**, **How It Works**, **Impact**) each scroll to a section of the home
-page. A detail page opens only from an action inside its section.
+The header's main tabs are **Data Stories**, **Places**, **Search** and **How It Works**
+([#1191](https://github.com/getcommunityone/open-navigator/issues/1191) added Places and moved **Impact** to the footer's
+Site links, which still scroll to `#impact`). Data Stories, Search and How It Works scroll to a section of the home page;
+Places opens `/jurisdictions`. A detail page opens only from an action inside its section. The full header, phone menu,
+place control and page titles are described in [Site navigation](../guides/site-navigation.md).
 
 | Tab | Home section | Detail pages it opens |
 | --- | --- | --- |
-| Search | `#search` (the hero search) | `/search` from a search, a trending question or a browse pill |
 | Data Stories | `#data-stories` (the story card, its real counts) | `/stories/data-centers`, the challenge, `/stories` (All data stories) |
+| Places | none: opens `/jurisdictions` (with the carried `?state=&city=`) | `/jurisdiction/:id/meetings` |
+| Search | `#search` (the hero search) | `/search` from a search, a trending question or a browse pill |
 | How It Works | `#how-it-works` | the steps' own links |
-| Impact | `#impact` | its links |
 
 - **The place travels with the tab.** On a scoped page (`?state=&city=`), a tab goes to `/?state=…&city=…#section`. The
   whole home page takes that place (its scope label, the hero search, the tiles and the Data stories section) ahead of
@@ -33,7 +36,8 @@ page. A detail page opens only from an action inside its section.
 - **On the home page**, the tab for the section crossing the middle of the screen is highlighted (scroll-spy). Between
   sections none is.
 - **On a detail page**, the tab it belongs to stays highlighted: `/search` → Search; `/stories*` and `/challenge*` →
-  Data Stories. Clicking it goes back to its home section.
+  Data Stories; `/jurisdictions*` and `/jurisdiction/*` → Places (`utils/navActive.ts`). Clicking Data Stories or Search goes
+  back to its home section.
 - **Arriving with a hash** (`/#data-stories`): the scroll settles again while the sections above load their data, and
   stops as soon as the reader scrolls, clicks, presses a key or navigates.
 - **The home Data stories section follows the home page's place** (`?state=&city=`). Its label, its counts and its links

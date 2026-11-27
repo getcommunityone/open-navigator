@@ -26,6 +26,7 @@ import { storyStartLabel } from '../utils/storyCaption'
 import { storyCardMeetings, storyCardTitle, storyFactsSlug, storyIndexCards } from '../utils/storyIndex'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import type { ChartKey } from '../utils/stanceGame'
+import { useDocumentTitle } from '../utils/useDocumentTitle'
 
 /** The datasets behind the data-center counts row. */
 const COUNT_CHARTS: ChartKey[] = ['meeting-mentions', 'agenda-items', 'sites', 'job-claims', 'projects']
@@ -49,6 +50,7 @@ export default function DataStories() {
   const scope: StoryScope = { stateCode, stateName, city }
   const label = storyScopeLabel(scope)
   const q = scopeQuery(scope)
+  useDocumentTitle(stateCode ? `All data stories · ${city ? `${city}, ${stateCode}` : stateName}` : 'All data stories')
   const [placeOpen, setPlaceOpen] = useState(false)
 
   const applyPlace = useCallback(
