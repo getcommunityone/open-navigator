@@ -276,6 +276,13 @@ CIVIC_SERVING = frozenset(
         "recorded_meeting_year",
         # Which videos are real public meetings (#1240, #1258): map cards only quote these; ~1 MB, one row per video
         "meeting_video_kind",
+        # Public comments and who spoke (#1286): /api/data-centers/comment-metrics and the speaker names on
+        # /api/topics/{id}/states read these; ~25 MB together (47,578 / 2,822 / 11,255 / 13,682 / 1,921 rows)
+        "meeting_comment",
+        "data_center_comment",
+        "data_center_comment_place",
+        "segmented_meeting",
+        "meeting_passage_speaker",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",
