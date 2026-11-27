@@ -145,6 +145,9 @@ interface StageProps {
    * the Stage then behaves exactly as before (click drills, hover reads out).
    */
   onTapPreview?: (preview: StageTapPreview | null) => void
+  /** Tap mode: the id the parent currently previews; ``null`` once the parent
+   *  clears or consumes the preview (e.g. its drill button), resetting the Stage. */
+  tapPreviewId?: string | null
 }
 
 export type StageHoverInfo = {
@@ -237,6 +240,7 @@ export default function CensusDrilldownStage({
   placeRankByGeoid,
   onHoverInfo: onHoverInfoProp,
   onTapPreview,
+  tapPreviewId = null,
 }: StageProps) {
   const tapMode = !!onTapPreview
   // In tap mode hover readouts are suppressed (synthetic mouse events on tap
@@ -255,6 +259,14 @@ export default function CensusDrilldownStage({
   const setHoveredId: typeof setHoveredIdRaw = (v) => {
     if (!tapMode) setHoveredIdRaw(v)
   }
+  // The parent cleared or consumed the preview: forget it here too, so the
+  // next tap on that shape previews again instead of drilling.
+  useEffect(() => {
+    if (tapPreviewId == null) {
+      setPreviewId(null)
+      setHoveredIdRaw(null)
+    }
+  }, [tapPreviewId])
   // A new view or state clears any pending preview.
   useEffect(() => {
     setPreviewId(null)

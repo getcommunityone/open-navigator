@@ -1,5 +1,6 @@
 import { Popover } from '@headlessui/react'
 import { InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 const DEFAULT_BTN =
   'rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400'
@@ -12,7 +13,7 @@ export type InfoHelpTriggerProps = {
   align?: 'left' | 'right'
   buttonClassName?: string
   /**
-   * Where the panel opens on a narrow screen (≤ 760px). ``anchored`` (default)
+   * Where the panel opens on a narrow or touch screen (``(max-width: 760px), (hover: none)``). ``anchored`` (default)
    * keeps it under the trigger, as on desktop. ``top`` docks it as a small
    * popover near the top of the window, so help opened from a bottom sheet
    * does not stack over the sheet's own content (#1238). Desktop is unchanged.
@@ -20,8 +21,7 @@ export type InfoHelpTriggerProps = {
   mobilePlacement?: 'anchored' | 'top'
 }
 
-const MOBILE_TOP =
-  'max-[760px]:fixed max-[760px]:top-20 max-[760px]:left-4 max-[760px]:right-4 max-[760px]:mt-0 max-[760px]:w-auto'
+const MOBILE_TOP = '!fixed top-20 !left-4 !right-4 !mt-0 !w-auto !max-h-[40vh]'
 
 /**
  * Census map / charts: replaces ``title=`` on info icons — native tooltips are hover-only
@@ -37,7 +37,8 @@ export function InfoHelpTrigger({
   mobilePlacement = 'anchored',
 }: InfoHelpTriggerProps) {
   const panelAlign = align === 'right' ? 'right-0' : 'left-0'
-  const mobile = mobilePlacement === 'top' ? MOBILE_TOP : ''
+  const touchOrNarrow = useMediaQuery('(max-width: 760px), (hover: none)')
+  const mobile = mobilePlacement === 'top' && touchOrNarrow ? MOBILE_TOP : ''
   return (
     <Popover className="relative inline-flex align-middle">
       <Popover.Button

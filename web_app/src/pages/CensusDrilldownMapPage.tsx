@@ -1121,9 +1121,22 @@ export default function CensusDrilldownMapPage() {
     const el = mapCardRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const sheetTop = sheetOpen ? window.innerHeight * 0.55 : window.innerHeight - 64
+    const sheetTop = !sheetMode
+      ? window.innerHeight
+      : sheetOpen
+        ? window.innerHeight * 0.55
+        : window.innerHeight - 64
     if (r.top < 0 || r.bottom > sheetTop) el.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [touchUi, view, selectedStateFips, sheetOpen])
+  // A preview captured under one metric/year/mode must not be shown under
+  // another; and a hover readout left over from mouse use must not outrank it.
+  useEffect(() => {
+    setTapPreview(null)
+  }, [metricSlug, displayVintage, valueMode])
+  useEffect(() => {
+    if (touchUi) setHoverInfo(null)
+  }, [touchUi])
   // The preview strip states the value the same way the card does: in Real
   // mode a dollar figure is deflated to the latest CPI year (map stays nominal).
   const previewValue = (() => {
@@ -1484,6 +1497,7 @@ export default function CensusDrilldownMapPage() {
                 placeRankByGeoid={placeRankByGeoid}
                 onHoverInfo={setHoverInfo}
                 onTapPreview={touchUi ? setTapPreview : undefined}
+                tapPreviewId={tapPreview?.info.id ?? null}
               />
             )}
           </div>
@@ -1623,7 +1637,7 @@ export default function CensusDrilldownMapPage() {
         {/* right column — unified hover/pin readout (replaces dark floating tooltip) */}
         {showRightAside ? (
           <aside
-            className={`flex flex-col gap-3 lg:sticky lg:top-4 ${
+            className={`flex flex-col gap-3 ${sheetMode ? '' : 'lg:sticky lg:top-4'} ${
               // Phones (<md) have no hover affordance and the aside otherwise
               // stacks below a tall map — a tapped county's drill CTAs end up
               // off-screen. When a county is pinned, dock the aside as a bottom
@@ -2102,7 +2116,7 @@ export default function CensusDrilldownMapPage() {
             })()}
             {/* Pin stays primary; when the cursor visits another region, the
                 comparison chip slides in just below so the user can preview
-                without dismissing. Hidden below md, where the aside is a
+                without dismissing. Hidden below xl and in the phone sheet, where the aside is a
                 docked bottom sheet: a card appearing with the pointer would
                 change the sheet's height under the cursor (#1095). */}
             {pinnedCounty && hoverInfo && hoverInfo.id !== pinnedCounty.geoid ? (
