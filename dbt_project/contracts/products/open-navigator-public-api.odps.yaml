@@ -495,6 +495,11 @@ outputPorts:
   contractId: open-navigator-public-topic_meeting_lean
   type: table
   description: One row per meeting video and topic (topic_transcript_link) with a Jev screen under the topic's current question version.
+- name: topic_place_meeting
+  version: 1.0.0
+  contractId: open-navigator-public-topic_place_meeting
+  type: table
+  description: 'One row per (topic, government): the distinct topic_transcript_link meetings whose recording is attached to that government (event_youtube_with_jurisdiction), when the government is in jurisdictions, in the link''s state, and is a county with a geoid or has coordinates.'
 - name: meeting_video_kind
   version: 1.0.0
   contractId: open-navigator-public-meeting_video_kind
