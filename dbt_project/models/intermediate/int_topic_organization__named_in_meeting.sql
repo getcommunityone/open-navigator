@@ -5,12 +5,11 @@
     One row per (topic_id, master_org_id): the most recent such mention.
 
     High precision by construction:
-      1. Passages: every stretch of a topic meeting's transcript (topic_transcript_link -> event_documents) within
-         about 250 characters of one of the topic's keyword phrases (civicsearch_topic.keyword_stats). A name said
-         elsewhere in a three-hour meeting does not count.
+      1. Passages: each topic meeting's evidence passage (topic_transcript_link.evidence_passage), the transcript's
+         own words around the topic's keyword phrases. A name said elsewhere in a three-hour meeting does not count.
       2. Candidates: nonprofits in the meeting's state whose cleaned name (Inc, Corp, The ... dropped) is at least 12
          characters and two indexed words long, is held by no other nonprofit in that state, and has at least one
-         word that is not common in topic passages (in 2% of them or fewer), so "Health Services" or "People Place"
+         word that is not common in topic passages (in 2% of them or fewer; 0.1% for a two-word name), so "Health Services" or "People Place"
          never match. A candidate must be based in the meeting's city, or already tied to the topic by a rule
          (int_topic_organization__rule_match), e.g. a statewide advocacy group.
       3. Match: the passage contains the whole name, word for word (a full-text phrase match, then a regex on the
@@ -21,6 +20,7 @@
 */
 
 {%- set common_share = 0.02 -%}
+{%- set common_share_two_words = 0.001 -%}
 
 with
 
@@ -52,16 +52,18 @@ topic_doc as (
     order by k.topic_id, k.video_id, k.event_date desc nulls last
 ),
 
+-- The topic's evidence passage of each meeting (topic_transcript_link.evidence_passage: the transcript's own words
+-- around the topic's phrases), without its <mark> tags. Splitting every full transcript at the phrases was tried and
+-- took too long for a nightly build; widening the window is follow-up #1364.
 passage as (
     select
         d.topic_id, d.video_id, d.state_code, d.city, d.event_date, d.video_url, d.place_name, r.rx,
-        w.ord                                                            as passage_no,
-        w.m[1]                                                           as passage_text
+        1                                                                as passage_no,
+        lower(regexp_replace(k.evidence_passage, '</?mark>', '', 'g'))  as passage_text
     from topic_doc as d
     inner join topic_rx as r on r.topic_id = d.topic_id
-    inner join {{ ref('event_documents') }} as e on e.video_id = d.video_id
-    cross join lateral regexp_matches(lower(e.content), '(.{0,250}\m' || r.rx || '\M.{0,250})', 'g')
-        with ordinality as w(m, ord)
+    inner join {{ ref('topic_transcript_link') }} as k on k.topic_id = d.topic_id and k.video_id = d.video_id
+    where k.evidence_passage is not null
 ),
 
 passage_lex as (
@@ -102,19 +104,27 @@ unique_name as (
 ),
 
 -- Each candidate's rarest word across topic passages: the key passages are looked up by.
-candidate as (
-    select u.master_org_id, u.state_code, u.city_norm, u.org_name, u.clean, rare.lexeme as rare_lexeme
+org_lex as (
+    select u.master_org_id, l.lexeme
     from unique_name as u
-    cross join lateral (
-        select l.lexeme, coalesce(df.n, 0) as n
-        from unnest(u.lex) as l(lexeme)
-        left join lex_df as df on df.lexeme = l.lexeme
-        order by coalesce(df.n, 0), l.lexeme
-        limit 1
-    ) as rare
-    cross join n_passages as np
+    cross join lateral unnest(u.lex) as l(lexeme)
     where cardinality(u.lex) >= 2
-      and rare.n between 1 and greatest(1, np.n * {{ common_share }})
+),
+
+org_rare as (
+    select distinct on (ol.master_org_id) ol.master_org_id, ol.lexeme, coalesce(df.n, 0) as n
+    from org_lex as ol
+    left join lex_df as df on df.lexeme = ol.lexeme
+    order by ol.master_org_id, coalesce(df.n, 0), ol.lexeme
+),
+
+candidate as (
+    select u.master_org_id, u.state_code, u.city_norm, u.org_name, u.clean, r.lexeme as rare_lexeme
+    from unique_name as u
+    inner join org_rare as r on r.master_org_id = u.master_org_id
+    cross join n_passages as np
+    -- A two-word name ("Moving Forward", "Working Together") needs a much rarer word than a longer one.
+    where r.n between 1 and greatest(1, np.n * (case when cardinality(u.lex) = 2 then {{ common_share_two_words }} else {{ common_share }} end))
 ),
 
 rule_linked as (

@@ -19,7 +19,7 @@ strongest first (`evidence_rank`):
 
 | Rank | `match_method` | The record says | Source |
 |---|---|---|---|
-| 1 | `named_in_meeting` | Its full name is said, word for word, within about 250 characters of the topic's words in one of the topic's recorded meetings in its own state | `topic_transcript_link` → `event_documents` |
+| 1 | `named_in_meeting` | Its full name is said, word for word, in the evidence passage of one of the topic's recorded meetings in its own state (the transcript's own words around the topic's phrases) | `topic_transcript_link.evidence_passage` |
 | 2 | `keyword_in_mission` | Its latest Form 990 mission names the topic | GivingTuesday 990 missions (`stg_givingtuesday__990_missions`) |
 | 3 | `keyword_in_name` | Its name names the topic | `mdm_organization` |
 | 4 | `ntee_code` | Its IRS NTEE category is the topic's field | `mdm_organization_nonprofit.ntee_code` |
@@ -45,9 +45,12 @@ A first try, matching any nonprofit's name anywhere in a topic meeting's transcr
 of Alabama: "People Place", "All Hours of the Day", "Health Services" and "Team Confidence" matched ordinary speech,
 and named organizations (a food bank, a museum) were only in the same three-hour meeting as the topic. So:
 
-1. Only passages near the topic's words count (its `keyword_stats` phrases, 250 characters each side).
+1. Only the passage near the topic's words counts: each meeting's stored evidence passage. Splitting every full
+   transcript at the topic's phrases took over 20 minutes on the local warehouse; widening it is
+   [#1364](https://github.com/getcommunityone/open-navigator/issues/1364).
 2. A candidate's cleaned name (Inc, Corp, The dropped) is at least 12 characters and two words, is held by no other
-   nonprofit in the state, and has a word that occurs in 2% of topic passages or fewer.
+   nonprofit in the state, and has a word that occurs in 2% of topic passages or fewer (0.1% for a two-word name, after
+   "Moving Forward", "Working Together" and "Young People" matched ordinary speech).
 3. It is based in the meeting's city, or already tied to the topic by a rule (a statewide advocacy group).
 4. The passage holds the whole name: a full-text phrase match, then a regex on the passage's own words.
 
