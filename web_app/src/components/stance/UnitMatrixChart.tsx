@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import type { DotsSpec } from '../../utils/stanceGame'
 import { GROUP_COLORS, HOUSE_STYLE } from '../../utils/houseTheme'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
-import { availableGroupings, groupRecords, layoutMatrix, type GroupingKey, type MatrixRecord } from '../../utils/unitMatrix'
+import { availableGroupings, groupRecords, layoutMatrix, sideLabelsFor, type GroupingKey, type MatrixRecord } from '../../utils/unitMatrix'
 import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
 import { youtubeThumbnail } from '../../lib/youtubeThumbnail'
@@ -11,6 +11,7 @@ import usePrefersReducedMotion from '../../hooks/usePrefersReducedMotion'
 import MeetingVideoModal, { type MeetingVideo } from './MeetingVideoModal'
 import { useChartWidth } from './useChartWidth'
 import './storyCharts.css'
+import { topicPositions } from '../../utils/topicPositions'
 
 /** What a chart's own grouping is called on its toggle. */
 const NATIVE_NAMES: Record<string, string> = {
@@ -39,6 +40,8 @@ interface Props {
  * "Name · N (x%)". Squares keep their identity across groupings and slide to their new place (no motion with
  * prefers-reduced-motion). Arrow keys move between squares; a meeting square plays its recording, any other opens its source.
  */
+const DC_SIDE_LABELS = sideLabelsFor(topicPositions('data-centers'))
+
 export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, scopeLabel }: Props) {
   const reduced = usePrefersReducedMotion()
   const { ref, width } = useChartWidth<HTMLDivElement>()
@@ -71,6 +74,8 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
         placeGrain,
         native,
         placeLabel: placeGrain === 'state' ? (k) => STATE_CODE_TO_NAME[k] ?? k : undefined,
+        // The matrix is the data center story's (#1140): its sides in that topic's words (#1200).
+        sideLabels: DC_SIDE_LABELS,
       }),
     [records, active, placeGrain, native],
   )

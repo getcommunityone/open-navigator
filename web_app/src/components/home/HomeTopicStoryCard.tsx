@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '../../api/topics'
 import { topicStanceForMap } from '../../utils/topicStance'
+import { topicPositions } from '../../utils/topicPositions'
 import type { StoryScope } from '../../utils/dataStory'
 import { CAPTION_COPY, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
 import '../../styles/story-actions.css'
@@ -113,6 +114,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next, onP
             subject={topicNoun.toLowerCase()}
             stance={stance && stance.length > 0 ? stance : undefined}
             stanceUnit="meetings"
+            positions={topicPositions(def.slug)}
           />
         )}
       </div>

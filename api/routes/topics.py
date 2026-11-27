@@ -317,8 +317,11 @@ class TopicStanceStateCount(BaseModel):
     lean_meetings: int = 0
     public_against_meetings: int = 0
     public_for_meetings: int = 0
-    # Read as split: the public neither mostly supported nor mostly opposed.
+    # Read as split (#1200): the public spoke but neither confidently supported nor opposed (mixed, or a lean under
+    # P 0.7). A label outside the question's choices is in none of the four counts.
     no_side_meetings: int = 0
+    # Read, but the public didn't speak on the topic (#1200): shown as missing, never as split.
+    silent_meetings: int = 0
     # The public mostly opposed while officials mostly supported it (same rule as data centers).
     disagreement_meetings: int = 0
 
@@ -335,11 +338,11 @@ _TOPIC_LEAN_BY_STATE_SQL = """
     SELECT l.state_code,
            count(*)::int AS lean_meetings,
            count(*) FILTER (WHERE l.public_against)::int AS public_against_meetings,
-           count(*) FILTER (WHERE (to_jsonb(l) ->> 'public_for')::boolean)::int AS public_for_meetings,
+           count(*) FILTER (WHERE l.public_for)::int AS public_for_meetings,
+           count(*) FILTER (WHERE l.public_lean = 'did_not_speak')::int AS silent_meetings,
            count(*) FILTER (
-               WHERE to_jsonb(l) ->> 'public_lean' = 'mixed'
-                 AND NOT coalesce(l.public_against, false)
-                 AND NOT coalesce((to_jsonb(l) ->> 'public_for')::boolean, false)
+               WHERE l.public_lean = 'mixed'
+                  OR (l.public_lean IN ('mostly_opposed', 'mostly_supportive') AND coalesce(l.public_lean_p, 0) < 0.7)
            )::int AS no_side_meetings,
            count(*) FILTER (WHERE l.officials_sided_against_public)::int AS disagreement_meetings
     FROM topic_meeting_lean l
@@ -357,15 +360,21 @@ def merge_stance_by_state(
     out: List[TopicStanceStateCount] = []
     for r in counts:
         lr = lean_by.get(r["state_code"])
+        read = int(lr["lean_meetings"]) if lr else 0
+        against = int(lr["public_against_meetings"]) if lr else 0
+        for_ = int(lr["public_for_meetings"]) if lr else 0
+        silent = int(lr["silent_meetings"]) if lr else 0
+        split = int(lr["no_side_meetings"]) if lr else 0
         out.append(
             TopicStanceStateCount(
                 state_code=r["state_code"],
                 state=r["state"],
                 meetings=int(r["meetings"]),
-                lean_meetings=int(lr["lean_meetings"]) if lr else 0,
-                public_against_meetings=int(lr["public_against_meetings"]) if lr else 0,
-                public_for_meetings=int(lr["public_for_meetings"]) if lr else 0,
-                no_side_meetings=int(lr["no_side_meetings"]) if lr else 0,
+                lean_meetings=read,
+                public_against_meetings=against,
+                public_for_meetings=for_,
+                no_side_meetings=split,
+                silent_meetings=silent,
                 disagreement_meetings=int(lr["disagreement_meetings"]) if lr else 0,
             )
         )

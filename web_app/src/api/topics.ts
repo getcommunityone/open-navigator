@@ -90,8 +90,10 @@ export interface TopicStanceStateCount {
   lean_meetings: number
   public_against_meetings: number
   public_for_meetings: number
-  /** Read as mixed: the public neither mostly for nor mostly against. */
+  /** Read as split (#1200): the public spoke but was divided, or the reading was unsure (mixed, or a lean under P 0.7). */
   no_side_meetings: number
+  /** Read, but the public didn't speak on the topic (#1200): missing, never split. Absent on older servers. */
+  silent_meetings?: number
   /** The public mostly opposed while officials mostly supported it. */
   disagreement_meetings: number
 }
@@ -180,6 +182,10 @@ export interface TopicCaptionFacts {
   /** States with at least one public-against meeting in scope (#1134); absent on older servers. */
   public_against_states?: number | null
   public_for_meetings: number | null
+  /** #1200: meetings where the public spoke but was split or the reading unsure; absent on older servers. */
+  public_split_meetings?: number | null
+  /** #1200: meetings read where the public didn't speak on the topic; absent on older servers. */
+  public_silent_meetings?: number | null
   disagreement_meetings: number | null
   disagreement_states: number | null
   /**
@@ -197,6 +203,10 @@ export interface CaptionWiderLean {
   lean_meetings: number
   public_against_meetings: number
   public_against_states: number
+  /** #1200: absent on older servers. */
+  public_for_meetings?: number
+  public_split_meetings?: number
+  public_silent_meetings?: number
   disagreement_meetings: number
 }
 

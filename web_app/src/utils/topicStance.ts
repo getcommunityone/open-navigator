@@ -21,7 +21,9 @@ export function topicStanceForMap(map: TopicStanceMap | null | undefined): State
       meetings: s.meetings,
       speakers_against: Math.max(0, s.public_against_meetings),
       speakers_for: Math.max(0, s.public_for_meetings),
+      // Split (#1200): the public spoke but was divided or the reading unsure. Silent meetings stay out of the boxes.
       speakers_neutral: Math.max(0, s.no_side_meetings),
+      silent_meetings: Math.max(0, s.silent_meetings ?? 0),
       speakers_question: 0,
       // Public-against is already a band; only the officials-against-the-public outline is carried as a lean count.
       disagreement_meetings: Math.max(0, s.disagreement_meetings),

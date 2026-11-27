@@ -146,13 +146,15 @@ def test_city_without_state_is_ignored(get):
 
 
 def test_topic_meeting_lean_lights_up_when_present(get):
-    lean = [{"lean_meetings": 80, "public_against_meetings": 30, "public_for_meetings": 5, "has_public_for": True,
-             "disagreement_meetings": 12, "disagreement_states": 4}]
+    lean = [{"lean_meetings": 80, "public_against_meetings": 30, "public_for_meetings": 5,              "disagreement_meetings": 12, "disagreement_states": 4}]
     conn = topic_conn(routes={"FROM topic_meeting_lean": lean})
     d = get(conn, "short-term-rentals").json()
     assert d["lean_meetings"] == 80
     assert d["public_for_meetings"] == 5
     assert d["disagreement_meetings"] == 12
+    # #1200: no split or silent count in this row: 0, not derived.
+    assert d["public_silent_meetings"] == 0
+    assert d["public_split_meetings"] == 0
     params = next(p for s, p in conn.calls if "topic_meeting_lean" in s)
     assert params[0] == 100003
 
@@ -186,7 +188,7 @@ def dc_conn(**extra) -> _Conn:
             {"for_": 3, "against": 18, "question": 1, "neutral": 7, "meetings_reviewed": 188, "states": 4}
         ],
         "FROM data_center_meeting_lean": [
-            {"lean_meetings": 1828, "public_against_meetings": 283, "public_against_states": 32, "public_for_meetings": 0, "has_public_for": False,
+            {"lean_meetings": 1828, "public_against_meetings": 283, "public_against_states": 32, "public_for_meetings": 0,
              "disagreement_meetings": 23, "disagreement_states": 10}
         ],
         "FROM jurisdictions": POPS,
@@ -201,7 +203,7 @@ def test_data_centers_reads_speakers_and_lean(get):
     assert d["speakers"] == {"for": 3, "against": 18, "question": 1, "neutral": 7, "states": 4}
     assert d["public_against_meetings"] == 283
     assert d["public_against_states"] == 32
-    assert d["public_for_meetings"] is None  # the data-center mart has no public_for reading
+    assert d["public_for_meetings"] == 0  # #1200: read from public_lean for data centers too
     assert d["disagreement_meetings"] == 23
     assert d["disagreement_states"] == 10
     assert d["top_state"] == "NC"
@@ -228,12 +230,12 @@ def _lean_by_scope(params):
     """Data-center lean rows that depend on the scope params: (state, city) -> canned counts (test stand-ins)."""
     if not params:
         return [{"lean_meetings": 1828, "public_against_meetings": 283, "public_against_states": 32,
-                 "has_public_for": False, "disagreement_meetings": 23, "disagreement_states": 10}]
+                 "disagreement_meetings": 23, "disagreement_states": 10}]
     if len(params) == 1:
         return [{"lean_meetings": 71, "public_against_meetings": 6, "public_against_states": 1,
-                 "has_public_for": False, "disagreement_meetings": 0, "disagreement_states": 0}]
+                 "disagreement_meetings": 0, "disagreement_states": 0}]
     return [{"lean_meetings": 2, "public_against_meetings": 0, "public_against_states": 0,
-             "has_public_for": False, "disagreement_meetings": 0, "disagreement_states": 0}]
+             "disagreement_meetings": 0, "disagreement_states": 0}]
 
 
 def test_city_scope_returns_state_then_national_readings(get):
@@ -266,3 +268,35 @@ def test_wider_left_out_when_no_reading_loaded(get):
     conn = topic_conn(fail=("topic_meeting_lean",))
     d = get(conn, "short-term-rentals", {"state": "FL"}).json()
     assert d["wider"] == []
+
+
+def test_split_and_silent_add_up_to_the_meetings_read(get):
+    """#1200: the four positions (against, for, split, silent) always add up to the meetings read."""
+    lean = [{"lean_meetings": 100, "public_against_meetings": 20, "public_for_meetings": 10, "public_silent_meetings": 60,
+             "public_split_meetings": 10,
+             "disagreement_meetings": 0, "disagreement_states": 0}]
+    d = get(topic_conn(routes={"FROM topic_meeting_lean": lean}), "guns").json()
+    assert (d["public_against_meetings"], d["public_for_meetings"], d["public_split_meetings"], d["public_silent_meetings"]) == (20, 10, 10, 60)
+
+
+def test_lean_sql_reads_for_and_silent_from_public_lean():
+    sql, _ = tcf.build_lean_sql(100005, None, None)
+    assert "AS public_for_meetings" in sql and "AS public_silent_meetings" in sql
+    assert "did_not_speak" in sql and "no_public_comment_on_data_center" in sql
+    assert "public_lean_p, 0) >= 0.7" in sql
+
+
+def test_split_counts_mixed_and_unsure_leans_only():
+    """A label outside the question's choices (#1201) is never counted as split."""
+    sql, _ = tcf.build_lean_sql(100002, None, None)
+    assert "l.public_lean = 'mixed'" in sql and "public_lean_p, 0) < 0.7" in sql
+
+
+def test_nothing_read_is_zero_and_a_failed_read_is_null(get):
+    """#1200: a lean query that ran and found nothing is 0 ("no reading yet"); one that failed stays null."""
+    empty = [{"lean_meetings": 0, "public_against_meetings": 0, "public_against_states": 0, "public_for_meetings": 0,
+              "public_silent_meetings": 0, "public_split_meetings": 0, "disagreement_meetings": 0, "disagreement_states": 0}]
+    d = get(topic_conn(routes={"FROM topic_meeting_lean": empty}), "guns").json()
+    assert d["lean_meetings"] == 0 and d["public_against_meetings"] is None
+    d = get(topic_conn(fail=("topic_meeting_lean",)), "guns").json()
+    assert d["lean_meetings"] is None

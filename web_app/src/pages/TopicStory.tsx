@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { fetchTopicCaptionFacts, fetchTopicMeetings, fetchTopicStanceMap, fetchTopicStates } from '../api/topics'
 import { topicStanceForMap } from '../utils/topicStance'
+import { topicPositions } from '../utils/topicPositions'
 import { CAPTION_COPY, captionText, pickCaption, storyStartLabel } from '../utils/storyCaption'
 import { nextStoryLink } from '../utils/storyNav'
 import { useTopicStories } from '../hooks/useTopicStories'
@@ -265,6 +266,7 @@ export default function TopicStory({ slug: slugProp }: { slug?: string }) {
             subject={def.subject.toLowerCase()}
             stance={stance}
             stanceUnit="meetings"
+            positions={topicPositions(def.slug)}
           />
         )}
       </section>

@@ -28,7 +28,8 @@ LEAN = [
         "lean_meetings": 6,
         "public_against_meetings": 3,
         "public_for_meetings": 1,
-        "no_side_meetings": 2,
+        "silent_meetings": 1,
+        "no_side_meetings": 1,
         "disagreement_meetings": 1,
     }
 ]
@@ -102,7 +103,8 @@ def test_merges_the_ai_reading_into_each_state(get):
         "lean_meetings": 6,
         "public_against_meetings": 3,
         "public_for_meetings": 1,
-        "no_side_meetings": 2,
+        "no_side_meetings": 1,
+        "silent_meetings": 1,
         "disagreement_meetings": 1,
     }
     # A state with meetings but no reading keeps its meetings and reads 0, not missing.
@@ -136,3 +138,15 @@ def test_lean_sql_reads_the_topic_and_counts_meetings():
     assert "FROM topic_meeting_lean l" in sql
     assert "l.topic_id = $1" in sql
     assert "officials_sided_against_public" in sql
+
+
+def test_silent_meetings_are_missing_not_split(get):
+    """#1200: a meeting read where the public didn't speak is counted as silent, never as split."""
+    lean = [{**LEAN[0], "lean_meetings": 10, "public_against_meetings": 0, "public_for_meetings": 0, "silent_meetings": 10, "no_side_meetings": 0}]
+    tx = get(_Conn(lean), 100005).json()["by_state"][0]
+    assert tx["silent_meetings"] == 10 and tx["no_side_meetings"] == 0
+
+
+def test_lean_sql_counts_silent_meetings():
+    assert "AS silent_meetings" in topics._TOPIC_LEAN_BY_STATE_SQL
+    assert "did_not_speak" in topics._TOPIC_LEAN_BY_STATE_SQL

@@ -106,3 +106,13 @@ describe('field readers', () => {
     expect(sideFromLean(null)).toBeNull()
   })
 })
+
+describe('side labels in topic words (#1200)', () => {
+  it('names the "By who spoke" groups with the topic position words', async () => {
+    const { groupRecords, sideLabelsFor } = await import('./unitMatrix')
+    const { topicPositions } = await import('./topicPositions')
+    const recs = [{ facets: { side: 'against' as const } }, { facets: { side: 'no_side' as const } }]
+    const g = groupRecords(recs, 'side', { sideLabels: sideLabelsFor(topicPositions('data-centers')) })
+    expect(g.map((x) => x.label)).toEqual(['Against data centers', "Public didn't speak on it"])
+  })
+})

@@ -25,6 +25,7 @@ import { HOUSE_THEME } from '../../utils/houseTheme'
 import { isTouchOnly } from '../../utils/touchOnly'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
+import { MISSING_LEGEND, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
 
 export interface StateMarker {
   state_code: string
@@ -38,6 +39,8 @@ export interface StateStance extends StanceCounts, LeanCounts {
   state_code: string
   /** Meetings for the state in the speaker mart (0 for a state that is here only for its AI reading). */
   meetings?: number
+  /** Topic stories (#1200): meetings the AI read where the public didn't speak on the topic (missing, never split). */
+  silent_meetings?: number
 }
 
 /** One real meeting passage for a state's card: verbatim, with where and when it was said. */
@@ -85,6 +88,9 @@ interface Props {
   /** What `stance` counts (#1127): speakers on record (data centers, the default) or meetings as the AI read them
    *  (`topic_meeting_lean`, the other topic stories). Only the words change; the colours and bands are the same. */
   stanceUnit?: StanceUnit
+  /** The topic's own position words (#1200, utils/topicPositions) for an AI-read meeting split: legend, hover line and
+   *  table headers say "Want limits on short-term rentals" instead of "Public mostly opposed". */
+  positions?: TopicPositions
 }
 
 export type StanceUnit = 'speakers' | 'meetings'
@@ -149,6 +155,27 @@ export function stanceLine(s: StanceCounts | undefined, unit: StanceUnit = 'spea
   return keys.map((k) => `${fmt(stanceCount(s, k))} ${STANCE_LABEL[k].toLowerCase()}`).join(' · ')
 }
 
+/**
+ * A state's AI reading in the topic's words (#1200): "AI reading of 45 meetings where the public spoke: 30 against the
+ * cameras · 6 for the cameras · 9 split; in 180 more it didn't speak on it". Zero clauses are left out; null with no reading.
+ */
+export function positionLine(s: StateStance | undefined, words: TopicPositions): string | null {
+  const spoke = s ? speakersOf(s) : 0
+  const silent = Math.max(0, s?.silent_meetings ?? 0)
+  if (spoke === 0 && silent === 0) return null
+  const label: Record<Stance, string> = { against: words.against, for: words.for, question: words.split, neutral: words.split }
+  const parts = STANCE_ORDER.filter((k) => k !== 'question' && stanceCount(s!, k) > 0).map((k) => `${fmt(stanceCount(s!, k))} ${label[k].toLowerCase()}`)
+  const head = spoke > 0 ? `AI reading of ${plural(spoke, 'meeting', 'meetings')} where the public spoke: ${parts.join(' · ')}` : ''
+  const silentMeetings = silent === 1 ? 'meeting' : 'meetings'
+  const tail =
+    silent > 0
+      ? spoke > 0
+        ? `in ${fmt(silent)} more ${silentMeetings} the public didn't speak on it`
+        : `AI reading: in ${fmt(silent)} ${silentMeetings} the public didn't speak on it`
+      : ''
+  return [head, tail].filter(Boolean).join('; ')
+}
+
 interface Box {
   x: number
   y: number
@@ -167,8 +194,11 @@ interface Box {
  * with none is the empty tint. Hovering (tapping, on a phone) a box shows one of that state's real passages, cycling through
  * them across its boxes; clicking opens that state's story. Nothing is drawn from a guess: no counts, no split.
  */
-export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers' }: Props) {
+export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions }: Props) {
   const byMeetings = stanceUnit === 'meetings'
+  // Topic words (#1200) only for an AI-read meeting split; the speaker map keeps its own words.
+  const words = byMeetings ? positions : undefined
+  const lineOf = (st: StateStance | undefined) => (words ? positionLine(st, words) : stanceLine(st, stanceUnit))
   const navigate = useNavigate()
   const [hover, setHover] = useState<number | null>(null)
   const touch = isTouchOnly()
@@ -230,7 +260,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     noun: 'state',
     describe: (code) => {
       const n = byState?.find((s) => s.state_code === code)
-      const st = stanceLine(stanceBy.get(code))
+      const st = lineOf(stanceBy.get(code))
       return `${n?.state ?? STATE_CODE_TO_NAME[code] ?? code}: ${plural(n?.meetings ?? 0, 'meeting', 'meetings')}${st ? `; ${st}` : ''}.`
     },
     onActivate: (code) => navigate(href(code), { state: DRILL_FROM_NATIONAL }),
@@ -244,6 +274,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const hasStance = stance != null
   const split = (stance ?? []).filter((s) => speakersOf(s) > 0)
   const speakersTotal = split.reduce((n, s) => n + speakersOf(s), 0)
+  const silentTotal = (stance ?? []).reduce((n, s) => n + Math.max(0, s.silent_meetings ?? 0), 0)
   const stateName = (code: string) => byState.find((s) => s.state_code === code)?.state ?? STATE_CODE_TO_NAME[code] ?? code
   const colorOf = (b: Box): string => {
     if (!b.code) return BOX_COLORS.none
@@ -277,7 +308,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     if (own.length) quote = own[shown.bandRank % own.length]
     else if (pool.length) quote = pool[shown.rank % pool.length]
   }
-  const shownStance = shownCode ? stanceLine(stanceBy.get(shownCode), stanceUnit) : null
+  const shownStance = shownCode ? lineOf(stanceBy.get(shownCode)) : null
+  // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200).
+  const noReading = words ? words.unread.charAt(0).toLowerCase() + words.unread.slice(1) : 'no AI reading yet'
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
   const shownLean = shownCode && hasStance ? leanLine(stanceBy.get(shownCode)) : null
   const left = shown ? (shown.x / W) * 100 : 0
@@ -288,7 +321,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     `Map of the United States drawn as small boxes in each state's shape. ${plural(withMeetings, 'state has', 'states have')} at least one meeting where ${subject} came up.` +
     (hasStance && split.length
       ? ` In ${plural(split.length, 'state', 'states')} the boxes are split by ${byMeetings ? `an AI reading of ${plural(speakersTotal, 'meeting', 'meetings')}` : `${plural(speakersTotal, 'speaker', 'speakers')} on record`}: ` +
-        split.map((s) => `${stateName(s.state_code)}, ${stanceLine(s, stanceUnit)}`).join('; ') +
+        split.map((s) => `${stateName(s.state_code)}, ${lineOf(s)}`).join('; ') +
         '.'
       : '') +
     (leanStates.length
@@ -362,7 +395,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         >
           <p style={{ margin: '10px 0 0', paddingTop: 8, borderTop: '1px solid #e7e5e4', fontSize: 12, color: '#57534e' }}>
             {stateName(shownCode)}: {plural(shownMeetings, 'meeting', 'meetings')}
-            {shownStance ? ` · ${shownStance}` : hasStance ? (byMeetings ? ' · no AI reading yet' : ' · no stance on record') : ''}
+            {shownStance ? ` · ${shownStance}` : hasStance ? (byMeetings ? ` · ${noReading}` : ' · no stance on record') : ''}
           </p>
           {shownLean && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#57534e' }}>{shownLean}</p>}
           {/* A real button, not a caption (#1187): the way into the state's story, on desktop and phones alike. Inline
@@ -395,7 +428,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? '; no AI reading yet' : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap to open its story.' : 'Click to open its story.'}`
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap to open its story.' : 'Click to open its story.'}`
           : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
 
@@ -405,7 +438,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           LEGEND_STANCES.map((k) => (
             <li key={k} className="inline-flex items-center gap-1">
               <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: BOX_COLORS[k], display: 'inline-block' }} />
-              {(byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k]}
+              {words ? (k === 'neutral' ? words.split : words[k]) : (byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k]}
             </li>
           ))}
         {hasLean && leanStates.length > 0 && (
@@ -421,7 +454,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: MEETINGS_ONLY, display: 'inline-block' }} />
           )}
           {hasStance
-            ? byMeetings
+            ? words
+              ? `${MISSING_LEGEND} (darker = more meetings)`
+              : byMeetings
               ? 'Meetings, no AI reading yet (darker = more meetings)'
               : 'Meetings, no stance on record (darker = more meetings)'
             : `Meetings where ${subject} came up`}
@@ -436,11 +471,14 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           {byMeetings
             ? split.length > 0
               ? `Split by an AI reading of ${plural(speakersTotal, 'meeting', 'meetings')} in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
-              : 'No AI reading of these meetings yet; states show meetings only.'
+              : silentTotal > 0
+                ? `In the ${plural(silentTotal, 'meeting', 'meetings')} the AI read, the public didn't speak on it; states show meetings only.`
+                : 'No AI reading of these meetings yet; states show meetings only.'
             : split.length > 0
               ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : 'No speaker positions on record yet; states show meetings only.'}
           {hasLean || (byMeetings && split.length > 0) ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
+          {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${MISSING_LEGEND.charAt(0).toLowerCase()}${MISSING_LEGEND.slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
         </p>
         )}
 
@@ -456,9 +494,10 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                   {hasStance &&
                     tableStances.map((k) => (
                       <th key={k} scope="col" className="py-1 pr-2">
-                        {(byMeetings ? AI_STANCE_LABEL : STANCE_LABEL)[k]}
+                        {words ? (k === 'neutral' || k === 'question' ? words.split : words[k]) : (byMeetings ? AI_STANCE_LABEL : STANCE_LABEL)[k]}
                       </th>
                     ))}
+                  {hasStance && words && <th scope="col" className="py-1 pr-2">{words.silent}</th>}
                   {hasLean && (
                     <>
                       {!byMeetings && <th scope="col" className="py-1 pr-2">AI: public mostly opposed</th>}
@@ -482,6 +521,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                           {r.st && (speakersOf(r.st) > 0 || (r.st.meetings ?? 1) > 0) ? fmt(stanceCount(r.st, k)) : '—'}
                         </td>
                       ))}
+                    {hasStance && words && <td className="py-1 pr-2">{r.st ? fmt(Math.max(0, r.st.silent_meetings ?? 0)) : '—'}</td>}
                     {hasLean && (
                       <>
                         {!byMeetings && <td className="py-1 pr-2">{fmt(r.st?.public_against_meetings ?? 0)}</td>}

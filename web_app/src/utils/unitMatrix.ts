@@ -55,6 +55,10 @@ export const SIDE_LABELS: Record<SideKey, string> = {
   mixed: 'Public split',
   no_side: 'No side taken',
 }
+/** The "By who spoke" groups in a topic's own position words (#1200, utils/topicPositions). */
+export function sideLabelsFor(w: { against: string; for: string; split: string; silent: string }): Record<SideKey, string> {
+  return { against: w.against, for: w.for, mixed: w.split, no_side: w.silent }
+}
 const OUTCOME_ORDER: OutcomeKey[] = ['approved', 'denied', 'tabled', 'moratorium', 'no_action']
 const SIDE_ORDER: SideKey[] = ['against', 'for', 'mixed', 'no_side']
 
@@ -128,7 +132,13 @@ export function availableGroupings(records: MatrixRecord[], hasNative: boolean, 
 export function groupRecords(
   records: MatrixRecord[],
   grouping: GroupingKey,
-  opts: { placeGrain?: 'state' | 'town'; native?: Array<{ key: string; label: string }>; placeLabel?: (k: string) => string } = {},
+  opts: {
+    placeGrain?: 'state' | 'town'
+    native?: Array<{ key: string; label: string }>
+    placeLabel?: (k: string) => string
+    /** The side groups' words (#1200); the generic SIDE_LABELS by default. */
+    sideLabels?: Record<SideKey, string>
+  } = {},
 ): MatrixGroup[] {
   const total = records.length
   if (total === 0) return []
@@ -198,7 +208,7 @@ export function groupRecords(
       groups = OUTCOME_ORDER.filter((k) => buckets.has(k)).map((k) => mk(k, OUTCOME_LABELS[k], buckets.get(k)!, k))
       break
     case 'side':
-      groups = SIDE_ORDER.filter((k) => buckets.has(k)).map((k) => mk(k, SIDE_LABELS[k], buckets.get(k)!, k))
+      groups = SIDE_ORDER.filter((k) => buckets.has(k)).map((k) => mk(k, (opts.sideLabels ?? SIDE_LABELS)[k], buckets.get(k)!, k))
       break
     default:
       groups = []
