@@ -1384,34 +1384,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/{full_path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Serve React App
-         * @description Serve a real static file if one exists, else the React app (SPA routing).
-         *
-         *     Top-level public assets (e.g. /pdf/*, /communityone_logo.svg,
-         *     /robots.txt, /wikimedia/*) live in static_dir but are not under the
-         *     mounted /assets or /data trees. Without this file check they fall through
-         *     to index.html, so the browser loads the SPA into e.g. an <iframe
-         *     src="/pdf/..."> and React Router renders the NotFound (404) page instead
-         *     of the file. Vite's dev server serves these from public/ at the root, so
-         *     the gap only shows in production.
-         */
-        get: operations["serve_react_app__full_path__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6865,37 +6837,6 @@ export interface operations {
             header?: never;
             path: {
                 workflow_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    serve_react_app__full_path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                full_path: string;
             };
             cookie?: never;
         };

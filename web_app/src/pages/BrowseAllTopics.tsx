@@ -300,7 +300,7 @@ export default function BrowseAllTopics() {
                       { label: `${yA} share`, numeric: true },
                       { label: `${yB} share`, numeric: true },
                       { label: `Meetings ${yA} / ${yB}`, numeric: true },
-                      { label: 'Change', numeric: true },
+                      { label: metric === 'share' ? 'Share change' : 'Count change', numeric: true },
                     ],
                     rows: rows.map((r) => [
                       r.topic.name,
