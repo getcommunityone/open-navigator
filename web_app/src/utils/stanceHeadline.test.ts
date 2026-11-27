@@ -74,7 +74,7 @@ describe('stance headline: below the minimum (#1289)', () => {
     expect(c.template).toContainEqual({ blank: 'topic' })
     expect(c.basis).toMatch(/^One decision passed 8–1; no public speakers in 24 meetings reviewed by hand\./)
     // #1313: the reading of the transcripts names its own source and scope, so it can't read as contradicting the hand count.
-    expect(c.basis).toContain('A reading of all 71 meeting transcripts found the public speaking on data centers in 8 (6 against and 2 split).')
+    expect(c.basis).toContain('A reading of all 71 meeting transcripts found the public speaking on data centers in 8 (6 against and both sides spoke at 2).')
     expect(c.basis).not.toMatch(/the public spoke in 8/)
     expect(c.basis).not.toMatch(/%/)
     expect(captionSubhead(c, 'data-centers', al)).not.toMatch(/mostly|hates/)
@@ -241,7 +241,7 @@ describe('#1330: every recorded position counts, public and official, and disagr
   })
   it('the positions lines name who: the public and officials, no zero side', () => {
     const e = recordedEvidence(alAll())
-    expect(publicPositionsLine(e)).toBe('Public: 6 against · 2 split (8 meetings)')
+    expect(publicPositionsLine(e)).toBe('Public: 6 against · 2 both sides spoke (8 meetings)')
     expect(officialPositionsLine(e)).toBe('Officials: 7 against · 8 for · 13 divided (28 meetings); recorded votes: 1 decision for, 0 against')
   })
   it('below the minimum, the facts count the meetings with a position too', () => {

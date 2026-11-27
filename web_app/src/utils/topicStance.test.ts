@@ -59,7 +59,7 @@ describe('positionLine (#1200)', () => {
     const { topicPositions } = await import('./topicPositions')
     const s = { state_code: 'CA', speakers_against: 30, speakers_for: 6, speakers_neutral: 9, speakers_question: 0, silent_meetings: 180 }
     expect(positionLine(s, topicPositions('license-plate-readers'))).toBe(
-      "45 meetings where the public spoke: 30 against the cameras · 6 for the cameras · 9 split; in 180 more meetings the public didn't speak on it",
+      "45 meetings where the public spoke: 30 against the cameras · 6 for the cameras · both sides spoke at 9; in 180 more meetings the public didn't speak on it",
     )
     expect(positionLine({ ...s, speakers_against: 0, speakers_for: 0, speakers_neutral: 0, silent_meetings: 19 }, topicPositions('guns'))).toBe(
       "In 19 meetings the public didn't speak on it",
@@ -71,7 +71,7 @@ describe('stanceLine wording', () => {
   const s = { speakers_against: 3, speakers_for: 1, speakers_neutral: 2, speakers_question: 0 }
 
   it('says meetings and AI reading for a topic split, never speakers', () => {
-    expect(stanceLine(s, 'meetings')).toBe('6 meetings read: 3 mostly opposed · 1 mostly supported · 2 split')
+    expect(stanceLine(s, 'meetings')).toBe('6 meetings read: 3 mostly opposed · 1 mostly supported · 2 both sides spoke')
   })
 
   it('keeps the speaker wording for data centers', () => {
@@ -79,7 +79,7 @@ describe('stanceLine wording', () => {
   })
 
   it('has the four-entry legend in both wordings', () => {
-    expect(Object.values(LEGEND_LABEL)).toEqual(['Spoke against', 'Spoke for', 'No side'])
-    expect(Object.values(AI_LEGEND_LABEL)).toEqual(['Public mostly opposed', 'Public mostly supported', 'Public split'])
+    expect(Object.values(LEGEND_LABEL)).toEqual(['Spoke against', 'Spoke for', 'Spoke, no side'])
+    expect(Object.values(AI_LEGEND_LABEL)).toEqual(['Public mostly opposed', 'Public mostly supported', 'Both sides spoke'])
   })
 })

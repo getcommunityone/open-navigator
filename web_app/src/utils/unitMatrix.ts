@@ -52,8 +52,8 @@ export const OUTCOME_LABELS: Record<OutcomeKey, string> = {
 export const SIDE_LABELS: Record<SideKey, string> = {
   against: 'Public mostly opposed',
   for: 'Public mostly supported',
-  mixed: 'Public split',
-  no_side: 'No side taken',
+  mixed: 'Both sides spoke',
+  no_side: 'Spoke, no side',
 }
 /** The "By who spoke" groups in a topic's own position words (#1200, utils/topicPositions). */
 export function sideLabelsFor(w: { against: string; for: string; split: string; silent: string }): Record<SideKey, string> {

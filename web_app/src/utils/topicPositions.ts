@@ -38,7 +38,7 @@ export interface TopicPositions {
   forMeans: string
 }
 
-const SPLIT = 'Split'
+const SPLIT = 'Both sides spoke'
 const SILENT = "Public didn't speak on it"
 const UNREAD = 'Not read yet'
 
@@ -172,7 +172,13 @@ export const missingLegend = (w: Pick<TopicPositions, 'unread' | 'silent'>) =>
 export const MISSING_LEGEND = missingLegend({ unread: UNREAD, silent: SILENT })
 
 /** The legend's note on split, so it is never read as missing. */
-export const SPLIT_NOTE = 'Split: the public spoke but was divided, or the AI could not tell which way.'
+export const SPLIT_NOTE = 'Both sides spoke: at those meetings the public spoke on both sides, or the AI could not tell which way. This is not neutral.'
+
+/**
+ * The one label for a single comment or speaker whose reading came back mixed (#1381). "Both sides spoke" is meeting grain
+ * only: a comment is one person. Swap this constant for the per-comment stance-shape chips when they land.
+ */
+export const UNCLEAR_SPEAKER_LABEL = 'Unclear (may be more than one speaker)'
 
 /** The four AI-reading counts for one place, plus the meetings on record. */
 export interface PositionCounts {
@@ -219,7 +225,7 @@ export function quoteStanceNote(slug: string | null | undefined, subject: string
   const w = topicPositions(slug)
   if (stance === 'against') return `Public: ${w.against}`
   if (stance === 'for') return `Public: ${w.for}`
-  if (stance === 'split') return `Public: ${w.split}`
+  if (stance === 'split') return `At this meeting: ${w.split.toLowerCase()}`
   if (stance === 'silent') return `Mentions ${subject}; no public stance in this meeting`
   // Not read yet: claim nothing about the public, only that the passage mentions the topic (No Fabricated Data).
   return `Mentions ${subject}`

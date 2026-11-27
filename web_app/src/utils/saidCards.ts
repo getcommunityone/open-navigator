@@ -82,7 +82,7 @@ export function saidSummary(slug: string, total: number, c: TopicSaidCounts | nu
     const sides = [
       c.against ? `${fmt(c.against)} ${w.against.toLowerCase()}` : null,
       c.for ? `${fmt(c.for)} ${w.for.toLowerCase()}` : null,
-      c.split ? `${fmt(c.split)} split` : null,
+      c.split ? `both sides spoke at ${fmt(c.split)}` : null,
     ].filter(Boolean)
     parts.push(`the public took a position at ${fmt(sided)} (${sides.join(', ')})`)
   }

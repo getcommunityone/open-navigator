@@ -119,7 +119,7 @@ export const FIVE_POSITION_STYLE: Record<string, PositionStyle> = {
 /** The shared lean labels every other topic uses. */
 export const LEAN_POSITION_STYLE: Record<string, PositionStyle> = {
   mostly_supportive: { label: 'Mostly for', side: 'support', strong: true },
-  mixed: { label: 'Split', side: 'neutral', strong: false },
+  mixed: { label: 'Both sides spoke', side: 'neutral', strong: false },
   mostly_opposed: { label: 'Mostly against', side: 'oppose', strong: true },
 }
 

@@ -105,7 +105,7 @@ passage. They now quote it this way, server-side:
    per meeting, meetings where the public mostly opposed first (the only lean the maps serve), then newest. Counts are
    unchanged. Speakers' own words still come first on the home map.
 3. **The card says where the public stood.** Under "In the meeting · `<title>`" a short line reads "Public: " and the
-   topic's own position words from `web_app/src/utils/topicPositions.ts` (its "against", "for" or "Split" label, so a
+   topic's own position words from `web_app/src/utils/topicPositions.ts` (its "against", "for" or "Both sides spoke" label, so a
    topic reworded there is reworded on the card too), or, when the reading found the public didn't speak on it, "Mentions
    `<topic>`; no public stance in this meeting". A meeting not read yet gets only "Mentions `<topic>`", with no claim
    about the public. A data-center passage (the home map and, since [#1265](https://github.com/getcommunityone/open-navigator/issues/1265), the Data Center Story's national and county maps) gets its "against" words or the no-stance line,
@@ -192,7 +192,7 @@ confusing."):
 | --- | --- | --- |
 | Overview (`overview`) | The caption (#1125) and the national state box map in the topic's AI-reading colours and position words (#1200); a state's boxes open the story for that state. | Never. |
 | Over time (`timeline`) | The trend line with its milestone track and the period dumbbell (#1140). | No meetings on record in scope. |
-| Who spoke (`positions`) | The public's position in the meetings the AI read, one bar per position in the topic's words (against, for, split, didn't speak on it), with the headline's conclusion (majority, split, or too few). Meetings, never counted speakers. | No AI reading served for the scope. |
+| Who spoke (`positions`) | The public's position in the meetings the AI read, one bar per position in the topic's words (against, for, both sides spoke, didn't speak on it), with the headline's conclusion (majority, split, or too few). Meetings, never counted speakers. | No AI reading served for the scope. |
 | Companies (`companies`) | The platforms named in the record (topics with a companies list, today short-term rentals). | No company named in scope; topics without a list never have it. |
 | What was said (`said`) | Meeting passages quoted from the transcript with the matched words marked, each with who spoke and the meeting's position (see "People and position on What was said" below); meetings where the public took a position first, then a vote or a named speaker, then **Mentioned in passing**; **Show more meetings**. | No meetings in scope. |
 | Decisions (`decided`) | Decisions whose record mentions the topic, split into **Decisions on [topic]** and **Mentioned in passing** (see "Decisions: on the topic or in passing" below), each linking its meeting and its page, with **See all**. | None in scope. |
@@ -339,7 +339,7 @@ The story is headed by the longer "What did local meetings in [place] say about 
 ### Who spoke up
 
 **Public and officials, and where they disagree (#1330).** The screen opens with who took which side: "Public: 6 against · 2
-split (8 meetings)" and "Officials: … (N meetings); recorded votes …; named supporters N · opposers M". Where officials sided
+both sides spoke (8 meetings)" and "Officials: … (N meetings); recorded votes …; named supporters N · opposers M". Where officials sided
 against the public it headlines that ("In Georgia, officials sided against the public in 11 of 27 meetings where both took a
 side."), and the count opens those meetings with their recordings. The hand-counted figures below are labelled "Speakers
 counted by hand". Details: [Story captions](../development/story-captions.md) (#1330).
@@ -510,7 +510,7 @@ and tries, in order:
    title states the majority position with the count: **"In Ohio, most meetings that took up gun control favored gun
    limits: 41 of 63 where the public spoke (AI reading)."**, **"America hates data centers: the public was
    against them in 283 of 341 meetings where it spoke (AI reading)."** ("hates" only for data centers, Flock and license
-   plate readers, and pickleball), or **"Ohio is split on …"** when no side has more than half. A place too thin of its
+   plate readers, and pickleball), or **"Ohio is divided on …"** when no side has more than half. A place too thin of its
    own names the broader scope that has a conclusion. With too few readings the rules below apply, and the line under
    the title says how many meetings have a reading so far ("20 of 7,623 meetings have an AI reading so far; …"). The
    words come from `utils/topicPositions.ts`; see [Story captions](../development/story-captions.md).
@@ -879,3 +879,15 @@ When you stop on a screen that has a next step, the page draws your eye to it. A
 | A screen's arrival, before the wait starts | 1.2 seconds | `NUDGE_ENTRANCE_MS` |
 
 The timing is a pure function, `shouldNudge` in `web_app/src/utils/idleNudge.ts`, with tests. The hook that runs it is `web_app/src/hooks/useIdleNudge.ts`: it adds the class `is-nudging` to the button or the bar for one cue, and `stance.css` draws it. This replaced the story's separate "Scroll" / "Swipe up" cue, so there is one cue at a time. (The Data explorer's Matrix page still uses that older cue, `ScrollCue.tsx`; it has no floating bar.)
+
+## Wording: "mixed", "both sides spoke" and "divided" ([#1381](https://github.com/getcommunityone/open-navigator/issues/1381))
+
+The numbers on the maps and captions count **meetings**, not comments. Each meeting is read once (`topic_meeting_lean`) for how the public leaned at it. Three words are kept apart:
+
+- **Both sides spoke** (legends, chips) or **mixed** (running text): at that meeting the public spoke on both sides. It is not neutral. The API value stays `lean='split'` / `public_stance: 'split'`.
+- **Spoke, no side**: the public spoke without taking a side (a separate "no opinion" position on some topics). Never merged with "both sides spoke".
+- **Divided**: the headline for a place where no side has more than half of the meetings where the public spoke ("Ohio is divided on gun control."), the same word used for officials' votes.
+
+Counts say what they count: "Of 7,036 meetings read nationwide, the public spoke on gun control in 438 (197 favor gun limits, 97 favor gun rights, both sides spoke at 144)." Only counts from the caption comment data (`meeting_comment`) are called "comments".
+
+"Both sides spoke" is a meeting-grain label only: several people at one meeting disagreed. A single comment or speaker is one person and is never labelled "both sides", "mixed" or "split". A per-comment or per-speaker reading that comes back mixed (for example one segment that merged two speakers) is shown as "Unclear (may be more than one speaker)". Today no per-comment display shows a mixed value: the speaker counts use "Spoke, no side", and "both sides" appears only on meeting readings, worded "At this meeting: both sides spoke" under a quote.
