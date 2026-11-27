@@ -301,6 +301,19 @@ describe('the title says what the map shows (#1182)', () => {
     const w = pickCaption('short-term-rentals', facts({ meetings: 40, public_against_meetings: 1, wider: [{ ...NATIONAL_RED, public_against_meetings: 60 }] }, fl), fl)
     expect(captionText(w, 'short-term rentals')).toBe('Across America the public mostly opposed short-term rentals; Florida brought them up in 40 meetings.')
   })
+
+  it('plain wording edge cases: one meeting, one state, and counted speakers alone never make a plain title (#1190)', () => {
+    const tusc: StoryScope = { stateCode: 'AL', stateName: 'Alabama', city: 'Tuscaloosa' }
+    const one = pickCaption('water-fluoridation', facts({ public_against_meetings: 3, lean_meetings: 4 }, tusc), tusc)
+    expect(captionText(one, 'water fluoridation')).toBe('In 3 meetings in Tuscaloosa, Alabama, the public mostly opposed water fluoridation.')
+    const w = pickCaption('water-fluoridation', facts({ meetings: 1, lean_meetings: 1, public_against_meetings: 0, wider: [{ ...NATIONAL_RED, public_against_meetings: 50, public_against_states: 1 }] }, tusc), tusc)
+    expect(captionText(w, 'water fluoridation')).toBe('Across America the public mostly opposed water fluoridation; Tuscaloosa, Alabama brought it up in 1 meeting.')
+    expect(w.basis).toBe(
+      "In 50 meetings nationwide, the public mostly opposed water fluoridation (AI reading of each meeting's transcript). Of Tuscaloosa, Alabama's 1 meeting with an AI reading, none had a public mostly opposed.",
+    )
+    const sp = pickCaption('water-fluoridation', facts({ meetings: 30, public_against_meetings: 2, speakers: { for: 1, against: 40, question: 0, neutral: 0, states: 3 } }), nat)
+    expect(sp.kind).not.toBe('sentiment')
+  })
 })
 
 describe('storyStartLabel (#1182)', () => {
