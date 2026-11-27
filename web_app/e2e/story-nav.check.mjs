@@ -3,8 +3,7 @@
 // Next keeps the spot; the last screen's primary action takes Next's spot (same right edge, top and height; its label is longer). No floating Next is shown while the inline one is.
 // The cover (#1182) is checked first (#1192): no floating Next beside Start, one progress indicator, no Close (×); then Start.
 //
-// Topic stories (#1224) are told with the same screens, so the same check runs on them; their last screen's Next story link
-// takes Next's spot.
+// Topic stories (#1224) have one fixed Next instead of the inline one: e2e/story-next.check.mjs checks them.
 //
 //   node e2e/story-nav.check.mjs [--base http://localhost:5173] [--path /stories/data-centers] [--shots <dir>/nav-after]
 //
@@ -19,7 +18,7 @@ const arg = (name, dflt) => {
   return i > 0 ? process.argv[i + 1] : dflt
 }
 const base = arg('base', 'http://localhost:5173')
-const paths = (arg('path', '/stories/data-centers,/stories/data-centers?state=AL,/stories/guns,/stories/pickleball?state=CA')).split(',')
+const paths = (arg('path', '/stories/data-centers,/stories/data-centers?state=AL')).split(',')
 const shots = arg('shots', null)
 const TOL = 2
 

@@ -32,8 +32,17 @@ Recap always stay. Nothing on a screen is invented to fill it: an empty screen g
 - **A closing vote**: only the data center pack has a question; the Recap ends on Next story.
 - **City grain**: #1186.
 
+## Layout: one Next, one Close (owner, 2026-11-27)
+
+The owner found the cover's two stacked buttons ("Start the … story →" and "Next story: … →") confusing and asked for one
+green Next at the bottom right, always visible, and a Close (×) at the top right. So the topic stories draw their own bar
+(the title sentence, the screen's word, Close and the segments) instead of `ScopeBar`, and one fixed `StoryNextButton`
+replaces the inline Next, the floating Next, the phone bar's Next, the cover's pair and the next-story card. The last
+screen's Next is a quiet Done that goes home: readers choose the next story there. The #1234 branch is building the same
+pieces for the Data Center Story; when both are in, the two should share one Close and one Next component.
+
 ## Swipe
 
 `hooks/useSwipeNav.ts` turns a quick sideways flick (at least 50px, 1.5 times its vertical travel, under 800ms) into
-Next/Back with passive listeners, so the browser's own vertical scroll and snap keep working. It is used by the topic
+Next/Back with passive listeners (the same file the #1234 branch adds), so the browser's own vertical scroll and snap keep working. It is used by the topic
 stories; the Data Center Story can take the same hook.

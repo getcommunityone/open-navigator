@@ -60,7 +60,9 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   const startRef = useRef<HTMLButtonElement>(null)
   const shownIds = useRef<string[]>([])
   useEffect(() => {
-    const el = startRef.current
+    // The cover's Start button when it has one (the Data Center Story), else the cover itself (the topic stories, whose one
+    // Next is fixed at the bottom right, #1224).
+    const el = startRef.current ?? rootRef.current?.querySelector<HTMLElement>('[data-cover]')
     if (!el || typeof IntersectionObserver === 'undefined') return
     // What sits under the sticky site header and the story's own bar does not count as visible.
     const header = document.querySelector<HTMLElement>('.site-header')

@@ -49,11 +49,25 @@ On the home hero, **Start the story** and the next-story button stick to the bot
 
 Owner, 26 Nov 2026: "All the stories should have horizontal scroll drill down with swipe like data center." Every topic
 story (`/stories/guns`, `/stories/pickleball`, `/stories/water-fluoridation` and the rest) is now told one screen at a
-time with the Data Center Story's shell: the sticky title bar with the sentence heading (place and topic blanks), the
-cover with **Start the … story →** and **Next story →**, the segmented progress bar on a wide screen (each segment a
-button, "3 of 6: Who spoke"), the bottom bar on a phone, inline **Back** / **Next →**, the floating Next, the keys, and a
-`?screen=` deep link. Both pages run on the same screen machine (`components/stance/useStoryScreens.ts`) and draw each
-screen with the same frame (`components/stance/StoryScreenFrame.tsx`), so they move alike.
+time on the Data Center Story's screen machine (`components/stance/useStoryScreens.ts`), each screen drawn with the same
+frame (`components/stance/StoryScreenFrame.tsx`), with `?screen=` deep links and the keys.
+
+**Layout** (owner, 27 Nov 2026: "a right Next green button at bottom right always visible. The two buttons is
+confusing."):
+
+- **Close (×)** at the top right of the story's bar, the same box on every screen; it goes home keeping the scope
+  (`/?state=CA`), and **Escape** does the same (`components/stance/StoryClose.tsx`). There is no "← Data stories" crumb
+  and no "Showing: … · National only" row: the place changes only through the title's place blank.
+- **One green Next →** fixed at the bottom right of every screen (`components/stance/StoryNextButton.tsx`). On the cover
+  it starts the story; on a screen it goes to the next one; on the last screen it becomes a quiet **Done** that closes the
+  story. There is no Start / Next story pair on the cover and no "Next story" button anywhere: readers pick the next story
+  on home.
+- **Back**: inline at the bottom of each screen's left column on a wide screen; at the left of the phone's bottom bar,
+  beside the progress dots, from the second screen on.
+- **Progress**: the segments in the top bar on a wide screen (each a button, "3 of 6: Who spoke"), the dots in the phone
+  bar.
+- `web_app/e2e/story-next.check.mjs` steps every screen at Pixel 7, iPhone 13 and 1440×900 (Next, a segment, a swipe) and
+  checks Next and Close stay at the same spots.
 
 | Screen (`?screen=`) | Shows | Left out when |
 | --- | --- | --- |
@@ -63,7 +77,7 @@ screen with the same frame (`components/stance/StoryScreenFrame.tsx`), so they m
 | Companies (`companies`) | The platforms named in the record (topics with a companies list, today short-term rentals). | No company named in scope; topics without a list never have it. |
 | What was said (`said`) | Meeting passages, newest first, quoted from the transcript with the matched words marked; **Show more meetings**. | No meetings in scope. |
 | Decisions (`decided`) | Decisions whose record mentions the topic, with **See all**. | None in scope. |
-| Recap (`recap`) | The scope's counts and links on (every decision, Browse topics, all stories); **Next story** takes Next's spot. | Never. |
+| Recap (`recap`) | The scope's counts and small text links on (every decision, Browse topics, all stories); Next becomes **Done**. | Never. |
 
 A screen left out is not a step, a segment or a Next target, and the cover says which ones and why ("Not in this story
 for Ohio: decisions (none on record)."). While a screen's data loads it stays and says so; a failed request says it could
@@ -223,9 +237,8 @@ The map is capped at 60% of the screen height so it never pushes the card below 
 the scope line are in view for the national and a city scope, and on a phone the buttons stack full width.
 
 **The same two buttons open every story** ([#1182](https://github.com/getcommunityone/open-navigator/issues/1182)). The
-stories hub's button names its topic too. A topic story (`/stories/guns`) shows, under its title (now about 36px) and
-lede, **Start the guns story →**, which scrolls to the story's first section (the map), and **Next story: [title] →**,
-carrying `?state=&city=`. On the Data Center Story the subhead, basis line, both buttons and the numbered points are
+stories hub's button names its topic too. Since #1224 (owner, 27 Nov 2026) a topic story's cover has no buttons of its
+own: its one green Next at the bottom right starts the story (see "Topic stories, screen by screen"). On the Data Center Story the subhead, basis line, both buttons and the numbered points are
 the story's opening screen, under the sticky title and progress bar and in normal flow, so they scroll away and the
 sticky bar shrinks to the title and progress on every later screen; **Start** goes to the Overview. The buttons share
 `web_app/src/styles/story-actions.css` (`.home-story-actions`, `.home-story-start`, `.home-story-next`); on the story

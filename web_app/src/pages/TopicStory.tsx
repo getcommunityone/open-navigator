@@ -15,7 +15,6 @@ import {
   storyStartLabel,
   type Caption,
 } from '../utils/storyCaption'
-import { nextStoryLink } from '../utils/storyNav'
 import { droppedNote, planTopicScreens, type ScreenAvailability, type TopicScreenId } from '../utils/topicStoryScreens'
 import type { TopicStoryDef } from '../utils/topicStories'
 import type { StoryScope } from '../utils/dataStory'
@@ -30,14 +29,13 @@ import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesMap'
 import TimelineChart from '../components/stance/TimelineChart'
 import DumbbellChart from '../components/stance/DumbbellChart'
-import FloatingNext from '../components/stance/FloatingNext'
 import PlaceControl from '../components/stance/PlaceControl'
 import ProgressPips from '../components/stance/ProgressPips'
-import ScopeBar from '../components/stance/ScopeBar'
+import StoryClose from '../components/stance/StoryClose'
 import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
 import TopicPositionsBreakdown from '../components/stance/TopicPositionsBreakdown'
-import { NextStoryCard, StoryBottomBar } from '../components/stance/StoryProgress'
+import StoryNextButton from '../components/stance/StoryNextButton'
 import { useStoryScreens } from '../components/stance/useStoryScreens'
 import '../styles/folio.css'
 import '../styles/stance.css'
@@ -132,9 +130,9 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const words = topicPositions(def.slug)
 
   // A city picked in the place dialog: topic stories are drawn by state (#1186), so its state applies and the cover says so.
-  const [cityAsked, setCityAsked] = useState<string | null>(null)
+  // A deep link with ?city= gets the same note (the page shows its state only).
+  const [cityAsked, setCityAsked] = useState<string | null>(() => (stateCode ? (sp.get('city') ?? '').trim() || null : null))
   const [placeOpen, setPlaceOpen] = useState(false)
-  const [atEnd, setAtEnd] = useState(false)
   const applyPlace = useCallback(
     (code: string | null, community: string | null) => {
       setCityAsked(code && community ? community : null)
@@ -240,7 +238,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const n = screens.length
   const keepKey = screens.map((s) => s.id).join()
 
-  const { rootRef, startRef, wide, mode, active, activeRef, onCover, goTo, next, prev } = useStoryScreens({
+  const { rootRef, wide, mode, active, activeRef, onCover, goTo, next, prev } = useStoryScreens({
     screens,
     screenParam,
     setSp,
@@ -270,7 +268,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const placeDisplay = noMeetings ? (stateName ?? 'America') : caption.place
   const subhead = noMeetings ? null : captionSubhead(caption, def.slug, scope)
   const basis = caption.basis
-  const onward = nextStoryLink(def.slug, scopeQ, live)
+  // Close and the last screen's Done go home, keeping the scope (owner 2026-11-27: readers pick the next story there).
+  const homeHref = `/${scopeQ}`
   const note = droppedNote(plan.dropped, label)
   const labels = screens.map((s) => s.eyebrow)
 
@@ -332,9 +331,9 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         const spoke = counts ? spokeOf(counts) : 0
         const placeWord = stateName ?? 'America'
         // A short conclusion, no counts (owner 2026-11-26); the numbers are in the line under it and the bars.
-        const h = loadingOr(captionQ, 'AI reading', () =>
+        const h = loadingOr(captionQ, 'who spoke', () =>
           !verdict || !counts
-            ? 'No AI reading of these meetings yet.'
+            ? `No position of the public is on record for these meetings yet.`
             : spoke === 0
               ? `The public didn't speak on ${topicWord} in the meetings read ${where}.`
               : verdict.kind === 'majority'
@@ -365,7 +364,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           context: companies.data ? `${fmt(named.length)} ${named.length === 1 ? 'company' : 'companies'} named in the record, counted from it.` : 'Counted from the record.',
           right: companies.data ? (
             <ul className="topic-story-list">
-              {companies.data.map((c) => {
+              {named.map((c) => {
                 const brands = c.aliases.filter((a) => a !== c.company_name && !a.includes(','))
                 return (
                   <li key={c.master_org_id} className="topic-story-item">
@@ -373,9 +372,6 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                       <Link to={`/organizations/${encodeURIComponent(c.master_org_id)}`}>{c.company_name}</Link>
                     </p>
                     {brands.length > 0 && <p className="topic-story-item-meta">{brands.join(', ')}</p>}
-                    {c.meetings + c.decisions === 0 ? (
-                      <p className="topic-story-item-meta">Not named in {label === 'National' ? 'any meeting on record' : `${label}'s meetings on record`}.</p>
-                    ) : (
                       <p className="topic-story-item-body">
                         <Link to={`/search?q=${encodeURIComponent(companySearchTerm(c.company_name, c.newest?.evidence))}&sort=date_desc${stateCode ? `&state=${stateCode}` : ''}`}>
                           {meetingsWord(c.meetings)}
@@ -383,7 +379,6 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                         {' · '}
                         {fmt(c.decisions)} {c.decisions === 1 ? 'decision' : 'decisions'}
                       </p>
-                    )}
                     {c.newest?.evidence && (
                       <blockquote className="topic-story-quote">
                         “{highlightSnippet(c.newest.evidence)}”
@@ -511,68 +506,57 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       data-fade={reduced ? '' : undefined}
       data-sbar={wide ? undefined : ''}
     >
-      <ScopeBar
-        backTo={`/stories${scopeQ}`}
-        backLabel="← Data stories"
-        title={def.title}
-        label={label}
-        heading={
-          <SentenceHeading
-            template={template}
-            blanks={[
-              {
-                id: 'place',
-                label: 'Place',
-                value: stateCode ?? '',
-                display: placeDisplay,
-                options: [],
-                onChange: () => {},
-                control: (
-                  <PlaceControl
-                    variant="blank"
-                    display={placeDisplay}
-                    stateCode={stateCode ?? undefined}
-                    city={null}
-                    open={placeOpen}
-                    onOpenChange={setPlaceOpen}
-                    onApply={applyPlace}
-                  />
-                ),
-              },
-              {
-                id: 'topic',
-                label: 'Topic',
-                value: def.slug,
-                display: topicWord,
-                // The current topic reads as the sentence says it; the others by their story names.
-                options: live.map((s) => ({ value: s.id, label: s.id === def.slug ? topicWord : s.title })),
-                onChange: (v) => navigate(`/stories/${encodeURIComponent(v)}${scopeQ}`),
-              },
-            ]}
-          />
-        }
-        stateCode={stateCode ?? undefined}
-        stateName={stateName}
-        city={null}
-        current={screens[active]?.eyebrow ?? ''}
-        progress={wide ? <ProgressPips count={n} active={active} labels={labels} onJump={goTo} /> : undefined}
-        placeOpen={placeOpen}
-        onPlaceOpenChange={setPlaceOpen}
-        onApply={applyPlace}
-      />
-      {/* The cover (#1182), as on the Data Center Story: subhead, basis, the two story buttons, then what the story leaves out. */}
+      {/* The story's bar (#1224, owner 2026-11-27): the title sentence (its place blank is the only place control), the screen's
+          word, Close (×) at the top right and, on a wide screen, the progress segments. No crumb and no "Showing:" row. */}
+      <header className="stance-top topic-story-top">
+        <div className="stance-top-text">
+          <div className="stance-heading-row">
+              <SentenceHeading
+                template={template}
+                blanks={[
+                  {
+                    id: 'place',
+                    label: 'Place',
+                    value: stateCode ?? '',
+                    display: placeDisplay,
+                    options: [],
+                    onChange: () => {},
+                    control: (
+                      <PlaceControl
+                        variant="blank"
+                        display={placeDisplay}
+                        stateCode={stateCode ?? undefined}
+                        city={null}
+                        open={placeOpen}
+                        onOpenChange={setPlaceOpen}
+                        onApply={applyPlace}
+                      />
+                    ),
+                  },
+                  {
+                    id: 'topic',
+                    label: 'Topic',
+                    value: def.slug,
+                    display: topicWord,
+                    // The current topic reads as the sentence says it; the others by their story names.
+                    options: live.map((s) => ({ value: s.id, label: s.id === def.slug ? topicWord : s.title })),
+                    onChange: (v) => navigate(`/stories/${encodeURIComponent(v)}${scopeQ}`),
+                  },
+                ]}
+              />
+          </div>
+        </div>
+        <p className="stance-counter" data-testid="stance-current">
+          {screens[active]?.eyebrow ?? ''}
+        </p>
+        <StoryClose to={homeHref} escape={!placeOpen} />
+        {wide ? <ProgressPips count={n} active={active} labels={labels} onJump={goTo} /> : null}
+      </header>
+      {/* The cover (#1182): subhead, basis and lede, then what the story leaves out. Its way on is the one fixed Next (#1224). */}
       <div className="stance-intro" data-cover>
         {subhead && <p className="stance-title-subhead">{subhead}</p>}
         {basis && <p className="stance-title-basis">{basis}</p>}
         <p className="stance-title-subhead topic-story-lede">{def.lede}</p>
-        <div className="home-story-actions">
-          <button type="button" className="home-story-start" ref={startRef} onClick={() => goTo(0)}>
-            {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
-          </button>
-          <Link to={onward.href} className="home-story-next">
-            {onward.label} <span aria-hidden="true">→</span>
-          </Link>
-        </div>
         {!captionQ.isPending && !COUNTED_FROM.test(basis ?? '') && <p className="stance-note">{COUNTED_LINE}</p>}
         {cityAsked && stateName && (
           <p className="stance-note" role="status">
@@ -582,14 +566,13 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         {note && <p className="stance-note">{note}</p>}
       </div>
       <p className="folio-sr-only" aria-live="polite">
-        {screens[active] ? `${screens[active]!.eyebrow}. ${screen(screens[active]!.id).headline}` : ''}
+        {screens[active] ? `${screens[active]!.eyebrow}, ${active + 1} of ${n}.` : ''}
       </p>
       <div className="stance-body">
         {/* Keyed by which screens are in the story: the pinned layout moves screens into its own wrappers (see DataStory). */}
         <div className="stance-acts" key={keepKey}>
           {screens.map((s, i) => {
             const v = screen(s.id)
-            const last = i === n - 1
             return (
               <StoryScreenFrame
                 key={s.id}
@@ -599,37 +582,29 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 eyebrow={s.eyebrow}
                 headline={v.headline}
                 context={v.context}
-                nextLabel={last ? null : screens[i + 1]!.eyebrow}
+                // The one Next is fixed at the bottom right (StoryNextButton); each screen keeps only its Back inline.
+                nextLabel={null}
                 onNext={() => goTo(i + 1)}
                 onPrev={i > 0 ? () => goTo(i - 1) : undefined}
-                navPrimary={
-                  last ? (
-                    <Link className="folio-btn stance-next stance-next-end" to={onward.href} data-primary data-nav="next">
-                      {onward.next ? 'Next story' : 'All stories'} <span aria-hidden="true">→</span>
-                    </Link>
-                  ) : undefined
-                }
                 right={v.right}
               />
             )
           })}
         </div>
-        <NextStoryCard href={onward.href} label={onward.label} isStory={onward.next != null} onInView={setAtEnd} />
       </div>
-      {wide ? (
-        !atEnd && !onCover && <FloatingNext rootRef={rootRef} screen={`[data-panel="${active}"]`} />
-      ) : (
-        <StoryBottomBar
-          active={active}
-          count={n}
-          nextLabel={active < n - 1 ? (screens[active + 1]?.eyebrow ?? null) : null}
-          onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
-          storyHref={onward.href}
-          storyLabel={onward.label}
-          storyIsNext={onward.next != null}
-          hideNext={onCover}
-        />
-      )}
+      <StoryNextButton
+        active={active}
+        count={n}
+        onCover={onCover}
+        startLabel={storyStartLabel(def.slug, label, def.subject)}
+        onStart={() => goTo(0)}
+        nextLabel={active < n - 1 ? (screens[active + 1]?.eyebrow ?? null) : null}
+        onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
+        prevLabel={active > 0 ? (screens[active - 1]?.eyebrow ?? null) : null}
+        onPrev={() => goTo(Math.max(activeRef.current - 1, 0))}
+        doneHref={homeHref}
+        phone={!wide}
+      />
       <p className="stance-keys">Keys: → or PageDown next · ← or PageUp back · Home and End jump to the ends · on a phone, swipe left or right</p>
     </div>
   )

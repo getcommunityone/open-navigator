@@ -11,7 +11,7 @@ describe('planTopicScreens (#1224)', () => {
     const { screens, dropped } = planTopicScreens({ timeline: 'ready', positions: 'empty', companies: 'absent', said: 'error', decided: 'empty' })
     expect(screens.map((s) => s.id)).toEqual(['overview', 'timeline', 'said', 'recap'])
     expect(dropped.map((d) => d.id)).toEqual(['positions', 'decided'])
-    expect(droppedNote(dropped, 'Ohio')).toBe("Not in this story for Ohio: who spoke (no AI reading of the public's position yet); decisions (none on record).")
+    expect(droppedNote(dropped, 'Ohio')).toBe("Not in this story for Ohio: who spoke (the public's position isn't on record yet); decisions (none on record).")
   })
   it('says nothing when no screen dropped', () => {
     expect(droppedNote([], 'National')).toBeNull()

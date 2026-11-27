@@ -30,7 +30,7 @@ export type ScreenAvailability = 'loading' | 'error' | 'ready' | 'empty' | 'abse
 const EMPTY_WHY: Record<TopicScreenId, string> = {
   overview: '',
   timeline: 'meetings over time (no meetings on record)',
-  positions: "who spoke (no AI reading of the public's position yet)",
+  positions: "who spoke (the public's position isn't on record yet)",
   companies: 'companies named (none named in the meetings)',
   said: 'what was said (no quoted passages)',
   decided: 'decisions (none on record)',
