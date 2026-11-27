@@ -22,6 +22,7 @@ import { scopedMeetingHref } from '../stance/quoteCardUtils'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
 import StoryCountyMap from '../stance/StoryCountyMap'
 import MapSkeleton, { useStateAspect } from '../stance/MapSkeleton'
+import CoverageLine from '../stance/CoverageLine'
 
 
 interface Props {
@@ -202,6 +203,8 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                 {dcCaption.basis}
               </p>
             )}
+            {/* #1348: how many governments and meetings our recordings hold for the scope the counts speak for. */}
+            {!pending && <CoverageLine scope={scope} className="home-story-coverage" />}
             {/* Next steps first (#1176): Start, Next story and the drill-down hint sit in the first screen. */}
             <div className="home-story-actions">
               <Link to={storyStartHref('data-centers', q)} className="home-story-start">

@@ -261,7 +261,7 @@
     'policy_question_relation', 'policy_question_trend', 'question_transcript_link',
     'meeting_browse', 'meeting_topic_link', 'meeting_question_link',
     'topic_transcript_link',
-    'job_claim', 'data_center_site', 'data_center_agenda_item', 'area_concern',
+    'job_claim', 'data_center_site', 'data_center_site_timeline', 'data_center_agenda_item', 'area_concern',
     'data_center_meeting_mention',
     'data_center_meeting_position', 'data_center_public_comment', 'data_center_decision',
     'data_center_hearing_verified',

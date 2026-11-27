@@ -310,6 +310,11 @@ outputPorts:
   contractId: open-navigator-public-data_center_site
   type: table
   description: One row per data center site (PK data_center_site_id), each credited to its source on the row (source, source_name, source_url, license, attribution).
+- name: data_center_site_timeline
+  version: 1.0.0
+  contractId: open-navigator-public-data_center_site_timeline
+  type: table
+  description: 'One row per data center site (PK data_center_site_id, FK data_center_site): the year of its earliest date on record (appear_year; the registry''s announced date or Epoch AI''s first dated timeline row, appear_basis says which, appear_precision how precise), Epoch''s first operating year (operating_year, operating_is_expected when after today) and the coordinates the sources publish.'
 - name: data_center_agenda_item
   version: 1.0.0
   contractId: open-navigator-public-data_center_agenda_item

@@ -14,6 +14,8 @@
     Values are typed with guarded casts: a value that isn't a clean number or date is null,
     never guessed. is_listed: the newest load still lists the record (a record the registry
     drops keeps its last_seen_on and reads no_longer_listed downstream).
+    announced_year / announced_precision (#1348): the year of announced_date at whatever precision the registry gives
+    (day, month or year); announced_on stays null unless the full date is given.
 */
 
 with raw as (
@@ -42,6 +44,14 @@ select
     (case when r.record->>'capacity_mw_planned' ~ '^\d+(\.\d+)?$' then (r.record->>'capacity_mw_planned')::double precision end) as capacity_mw_planned,
     (case when r.record->>'capacity_mw_operational' ~ '^\d+(\.\d+)?$' then (r.record->>'capacity_mw_operational')::double precision end) as capacity_mw_operational,
     (case when r.record->>'announced_date' ~ '^\d{4}-\d{2}-\d{2}$' then (r.record->>'announced_date')::date end) as announced_on,
+    -- #1348: the registry also publishes month (YYYY-MM) and year-only (YYYY) announced dates; keep their year and say how
+    -- precise it is, so a year-level timeline can place them without inventing a day.
+    (case when r.record->>'announced_date' ~ '^(19|20)\d{2}(-\d{2}(-\d{2})?)?$' then left(r.record->>'announced_date', 4)::int end) as announced_year,
+    (case
+        when r.record->>'announced_date' ~ '^\d{4}-\d{2}-\d{2}$' then 'day'
+        when r.record->>'announced_date' ~ '^\d{4}-\d{2}$' then 'month'
+        when r.record->>'announced_date' ~ '^\d{4}$' then 'year'
+    end)::text                                                                              as announced_precision,
     (case when r.record->>'record_updated' ~ '^\d{4}-\d{2}-\d{2}$' then (r.record->>'record_updated')::date end) as record_updated_on,
     (case when r.record->>'source_count' ~ '^\d+$' then (r.record->>'source_count')::int end) as source_count,
     nullif(r.record->>'record_origin', '')::text                                            as record_origin,

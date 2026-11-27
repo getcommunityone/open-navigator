@@ -428,6 +428,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/coverage/recorded-meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recorded Meetings Coverage
+         * @description The local governments and recorded meetings behind a story's counts for the scope.
+         *
+         *     Example:
+         *         GET /api/coverage/recorded-meetings?state=FL
+         */
+        get: operations["recorded_meetings_coverage_api_coverage_recorded_meetings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dashboard": {
         parameters: {
             query?: never;
@@ -779,6 +802,30 @@ export interface paths {
          *         GET /api/data-centers/sites?state=TX
          */
         get: operations["list_data_center_sites_api_data_centers_sites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/data-centers/sites-timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Center Sites Timeline
+         * @description Data center sites placed in the year of their earliest real date, with coordinates, and the running total by
+         *     phase per year (Epoch AI and the US Data Center Registry, CC BY 4.0).
+         *
+         *     Example:
+         *         GET /api/data-centers/sites-timeline?state=VA
+         */
+        get: operations["data_center_sites_timeline_api_data_centers_sites_timeline_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3848,6 +3895,30 @@ export interface components {
              */
             quarter: string;
         };
+        /** RecordedCoverageResponse */
+        RecordedCoverageResponse: {
+            /**
+             * Available
+             * @description False when recorded_meeting_year can't be read: every count is null.
+             */
+            available: boolean;
+            /**
+             * Governments
+             * @description Local governments with at least one recorded meeting in scope.
+             */
+            governments?: number | null;
+            /**
+             * Meetings
+             * @description Recorded meetings in scope, all years.
+             */
+            meetings?: number | null;
+            scope: components["schemas"]["JobClaimScope"];
+            /**
+             * States
+             * @description States those governments are in.
+             */
+            states?: number | null;
+        };
         /**
          * RecordingCandidate
          * @description A video a search found for the meeting: a candidate for review, never attached.
@@ -3919,6 +3990,53 @@ export interface components {
             reason_id: string;
             /** Stage */
             stage: string;
+        };
+        /** SitesTimelineResponse */
+        SitesTimelineResponse: {
+            /**
+             * Available
+             * @description False when the timeline table isn't in the database yet.
+             */
+            available: boolean;
+            /**
+             * City Applied
+             * @description Always false: sites narrow by state only.
+             * @default false
+             */
+            city_applied: boolean;
+            /** Current Year */
+            current_year: string;
+            /**
+             * Dated
+             * @description Sites with a date on record (all of them, mapped or not).
+             * @default 0
+             */
+            dated: number;
+            /** First Year */
+            first_year?: string | null;
+            /** Last Year */
+            last_year?: string | null;
+            /**
+             * Mapped
+             * @description Dated sites with coordinates.
+             * @default 0
+             */
+            mapped: number;
+            scope: components["schemas"]["JobClaimScope"];
+            /** Sites */
+            sites?: components["schemas"]["TimelineSite"][];
+            /**
+             * Undated
+             * @description Sites in scope with no date on record.
+             * @default 0
+             */
+            undated: number;
+            /** Undated By Status */
+            undated_by_status?: {
+                [key: string]: number;
+            };
+            /** Years */
+            years?: components["schemas"]["TimelineYear"][];
         };
         /** Speaker */
         Speaker: {
@@ -4216,6 +4334,115 @@ export interface components {
             stage: "announced" | "company_meeting" | "planning" | "vote" | "government_meeting";
             /** Url */
             url?: string | null;
+        };
+        /**
+         * TimelineSite
+         * @description One dated data center site; unknown values are null.
+         */
+        TimelineSite: {
+            /**
+             * Appear Basis
+             * @description announced (registry) or first_report (Epoch AI's first dated row).
+             */
+            appear_basis: string;
+            /**
+             * Appear Precision
+             * @description day, month or year.
+             */
+            appear_precision?: string | null;
+            /**
+             * Appear Year
+             * @description Year of the site's earliest real date on record (a 4-digit string).
+             */
+            appear_year: string;
+            /** Capacity Mw Operational */
+            capacity_mw_operational?: number | null;
+            /** Capacity Mw Planned */
+            capacity_mw_planned?: number | null;
+            /** Data Center Site Id */
+            data_center_site_id: string;
+            /** First Report Year */
+            first_report_year?: string | null;
+            /** It Power Mw */
+            it_power_mw?: number | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /**
+             * Operating Is Expected
+             * @default false
+             */
+            operating_is_expected: boolean;
+            /** Operating Year */
+            operating_year?: string | null;
+            /** Operator */
+            operator?: string | null;
+            /** Owner */
+            owner?: string | null;
+            /** Site Name */
+            site_name: string;
+            /** Source */
+            source: string;
+            /** Source Name */
+            source_name: string;
+            /** Source Url */
+            source_url?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /**
+             * Status
+             * @description Status today, as on data_center_site.
+             */
+            status?: ("planned" | "under_construction" | "operating" | "cancelled" | "no_longer_listed") | null;
+        };
+        /**
+         * TimelineYear
+         * @description Sites on record by a year, by their phase in that year.
+         */
+        TimelineYear: {
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled: number;
+            /**
+             * Is Future
+             * @description After this year: Epoch's projected phases only.
+             */
+            is_future: boolean;
+            /**
+             * No Longer Listed
+             * @default 0
+             */
+            no_longer_listed: number;
+            /**
+             * Operating
+             * @default 0
+             */
+            operating: number;
+            /**
+             * Planned
+             * @default 0
+             */
+            planned: number;
+            /**
+             * Status Not Published
+             * @default 0
+             */
+            status_not_published: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Under Construction
+             * @default 0
+             */
+            under_construction: number;
+            /** Year */
+            year: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -5150,6 +5377,40 @@ export interface operations {
             };
         };
     };
+    recorded_meetings_coverage_api_coverage_recorded_meetings_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City or government name within the state. */
+                city?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordedCoverageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dashboard_stats_api_dashboard_get: {
         parameters: {
             query?: never;
@@ -5682,6 +5943,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataCenterSitesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    data_center_sites_timeline_api_data_centers_sites_timeline_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description Accepted so a page's scope can be passed through; sites narrow by state. */
+                city?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SitesTimelineResponse"];
                 };
             };
             /** @description Validation Error */
