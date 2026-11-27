@@ -2,8 +2,8 @@ import { useEffect, useState, type RefObject } from 'react'
 
 /** Phones only: the width stance.css stacks a screen at. */
 const PHONE = '(max-width: 767px)'
-/** Room kept for the "More" button under the panel. */
-const MORE_ROOM = 36
+/** Room kept for the "More" button under the panel, with the gap above it. */
+const MORE_ROOM = 64
 /** The smallest a first block is zoomed to before it is left to the "More" view. */
 const MIN_ZOOM = 0.55
 
