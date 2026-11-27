@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { fetchStaticJson, isServedDataFile } from '../utils/fetchStaticJson'
+import { fetchStaticJson, servedDataFileStatus } from '../utils/fetchStaticJson'
 import { feature as topoFeature } from 'topojson-client'
 import { geoCentroid, geoContains } from 'd3-geo'
 import {
@@ -426,8 +426,14 @@ export default function CensusDrilldownMapPage() {
         // Treat "not really there" the same as 404: the SPA shell (200 +
         // text/html) stands in for a missing per-vintage file. Don't demand a
         // json content type: prod serves .geojson as octet-stream (#1266).
-        if (!isServedDataFile(r.status, r.headers.get('content-type'))) continue
-        return r.json()
+        const state = servedDataFileStatus(r.status, r.headers.get('content-type'))
+        if (state === 'missing') continue
+        if (state === 'error') throw new Error(`place geojson: HTTP ${r.status}`)
+        try {
+          return await r.json()
+        } catch {
+          continue // not readable as JSON: try the next vintage
+        }
       }
       return null
     },
@@ -465,8 +471,14 @@ export default function CensusDrilldownMapPage() {
       const candidates = [displayVintage, ...vintages.slice().reverse().filter((v) => v !== displayVintage)]
       for (const v of candidates) {
         const r = await fetch(`/data/census-map/${v}/zcta_metrics_${selectedStateFips}.json`)
-        if (!isServedDataFile(r.status, r.headers.get('content-type'))) continue
-        return r.json()
+        const state = servedDataFileStatus(r.status, r.headers.get('content-type'))
+        if (state === 'missing') continue
+        if (state === 'error') throw new Error(`zcta metrics: HTTP ${r.status}`)
+        try {
+          return await r.json()
+        } catch {
+          continue // not readable as JSON: try the next vintage
+        }
       }
       return null
     },

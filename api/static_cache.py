@@ -13,7 +13,8 @@ CDN can serve the cached copy while refreshing in the background.
 """
 
 import mimetypes
-from typing import Any, MutableMapping
+from collections.abc import MutableMapping
+from typing import Any
 
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles

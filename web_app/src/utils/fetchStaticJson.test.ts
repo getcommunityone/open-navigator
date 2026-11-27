@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchStaticJson, isServedDataFile, StaticDataMissingError } from './fetchStaticJson'
+import { fetchStaticJson, isServedDataFile, servedDataFileStatus, StaticDataMissingError } from './fetchStaticJson'
 
 const respond = (body: string, init: ResponseInit) => vi.stubGlobal('fetch', vi.fn(async () => new Response(body, init)))
 
@@ -49,5 +49,16 @@ describe('isServedDataFile (#1266)', () => {
   it('lets fetchStaticJson read a file served as octet-stream', async () => {
     respond('{"type":"FeatureCollection","features":[]}', { status: 200, headers: { 'content-type': 'application/octet-stream' } })
     expect(await fetchStaticJson('/data/census-map/2022/place_01.geojson')).toEqual({ type: 'FeatureCollection', features: [] })
+  })
+})
+
+describe('servedDataFileStatus (#1266)', () => {
+  it('sorts responses for the vintage fallback', () => {
+    expect(servedDataFileStatus(200, 'application/octet-stream')).toBe('file')
+    expect(servedDataFileStatus(200, 'application/geo+json')).toBe('file')
+    expect(servedDataFileStatus(200, 'text/html')).toBe('missing')
+    expect(servedDataFileStatus(404, 'text/html')).toBe('missing')
+    expect(servedDataFileStatus(500, 'application/json')).toBe('error')
+    expect(servedDataFileStatus(403, 'text/html')).toBe('error')
   })
 })

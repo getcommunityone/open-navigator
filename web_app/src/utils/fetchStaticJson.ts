@@ -19,8 +19,19 @@ export class StaticDataMissingError extends Error {
  * "a 2xx that is not a web page", never "a content type that says json".
  */
 export function isServedDataFile(status: number, contentType: string | null): boolean {
-  if (status < 200 || status >= 300) return false
-  return !(contentType ?? '').toLowerCase().includes('text/html')
+  return servedDataFileStatus(status, contentType) === 'file'
+}
+
+/**
+ * For a loop that walks back through vintages: `file` to read, `missing` to try the next vintage
+ * (404, or the app page in place of the file), `error` for any other failure, which the caller
+ * should surface rather than read as "no data".
+ */
+export function servedDataFileStatus(status: number, contentType: string | null): 'file' | 'missing' | 'error' {
+  const isPage = (contentType ?? '').toLowerCase().includes('text/html')
+  if (status === 404) return 'missing'
+  if (status < 200 || status >= 300) return 'error'
+  return isPage ? 'missing' : 'file'
 }
 
 /**
