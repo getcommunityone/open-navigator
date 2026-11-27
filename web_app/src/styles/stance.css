@@ -3395,22 +3395,121 @@ html.stance-snap .stance-intro {
   font-weight: 600;
 }
 
-/* Why a story speaks for a wider place than the one asked (#1285): one plain line under the bar. */
+/* Why a story speaks for a wider place than the one asked (#1285, #1337): one short muted line under the headline, in its
+   column, with the full reason behind "Why?". Never beside or over the headline. */
 .story-scope-note {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-2, #57534e);
+  max-width: 120ch;
+}
+.story-scope-note .story-scope-why {
+  margin-left: 8px;
+  padding: 0 2px;
+  min-height: 24px;
+  font-size: 13px;
+}
+.story-scope-full {
+  margin: 4px 0 0;
   padding: 4px 10px;
   border-left: 3px solid var(--teal, #0f766e);
   background: rgba(15, 118, 110, 0.06);
-  font-size: 13.5px;
-  line-height: 1.4;
   color: #44403c;
-  max-width: 120ch;
+}
+.stance-top-note {
+  min-width: 0;
 }
 
-.stance-top-note {
-  flex: 1 1 100%;
-  order: 10;
-  margin-bottom: 10px;
+/* Phones (#1337): the bar wraps instead of squeezing; the headline takes the full width (less the Close), wraps normally and
+   is smaller; the note sits under it. The bar stays under a quarter of the screen. */
+@media (max-width: 767px) {
+  .stance-story .stance-top {
+    flex-wrap: wrap;
+    padding-top: 4px;
+    padding-bottom: 6px;
+    gap: 2px 8px;
+  }
+  .stance-story .stance-top-text {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .stance-story .stance-sentence {
+    font-size: 17px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+  .stance-story .stance-blank {
+    min-height: 36px;
+  }
+  .stance-story .stance-scope {
+    display: none;
+  }
+  .stance-story .story-scope-note {
+    font-size: 12.5px;
+  }
+}
+
+/* The phone pager (#1337): "3 of 11 · Sites", tap for the list of screens. */
+@media (max-width: 767px) {
+  .story-pager {
+    position: relative;
+    flex-direction: row !important;
+    align-items: center;
+  }
+  .folio .story-pager-btn {
+    min-height: 44px;
+    padding: 0 10px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 999px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .story-pager-list {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 70;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    max-height: 50svh;
+    overflow-y: auto;
+    min-width: 12rem;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    box-shadow: 0 -6px 18px color-mix(in srgb, var(--ink) 18%, transparent);
+  }
+  .folio .story-pager-item {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 15px;
+    text-align: left;
+    color: var(--ink);
+    background: transparent;
+    border: 0;
+  }
+  .folio .story-pager-item[aria-current='step'] {
+    font-weight: 700;
+    color: #0f766e;
+  }
+  .story-pager-n {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-2);
+    min-width: 1.5em;
+  }
 }
 
 /* #1309: the state county map fits the screen. Its height never passes the visible screen below the story bar; its width
@@ -3521,6 +3620,53 @@ html.stance-snap .stance-intro {
 .stance-positions-who { margin: 0; font-size: 15px; line-height: 1.4; color: var(--ink); }
 .stance-positions-disagree { margin: 4px 0 0; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--ink); }
 .stance-voices-subhead { margin: 8px 0 2px; font-family: var(--font-mono); font-size: var(--t-micro, 12px); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
+
+/* The phone Overview's summary card (#1337): three real facts and a clipped map thumbnail that opens the full map. */
+.story-summary {
+  order: 3;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.story-summary li {
+  padding: 8px 12px;
+  font-size: 16px;
+  line-height: 1.3;
+  border-left: 3px solid var(--teal, #0f766e);
+  background: rgba(15, 118, 110, 0.06);
+}
+.story-summary-thumb {
+  margin-top: 8px;
+}
+.story-summary-thumb-map {
+  max-height: 150px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.story-summary-thumb .stance-map-head,
+.story-summary-thumb .stance-map-caption,
+.story-summary-thumb figcaption {
+  display: none;
+}
+.story-summary-thumb .stance-map-fit {
+  --map-chrome: 330px;
+}
+.folio .story-summary-open {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f766e;
+  background: var(--paper);
+  border: 1px solid #0f766e;
+}
+.story-summary-back {
+  min-height: 44px;
+}
 
 /* The × names its purpose (#1341): a small "Close" caption under it; the tooltip says "Close · back to home". */
 .folio .story-close { flex-direction: column; gap: 0; }

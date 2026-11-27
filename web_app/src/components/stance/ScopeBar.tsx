@@ -72,13 +72,14 @@ export default function ScopeBar(p: Props) {
             ) : null}
           </p>
         )}
+        {/* Under the headline, in its column, never beside or over it. */}
+        {p.note && <div className="stance-top-note">{p.note}</div>}
       </div>
       <p className="stance-counter" data-testid="stance-current">
         {p.current}
       </p>
       {p.extra}
       {p.close}
-      {p.note && <div className="stance-top-note">{p.note}</div>}
       {p.progress}
       {!p.heading && <PlaceControl stateCode={p.stateCode} city={p.city} open={p.placeOpen} onOpenChange={p.onPlaceOpenChange} onApply={p.onApply} />}
     </header>
