@@ -245,9 +245,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   let quote: StateQuote | undefined
   if (shown && shownCode) {
     const all = quotes?.get(shownCode) ?? []
-    const own = shown.side ? all.filter((q) => q.side === shown.side) : []
+    // A named speaker's own words ("Rob D.") first, wherever the state has some; passages with no one named after.
+    const named = all.filter((q) => q.speakerName)
+    const own = shown.side ? (named.some((q) => q.side === shown.side) ? named : all).filter((q) => q.side === shown.side) : []
+    const pool = named.length ? named : all
     if (own.length) quote = own[shown.bandRank % own.length]
-    else if (all.length) quote = all[shown.rank % all.length]
+    else if (pool.length) quote = pool[shown.rank % pool.length]
   }
   const shownStance = shownCode ? stanceLine(stanceBy.get(shownCode), stanceUnit) : null
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
@@ -336,11 +339,16 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             {shownStance ? ` · ${shownStance}` : hasStance ? (byMeetings ? ' · no AI reading yet' : ' · no stance on record') : ''}
           </p>
           {shownLean && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#57534e' }}>{shownLean}</p>}
-          {touch && (
+          {touch ? (
             <p style={{ margin: '6px 0 0', fontSize: 13 }}>
               <Link to={href(shownCode)} style={{ color: '#0f766e', fontWeight: 600 }}>
                 Open the story for {stateName(shownCode)} →
               </Link>
+            </p>
+          ) : (
+            // Say what a click does (owner, 2026-11-26): clicking a box drills into that state's story.
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
+              Click to open the story for {stateName(shownCode)} →
             </p>
           )}
         </QuoteCard>

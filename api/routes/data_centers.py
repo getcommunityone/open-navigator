@@ -1865,10 +1865,15 @@ class DataCenterPositionsResponse(BaseModel):
     )
 
 
-def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[Any], str, list[Any]]:
+def build_position_queries(
+    scope: JobClaimScope, limit: int, per_state: int = 0
+) -> tuple[str, list[Any], str, list[Any]]:
     """(totals SQL, params, quotes SQL, params). The rule for which comments and votes count
     lives in dbt (int_data_center__public_comment, data_center_meeting_position); this only
-    sums and lists what the marts hold."""
+    sums and lists what the marts hold.
+
+    Quotes from a speaker heard by name ("Rob D.") come first. With ``per_state`` > 0 the quotes are up to that many
+    per state and side instead of ``limit`` per side, so the home map has a named speaker for each state it can."""
     where: list[str] = []
     params: list[Any] = []
     if scope.state_code:
@@ -1890,8 +1895,9 @@ def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[
         "sum(p.votes_for)::int AS votes_for, sum(p.votes_against)::int AS votes_against "
         f"FROM data_center_meeting_position p WHERE {where_sql}"
     )
-    quote_params = [*params, limit]
-    # One quote per meeting first, so a single long meeting doesn't fill a side.
+    quote_params = [*params, per_state if per_state > 0 else limit]
+    rank_by = "p.state_code, p.stance_bucket" if per_state > 0 else "p.stance_bucket"
+    # One quote per meeting first, so a single long meeting doesn't fill a side; a named speaker before an unnamed one.
     quotes_sql = (
         "SELECT * FROM ("
         "SELECT p.public_comment_id, p.stance_bucket, p.quote, p.speaker_role, p.jurisdiction_name, "
@@ -1899,7 +1905,8 @@ def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[
         "to_jsonb(p) ->> 'speaker_display_name' AS speaker_display_name, "
         "p.state_code, p.meeting_date, p.video_url, p.start_seconds::float8 AS start_seconds, "
         "p.decision_headline, p.match_basis, "
-        "row_number() OVER (PARTITION BY p.stance_bucket ORDER BY p.meeting_rank, "
+        "row_number() OVER (PARTITION BY " + rank_by + " ORDER BY "
+        "((to_jsonb(p) ->> 'speaker_display_name') IS NULL), p.meeting_rank, "
         "p.meeting_date DESC NULLS LAST, p.start_seconds NULLS LAST, p.public_comment_id) AS side_rank "
         "FROM (SELECT p.*, row_number() OVER (PARTITION BY p.stance_bucket, p.event_meeting_id "
         "ORDER BY p.start_seconds NULLS LAST, p.public_comment_id) AS meeting_rank "
@@ -1910,6 +1917,9 @@ def build_position_queries(scope: JobClaimScope, limit: int) -> tuple[str, list[
         "ORDER BY q.stance_bucket, q.side_rank"
     )
     return totals_sql, params, quotes_sql, quote_params
+
+
+POSITION_QUOTES_PER_STATE_MAX = 5
 
 
 POSITION_BY_STATE_SQL = (
@@ -1994,6 +2004,12 @@ async def data_center_positions(
     limit: int = Query(
         POSITION_QUOTES_DEFAULT, ge=1, le=POSITION_QUOTES_MAX, description="Quotes per side."
     ),
+    per_state: int = Query(
+        0,
+        ge=0,
+        le=POSITION_QUOTES_PER_STATE_MAX,
+        description="If set, up to this many quotes per state and side instead of `limit` per side (the home map).",
+    ),
 ) -> DataCenterPositionsResponse:
     """
     Who spoke for and against a data center item at local meetings, who asked a question,
@@ -2014,7 +2030,7 @@ async def data_center_positions(
         state=scope.state,
         city=scope.city,
     )
-    totals_sql, params, quotes_sql, quote_params = build_position_queries(applied, limit)
+    totals_sql, params, quotes_sql, quote_params = build_position_queries(applied, limit, per_state)
     with tracer.start_as_current_span("data-centers.positions") as span:
         span.set_attribute("positions.scope_level", applied.level)
         span.set_attribute("positions.state_code", applied.state_code or "")

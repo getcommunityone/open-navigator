@@ -71,9 +71,12 @@ export async function fetchDataCenterPositions(params: {
   state?: string
   city?: string
   limit?: number
+  /** Up to this many quotes per state and side instead of `limit` per side (the home map, named speakers first). */
+  perState?: number
 }): Promise<DataCenterPositionsResponse> {
   const q: Record<string, string> = {}
   if (params.limit) q.limit = String(params.limit)
+  if (params.perState) q.per_state = String(params.perState)
   if (params.state) q.state = params.state
   if (params.city) q.city = params.city
   const scopeLevel = params.city ? 'city' : params.state ? 'state' : 'national'
