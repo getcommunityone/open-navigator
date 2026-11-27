@@ -37,6 +37,14 @@ interface Props {
   unitPlural: string
   /** A new value (the scope) replays the entrance; a re-sort with the same key only slides the rows. */
   replayKey?: unknown
+  /** How a value prints over its dot and on the axis (default: a share, "12.3%"). Values need not be 0–1. */
+  format?: (v: number) => string
+  /** Print each value over its dot on the wide layout too (the phone layout always does; #1343). */
+  valuesOverDots?: boolean
+  /** Colour the filled dot by the row's direction (rising / falling), not only the line (#1343). */
+  toneDots?: boolean
+  /** Makes each row a link: a click, Enter or Space calls this with the row's key (#1343). */
+  onSelect?: (key: string) => void
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -51,7 +59,19 @@ const COMPACT_W = 560
  * both are off under prefers-reduced-motion, which draws the final state. Used by the places dumbbell
  * (`DumbbellChart`) (the Concerns screen used `ConcernsDumbbell`, removed in #1289).
  */
-export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows = 12, unitPlural, replayKey }: Props) {
+export default function DumbbellRows({
+  rows,
+  aName,
+  bName,
+  ariaLabel,
+  firstRows = 12,
+  unitPlural,
+  replayKey,
+  format = pctLabel,
+  valuesOverDots = false,
+  toneDots = false,
+  onSelect,
+}: Props) {
   const { ref: revealRef, revealed, reduced } = useChartReveal<SVGSVGElement>(replayKey)
   const { ref, width } = useChartWidth<HTMLDivElement>()
   const { bind, tip } = useTooltip()
@@ -75,25 +95,28 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
   const xs = (v: number) => plotL + (v / xmax) * (plotR - plotL)
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * xmax)
   // The % labels by the room they have (the same rule as the year axes), first and last always, never overlapping.
-  const tickShown = new Set(pickAxisTicks(ticks.length, (plotR - plotL) / (ticks.length - 1), Math.max(...ticks.map((t) => pctLabel(t).length))))
+  const tickShown = new Set(pickAxisTicks(ticks.length, (plotR - plotL) / (ticks.length - 1), Math.max(...ticks.map((t) => format(t).length))))
   const bLegendX = single || !aName ? plotL + 5 : plotL + 14 + aName.length * 6.6 + 16
 
   // Compact layout, worked out for every visible row first, so all rows share one height.
   // (Label widths are estimates: ~6.9px a character for the 12px label, ~7.5px for the change.)
+  const overDots = compact || valuesOverDots
   const plan = new Map(
-    (compact ? visible : []).map((r) => {
-      const a = r.a == null ? null : { x: xs(r.a), width: labelWidth(pctLabel(r.a)) }
-      const b = { x: xs(r.b), width: labelWidth(pctLabel(r.b)) }
+    (overDots ? visible : []).map((r) => {
+      const a = r.a == null ? null : { x: xs(r.a), width: labelWidth(format(r.a)) }
+      const b = { x: xs(r.b), width: labelWidth(format(r.b)) }
       const right = single ? '' : r.right
-      const lines = wrapLabel(r.label, Math.max(8, Math.floor((w - right.length * 7.5 - 14) / 6.9)))
-      return [r.key, { lines, right, values: placeValueLabels(a, b, 0, w, 8) }] as const
+      const lines = compact ? wrapLabel(r.label, Math.max(8, Math.floor((w - right.length * 7.5 - 14) / 6.9))) : [r.label]
+      return [r.key, { lines, right, values: compact ? placeValueLabels(a, b, 0, w, 8) : placeValueLabels(a, b, plotL, plotR, 8) }] as const
     }),
   )
   const twoLines = compact && [...plan.values()].some((p) => p.lines.length > 1)
-  const anyBelow = compact && [...plan.values()].some((p) => p.values.a?.below)
-  const rowH = compact ? (twoLines ? 72 : 64) + (anyBelow ? 12 : 0) : 40
-  const trackY = compact ? (twoLines ? 58 : 50) : 20
-  const textY = compact ? 15 : 24
+  const anyBelow = overDots && [...plan.values()].some((p) => p.values.a?.below)
+  // Wide rows with values over the dots get room above the track for them; the label sits level with the track.
+  const wideValues = !compact && valuesOverDots
+  const rowH = compact ? (twoLines ? 72 : 64) + (anyBelow ? 12 : 0) : wideValues ? 46 + (anyBelow ? 12 : 0) : 40
+  const trackY = compact ? (twoLines ? 58 : 50) : wideValues ? 28 : 20
+  const textY = compact ? 15 : wideValues ? 32 : 24
   const h = topPad + visible.length * rowH + (compact ? 4 : 30)
 
   return (
@@ -118,7 +141,7 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
                 <line x1={xs(t)} x2={xs(t)} y1={topPad} y2={h - 24} stroke={t === 0 ? 'var(--ink)' : 'var(--rule)'} strokeWidth={t === 0 ? 1.5 : 1} />
                 {tickShown.has(i) && (
                   <text className="sc-micro" x={xs(t)} y={h - 6} textAnchor="middle">
-                    {pctLabel(t)}
+                    {format(t)}
                   </text>
                 )}
               </g>
@@ -138,7 +161,26 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
             const fade = (ms: number) => ({ opacity: revealed ? 1 : 0, transitionDelay: delay(ms) })
             const tone = r.negative ? 'sc-down' : 'sc-up'
             return (
-              <g key={r.key} className="sc-row" style={{ transform: `translate(0px, ${y}px)` }} tabIndex={0} role="img" aria-label={r.ariaLabel} {...bind(r.tip)}>
+              <g
+                key={r.key}
+                className="sc-row"
+                style={{ transform: `translate(0px, ${y}px)` }}
+                tabIndex={0}
+                role={onSelect ? 'link' : 'img'}
+                aria-label={r.ariaLabel}
+                {...bind(r.tip)}
+                onClick={onSelect ? () => onSelect(r.key) : undefined}
+                onKeyDown={
+                  onSelect
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onSelect(r.key)
+                        }
+                      }
+                    : undefined
+                }
+              >
                 <rect className="sc-row-hit" x={0} y={0} width={w} height={rowH} fill="transparent" />
                 {compact && p ? (
                   p.lines.map((line, i) => (
@@ -170,20 +212,20 @@ export default function DumbbellRows({ rows, aName, bName, ariaLabel, firstRows 
                   />
                 )}
                 <circle
-                  className="sc-dot-late sc-ride"
+                  className={`sc-dot-late sc-ride${toneDots && r.negative ? ' sc-dot-down' : ''}`}
                   cx={b}
                   cy={trackY}
                   r={6}
                   style={{ opacity: revealed ? 1 : 0, transform: revealed ? 'translateX(0px)' : `translateX(${(a - b).toFixed(1)}px)`, transitionDelay: delay(d + 120) }}
                 />
-                {compact && p && r.a != null && p.values.a && (
+                {overDots && p && r.a != null && p.values.a && (
                   <text className="sc-micro sc-fade sc-val-a" x={p.values.a.x} y={p.values.a.below ? trackY + 19 : trackY - 11} textAnchor="middle" style={fade(d + 200)}>
-                    {pctLabel(r.a)}
+                    {format(r.a)}
                   </text>
                 )}
-                {compact && p && (
-                  <text className="sc-micro sc-fade sc-val-b" x={p.values.b.x} y={trackY - 11} textAnchor="middle" style={fade(d + 640)}>
-                    {pctLabel(r.b)}
+                {overDots && p && (
+                  <text className={`sc-micro sc-fade sc-val-b${toneDots && r.negative ? ' sc-val-down' : ''}`} x={p.values.b.x} y={trackY - 11} textAnchor="middle" style={fade(d + 640)}>
+                    {format(r.b)}
                   </text>
                 )}
                 {(!compact || p?.right) && (

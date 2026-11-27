@@ -246,6 +246,13 @@ export default function BrowseTopics() {
             )}
           </div>
           )}
+          {/* Every main topic in one year-over-year dumbbell (#1343), in the same place. */}
+          <Link
+            to={`/browse-topics/all${stateCode ? `?${new URLSearchParams(scopedCity ? { state: stateCode, city: scopedCity } : { state: stateCode })}` : ''}`}
+            className="mt-3 inline-block text-sm font-medium text-primary-700 hover:underline"
+          >
+            Compare all topics, last year against this year{placeLabel ? ` · ${placeLabel}` : ''} →
+          </Link>
         </div>
 
         {/* Curated topic (e.g. Data centers, #500): the meetings whose transcript
