@@ -6,7 +6,7 @@ description: Design, data contract and thresholds for the story Meetings screen'
 # Story charts: timeline, dumbbell and unit matrix
 
 **Issue:** [#1140](https://github.com/getcommunityone/open-navigator/issues/1140)
-**Status:** built (2026-11-26)
+**Status:** built (2026-11-26); thin-coverage years and the production milestone fix: [#1207](https://github.com/getcommunityone/open-navigator/issues/1207)
 
 The owner asked for the formats of three reference mockups (sections 01, 03 and 05 of the sample page) in place of the
 story's per-year dot blocks. They are ported as React components fed only by the warehouse; none of the sample data is used.
@@ -47,8 +47,14 @@ when a topic count is larger than its denominator (never capped to 100%).
   `denied`, `tabled`, `moratorium` (from `data_center_meeting_lean.dc_outcome`, or `topic_meeting_lean.outcome`
   for the topic's `topic_id`, both `approved` / `denied` / `tabled_or_deferred` / `moratorium`, with
   `source: "ai_reading"`), or `bill_enacted` (from `topic_legislation_bill` with `status = 'enacted'`,
-  `source: "record"`). Data-center rows flagged `excluded_no_item` are skipped; `discussed_no_action` and `no_item` are
-  never milestones. If the lean table's shape doesn't match, the line still draws and the milestones are left out.
+  `source: "record"`). `discussed_no_action`, `no_item` and `no_data_center_item` are never milestones. If the lean
+  table's shape doesn't match, the line still draws and the milestones are left out.
+- The milestone queries read only columns in the lean models' contracts (`_schema_data_center_meeting_lean.yml`,
+  `_schema_topic_meeting_lean.yml`); `tests/test_api_topic_timeline.py` checks this. Until #1207 they also read
+  `excluded_no_item`, a column only the local warehouse had (planned in #1136, never in the model). On the production
+  serving copy the query failed, the route's fallback dropped the milestones, and the live track was empty at every
+  scope (315 milestones nationally and 27 in Georgia locally, 0 in production). The same column broke the
+  meeting-mentions `ai_outcome` / `ai_public_lean` stamps in production.
 - `undated_meetings`, `total_meetings`, `total_passages`, `coverage_available`, `bills_available`. A missing relation
   (`recorded_meeting_year`, a lean table, `topic_legislation_bill`) is checked with `to_regclass` and skipped, not a 500.
   `topic_legislation_bill` is gold-only today, so `bills_available` is false on the public serving path.
@@ -70,7 +76,8 @@ center meetings, none qualifies), so the chart says no town can be compared yet 
 ### Meeting passages carry their meeting's AI reading
 
 `GET /api/data-centers/meeting-mentions` items gain `ai_outcome` and `ai_public_lean` from `data_center_meeting_lean`
-(null when not screened or when the meeting had no data center item), for the unit matrix's outcome and public groupings.
+(null when not screened; `ai_outcome` is null when the reading was `no_data_center_item`), for the unit matrix's outcome
+and public groupings.
 
 ## Trend line
 
@@ -79,6 +86,49 @@ center meetings, none qualifies), so the chart says no town can be compared yet 
   (`MIN_RECORDED_FOR_ZERO`); below that it is a gap (Texas 2024 has 7 recorded meetings). The note lists gap years.
 - The line draws in once (`stroke-dashoffset` on a `pathLength=1` path); none with reduced motion.
 - Toggle **Meetings / Share of recorded meetings**, shown only when shares exist.
+
+### Thin recording coverage (#1207)
+
+Recorded meetings per year are not steady. Nationally (2026-11-26): 12,476 (2018), 12,767, 15,122, 15,162, 12,525
+(2022), 5,724 (2023), **932 (2024)**, 14,038 (2025), 16,873 (2026). 2024 is a hole in our recordings, so every topic's
+count plunged that year (guns 1,022 → 603 → 50 → 598) while its share stayed normal (guns 5.4%). The 25-meeting floor
+can't catch a year with 932 recordings.
+
+**The rule** (`thinYears` in `storyTimeline.ts`): a year is **thin** when its recorded meetings are below **25%** of
+both
+
+1. the median of its neighbours' recorded meetings, up to **2 years on each side** (`THIN_WINDOW`), so the year is a dip
+   and not a step on the ramp; and
+2. the median of every recorded year in the scope, so a step on a steep ramp is not called a hole.
+
+It must also be a **dip**: some year on each side recorded more, so the first year of a ramp and the latest year are
+never thin. Years already flagged are left out of their neighbours' medians and the test repeats until nothing new is
+flagged, so every year of a multi-year hole is caught, not only its two ends. It needs at least three recorded years.
+Ratios, not counts, so it works at every scope:
+
+| Scope | Result | Why |
+| --- | --- | --- |
+| National | 2024 only | 932 against a neighbour median of ~13,300 and a scope median of ~5,200. 2009–2011 (311–1,140) sit far below the scope median but in line with their neighbours, so the ramp isn't flagged. |
+| Georgia (data centers) | none | 2024 had 115 against 794 in 2025 (the neighbour test alone would flag it), but 2023 had 92 and the state's median is ~190: a ramp, not a hole. |
+| A town with ~10 a year | the year with 1 | Both medians are ~10. |
+
+One test alone fails one of these cases: the scope median flags the whole early ramp; the neighbour median flags
+Georgia 2024 but not the lower 2023.
+
+**Drawing.** In Meetings (count) mode a thin year is a **hollow point** joined by **dashed segments** (`splitRun`,
+`.sc-line--thin`, which fades in after the solid line has drawn), never a solid plunge, and the note names it: "Only 932 meetings were recorded in 2024, so that year's
+count is not comparable." In Share mode the share is still meaningful, so the year is drawn normally; a point is hollow
+there only when the share is over fewer than 25 recorded meetings (`MIN_RECORDED_FOR_ZERO`), and the note says so. A year
+that is already a gap (no topic meetings and under 25 recorded) stays a gap.
+
+**Default mode** (`defaultSeriesMode`). When coverage is available and a year on the count line is thin, and every such
+year still has at least 25 recorded meetings, the chart **opens on the share** of recorded meetings, with the toggle still offered, and the note says why ("… not comparable. The
+share of recorded meetings still compares, so the chart opens on it; Meetings shows the counts."). Otherwise it opens on
+counts, which are easier to read when every year is comparable. A thin year with fewer than 25 recorded meetings keeps the
+chart on counts: its share would be a spike of its own (1 of 2 meetings is 50%), so "the share still compares" would be
+untrue. Opening on a count line with a dashed hole would show a
+plunge first and explain it second; the share answers the question the reader is asking (did attention to the topic
+change?) without the recording hole. The reader's choice of toggle is kept while they stay on the chart.
 - The coverage note is always shown: "Meetings in our record by year; recording coverage grew sharply in 2025–26, so the
   rise partly reflects coverage."
 

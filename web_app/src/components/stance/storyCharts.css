@@ -35,6 +35,11 @@
 .sc-line.is-drawing { animation: sc-draw var(--d-4, 900ms) var(--ease-out) both; }
 @keyframes sc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 .sc-pt { fill: var(--violet); cursor: pointer; }
+/* A year whose count isn't comparable (thin recording coverage, #1207): dashed segments and a hollow point, never a
+   solid plunge. A share over too few recorded meetings is hollow too. */
+.sc-line--thin { stroke-dasharray: 5 4; stroke-width: 1.5; animation: sc-fade var(--d-2, 240ms) var(--ease-out) var(--d-4, 900ms) both; }
+@keyframes sc-fade { from { opacity: 0; } to { opacity: 1; } }
+.sc-pt.is-hollow { fill: var(--paper-raised); stroke: var(--violet); stroke-width: 1.5; }
 .sc-end { font-size: 22px; font-weight: 500; letter-spacing: -0.015em; fill: var(--ink); }
 
 /* Milestone track */
@@ -78,5 +83,6 @@
 @media (prefers-reduced-motion: reduce) {
   .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq { transition: none !important; }
   .sc-line.is-drawing { animation: none; }
+  .sc-line--thin { animation: none; }
   .sc-matrix:not(.is-revealed) .sc-sq { opacity: 1; }
 }

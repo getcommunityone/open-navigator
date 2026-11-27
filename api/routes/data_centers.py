@@ -1142,7 +1142,7 @@ async def _mention_extras(conn: Any, rows: list[dict[str, Any]]) -> None:
 
 
 MENTION_LEAN_SQL = (
-    "SELECT video_id, CASE WHEN coalesce(excluded_no_item, false) THEN NULL ELSE dc_outcome END AS ai_outcome, "
+    "SELECT video_id, nullif(dc_outcome, 'no_data_center_item') AS ai_outcome, "
     "public_lean AS ai_public_lean FROM data_center_meeting_lean WHERE video_id = ANY($1::text[])"
 )
 
