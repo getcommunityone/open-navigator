@@ -2,8 +2,8 @@
  * Minimal site footer: Chat & Contact, legal links (YouTube API audit expects
  * these on the public homepage) + CommunityOne social icons (same URLs as docs).
  */
-import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import type { MouseEvent, ReactNode } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { docsUrl } from '../utils/docsLinks'
 
 const MUTED = '#78716c'
@@ -94,6 +94,26 @@ const LEGAL = [
 ] as const
 
 export default function SiteFooter() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  // On home, scroll to the section; elsewhere route home with the hash (HomeV9 scrolls to it), keeping the place.
+  const goImpact = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+    e.preventDefault()
+    if (location.pathname === '/') {
+      document.getElementById('impact')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    const here = new URLSearchParams(location.search)
+    const q = new URLSearchParams()
+    const st = here.get('state')
+    if (st) {
+      q.set('state', st)
+      const c = here.get('city')
+      if (c) q.set('city', c)
+    }
+    navigate(`/${q.toString() ? `?${q}` : ''}#impact`)
+  }
   return (
     <footer
       style={{
@@ -134,6 +154,20 @@ export default function SiteFooter() {
             >
               Chat & Contact
             </Link>
+            {/* Impact moved here from the header (#1191): the home page's Impact section. */}
+            <a
+              href="/#impact"
+              onClick={goImpact}
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: ICON,
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
+            >
+              Impact
+            </a>
             {LEGAL.map((item) => (
               <a
                 key={item.href}

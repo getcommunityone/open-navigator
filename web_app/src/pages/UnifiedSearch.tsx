@@ -34,6 +34,7 @@ import { inferThumbnailKind } from '../lib/youtubeThumbnail'
 import { StoryCard, CONTESTED_LENS, TRANSCRIPT_LENS, type RenderCard } from '../components/StoryLenses'
 import { parseSpeaker } from '../lib/speakers'
 import { DocumentViewerProvider, useDocumentViewer } from '../components/DocumentViewerContext'
+import { useDocumentTitle } from '../utils/useDocumentTitle'
 
 type SearchResultType =
   | 'leader'
@@ -432,6 +433,7 @@ function UnifiedSearchInner() {
   // Initialize state directly from URL params (lazy initializer for performance)
   const [query, setQuery] = useState(() => searchParams.get('q') || '')
   const [activeQuery, setActiveQuery] = useState(() => searchParams.get('q') || '')
+  useDocumentTitle(activeQuery.trim() ? `Search: ${activeQuery.trim()}` : 'Search')
   const [selectedEin, setSelectedEin] = useState(() => searchParams.get('ein') || '')
   const [selectedTypes, setSelectedTypes] = useState<string[]>(() => {
     const typesParam = searchParams.get('types')
