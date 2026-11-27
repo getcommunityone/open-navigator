@@ -44,6 +44,8 @@ import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { nextStoryLink } from '../utils/storyNav'
 import { optionLabel, questionText } from '../utils/storyQuestion'
 import { useTopicStories } from '../hooks/useTopicStories'
+import { useSwipeNav } from '../hooks/useSwipeNav'
+import { scopePlaceName, splitCaptionAtPlace, splitTextAtPlace } from '../utils/captionPlace'
 
 // The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
 export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value, label: s.topic }))
@@ -176,6 +178,8 @@ export default function DataStory() {
   // The cover in view (#1192): its Start button is the way forward, so neither the floating Next nor the phone bar's Next
   // shows beside it (the phone bar's Next would also skip the Overview, moving on from screen 0 before it is seen).
   const [onCover, setOnCover] = useState(true)
+  const onCoverRef = useRef(true)
+  onCoverRef.current = onCover
   const startRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     const el = startRef.current
@@ -227,6 +231,11 @@ export default function DataStory() {
   }, [story])
 
   const activeRef = useRef(0)
+  /** The screen the reader last asked for (a segment, Next, Back, a key, a swipe), until the page settles on it (#1208). */
+  const intent = useRef<{ id: string; tries: number } | null>(null)
+  const screensRef = useRef<typeof screens>([])
+  screensRef.current = screens
+  const goToRef = useRef<(i: number) => void>(() => {})
   const ready = useRef(false)
   const lastWritten = useRef<string | null>(null)
   const recent = useRecentWrites()
@@ -234,14 +243,20 @@ export default function DataStory() {
   const viaKeyboard = useRef(false)
   useEffect(() => {
     const k = () => (viaKeyboard.current = true)
-    const m = () => (viaKeyboard.current = false)
+    const m = () => {
+      viaKeyboard.current = false
+      // The reader moving by hand drops a pending jump (#1208); a button or swipe sets a new one after this.
+      intent.current = null
+    }
     window.addEventListener('keydown', k)
     window.addEventListener('pointerdown', m)
     window.addEventListener('wheel', m, { passive: true })
+    window.addEventListener('touchstart', m, { passive: true })
     return () => {
       window.removeEventListener('keydown', k)
       window.removeEventListener('pointerdown', m)
       window.removeEventListener('wheel', m)
+      window.removeEventListener('touchstart', m)
     }
   }, [])
 
@@ -284,6 +299,18 @@ export default function DataStory() {
   /** After a keyboard move, focus lands on the settled screen's heading (#1146): a screen reader reads where it is, Tab goes on
    *  to the screen's controls (Back, then Next), and the arrow keys still page because a heading isn't a control. */
   const onSettled = useCallback((h: Hold) => {
+    // A jump made while the page was still growing (a progress segment pressed as the place's data arrived, #1208) can land
+    // on another screen: the pixels it aimed for moved. Re-aim at the screen asked for, by id, a few times at most.
+    const want = intent.current
+    if (want) {
+      const at = screensRef.current.findIndex((x) => x.id === want.id)
+      if (at >= 0 && (h.kind === 'cover' || h.round !== at) && want.tries < 3) {
+        want.tries += 1
+        goToRef.current(at)
+        return
+      }
+      intent.current = null
+    }
     if (dialogOpenRef.current) return
     // Resting on the opening (#1182): its Start and Next story buttons stay the first Tab stops; no screen takes focus.
     if (h.kind === 'cover') return
@@ -320,7 +347,9 @@ export default function DataStory() {
     // The story opens on its first screen's hold (overview), not on the empty start of its timeline.
     // When the screens change (a new place, or empty screens dropping out as data arrives), the reader stays on the
     // screen they were on, found by its id.
-    const fromUrl = storyScreenIndex(screens, screenParam)
+    // The screen the reader asked for wins over the URL and the old position when the screens rebuild under a jump (#1208).
+    const fromIntent = intent.current ? screens.findIndex((x) => x.id === intent.current!.id) : -1
+    const fromUrl = fromIntent >= 0 ? fromIntent : storyScreenIndex(screens, screenParam)
     const wasOn = shownIds.current[activeRef.current]
     shownIds.current = screens.map((x) => x.id)
     const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1
@@ -379,7 +408,25 @@ export default function DataStory() {
     if (at >= 0 && at !== activeRef.current) acts.goToRound(at)
   }, [screenParam, screens, acts, recent])
 
-  const goTo = acts.goToRound
+  goToRef.current = acts.goToRound
+  /** Every move the reader makes goes through here, so the intended screen is known when the page settles (#1208). */
+  const goTo = useCallback(
+    (i: number) => {
+      const id = screensRef.current[Math.max(0, Math.min(i, screensRef.current.length - 1))]?.id
+      intent.current = id ? { id, tries: 0 } : null
+      acts.goToRound(i)
+    },
+    [acts],
+  )
+  // Swipe between screens on a touch screen (#1222): left = next (on the cover, Start), right = back.
+  useSwipeNav({
+    rootRef,
+    enabled: !dialogOpen,
+    onNext: () => goTo(onCoverRef.current ? 0 : Math.min(activeRef.current + 1, n - 1)),
+    onPrev: () => {
+      if (!onCoverRef.current && activeRef.current > 0) goTo(activeRef.current - 1)
+    },
+  })
   useEffect(() => acts.lock(dialogOpen), [dialogOpen, acts])
   dialogOpenRef.current = dialogOpen
 
@@ -484,6 +531,7 @@ export default function DataStory() {
   // numbered points (the place's own figures where it has them, else national ones marked "Nationally:").
   const title = pickCaption(storyId, captionQ.data, scope)
   const subhead = captionSubhead(title, storyId, scope)
+  const subheadPlace = splitCaptionAtPlace(title, story.topic, scope) ? null : splitTextAtPlace(subhead, scopePlaceName(scope))
   const scopedPositions = data.positions as DataCenterPositionsResponse | null | undefined
   const points = storyHeroPoints(scope.stateName ? nationalPositionsQ.data : scopedPositions, scope.stateName ? scopedPositions : null, scope.stateName ? label : null)
   const links = {
@@ -576,7 +624,21 @@ export default function DataStory() {
           so they scroll away and the sticky bar above stays the title and the progress only. It is the story's cover
           (data-cover): a hold at the top of the page, so snapping and the wheel limit never pull the reader past it. */}
       <div className="stance-intro" data-cover>
-        {subhead && <p className="stance-title-subhead">{subhead}</p>}
+        {subhead && (
+          // A div, not a p: the place control's dialog is a div.
+          <div className="stance-title-subhead">
+            {/* A broader scope's title (#1222): the place in scope is named, as the place control, in this line instead. */}
+            {subheadPlace ? (
+              <>
+                {subheadPlace.before}
+                {placeBlank(placeOpen, setPlaceOpen, subheadPlace.place)}
+                {subheadPlace.after}
+              </>
+            ) : (
+              subhead
+            )}
+          </div>
+        )}
         {title.basis && <p className="stance-title-basis">{title.basis}</p>}
         <div className="home-story-actions">
           <button type="button" className="home-story-start" ref={startRef} onClick={() => goTo(0)}>
@@ -658,6 +720,8 @@ export default function DataStory() {
           count={n}
           nextLabel={active < n - 1 ? (screens[active + 1]?.eyebrow ?? null) : null}
           onNext={() => goTo(Math.min(activeRef.current + 1, n - 1))}
+          prevLabel={active > 0 ? (screens[active - 1]?.eyebrow ?? null) : null}
+          onPrev={() => goTo(Math.max(activeRef.current - 1, 0))}
           storyHref={onward.href}
           storyLabel={onward.label}
           storyIsNext={onward.next != null}

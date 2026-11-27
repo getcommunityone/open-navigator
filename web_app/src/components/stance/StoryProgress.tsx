@@ -72,6 +72,10 @@ interface BarProps {
   storyLabel: string
   /** True when the last screen leads to another story (not the list of stories). */
   storyIsNext: boolean
+  /** The previous screen's word (#1222), for Back's accessible name; null on the first screen (no Back). */
+  prevLabel?: string | null
+  /** Back one screen (#1222): the phone bar's Back, the same move as a swipe right. */
+  onPrev?: () => void
   /** True while the story's cover is in view (#1192): its Start button is the way forward there, so the bar shows progress only. */
   hideNext?: boolean
 }
@@ -82,10 +86,17 @@ interface BarProps {
  * the next screen; on the last screen it becomes the way to the next story. The page leaves room for it (stance.css), so it
  * never covers the story's own controls.
  */
-export function StoryBottomBar({ active, count, nextLabel, onNext, storyHref, storyLabel, storyIsNext, hideNext = false }: BarProps) {
+export function StoryBottomBar({ active, count, nextLabel, onNext, prevLabel = null, onPrev, storyHref, storyLabel, storyIsNext, hideNext = false }: BarProps) {
   const last = isLastScreen(active, count)
+  // Back (#1222, owner: "On phone back button is missing"): from the second screen on, never on the cover.
+  const showBack = !hideNext && active > 0 && Boolean(onPrev) && prevLabel != null
   return (
     <div className="story-bottombar" data-testid="story-bottombar">
+      {showBack && (
+        <button type="button" className="folio-btn story-bottombar-back" onClick={onPrev} aria-label={`Back: ${prevLabel}`}>
+          <span aria-hidden="true">←</span>
+        </button>
+      )}
       <span className="story-bottombar-progress">
         <span className="story-bottombar-dots" aria-hidden="true">
           {Array.from({ length: count }, (_, i) => (

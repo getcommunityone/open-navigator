@@ -9,10 +9,10 @@ import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, st
 import '../../styles/story-actions.css'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
-import HomeStoryTitle from './HomeStoryTitle'
+import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
-import { nextStoryLink } from '../../utils/storyNav'
+import { nextStoryLink, storyStartHref } from '../../utils/storyNav'
 import { scopedMeetingHref } from '../stance/quoteCardUtils'
 
 
@@ -153,7 +153,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
               <HomeStoryTitle caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} />
             </h1>
             {/* The subhead speaks only for the caption's scope (#1134): never a national claim on a place's page. */}
-            {!pending && dcSubhead && <p className="home-story-subhead">{dcSubhead}</p>}
+            {!pending && <HomeStorySubhead caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} subhead={dcSubhead} />}
             {dcCaption.basis && (
               <p className="home-story-basis">
                 {dcCaption.basis}
@@ -161,7 +161,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
             )}
             {/* Next steps first (#1176): Start, Next story and the drill-down hint sit in the first screen. */}
             <div className="home-story-actions">
-              <Link to={`/stories/data-centers${q}`} className="home-story-start">
+              <Link to={storyStartHref('data-centers', q)} className="home-story-start">
                 {storyStartLabel('data-centers', label)} <span aria-hidden="true">→</span>
               </Link>
               <Link to={nextDc.href} className="home-story-next">

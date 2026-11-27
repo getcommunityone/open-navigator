@@ -102,6 +102,28 @@ Up to eleven screens, in this order (a chart screen with nothing on record for t
 | Where people gather | Gatherings | `gatherings` | Company-hosted meetings by kind |
 | Your answer | Your answer | `verdict` | After the record: the topic question, how readers answered, then the challenge |
 
+### Start, short titles, swipe and the phone Back (#1234, 26 Nov 2026)
+
+- **Start opens the story, not its cover.** Every link that already means "start" (home's **Start the data center
+  story**, the home topic cards' Start, the **Start** on each `/stories` card) goes to `/stories/<topic>?…&screen=overview`
+  (`storyStartHref` in `utils/storyNav.ts`), so the reader lands on the Overview and does not press Start twice. A plain
+  link (a shared URL, the topic picker, **Next story**) still opens the cover. The home map's drill-down keeps its
+  navigation state (#1213). `?screen=<id>` deep links open that screen, and a progress segment pressed while the place's
+  data is still arriving re-aims at the screen it names once the page settles (#1208).
+- **Titles are the short conclusion only** ("America hates data centers."), with no counts and no "AI reading" text;
+  at a place whose own reading is too thin, the title is the broader conclusion and the line under it starts with the
+  place, which is the place control. The Overview never repeats the title. Details, wording and before/after:
+  [Story captions](../development/story-captions.md#decision-26-nov-2026-1234-the-title-is-the-short-conclusion-only-no-ai-reading-text).
+  This replaces the title examples in the rules below (they keep their order and thresholds).
+- **Swipe between screens on a touch screen** (owner: "It should swipe left to toggle"): swipe left = next screen (on
+  the cover, start), swipe right = previous. It needs a mostly sideways move (50px or more, 1.5 times more sideways than
+  vertical, within 0.8s), so scrolling up and down never turns a screen, and it is off inside maps, charts, the place
+  dialog and form fields (`useSwipeNav` in `web_app/src/hooks/useSwipeNav.ts`, shared with the topic stories). The git
+  history shows no earlier sideways swipe in the story (the phone has moved by vertical scroll snap since #921), so this
+  is new behaviour, not a restored handler.
+- **The phone bottom bar has Back** (owner: "On phone back button is missing"): a round 48px ← left of the progress,
+  named "Back: [previous screen]", hidden on the cover and the first screen. Desktop keeps the inline Back / Next row.
+
 ### The title states the place's strongest statement (#993, #1125)
 
 The story's title, and the caption on each **Browse topics** tile on the home page, is the strongest statement the record
@@ -203,6 +225,8 @@ count for the scope; missing data falls through to the next rule. Thresholds and
 [Story captions](../development/story-captions.md).
 
 ### One title, with a scoped subhead and numbered points (#1134)
+
+*(Since #1234, 26 Nov 2026: the Overview no longer repeats the title; it leads with its own count of the record. See above.)*
 
 The home hero, the story header and the story's Overview screen state the **same** caption for the page's scope, from
 `pickCaption`. On the Overview, any caption but the bare question (hates, divided, state comparison, meeting count) is

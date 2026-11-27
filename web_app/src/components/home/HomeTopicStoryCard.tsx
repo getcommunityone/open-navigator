@@ -5,11 +5,12 @@ import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '.
 import { topicStanceForMap } from '../../utils/topicStance'
 import { topicPositions } from '../../utils/topicPositions'
 import type { StoryScope } from '../../utils/dataStory'
-import { CAPTION_COPY, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
+import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
 import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
-import HomeStoryTitle from './HomeStoryTitle'
+import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
+import { storyStartHref } from '../../utils/storyNav'
 
 /** A state's map passages, newest first, at most this many. */
 const QUOTES_PER_STATE = 12
@@ -74,7 +75,8 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next, onP
   const caption = pickCaption(def.slug, facts.data, scope)
   const topicNoun = CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase()
   const title = captionText(caption, topicNoun)
-  const href = `/stories/${encodeURIComponent(def.slug)}${query}`
+  // Start opens the story past its cover (#1222).
+  const href = storyStartHref(def.slug, query)
 
   return (
     <div className="home-story-card">
@@ -88,7 +90,14 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next, onP
         >
           <HomeStoryTitle caption={caption} topic={topicNoun} scope={scope} onPlaceApply={onPlaceApply} />
         </h1>
-        <p className="home-story-subhead">{def.lede}</p>
+        {/* A broader scope's title (#1222): the line under it names the place in scope (as its control); else the lede. */}
+        <HomeStorySubhead
+          caption={caption}
+          topic={topicNoun}
+          scope={scope}
+          onPlaceApply={onPlaceApply}
+          subhead={caption.kind === 'wider_position' || caption.kind === 'wider_sentiment' ? captionSubhead(caption, def.slug, scope) : def.lede}
+        />
         <p className="home-story-basis">
           {caption.basis ?? 'Counted from local meeting recordings and transcripts that mention the topic.'}
         </p>

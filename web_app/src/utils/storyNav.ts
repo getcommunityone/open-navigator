@@ -29,6 +29,20 @@ export function nextLiveStory(currentId: string, stories: LiveStory[] = LIVE_STO
   return stories[i + 1]!
 }
 
+/** The first content screen, where a link that already means "start" opens the story (#1222). */
+export const START_SCREEN = 'overview'
+
+/**
+ * A "Start the … story" link (#1222): the story at `query`'s scope, opened past its cover on the first content screen
+ * (`?screen=overview`), so the reader who pressed Start on the home page or the stories list doesn't press Start again.
+ * The cover still opens for a plain link (a shared URL, the topic picker, Next story).
+ */
+export function storyStartHref(storyId: string, query = ''): string {
+  const qs = new URLSearchParams(query.replace(/^\?/, ''))
+  qs.set('screen', START_SCREEN)
+  return `/stories/${encodeURIComponent(storyId)}?${qs.toString()}`
+}
+
 /** Where the end of a story leads: the next live story, or every data story when there is none. The scope query is kept. */
 export function nextStoryLink(currentId: string, query: string, stories: LiveStory[] = LIVE_STORIES): { href: string; label: string; next: LiveStory | null } {
   const next = nextLiveStory(currentId, stories)
