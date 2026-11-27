@@ -102,13 +102,17 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
         { level: 'national', state_code: null, state: null, lean_meetings: 900, public_against_meetings: 300, public_against_states: 30, public_for_meetings: 20, public_split_meetings: 20, public_silent_meetings: 560, disagreement_meetings: 0 },
       ],
     })
+    // #1316: the state has too few for a conclusion and the country is never borrowed, so the city keeps its own title.
     const c = pickCaption('data-centers', f, tus)
-    expect(c.kind).toBe('wider_position')
-    expect(captionText(c, 'data centers')).toBe(
-      'America hates data centers.',
-    )
-    expect(c.widerPlace).toBe('America')
-    expect(c.basis).toMatch(/^Tuscaloosa, Alabama talked about data centers in 2 meetings\. Of its 2 meetings read, the public spoke in 1, under the 3 a conclusion of its own needs\. Across America, the public was against data centers in 300 of 340 meetings where it spoke\. /)
+    expect(c.kind).not.toBe('wider_position')
+    expect(captionText(c, 'data centers')).not.toMatch(/^America/)
+    // With a state that has a conclusion, the city names its state.
+    const alRed = { level: 'state' as const, state_code: 'AL', state: 'Alabama', lean_meetings: 40, public_against_meetings: 12, public_against_states: 1, public_for_meetings: 1, public_split_meetings: 1, public_silent_meetings: 26, disagreement_meetings: 0 }
+    const s = pickCaption('data-centers', facts({ against: 0, for: 1, split: 0, silent: 1 }, tus, { meetings: 2, wider: [alRed] }), tus)
+    expect(s.kind).toBe('wider_position')
+    expect(s.widerPlace).toBe('Alabama')
+    expect(captionText(s, 'data centers')).toBe('Alabama hates data centers.')
+    expect(s.basis).toMatch(/^Tuscaloosa, Alabama talked about data centers in 2 meetings\. Of its 2 meetings read, the public spoke in 1, under the 3 a conclusion of its own needs\. Across Alabama, /)
   })
 
   const NATIONAL_DC = { level: 'national' as const, state_code: null, state: null, lean_meetings: 900, public_against_meetings: 300, public_against_states: 30, public_for_meetings: 20, public_split_meetings: 20, public_silent_meetings: 560, disagreement_meetings: 0 }
@@ -117,15 +121,14 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
     const n = pickCaption('data-centers', facts({ against: 283, for: 30, split: 28, silent: 1487 }), nat)
     expect(captionText(n, 'data centers')).toBe('America hates data centers.')
     expect(n.basis).toMatch(/^The public was against data centers in 283 of 341 meetings where it spoke\. /)
-    // A place too thin of its own: the nearest broader conclusion, as that simple sentence; the place's facts in the basis.
+    // A place too thin of its own never borrows America's conclusion (#1316): it keeps its own count title.
     const t = pickCaption('data-centers', facts({ against: 0, for: 1, split: 0, silent: 1 }, tus, { meetings: 2, wider: [NATIONAL_DC] }), tus)
-    expect(captionText(t, 'data centers')).toBe('America hates data centers.')
-    expect(t.basis).toMatch(/^Tuscaloosa, Alabama talked about data centers in 2 meetings\./)
+    expect(captionText(t, 'data centers')).toBe('Tuscaloosa, Alabama talked about data centers in 2 meetings.')
     const sp = pickCaption('short-term-rentals', facts({ against: 30, for: 30, split: 10, silent: 0 }), nat)
     expect(captionText(sp, 'short-term rentals')).toBe('America is split on short-term rentals.')
     const ca: StoryScope = { stateCode: 'CA', stateName: 'California', city: null }
     expect(text('short-term-rentals', facts({ against: 30, for: 5, split: 2, silent: 0 }, ca), ca, 'short-term rentals')).toBe('California mostly wants limits on short-term rentals.')
-    for (const c of [n, t, sp]) {
+    for (const c of [n, sp]) {
       const title = captionText(c, 'data centers')
       expect(title.length).toBeLessThanOrEqual(60)
       expect(title).not.toMatch(/AI|\d|;|In the United States/)
@@ -141,10 +144,13 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
   })
 
   it('p2 never states a zero for a place where the public did not speak', () => {
-    const f = facts({ against: 0, for: 0, split: 0, silent: 5 }, oh, { wider: [NATIONAL_DC] })
-    const c = pickCaption('data-centers', f, oh)
+    // A city whose state has a conclusion (#1316: the broader scope is the state, never the country).
+    const cle: StoryScope = { stateCode: 'OH', stateName: 'Ohio', city: 'Cleveland' }
+    const ohRed = { ...NATIONAL_DC, level: 'state' as const, state_code: 'OH', state: 'Ohio' }
+    const f = facts({ against: 0, for: 0, split: 0, silent: 5 }, cle, { wider: [ohRed, NATIONAL_DC] })
+    const c = pickCaption('data-centers', f, cle)
     expect(c.kind).toBe('wider_position')
-    expect(c.basis).toMatch(/^Ohio talked about data centers in 700 meetings\. Of its 5 meetings read, the public spoke on it in none\./)
+    expect(c.basis).toMatch(/^Cleveland, Ohio talked about data centers in 700 meetings\. Of its 5 meetings read, the public spoke on it in none\./)
     expect(c.basis).not.toMatch(/\b0 /)
   })
 
