@@ -1,0 +1,10 @@
+/* #1345: who's working on a topic. A ranked list; the counts by evidence follow the shared display rule. */
+.np-counts { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); }
+.np-list { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--rule); }
+.np-item { padding: 12px 0; border-bottom: 1px solid var(--rule); min-width: 0; }
+.np-name { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: 15px; font-weight: 600; line-height: 1.3; }
+.np-name a { color: var(--ink); overflow-wrap: anywhere; }
+.np-name a:hover { color: var(--violet-ink); }
+.np-side { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500;
+  padding: 1px 6px; border: 1px solid var(--rule); color: var(--ink-2); background: var(--paper-raised); }
+.np-mission { margin: 4px 0 0; font-size: 13.5px; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere; }
