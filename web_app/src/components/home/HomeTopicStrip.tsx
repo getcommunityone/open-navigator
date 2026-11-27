@@ -193,7 +193,7 @@ export default function HomeTopicStrip({ query, selected, onSelect, stateCode, c
                   <span className="home-topic-title">{title}</span>
                   {cap ? (
                     <span className="home-topic-blurb home-topic-caption">
-                      {cap.ai && <span className="home-topic-ai">AI reading · </span>}
+                      {/* No "AI reading" label (owner, #1285); the story's method note names the classifier. */}
                       {cap.text}
                     </span>
                   ) : (

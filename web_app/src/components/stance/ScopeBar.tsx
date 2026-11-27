@@ -30,6 +30,8 @@ interface Props {
   /** The story's Close (×), top right (#1234): with it the bar drops the back crumb and the "Showing:" row; the title's
    *  place control is the page's place switcher and Close its one exit. */
   close?: ReactNode
+  /** Why the story shows a wider place than the one asked (#1285): one line under the heading, in the sticky bar. */
+  note?: ReactNode
 }
 
 /** The sticky bar above the screens: where you are, the scope label with its broaden controls, and "Your place". */
@@ -75,8 +77,9 @@ export default function ScopeBar(p: Props) {
         {p.current}
       </p>
       {p.extra}
-      {p.progress}
       {p.close}
+      {p.note && <div className="stance-top-note">{p.note}</div>}
+      {p.progress}
       {!p.heading && <PlaceControl stateCode={p.stateCode} city={p.city} open={p.placeOpen} onOpenChange={p.onPlaceOpenChange} onApply={p.onApply} />}
     </header>
   )

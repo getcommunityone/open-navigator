@@ -26,6 +26,7 @@ import { highlightSnippet } from '../lib/highlight'
 import { STATE_CODES } from '../lib/usStates'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
+import { useStoryScope } from '../hooks/useStoryScope'
 import StoryStatesMap, { type StateQuote } from '../components/home/StoryStatesMap'
 import TimelineChart from '../components/stance/TimelineChart'
 import DumbbellChart from '../components/stance/DumbbellChart'
@@ -125,7 +126,11 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const navigate = useNavigate()
   const reduced = usePrefersReducedMotion()
   const raw = (sp.get('state') ?? '').trim().toUpperCase()
-  const stateCode = STATE_CODES.includes(raw) ? raw : null
+  const askedState = STATE_CODES.includes(raw) ? raw : null
+  // A state with fewer than 5 meetings on the topic steps up to the country, and says why (#1285, `useStoryScope`).
+  // Topic stories are drawn by state (#1186), so a city asked is handled by the cover's note below, not here.
+  const placeScope = useStoryScope(def.slug, CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase(), askedState, null)
+  const stateCode = placeScope.effective.stateCode ?? null
   const stateName = stateCode ? (STATE_CODE_TO_NAME[stateCode] ?? stateCode) : null
   const label = stateName ?? 'National'
   // The scope every story link carries: this page is at state grain (it shows and queries the state only), so its links
@@ -595,6 +600,14 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       <ScopeBar
         backTo={homeHref}
         backLabel="Close"
+        note={
+          placeScope.resolved.reason ? (
+            // Why the story shows a wider place than the one asked (#1285); the URL keeps the reader's choice.
+            <p className="story-scope-note" role="note" data-scope-level={placeScope.resolved.level}>
+              {placeScope.resolved.reason}
+            </p>
+          ) : undefined
+        }
         close={<StoryClose to={homeHref} escape={!placeOpen} />}
         title={def.title}
         label={label}
