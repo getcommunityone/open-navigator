@@ -1,0 +1,138 @@
+/* Topic stories told screen by screen (#1224): the lists and figures in a screen's right column. The screen itself, the bar,
+   the progress and the nav are the Data Center Story's (stance.css). */
+.topic-story .topic-story-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.topic-story .topic-story-item {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.topic-story .topic-story-item-title {
+  display: block;
+  margin: 0;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+}
+.topic-story .topic-story-item-title a,
+.topic-story a.topic-story-item-title {
+  color: var(--ink);
+  text-decoration: none;
+}
+.topic-story .topic-story-item-title a:hover,
+.topic-story a.topic-story-item-title:hover {
+  color: var(--violet-ink);
+}
+.topic-story .topic-story-item-meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.topic-story .topic-story-item-body {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.topic-story .topic-story-quote {
+  margin: 8px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--violet);
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.topic-story .topic-story-quote footer {
+  margin-top: 4px;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.topic-story .topic-story-link,
+.topic-story .topic-story-quote a,
+.topic-story .topic-story-item-body a {
+  display: inline-block;
+  margin-top: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--violet-ink);
+}
+.topic-story .topic-story-list + .folio-btn {
+  margin-top: 12px;
+}
+.topic-story .topic-story-charts {
+  display: grid;
+  gap: 16px;
+}
+.topic-story .topic-story-onward {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 17px;
+}
+.topic-story .topic-story-onward a {
+  color: var(--violet-ink);
+  font-weight: 600;
+}
+.topic-story .topic-story-lede {
+  max-width: 44rem;
+}
+
+/* Who spoke: one bar per position, sized by its share of the meetings read. */
+.topic-positions {
+  margin: 0;
+}
+.topic-positions-rows {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.topic-positions-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'label n' 'bar bar';
+  gap: 4px 12px;
+  align-items: baseline;
+}
+.topic-positions-label {
+  grid-area: label;
+  font-weight: 600;
+  color: var(--ink);
+}
+.topic-positions-n {
+  grid-area: n;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.topic-positions-pct {
+  color: var(--ink-3);
+}
+.topic-positions-bar {
+  grid-area: bar;
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--rule) 45%, transparent);
+  overflow: hidden;
+}
+.topic-positions-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+}
+
+/* The topic blank lists every live story: size it to the topic shown, not the longest name (where the browser can). */
+.topic-story .stance-sentence select.stance-blank {
+  field-sizing: content;
+}

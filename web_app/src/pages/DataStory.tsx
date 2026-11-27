@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import '../styles/folio.css'
@@ -14,12 +14,9 @@ import StoryScreenView from '../components/stance/StoryScreenView'
 import { NextStoryCard, StoryBottomBar } from '../components/stance/StoryProgress'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
 import { QuestionScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
-import { actsMode, useActs, type Hold } from '../components/stance/useActs'
-import { useRecentWrites } from '../components/stance/useRecentWrites'
-import { useScreenKeys } from '../components/stance/useScreenKeys'
+import { useStoryScreens } from '../components/stance/useStoryScreens'
 import { useStoryData } from '../components/stance/useStoryData'
 import { useIdleNudge } from '../hooks/useIdleNudge'
-import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { STATE_CODES } from '../lib/usStates'
 import {
@@ -27,7 +24,6 @@ import {
   scopeQuery,
   storyPlaceDisplay,
   storyScopeLabel,
-  storyScreenIndex,
   type StoryScope,
   STORIES,
 } from '../utils/dataStory'
@@ -74,7 +70,6 @@ export default function DataStory() {
   const city = stateCode ? (sp.get('city') ?? '').trim() || null : null
   const scope: StoryScope = useMemo(() => ({ stateCode, stateName, city }), [stateCode, stateName, city])
   const scopeKey = `${stateCode ?? ''}|${city ?? ''}`
-  const shownIds = useRef<string[]>([])
   const screenParam = sp.get('screen') ?? ''
 
   const allScreens = useMemo(() => story?.screens ?? [], [story])
@@ -165,36 +160,23 @@ export default function DataStory() {
   }
 
 
-  const wide = useMediaQuery('(min-width: 768px)')
-  const mode = reduced ? 'snap' : actsMode(false, wide)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const [active, setActive] = useState(0)
   // Two places open the place dialog: the sentence in the top bar and the "Where?" screen.
   const [placeOpen, setPlaceOpen] = useState(false)
   // The next-story card in view (#1102): the floating bar steps aside so it doesn't sit over it or the footer.
   const [atEnd, setAtEnd] = useState(false)
-  // The cover in view (#1192): its Start button is the way forward, so neither the floating Next nor the phone bar's Next
-  // shows beside it (the phone bar's Next would also skip the Overview, moving on from screen 0 before it is seen).
-  const [onCover, setOnCover] = useState(true)
-  const startRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    const el = startRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-    // What sits under the sticky site header and the story's own bar does not count as visible.
-    const header = document.querySelector<HTMLElement>('.site-header')
-    const top = rootRef.current?.querySelector<HTMLElement>('.stance-top')
-    const off = (header?.offsetHeight ?? 0) + (top?.offsetHeight ?? 0)
-    const io = new IntersectionObserver(
-      (entries) => {
-        const e = entries[entries.length - 1]
-        if (e) setOnCover(e.isIntersecting)
-      },
-      { threshold: 0.5, rootMargin: `-${off}px 0px 0px 0px` },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [story, wide])
   const dialogOpen = placeOpen
+  // The screen machine (#1224): landing, ?screen= sync, the cover, keys and focus, shared with the topic stories.
+  const { rootRef, startRef, wide, mode, active, activeRef, onCover, goTo } = useStoryScreens({
+    screens,
+    screenParam,
+    setSp,
+    scopeKey,
+    resetKey: story,
+    dialogOpen,
+    reduced,
+    // Soft page-turn when the reader advances (silent until Web Audio is unlocked by a click/key) (#966).
+    onMove: () => board.play('open'),
+  })
   // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
   useIdleNudge({
     rootRef,
@@ -204,191 +186,6 @@ export default function DataStory() {
     onNudge: (first) => {
       if (first) board.play('open')
     },
-  })
-
-  useLayoutEffect(() => {
-    const root = rootRef.current
-    if (!root) return
-    const measure = () => {
-      const header = document.querySelector<HTMLElement>('.site-header')
-      const top = root.querySelector<HTMLElement>('.stance-top')
-      root.style.setProperty('--hdr', `${header?.offsetHeight ?? 0}px`)
-      root.style.setProperty('--top-h', `${top?.offsetHeight ?? 96}px`)
-    }
-    measure()
-    const top = root.querySelector('.stance-top')
-    const ro = typeof ResizeObserver !== 'undefined' && top ? new ResizeObserver(measure) : null
-    if (top) ro?.observe(top)
-    window.addEventListener('resize', measure)
-    return () => {
-      ro?.disconnect()
-      window.removeEventListener('resize', measure)
-    }
-  }, [story])
-
-  const activeRef = useRef(0)
-  const ready = useRef(false)
-  const lastWritten = useRef<string | null>(null)
-  const recent = useRecentWrites()
-  const dialogOpenRef = useRef(false)
-  const viaKeyboard = useRef(false)
-  useEffect(() => {
-    const k = () => (viaKeyboard.current = true)
-    const m = () => (viaKeyboard.current = false)
-    window.addEventListener('keydown', k)
-    window.addEventListener('pointerdown', m)
-    window.addEventListener('wheel', m, { passive: true })
-    return () => {
-      window.removeEventListener('keydown', k)
-      window.removeEventListener('pointerdown', m)
-      window.removeEventListener('wheel', m)
-    }
-  }, [])
-
-  const idAt = useCallback((i: number) => screens[i]?.id ?? '', [screens])
-  // The story's own path. As the story unmounts, the scroller's last updates still arrive; writing `?screen=` then would
-  // navigate relative to the story's route and pull the reader back into it, on its last screen (#997).
-  const storyPath = useRef(window.location.pathname)
-  /** True from landing until the reader moves (or 4s): the page is being kept on its screen while its content settles. */
-  const settling = useRef(false)
-  const alive = useRef(true)
-  useEffect(() => {
-    alive.current = true
-    storyPath.current = window.location.pathname
-    return () => {
-      alive.current = false
-    }
-  }, [story])
-  const onActive = useCallback(
-    (i: number) => {
-      if (!alive.current || window.location.pathname !== storyPath.current || settling.current) return
-      if (!ready.current || (i === activeRef.current && lastWritten.current != null)) return
-      const moved = i !== activeRef.current
-      activeRef.current = i
-      setActive(i)
-      lastWritten.current = idAt(i)
-      recent.note(idAt(i))
-      setSp(
-        (prev) => {
-          const next = new URLSearchParams(prev)
-          next.set('screen', idAt(i))
-          return next
-        },
-        { replace: true },
-      )
-      // Soft page-turn when the reader advances (silent until Web Audio is unlocked by a click/key) (#966).
-      if (moved) board.play('open')
-    },
-    [setSp, idAt, recent, board],
-  )
-  /** After a keyboard move, focus lands on the settled screen's heading (#1146): a screen reader reads where it is, Tab goes on
-   *  to the screen's controls (Back, then Next), and the arrow keys still page because a heading isn't a control. */
-  const onSettled = useCallback((h: Hold) => {
-    if (dialogOpenRef.current) return
-    // Resting on the opening (#1182): its Start and Next story buttons stay the first Tab stops; no screen takes focus.
-    if (h.kind === 'cover') return
-    const ae = document.activeElement as HTMLElement | null
-    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.closest('.stance-place'))) return
-    const panel = rootRef.current?.querySelector<HTMLElement>(`[data-panel="${h.round}"]`)
-    if (viaKeyboard.current) {
-      const heading = panel?.querySelector<HTMLElement>('h2, h1, [role="heading"]')
-      if (heading && !heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1')
-      const target = heading ?? panel?.querySelector<HTMLElement>('.stance-next') ?? panel?.querySelector<HTMLElement>('.stance-answers button:not(:disabled)')
-      target?.focus({ preventScroll: true })
-    } else if (panel && (ae == null || ae === document.body || !panel.contains(ae))) {
-      // After wheel or pointer scrolling nothing visibly takes focus, but the screen becomes the starting point for Tab, so
-      // the next Tab stop is its first control.
-      panel.focus({ preventScroll: true })
-    }
-  }, [])
-
-  const acts = useActs({
-    mode,
-    smooth: !reduced,
-    gameRef: rootRef,
-    // The last screen (the question again) is the untimed end panel, like the challenge's end screen.
-    count: Math.max(0, n - 1),
-    isAnswered: () => false,
-    onActive,
-    onSettled,
-  })
-
-  // Land on the screen named in the URL once the screens exist, then start following the scroll.
-  useEffect(() => {
-    if (n === 0) return
-    ready.current = false
-    // The story opens on its first screen's hold (overview), not on the empty start of its timeline.
-    // When the screens change (a new place, or empty screens dropping out as data arrives), the reader stays on the
-    // screen they were on, found by its id.
-    const fromUrl = storyScreenIndex(screens, screenParam)
-    const wasOn = shownIds.current[activeRef.current]
-    shownIds.current = screens.map((x) => x.id)
-    const stay = wasOn ? screens.findIndex((x) => x.id === wasOn) : -1
-    const at = Math.max(0, fromUrl >= 0 ? fromUrl : stay)
-    // The opening (#1182) is a cover hold at the top: a fresh visit with no ?screen opens on it, and a reader still above
-    // the first screen stays on it when the screens rebuild; a reader on screen 0 (or a ?screen link) lands on its hold.
-    const onCover = fromUrl < 0 && at === 0
-    const land = (behavior: ScrollBehavior) => {
-      const h = acts.holds().find((x) => x.round === at && (x.kind === 'q' || x.kind === 'end'))
-      const keepCover = onCover && (h == null || window.scrollY < h.pos - 2)
-      // The page can arrive scrolled (a previous page's offset, e.g. home's Data stories section), so the story always
-      // moves to its screen; before #991 it stayed put at screen 0 and opened mid-way, on a screen that wasn't the active one.
-      const target = keepCover ? 0 : at > 0 || mode === 'pinned' ? h?.pos : (h?.pos ?? 0)
-      if (target != null && Math.abs(target - window.scrollY) > 2) window.scrollTo({ top: target, behavior })
-    }
-    land('auto')
-    activeRef.current = at
-    setActive(at)
-    lastWritten.current = screens[at]?.id ?? null
-    const id = requestAnimationFrame(() => requestAnimationFrame(() => (ready.current = true)))
-    // The page is put on its screen before everything has its final height: the top bar (which sets every screen's height)
-    // and the data for the place, which arrives after a change of place. While the reader has not moved, the page is kept on
-    // the screen it landed on and the scroller's reports are ignored; otherwise the shifting page reads as another screen,
-    // often a later one (#999). Pinned positions follow a ScrollTrigger refresh, so the page lands again once they settle.
-    settling.current = true
-    let again = 0
-    const reland = () => {
-      window.clearTimeout(again)
-      again = window.setTimeout(() => land('instant' as ScrollBehavior), 300)
-    }
-    const top = rootRef.current?.querySelector('.stance-top')
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(reland) : null
-    if (top) ro?.observe(top)
-    if (rootRef.current) ro?.observe(rootRef.current)
-    const stop = () => {
-      ro?.disconnect()
-      window.clearTimeout(again)
-      settling.current = false
-    }
-    const moves = ['pointerdown', 'wheel', 'keydown', 'touchstart'] as const
-    moves.forEach((e) => window.addEventListener(e, stop, { once: true, passive: true }))
-    const timer = window.setTimeout(stop, 4000)
-    return () => {
-      cancelAnimationFrame(id)
-      window.clearTimeout(timer)
-      moves.forEach((e) => window.removeEventListener(e, stop))
-      stop()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [n, mode, scopeKey, screens])
-
-  // A screen in the URL that changed from outside (a link, the back button) moves the page.
-  useEffect(() => {
-    if (!ready.current || !screenParam || lastWritten.current === screenParam || recent.has(screenParam)) return
-    const at = storyScreenIndex(screens, screenParam)
-    if (at >= 0 && at !== activeRef.current) acts.goToRound(at)
-  }, [screenParam, screens, acts, recent])
-
-  const goTo = acts.goToRound
-  useEffect(() => acts.lock(dialogOpen), [dialogOpen, acts])
-  dialogOpenRef.current = dialogOpen
-
-  useScreenKeys({
-    next: () => goTo(Math.min(activeRef.current + 1, n - 1)),
-    prev: () => goTo(Math.max(activeRef.current - 1, 0)),
-    first: () => goTo(0),
-    last: () => goTo(n - 1),
-    enabled: !dialogOpen,
   })
 
   // --- storing an answer -----------------------------------------------------------------------------------------------

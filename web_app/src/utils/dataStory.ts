@@ -228,7 +228,7 @@ export function speakerStateCount(res: DataCenterPositionsResponse | null | unde
 const SCREEN_ALIASES: Record<string, string> = { turn: 'verdict', question: 'overview', scope: 'overview' }
 
 /** The position of the screen a `?screen=` value names, or -1. */
-export function storyScreenIndex(screens: StoryScreen[], param: string | null | undefined): number {
+export function storyScreenIndex(screens: ReadonlyArray<{ id: string }>, param: string | null | undefined): number {
   if (!param) return -1
   const id = SCREEN_ALIASES[param] ?? param
   return screens.findIndex((s) => s.id === id)
