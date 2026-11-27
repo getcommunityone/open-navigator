@@ -9,6 +9,7 @@ import { SideColumn, type Passage } from './SidesBlock'
 import CommentMetricsBlock from './CommentMetricsBlock'
 import { DrillValue, KpiDrillSheet, figureDrill, isDrillable } from './KpiDrill'
 import FitDisplay from './FitDisplay'
+import PositionsSummary from './PositionsSummary'
 import { specDisplay } from '../../utils/displayFit'
 
 interface Props {
@@ -79,6 +80,9 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
   ].filter((s) => s.items.length > 0)
   return (
     <div className="stance-voices" data-testid="positions" aria-labelledby={labelledBy} role={labelledBy ? 'group' : undefined}>
+      {/* #1330: who took which side, public and officials, and where they disagree, first; the hand count after it. */}
+      <PositionsSummary scope={scope} headlined={quotes} />
+      <p className="stance-voices-subhead">Speakers counted by hand</p>
       <dl className="stance-voices-figures">
         {figures.map((f) => (
           <div key={f.key} data-figure={f.key} className={f.value == null ? 'is-missing' : undefined}>

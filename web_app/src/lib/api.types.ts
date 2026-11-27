@@ -611,6 +611,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-centers/disagreement-meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Center Disagreement Meetings
+         * @description The meetings behind "officials sided against the public in N meetings" (#1330), newest first. ``total`` equals the
+         *     caption facts' ``disagreement_meetings`` for the same scope.
+         *
+         *     Example:
+         *         GET /api/data-centers/disagreement-meetings?state=GA
+         */
+        get: operations["data_center_disagreement_meetings_api_data_centers_disagreement_meetings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/data-centers/hearings": {
         parameters: {
             query?: never;
@@ -2053,17 +2077,55 @@ export interface components {
             jurisdiction_name?: string | null;
             /** Meeting Date */
             meeting_date?: string | null;
+            /**
+             * Meeting Url
+             * @description The meeting's page in the app (/meetings/{event_meeting_id}).
+             */
+            meeting_url?: string | null;
+            /**
+             * Opposed By
+             * @default []
+             */
+            opposed_by: components["schemas"]["DecisionPerson"][];
+            /** Opposition Recorded */
+            opposition_recorded?: boolean | null;
             /** Outcome */
             outcome?: string | null;
+            /**
+             * Relevance
+             * @description #1293: 'on_topic' when the headline names a data center project or rule, 'in_passing' otherwise (api/routes/topic_relevance.py, deterministic rules).
+             */
+            relevance?: ("on_topic" | "in_passing") | null;
+            /**
+             * Relevance Basis
+             * @description Which rule decided; for audit.
+             */
+            relevance_basis?: string | null;
+            /**
+             * Spoke On It
+             * @default []
+             */
+            spoke_on_it: components["schemas"]["DecisionPerson"][];
             /** State Code */
             state_code?: string | null;
+            /**
+             * Supported By
+             * @default []
+             */
+            supported_by: components["schemas"]["DecisionPerson"][];
+            /** Supported View */
+            supported_view?: string | null;
             /** Video Url */
             video_url?: string | null;
+            /** Vote No */
+            vote_no?: number | null;
             /**
              * Vote Text
              * @description How an uncontested item passed, as said (voice vote, 5-0); never parsed into numbers.
              */
             vote_text?: string | null;
+            /** Vote Yes */
+            vote_yes?: number | null;
             /**
              * Votes Against
              * @description Recorded no votes; null unless the tally records both sides.
@@ -2083,10 +2145,20 @@ export interface components {
             /** Contested */
             contested?: number | null;
             /**
+             * In Passing
+             * @description #1293: decisions that only mention data centers.
+             */
+            in_passing?: number | null;
+            /**
              * Meetings
              * @description Meetings the decisions were taken in.
              */
             meetings?: number | null;
+            /**
+             * On Topic
+             * @description #1293: decisions on a data center (topic_relevance rules).
+             */
+            on_topic?: number | null;
             /** Uncontested */
             uncontested?: number | null;
         };
@@ -2576,6 +2648,21 @@ export interface components {
             items: components["schemas"]["DataCenterSite"][];
             scope: components["schemas"]["JobClaimScope"];
         };
+        /**
+         * DecisionPerson
+         * @description One person on a decision's side (#1320).
+         */
+        DecisionPerson: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "official" | "resident";
+            /** Name */
+            name: string;
+            /** Role */
+            role?: string | null;
+        };
         /** DeploymentJobModel */
         DeploymentJobModel: {
             /**
@@ -2695,6 +2782,67 @@ export interface components {
             enabled: boolean;
             /** Jobs */
             jobs?: components["schemas"]["DeploymentJobModel"][];
+        };
+        /**
+         * DisagreementMeeting
+         * @description One meeting where the transcript reading found officials on the other side from the public (#1330).
+         */
+        DisagreementMeeting: {
+            /** Jurisdiction Name */
+            jurisdiction_name?: string | null;
+            /** Meeting Date */
+            meeting_date?: string | null;
+            /**
+             * Official Lean
+             * @description The reading of officials' position (e.g. mostly_supportive).
+             */
+            official_lean?: string | null;
+            /**
+             * Outcome
+             * @description The reading of what the meeting did on the item, when one was read.
+             */
+            outcome?: string | null;
+            /**
+             * Public Lean
+             * @description The reading of the public's position (e.g. mostly_opposed).
+             */
+            public_lean?: string | null;
+            /** State Code */
+            state_code?: string | null;
+            /** Video Id */
+            video_id: string;
+            /**
+             * Video Url
+             * @description The meeting's recording; null when it has none.
+             */
+            video_url?: string | null;
+        };
+        /** DisagreementMeetingsResponse */
+        DisagreementMeetingsResponse: {
+            /**
+             * Available
+             * @description False when data_center_meeting_lean isn't loaded: total is null, not 0.
+             * @default true
+             */
+            available: boolean;
+            /** Items */
+            items?: components["schemas"]["DisagreementMeeting"][];
+            /**
+             * Limit
+             * @default 25
+             */
+            limit: number;
+            /**
+             * Offset
+             * @default 0
+             */
+            offset: number;
+            scope: components["schemas"]["JobClaimScope"];
+            /**
+             * Total
+             * @description Meetings in scope where officials sided against the public.
+             */
+            total?: number | null;
         };
         /** EditIn */
         EditIn: {
@@ -5267,6 +5415,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataCenterDecisionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    data_center_disagreement_meetings_api_data_centers_disagreement_meetings_get: {
+        parameters: {
+            query?: {
+                /** @description 2-letter state code (a full name is normalized). */
+                state?: string | null;
+                /** @description City; case-insensitive substring of the jurisdiction name. */
+                city?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisagreementMeetingsResponse"];
                 };
             };
             /** @description Validation Error */

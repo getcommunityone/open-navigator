@@ -21,6 +21,33 @@ plate readers in 9 meetings."), and a city may still name its state's conclusion
 replaces the national fallback of #1182 and #1200 for place scopes; the national page is unchanged. `TopicStory` also
 passes `zoom` to `StoryStatesMap`, so a chosen state is drawn as that state rather than the national map.
 
+## Decision (27 Nov 2026, #1330): every recorded position counts, public and official, and disagreement is headlined
+
+[#1330](https://github.com/getcommunityone/open-navigator/issues/1330). The owner, on Alabama: *"how can we have 71 meetings
+with 5 speakers — are we only counting public speakers? I thought we were counting all speakers and highlighting where they
+disagree."* The #1289 minimum counted only hand-counted public speakers, so Alabama (0 counted) read "Not enough recorded
+activity …" over a record that holds a position in 32 meetings.
+
+- **Evidence.** A position is the public's (the meeting reading's `public_lean`: against, for or split) or officials' (the
+  same reading's `official_lean`: against or for at P >= 0.7, divided otherwise), plus hand-counted speakers and recorded
+  votes. Named supporters and opposers on each decision come from #1327's `supported_by` / `opposed_by`.
+- **Minimum.** `STANCE_MIN_POSITION_MEETINGS = 5` meetings with any recorded position, public or official, or 3 decisions
+  with a recorded vote (or 5 hand-counted speakers). Below all three: "Not enough recorded activity on [topic] to say.", and
+  the facts count the meetings with a position. Any topic with a loaded reading is held to it, not only data centers.
+- **Alabama, recomputed (27 Nov 2026):** 32 meetings with a position clear the minimum; the public's reading leans against
+  (6 of 8), the one recorded vote went for data centers, so the title is **"Alabama is divided on data centers."**
+- **Disagreement.** Where the reading found officials siding against the public (`officials_sided_against_public`), the
+  Overview and the Who spoke up screen say so: "In Georgia, officials sided against the public in 11 of 27 meetings where
+  both took a side." The count opens those meetings (`GET /api/data-centers/disagreement-meetings`, the #1296 drill
+  pattern); the Who spoke up screen headlines it.
+- **Who spoke up names who.** "Public: 6 against · 2 split (8 meetings)" and "Officials: 7 against · 8 for · 13 divided (28
+  meetings); recorded votes: 1 decision for, 0 against; named supporters N · opposers M". The hand-counted figures follow
+  under "Speakers counted by hand".
+
+Contract: caption facts add `official_against_meetings`, `official_for_meetings`, `official_divided_meetings`,
+`position_meetings`, `both_position_meetings` (null when the reading isn't loaded); new
+`GET /api/data-centers/disagreement-meetings?state=&city=&limit=&offset=` (`total` equals `disagreement_meetings`).
+
 ## Decision (27 Nov 2026, #1290): votes read by which way they went; speaker sources reconciled; the topic is the noun
 
 [#1290](https://github.com/getcommunityone/open-navigator/issues/1290) revises #1289 below; the reasons are in

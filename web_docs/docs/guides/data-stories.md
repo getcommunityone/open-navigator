@@ -313,6 +313,12 @@ The story is headed by the longer "What did local meetings in [place] say about 
 
 ### Who spoke up
 
+**Public and officials, and where they disagree (#1330).** The screen opens with who took which side: "Public: 6 against · 2
+split (8 meetings)" and "Officials: … (N meetings); recorded votes …; named supporters N · opposers M". Where officials sided
+against the public it headlines that ("In Georgia, officials sided against the public in 11 of 27 meetings where both took a
+side."), and the count opens those meetings with their recordings. The hand-counted figures below are labelled "Speakers
+counted by hand". Details: [Story captions](../development/story-captions.md) (#1330).
+
 When the positions table is loaded, the Data centers card's detail on `/stories` shows what people said about data centers at local meetings in the place in scope, as five figures and one chart (under the power/water/land hook). The story's own **Who spoke up** screen always has this block:
 
 | Figure | What it counts |

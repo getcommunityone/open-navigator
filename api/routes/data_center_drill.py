@@ -406,3 +406,93 @@ async def data_center_caption_comments(
             offset=offset,
             items=[shape_comment(dict(r)) for r in rows],
         )
+
+
+# --- officials sided against the public (#1330) -----------------------------------------------------------------------
+
+
+class DisagreementMeeting(BaseModel):
+    """One meeting where the transcript reading found officials on the other side from the public (#1330)."""
+
+    video_id: str
+    jurisdiction_name: str | None = None
+    state_code: str | None = None
+    meeting_date: date | None = None
+    public_lean: str | None = Field(None, description="The reading of the public's position (e.g. mostly_opposed).")
+    official_lean: str | None = Field(None, description="The reading of officials' position (e.g. mostly_supportive).")
+    outcome: str | None = Field(None, description="The reading of what the meeting did on the item, when one was read.")
+    video_url: str | None = Field(None, description="The meeting's recording; null when it has none.")
+
+
+class DisagreementMeetingsResponse(BaseModel):
+    scope: JobClaimScope
+    available: bool = Field(True, description="False when data_center_meeting_lean isn't loaded: total is null, not 0.")
+    total: int | None = Field(None, description="Meetings in scope where officials sided against the public.")
+    limit: int = PAGE_DEFAULT
+    offset: int = 0
+    items: list[DisagreementMeeting] = Field(default_factory=list)
+
+
+def build_disagreement_queries(scope: JobClaimScope, limit: int, offset: int) -> tuple[str, list[Any], str, list[Any]]:
+    """(total SQL, params, page SQL, params): the ``officials_sided_against_public`` meetings of the reading, the same flag
+    caption-facts counts as ``disagreement_meetings``, so the list's total equals the number tapped."""
+    params: list[Any] = []
+    where = ["l.officials_sided_against_public"]
+    if scope.state_code:
+        params.append(scope.state_code)
+        where.append(f"l.state_code = ${len(params)}")
+    if scope.city:
+        params.append(f"%{scope.city}%")
+        where.append(f"l.jurisdiction_name ILIKE ${len(params)}")
+    where_sql = " AND ".join(where)
+    total_sql = f"SELECT count(*)::int AS n FROM data_center_meeting_lean l WHERE {where_sql}"
+    page_params = [*params, limit, offset]
+    page_sql = (
+        "SELECT l.video_id, l.jurisdiction_name, l.state_code, l.meeting_date, l.public_lean, l.official_lean, "
+        "l.dc_outcome AS outcome, "
+        "CASE WHEN l.video_id IS NOT NULL THEN 'https://www.youtube.com/watch?v=' || l.video_id END AS video_url "
+        f"FROM data_center_meeting_lean l WHERE {where_sql} "
+        "ORDER BY l.meeting_date DESC NULLS LAST, l.video_id "
+        f"LIMIT ${len(page_params) - 1} OFFSET ${len(page_params)}"
+    )
+    return total_sql, params, page_sql, page_params
+
+
+@router.get("/disagreement-meetings", response_model=DisagreementMeetingsResponse)
+async def data_center_disagreement_meetings(
+    state: str | None = Query(None, description="2-letter state code (a full name is normalized)."),
+    city: str | None = Query(None, description="City; case-insensitive substring of the jurisdiction name."),
+    limit: int = Query(PAGE_DEFAULT, ge=1, le=PAGE_MAX),
+    offset: int = Query(0, ge=0),
+) -> DisagreementMeetingsResponse:
+    """
+    The meetings behind "officials sided against the public in N meetings" (#1330), newest first. ``total`` equals the
+    caption facts' ``disagreement_meetings`` for the same scope.
+
+    Example:
+        GET /api/data-centers/disagreement-meetings?state=GA
+    """
+    scope = applied_scope(state, city)
+    total_sql, params, page_sql, page_params = build_disagreement_queries(scope, limit, offset)
+    with tracer.start_as_current_span("data-centers.disagreement-meetings") as span:
+        span.set_attribute("drill.scope_level", scope.level)
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                totals = await conn.fetch(total_sql, *params)
+                rows = await conn.fetch(page_sql, *page_params)
+        except asyncpg.exceptions.UndefinedTableError as e:
+            logger.warning("data-centers disagreement-meetings: mart not loaded ({})", e)
+            return DisagreementMeetingsResponse(scope=scope, available=False, limit=limit, offset=offset)
+        except Exception as e:  # noqa: BLE001
+            span.record_exception(e)
+            logger.error("data-centers disagreement-meetings error (scope={}): {}", scope.model_dump(), e)
+            raise HTTPException(status_code=500, detail="Failed to load the meetings")
+        n = int(dict(totals[0])["n"]) if totals else 0
+        return DisagreementMeetingsResponse(
+            scope=scope,
+            total=n,
+            limit=limit,
+            offset=offset,
+            items=[DisagreementMeeting(**dict(r)) for r in rows],
+        )

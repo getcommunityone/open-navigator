@@ -13,6 +13,7 @@ import {
   type DrillScope,
   type DrillSpeaker,
   type DrillVoteDecision,
+  type DrillDisagreementMeeting,
 } from '../../api/storyDrill'
 import { highlightSnippet } from '../../lib/highlight'
 import { useIsMobile } from '../../hooks/useMediaQuery'
@@ -165,11 +166,36 @@ function CommentRow({ c }: { c: DrillCaptionComment }) {
   )
 }
 
+const leanWord = (l: string | null | undefined) =>
+  !l ? null : l.replace(/^mostly_/, 'mostly ').replace(/_/g, ' ').replace('supportive', 'for').replace('supported', 'for').replace('opposed', 'against')
+
+/** A meeting where officials sided against the public (#1330): the two readings, the outcome and the recording. */
+function DisagreementRow({ m }: { m: DrillDisagreementMeeting }) {
+  return (
+    <li className="kpi-drill-row">
+      <p className="kpi-drill-title">{place(m.jurisdiction_name, m.state_code)}{m.meeting_date ? ` · ${m.meeting_date}` : ''}</p>
+      <p className="kpi-drill-meta">
+        Public {leanWord(m.public_lean) ?? '—'}; officials {leanWord(m.official_lean) ?? '—'}
+        {m.outcome ? ` · outcome: ${m.outcome.replace(/_/g, ' ')}` : ''}
+        {m.video_url && (
+          <>
+            {' · '}
+            <a href={m.video_url} target="_blank" rel="noopener noreferrer">
+              Watch the meeting
+            </a>
+          </>
+        )}
+      </p>
+    </li>
+  )
+}
+
 /** Rows of every loaded page. */
 function rowsOf(pages: DrillPage[]): ReactNode[] {
   return pages.flatMap((p) => {
     if (p.kind === 'speakers') return p.items.map((s) => <SpeakerRow key={s.public_comment_id} s={s} />)
     if (p.kind === 'votes') return p.items.map((d) => <VoteRow key={d.data_center_decision_id} d={d} />)
+    if (p.kind === 'disagreement') return p.items.map((m) => <DisagreementRow key={m.video_id} m={m} />)
     return p.items.map((c) => <CommentRow key={c.data_center_comment_id} c={c} />)
   })
 }
@@ -183,6 +209,7 @@ export function drillSummary(d: DrillKind, first: DrillPage | undefined, scopeLa
     return `${fmt(n)} ${n === 1 ? 'vote' : 'votes'} ${d.kind === 'votes' ? d.side : ''} in ${fmt(decisions)} ${decisions === 1 ? 'decision' : 'decisions'} · ${scopeLabel}`
   }
   if (first.kind === 'speakers') return `${fmt(n)} ${n === 1 ? 'speaker' : 'speakers'} · ${scopeLabel}`
+  if (first.kind === 'disagreement') return `${fmt(n)} ${n === 1 ? 'meeting' : 'meetings'} · ${scopeLabel}`
   return `${fmt(n)} ${n === 1 ? 'comment' : 'comments'} · ${scopeLabel}`
 }
 
