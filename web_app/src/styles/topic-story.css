@@ -131,8 +131,3 @@
   height: 100%;
   border-radius: 7px;
 }
-
-/* The topic blank lists every live story: size it to the topic shown, not the longest name (where the browser can). */
-.topic-story .stance-sentence select.stance-blank {
-  field-sizing: content;
-}

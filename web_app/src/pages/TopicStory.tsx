@@ -13,9 +13,10 @@ import {
   pickCaption,
   positionCounts,
   storyStartLabel,
+  withTopicBlank,
   type Caption,
 } from '../utils/storyCaption'
-import { storyCloseHref } from '../utils/storyNav'
+import { storyCloseHref, storyStartHref, storyTopicOptions } from '../utils/storyNav'
 import { droppedNote, planTopicScreens, type ScreenAvailability, type TopicScreenId } from '../utils/topicStoryScreens'
 import type { TopicStoryDef } from '../utils/topicStories'
 import type { StoryScope } from '../utils/dataStory'
@@ -238,9 +239,12 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
   const availKey = JSON.stringify(availability)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const plan = useMemo(() => planTopicScreens(availability), [availKey])
-  const screens = plan.screens
+  // The same array while the same screens are in the story: a screen's data going from loading to ready must not count as
+  // a new set of screens (that re-lands the page and can swallow a move made meanwhile, as DataStory keys on keepKey).
+  const keepKey = plan.screens.map((s) => s.id).join()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const screens = useMemo(() => plan.screens, [keepKey])
   const n = screens.length
-  const keepKey = screens.map((s) => s.id).join()
 
   // The screen machine shared with the Data Center Story: landing, ?screen=, keys, the sideways swipe and re-aimed jumps.
   const { rootRef, startRef, wide, mode, active, activeRef, onCover, goTo } = useStoryScreens({
@@ -263,6 +267,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       ? [{ blank: 'place' }, ' has no meetings on record about ', { blank: 'topic' }, '.']
       : ['No meetings on record about ', { blank: 'topic' }, ' across ', { blank: 'place' }, ' yet.']
     : caption.template
+  // The topic is always a control in the title (#1224), even when the conclusion's words don't name it.
+  const titleTemplate = withTopicBlank(template, topicWord)
   const placeDisplay = noMeetings ? (stateName ?? 'America') : caption.place
   const subhead = noMeetings ? null : captionSubhead(caption, def.slug, scope)
   const basis = caption.basis
@@ -514,7 +520,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
         label={label}
         heading={
           <SentenceHeading
-            template={template}
+            template={titleTemplate}
             blanks={[
               {
                 id: 'place',
@@ -540,9 +546,10 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 label: 'Topic',
                 value: def.slug,
                 display: topicWord,
-                // The current topic reads as the sentence says it; the others by their story names.
-                options: live.map((s) => ({ value: s.id, label: s.id === def.slug ? topicWord : s.title })),
-                onChange: (v) => navigate(`/stories/${encodeURIComponent(v)}${scopeQ}`),
+                // Every live story, the same list as the Data Center Story's (#1224); choosing one opens it on its Overview,
+                // keeping the place.
+                options: storyTopicOptions(live, def.slug, topicWord),
+                onChange: (v) => navigate(storyStartHref(v, scopeQ)),
               },
             ]}
           />

@@ -31,20 +31,18 @@ import {
 import { fetchDataCenterPositions, type DataCenterPositionsResponse } from '../api/dataCenters'
 import { storyHeroPoints } from '../utils/heroPoints'
 import { fetchTopicCaptionFacts } from '../api/topics'
-import { captionSubhead, captionText, pickCaption, storyStartLabel } from '../utils/storyCaption'
+import { captionSubhead, captionText, pickCaption, storyStartLabel, withTopicBlank } from '../utils/storyCaption'
 import '../styles/story-actions.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
 import { getStancePlayerId } from '../utils/stancePlayer'
 import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
-import { nextStoryLink, storyCloseHref } from '../utils/storyNav'
+import { nextStoryLink, storyCloseHref, storyStartHref, storyTopicOptions } from '../utils/storyNav'
 import { optionLabel, questionText } from '../utils/storyQuestion'
 import { useTopicStories } from '../hooks/useTopicStories'
 import { scopePlaceName, splitCaptionAtPlace, splitTextAtPlace } from '../utils/captionPlace'
 
-// The stories registry lives in utils/dataStory (STORIES), so the home page can list stories without this page's chunk.
-export const STORY_TOPICS = Object.entries(STORIES).map(([value, s]) => ({ value, label: s.topic }))
 
 /** How long a first answer stays on screen, locked, before the story moves on. */
 const ANSWER_HOLD_MS = 700
@@ -342,7 +340,7 @@ export default function DataStory() {
           <>
           <SentenceHeading
             // A place blank that isn't the scope (nationally, the leading state) is plain text, not the place control (#1234).
-            template={titleNamesScope ? title.template : title.template.map((p) => (typeof p !== 'string' && p.blank === 'place' ? title.place : p))}
+            template={withTopicBlank(titleNamesScope ? title.template : title.template.map((p) => (typeof p !== 'string' && p.blank === 'place' ? title.place : p)), story.topic)}
             blanks={[
               {
                 id: 'place',
@@ -358,8 +356,9 @@ export default function DataStory() {
                 label: 'Topic',
                 value: storyId,
                 display: story.topic,
-                options: STORY_TOPICS,
-                onChange: (v) => navigate(`/stories/${encodeURIComponent(v)}${scopeQuery(scope)}`),
+                // Every live story (#1224); choosing one opens it on its Overview, keeping the place.
+                options: storyTopicOptions(liveList, storyId, story.topic),
+                onChange: (v) => navigate(storyStartHref(v, scopeQuery(scope))),
               },
             ]}
           />

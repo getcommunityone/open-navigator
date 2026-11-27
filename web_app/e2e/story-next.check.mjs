@@ -4,8 +4,12 @@
 // (right edge and bottom within 2px, near the window's corner), Close ([data-testid="story-close"]) is the same box at the
 // top right on every screen, no "Next story" button shows, the cover has no Start / Next story pair, and each step lands on
 // the next screen. Steps alternate between the Next button, a progress segment (wide) and a swipe left (phones).
+// Then, at Pixel 7 and 1440x900 on /stories/data-centers?state=AL and /stories/guns?state=OH (`--title-path`), the title
+// leads with the selected place as its place control and has no count, and the topic control lists every live story and
+// opens the chosen one on its Overview with the place kept.
 //
 //   node e2e/story-next.check.mjs [--base http://localhost:5173] [--path /stories/guns,/stories/pickleball?state=CA] [--shots <dir>/next] [--devices pixel-7,iphone-13,desktop]
+//     [--title-path '/stories/data-centers?state=AL:Alabama,/stories/guns?state=OH:Ohio']
 //
 // Exits 1 on a mismatch. Needs the app (and its API) running; it reads the page, it changes nothing.
 import { chromium, devices } from 'playwright'
@@ -104,9 +108,81 @@ for (const [name, device] of Object.entries(DEVICES)) {
   }
   await context.close()
 }
+
+// The title names the selected place (#1224, owner 2026-11-27: "If Alabama is selected, it should say Alabama …"), its place
+// word is the inline place control, and the topic control lists every live story and opens the chosen one on its Overview,
+// keeping the place. Pixel 7 and 1440x900.
+const TITLE_CASES = arg('title-path', '/stories/data-centers?state=AL:Alabama,/stories/guns?state=OH:Ohio')
+  .split(',')
+  .map((c) => {
+    const i = c.lastIndexOf(':')
+    return { path: c.slice(0, i), place: c.slice(i + 1) }
+  })
+const liveIds = await (async () => {
+  try {
+    const res = await fetch(`${base}/api/topics`)
+    const topics = await res.json()
+    return new Set(['data-centers', ...topics.filter((t) => t.source === 'curated' && (t.meeting_count ?? 0) > 0 && t.query_id).map((t) => t.query_id)])
+  } catch {
+    return null
+  }
+})()
+for (const name of ['pixel-7', 'desktop']) {
+  if (only && !only.includes(name)) continue
+  const context = await browser.newContext(DEVICES[name])
+  for (const { path, place } of TITLE_CASES) {
+    const page = await context.newPage()
+    await page.goto(base + path, { waitUntil: 'networkidle', timeout: 120_000 })
+    await page.waitForSelector('[data-panel="0"]', { timeout: 60_000 })
+    await page.waitForTimeout(2500)
+    const t = await page.evaluate(() => {
+      const h = document.querySelector('.stance-top .stance-sentence')
+      const sel = h?.querySelector('select.stance-blank')
+      const placeBtn = h?.querySelector('.stance-place button, button[aria-haspopup="dialog"]')
+      return {
+        title: (() => {
+          if (!h) return ''
+          const c = h.cloneNode(true)
+          c.querySelectorAll('select').forEach((x, i) => x.replaceWith(document.createTextNode(h.querySelectorAll('select')[i].selectedOptions[0]?.textContent ?? '')))
+          return c.textContent.replace(/▾/g, '').replace(/\s+/g, ' ').trim()
+        })(),
+        placeControl: placeBtn?.textContent?.replace(/▾/g, '').trim() ?? null,
+        options: sel ? [...sel.options].map((o) => o.value) : [],
+        value: sel?.value ?? null,
+      }
+    })
+    const problems = []
+    if (!t.title.startsWith(place)) problems.push(`title does not lead with ${place}: "${t.title}"`)
+    if (/\d/.test(t.title) || /AI reading/i.test(t.title)) problems.push(`title has a count or "AI reading": "${t.title}"`)
+    if (t.placeControl == null || !t.placeControl.includes(place)) problems.push(`the place word is not the place control (${t.placeControl})`)
+    if (t.options.length < 2) problems.push(`topic control lists ${t.options.length} option(s)`)
+    if (liveIds) {
+      const missing = [...liveIds].filter((id) => !t.options.includes(id))
+      const extra = t.options.filter((id) => !liveIds.has(id))
+      if (missing.length) problems.push(`topic control misses live stories: ${missing.join(', ')}`)
+      if (extra.length) problems.push(`topic control lists stories that are not live: ${extra.join(', ')}`)
+    }
+    // Switch the topic: the chosen story opens on its Overview with the place kept.
+    const other = t.options.find((v) => v !== t.value)
+    if (other) {
+      await page.locator('.stance-top select.stance-blank').selectOption(other)
+      await page.waitForURL((u) => u.pathname === `/stories/${other}`, { timeout: 30_000 }).catch(() => {})
+      const u = new URL(page.url())
+      const state = new URL(base + path).searchParams.get('state')
+      if (u.pathname !== `/stories/${other}`) problems.push(`choosing ${other} went to ${u.pathname}`)
+      if (u.searchParams.get('state') !== state) problems.push(`the place was dropped: ${u.search}`)
+      if (u.searchParams.get('screen') !== 'overview') problems.push(`did not open on the Overview: ${u.search}`)
+    }
+    if (shots) await page.screenshot({ path: `${shots}-title-${name}-${path.replace(/[^a-z0-9]+/gi, '_')}.png` })
+    if (problems.length) fail(`${name} ${path}: ${problems.join('; ')}`)
+    else console.log(`  ok   ${name} ${path}: "${t.title}" · place control "${t.placeControl}" · ${t.options.length} stories · switch to ${other} kept the place`)
+    await page.close()
+  }
+  await context.close()
+}
 await browser.close()
 if (failures) {
   console.error(`\n${failures} problem(s).`)
   process.exit(1)
 }
-console.log('\nNext and Close sit at the same spots on every screen.')
+console.log('\nNext and Close sit at the same spots on every screen; titles name the place and the topic control lists every live story.')

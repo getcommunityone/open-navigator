@@ -169,6 +169,10 @@ export function useStoryScreens(opts: Options): StoryScreensApi {
   /** After a keyboard move, focus lands on the settled screen's heading (#1146): a screen reader reads where it is, Tab goes on
    *  to the screen's controls (Back, then Next), and the arrow keys still page because a heading isn't a control. */
   const onSettled = useCallback((h: Hold) => {
+    // Where the page settled is the truth about the cover (#1224): the observer's offset is measured once, and a title that
+    // grows after load (a longer conclusion on a phone) leaves it stale, so a reader on the first screen read as on the cover
+    // and Next started the story again instead of moving on.
+    setOnCover(h.kind === 'cover')
     // A jump made while the page was still growing (a progress segment pressed as the place's data arrived, #1208) can land
     // on another screen: the pixels it aimed for moved. Re-aim at the screen asked for, by id, a few times at most.
     const want = intent.current

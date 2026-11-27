@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LIVE_STORIES, currentDot, dotState, isLastScreen, nextLiveStory, nextStoryLink, storyProgress } from './storyNav'
+import { LIVE_STORIES, currentDot, dotState, isLastScreen, nextLiveStory, nextStoryLink, storyProgress, storyTopicOptions } from './storyNav'
 
 describe('LIVE_STORIES', () => {
   it('lists the Data Center Story then Short-term rentals, the two live stories', () => {
@@ -55,5 +55,23 @@ describe('dots', () => {
     expect(isLastScreen(4, 5)).toBe(true)
     expect(isLastScreen(3, 5)).toBe(false)
     expect(isLastScreen(0, 0)).toBe(false)
+  })
+})
+
+describe('storyTopicOptions (#1224)', () => {
+  const live = [
+    { id: 'data-centers', title: 'Data centers' },
+    { id: 'guns', title: 'Gun control' },
+    { id: 'pickleball', title: 'Pickleball' },
+  ]
+  it('lists every live story, the current one as the title says it', () => {
+    expect(storyTopicOptions(live, 'guns', 'gun control')).toEqual([
+      { value: 'data-centers', label: 'Data centers' },
+      { value: 'guns', label: 'gun control' },
+      { value: 'pickleball', label: 'Pickleball' },
+    ])
+  })
+  it('keeps the current story while the live list is still loading', () => {
+    expect(storyTopicOptions([], 'data-centers', 'data centers')).toEqual([{ value: 'data-centers', label: 'data centers' }])
   })
 })

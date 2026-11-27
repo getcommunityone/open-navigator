@@ -127,6 +127,12 @@ for Ohio: decisions (none on record)."). While a screen's data loads it stays an
 not be loaded. The single "unit matrix by who spoke" is not drawn for topics: the topic endpoints serve the AI reading as
 counts per scope, not one record per meeting.
 
+**Title controls** (owner, 27 Nov 2026): the place word in the title is the place control, and the topic is a control
+that lists every live story (the Data Center Story and each topic story, never a coming-soon topic), the same list on
+every story; choosing one opens it on its Overview with the place kept. With a state selected, the title names that state
+from 5 meetings where its public spoke ("Alabama mostly opposes data centers."); see
+[Story captions](../development/story-captions.md).
+
 **Scope.** Topic stories are at state grain (`?state=`; city grain is #1186). Picking a city in the place dialog applies
 its state, and the cover says the city on its own isn't available yet, so the label never names a scope the data doesn't
 have. At a state the title leads with the place.
