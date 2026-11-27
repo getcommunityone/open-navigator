@@ -72,6 +72,8 @@ one is left out but isn't listed here.
 | `data_center_public_comment.public_comment_id` | `public_comment.public_comment_id` | `public_comment` (unserved) is published with a contract |
 | `data_center_hearing_verified.data_center_hearing_id` | `data_center_hearing.data_center_hearing_id` | never on purpose: `data_center_hearing` holds unverified research leads and stays in gold (#955) |
 | `meeting_passage_speaker.meeting_speaker_intro_id` | `meeting_speaker_intro.meeting_speaker_intro_id` | never on purpose: `meeting_speaker_intro` keeps every introduction, including suppressed ones, and stays in gold; the served row already carries the display form (#1231) |
+| `topic_upcoming.platform_meeting_id` | `platform_meeting.platform_meeting_id` | `platform_meeting` (unserved) is published with a contract (#1302) |
+| `topic_upcoming.data_center_hearing_id` | `data_center_hearing.data_center_hearing_id` | never on purpose: as above, only verified hearings reach `topic_upcoming` and `data_center_hearing` stays in gold (#1302) |
 
 ## What a contract holds
 
