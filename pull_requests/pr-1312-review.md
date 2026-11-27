@@ -5,7 +5,7 @@ title: "fix(stories): state county dot map fits the screen on phones and laptops
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 173bcf78aec110c49dadb817c4f1c907f428bdf5
+head_sha: a1a1e716bcfce391caf25bd26ce6f0d511f3fec9
 verdict: approve
 ---
 
@@ -25,6 +25,7 @@ Automated review (#648) for PR #1312 on `fix/1309-county-map-fit`. Heuristic rub
 - `pull_requests/assets/1309/before-laptop1366.png`
 - `pull_requests/assets/1309/before-laptop1440.png`
 - `pull_requests/assets/1309/before-phone.png`
+- `pull_requests/pr-1312-review.md`
 - `web_app/src/components/stance/StoryCountyMap.tsx`
 - `web_app/src/styles/stance.css`
 - `web_app/src/utils/mapFit.test.ts`
@@ -33,7 +34,7 @@ Automated review (#648) for PR #1312 on `fix/1309-county-map-fit`. Heuristic rub
 
 ## CI Status
 
-See the PR checks on `173bcf78aec1`.
+See the PR checks on `a1a1e716bcfc`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
