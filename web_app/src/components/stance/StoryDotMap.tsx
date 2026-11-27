@@ -7,6 +7,7 @@ import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark } from '../../lib/highlight'
 import QuoteCard from './QuoteCard'
 import { resolveVideoId, scopedMeetingHref, startFromUrl } from './quoteCardUtils'
+import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { isTouchOnly } from '../../utils/touchOnly'
 
 /** A meeting passage to quote on the map: verbatim from the record, with where and when it was said. */
@@ -91,6 +92,17 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     const n = code ? counts.get(code)?.meetings ?? 0 : 0
     return `${nameOf(fips)}: ${n ? `${fmt(n)} ${n === 1 ? 'meeting' : 'meetings'}` : 'no meetings on record'}`
   }
+  const pick = (fips: string) => {
+    const code = codeOf(fips)
+    if (!code) return
+    // The scoped state again: from a city, up to the state; from the state, up to the country.
+    if (code === scopeStateCode) onPickState(scopeCity ? code : null)
+    else onPickState(code)
+  }
+  // Keyboard (#1146): one tab stop, the arrows move state to state west to east, Enter tells that state's story.
+  const order = useMemo(() => (grid ? westToEast(grid.dots, (i) => (codeOf(grid.dots[i]!.id) ? grid.dots[i]!.id : null)) : []), [grid])
+  const scopeFips = scopeStateCode ? grid?.feats.find((f) => codeOf(f.id) === scopeStateCode)?.id ?? null : null
+  const keyNav = useMapKeyboard<string>({ keys: order, active: hover, setActive: setHover, initial: scopeFips, noun: 'state', describe: readout, onActivate: pick })
 
   if (isError) {
     return (
@@ -152,12 +164,13 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
         </span>
       </figcaption>
       {/* Leaving the map and its card (not just the dots) hides the card, so its link can be reached. */}
-      <div className="stance-map-stage" onMouseLeave={() => setHover(null)}>
+      <div className="stance-map-stage" onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+      {keyNav.sr}
       <svg
         viewBox={vb}
         className="stance-map-svg"
-        role="img"
         aria-label={`Dot map of meetings where a data center came up, by state, nationally${scopeStateCode ? `, with ${stateNameOf(scopeStateCode)} highlighted (the story is scoped to ${scopeLabel})` : ''}. ${listed.length} ${listed.length === 1 ? 'state has' : 'states have'} at least one.`}
+        {...keyNav.svgProps}
       >
         {grid.dots.map((d, i) => {
           const code = codeOf(d.id)
@@ -173,12 +186,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
               opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
               style={{ cursor: code ? 'pointer' : 'default' }}
               onMouseEnter={() => setHover(d.id)}
-              onClick={() => {
-                if (!code) return
-                // The scoped state again: from a city, up to the state; from the state, up to the country.
-                if (code === scopeStateCode) onPickState(scopeCity ? code : null)
-                else onPickState(code)
-              }}
+              onClick={() => pick(d.id)}
             />
           )
         })}

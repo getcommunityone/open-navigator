@@ -333,3 +333,19 @@ def test_scope_lean_totals_null_when_table_missing(get) -> None:
     err = asyncpg.exceptions.UndefinedTableError("relation \"data_center_meeting_lean\" does not exist")
     body = get(_Conn(totals=[_totals()], lean_error=err), {"state": "AL"}).json()
     assert body["available"] is True and body["scope_lean_totals"] is None
+
+
+def test_named_speakers_come_first_and_per_state_ranks_within_each_state() -> None:
+    # Owner, 2026-11-26: the home map should say who spoke ("Rob D.") wherever the record has a name.
+    scope = data_centers.build_scope(None, None, None)
+    _, _, side_sql, side_params = data_centers.build_position_queries(scope, 10)
+    assert "PARTITION BY p.stance_bucket ORDER BY ((to_jsonb(p) ->> 'speaker_display_name') IS NULL)" in side_sql
+    assert side_params == [10]
+    _, _, state_sql, state_params = data_centers.build_position_queries(scope, 10, per_state=3)
+    assert "PARTITION BY p.state_code, p.stance_bucket ORDER BY" in state_sql
+    assert state_params == [3]
+
+
+def test_per_state_is_bounded(get) -> None:
+    conn = _Conn(totals=[_totals()])
+    assert get(conn, {"per_state": data_centers.POSITION_QUOTES_PER_STATE_MAX + 1}).status_code == 422

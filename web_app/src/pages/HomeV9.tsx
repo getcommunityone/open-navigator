@@ -53,6 +53,7 @@ const FONTS = `
 .v9 { overflow-x: clip; max-width: 100%; }
 .v9 .v9-main { box-sizing: border-box; max-width: 100%; }
 .v9 .v9-search { display: flex; min-width: 0; }
+.v9 .v9-search:focus-within { outline: 2px solid #0f766e; outline-offset: 2px; }
 .v9 .v9-money-hook-text { flex: 1; min-width: 0; }
 .v9 .v9-burger { display: none; }
 html { scroll-behavior: smooth; }
@@ -81,6 +82,10 @@ html { scroll-behavior: smooth; }
 .v9 .home-story-point-title { margin: 2px 0 0; font-size: 17px; font-weight: 800; color: #1c1917; line-height: 1.3; }
 .v9 .home-story-point-line { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: #57534e; }
 .v9 .home-story-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+/* Always reachable (owner, 2026-11-26): when the points push the buttons below the fold, they stick to the bottom of
+   the screen until their own place scrolls into view, then sit there. */
+.v9 .home-story-actions { position: sticky; bottom: 0; z-index: 5; padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, #fff 78%, rgba(255,255,255,0)); }
 .v9 .home-story-drill { margin: 10px 0 0; font-size: 13.5px; color: #57534e; }
 .v9 .home-story-drill strong { color: #1c1917; }
 .v9 .home-story-actions .home-story-start { padding: 12px 24px; font-size: 16px; text-align: center; }
@@ -107,7 +112,7 @@ html { scroll-behavior: smooth; }
 .v9 .home-topics-arrow:disabled { opacity: 0; pointer-events: none; }
 .v9 .home-topics-arrow[hidden] { display: none; }
 .v9 .home-topics-dots { display: flex; justify-content: center; gap: 4px; padding: 0 12px 12px; }
-.v9 .home-topics-dot { width: 22px; height: 22px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.v9 .home-topics-dot { width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
 .v9 .home-topics-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #d6d3d1; transition: background .15s, width .15s; }
 .v9 .home-topics-dot.is-on::before { background: #0f766e; width: 20px; border-radius: 999px; }
 .v9 .home-topics-dot:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; border-radius: 999px; }
@@ -115,6 +120,8 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { .v9 .home-topics-list { scroll-behavior: auto; } .v9 .home-topics-arrow, .v9 .home-topics-dot::before { transition: none; } }
 .v9 .home-topic { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; text-decoration: none; color: inherit; border-radius: 10px; }
 .v9 .home-topic:hover { background: #fafaf9; }
+.v9 .home-topic:focus-visible { outline: 3px solid #0f766e; outline-offset: -3px; }
+.v9 .home-topics-all:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; border-radius: 6px; }
 .v9 button.home-topic { width: 100%; background: none; border: 0; font: inherit; text-align: left; cursor: pointer; }
 .v9 .home-topic.is-on { background: #f0fdfa; box-shadow: inset 0 0 0 2px #0f766e; }
 .v9 .home-topic-on { display: inline-block; align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 12px; font-weight: 700; }
@@ -198,11 +205,11 @@ const SIGNAL_META: Record<
   string,
   { name: string; icon: string; color: string; bg: string; desc: string }
 > = {
-  contested: { name: 'Contested', icon: '🔥', color: '#ea580c', bg: '#fff7ed', desc: 'Split votes and heated debate among officials or residents' },
-  money: { name: 'Money Moves', icon: '💵', color: '#059669', bg: '#ecfdf5', desc: 'Contracts, grants, and budget changes pulled from the record' },
+  contested: { name: 'Contested', icon: '🔥', color: '#c2410c', bg: '#fff7ed', desc: 'Split votes and heated debate among officials or residents' },
+  money: { name: 'Money Moves', icon: '💵', color: '#047857', bg: '#ecfdf5', desc: 'Contracts, grants, and budget changes pulled from the record' },
   flags: { name: 'Raised Eyebrows', icon: '🤨', color: '#7c3aed', bg: '#f5f3ff', desc: 'Unusual patterns — sole-source contracts, reversals, late additions. Manual human review recommended.' },
-  soon: { name: 'Moving Fast', icon: '⚡', color: '#d97706', bg: '#fffbeb', desc: 'Items moving quicker than the usual process' },
-  next: { name: 'Watch Next', icon: '👀', color: '#2563eb', bg: '#eff6ff', desc: 'Upcoming votes worth keeping on your radar' },
+  soon: { name: 'Moving Fast', icon: '⚡', color: '#b45309', bg: '#fffbeb', desc: 'Items moving quicker than the usual process' },
+  next: { name: 'Watch Next', icon: '👀', color: '#1d4ed8', bg: '#eff6ff', desc: 'Upcoming votes worth keeping on your radar' },
 }
 const WHEN: { label: string; window: string }[] = [
   { label: 'Past month', window: 'month' },
@@ -906,9 +913,10 @@ export default function HomeV9() {
       <SiteHeader />
 
       {/* ── Data stories first (#995): the conclusion, the quote map and the topics; the header's Data Stories tab. ── */}
+      <main id="main-content" tabIndex={-1} style={{ outline: 'none' }}>
       <HomeDataStories stateCode={stateCode} city={city ?? null} />
 
-      <main className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
+      <div className="v9-main" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
         {/* ── Hero: thesis + search + trending ── */}
         {/* The header's Search tab scrolls here (#975); results open on /search from this search. */}
         <section id="search" className="v9-hero" style={{ padding: '44px 0 6px', textAlign: 'center', scrollMarginTop: 72 }}>
@@ -950,7 +958,7 @@ export default function HomeV9() {
                 {i < LAUNCH_CITIES.length - 1 ? ' ·' : ''}
               </span>
             ))}
-            <span style={{ fontWeight: 600, color: '#0d9488' }}>— more cities coming soon</span>
+            <span style={{ fontWeight: 600, color: '#0f766e' }}>— more cities coming soon</span>
           </div>
 
           <div style={{ position: 'relative', maxWidth: 760, margin: '28px auto 0', textAlign: 'left' }}>
@@ -975,7 +983,7 @@ export default function HomeV9() {
                 onClick={() => setCatOpen((o) => !o)}
                 aria-haspopup="listbox"
                 aria-expanded={catOpen}
-                aria-label="Search category"
+                aria-label={`${cat.label}, search category`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1038,7 +1046,7 @@ export default function HomeV9() {
                 onClick={() => setLevelOpen((o) => !o)}
                 aria-haspopup="listbox"
                 aria-expanded={levelOpen}
-                aria-label="Location level"
+                aria-label={`${placeLabel}, location level`}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', borderLeft: '1px solid #e7e5e4', background: 'none', color: '#44403c', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: 'inherit', minWidth: 0 }}
               >
                 📍 {placeLabel}
@@ -1090,7 +1098,7 @@ export default function HomeV9() {
                     fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
-                    color: '#a8a29e',
+                    color: '#78716c',
                   }}
                 >
                   Search in
@@ -1141,7 +1149,7 @@ export default function HomeV9() {
                         {n != null ? (
                           <span
                             className="font-mono-x"
-                            style={{ fontSize: 11.5, fontWeight: 600, color: selected ? TEAL : '#a8a29e', fontVariantNumeric: 'tabular-nums' }}
+                            style={{ fontSize: 11.5, fontWeight: 600, color: selected ? TEAL_DARK : '#78716c', fontVariantNumeric: 'tabular-nums' }}
                           >
                             {n.toLocaleString('en-US')}
                           </span>
@@ -1181,7 +1189,7 @@ export default function HomeV9() {
                 }}
               >
                 <div
-                  style={{ padding: '6px 10px 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#a8a29e' }}
+                  style={{ padding: '6px 10px 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#78716c' }}
                 >
                   Show results for
                 </div>
@@ -1397,7 +1405,7 @@ export default function HomeV9() {
                           </span>
                         )}
                       </span>
-                      <span className="font-mono-x" style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#a8a29e', flexShrink: 0 }}>
+                      <span className="font-mono-x" style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#78716c', flexShrink: 0 }}>
                         {s.type}
                       </span>
                     </button>
@@ -1442,7 +1450,7 @@ export default function HomeV9() {
             if (trending.length === 0) return null
             return (
               <div className="v9-trending" style={{ maxWidth: 760, margin: '14px auto 0', textAlign: 'left' }}>
-                <div className="font-mono-x" style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#ea580c', marginBottom: 8 }}>
+                <div className="font-mono-x" style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#c2410c', marginBottom: 8 }}>
                   <span aria-hidden="true">🔥 </span>Trending questions · {stateCode ? stateCode : 'Nationwide'}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -1624,7 +1632,7 @@ export default function HomeV9() {
                           style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#57534e' }}
                         >
                           {b.count.toLocaleString('en-US')}
-                          <span className="v9-browse-pill-badge-word" style={{ fontSize: 9.5, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <span className="v9-browse-pill-badge-word" style={{ fontSize: 9.5, fontWeight: 600, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                             meetings
                           </span>
                         </span>
@@ -1634,7 +1642,7 @@ export default function HomeV9() {
                             className="font-mono-x"
                             title="No linked transcripts yet"
                             aria-label="No linked transcripts yet"
-                            style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#a8a29e' }}
+                            style={{ fontSize: 11, fontWeight: 600, background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '1px 8px', color: '#78716c' }}
                           >
                             —
                           </span>
@@ -1680,7 +1688,7 @@ export default function HomeV9() {
                           overflow: 'hidden',
                         }}
                       >
-                        <div className="font-mono-x" style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: b.key === 'questions' ? '#ea580c' : '#a8a29e', padding: '11px 16px 7px' }}>
+                        <div className="font-mono-x" style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: b.key === 'questions' ? '#c2410c' : '#78716c', padding: '11px 16px 7px' }}>
                           {b.header}
                         </div>
                         {b.items.map((it) => (
@@ -1720,7 +1728,7 @@ export default function HomeV9() {
                             <span
                               className="font-mono-x"
                               title={`${it.transcripts.toLocaleString('en-US')} transcripts`}
-                              style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'baseline', gap: 3, fontSize: 11, fontWeight: 600, color: '#a8a29e' }}
+                              style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'baseline', gap: 3, fontSize: 11, fontWeight: 600, color: '#78716c' }}
                             >
                               {it.transcripts.toLocaleString('en-US')}
                               <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>tx</span>
@@ -1854,7 +1862,7 @@ export default function HomeV9() {
                           {!analyzed && m.evidence && (
                             <div style={{ marginTop: 8 }}>
                               {m.evidence_label && (
-                                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#8a958f' }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#5f6b66' }}>
                                   Mentions · {m.evidence_label}
                                 </div>
                               )}
@@ -1987,7 +1995,7 @@ export default function HomeV9() {
             placeLabel={placeLabel}
           />
         </section>
-      </main>
+      </div>
 
 
       {/* ── How It Works (ported from the original home page, restyled for v9).
@@ -2071,7 +2079,7 @@ export default function HomeV9() {
                         fontWeight: it.kind === 'arrow' ? 700 : it.kind === 'note' ? 600 : 400,
                       }}
                     >
-                      <span aria-hidden style={{ flexShrink: 0, color: it.kind === 'arrow' ? TEAL_DARK : it.kind === 'note' ? '#a8a29e' : '#059669', fontWeight: 700 }}>
+                      <span aria-hidden style={{ flexShrink: 0, color: it.kind === 'arrow' ? TEAL_DARK : it.kind === 'note' ? '#78716c' : '#047857', fontWeight: 700 }}>
                         {it.kind === 'arrow' ? '→' : it.kind === 'note' ? '•' : '✓'}
                       </span>
                       <span>{it.label}</span>
@@ -2172,6 +2180,7 @@ export default function HomeV9() {
         </div>
       )}
 
+      </main>
       <SiteFooter />
     </div>
   )

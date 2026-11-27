@@ -83,9 +83,9 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   })
   // Speakers' own words with their recorded side, preferred over a meeting passage where a state has them.
   const speakers = useQuery({
-    // The API returns at most 10 quotes per side (POSITION_QUOTES_MAX).
-    queryKey: ['home', 'story-map', 'positions', 10],
-    queryFn: () => fetchDataCenterPositions({ limit: 10 }),
+    // Up to 3 quotes per state and side, named speakers ("Rob D.") first, so most states' cards can say who spoke.
+    queryKey: ['home', 'story-map', 'positions', 'per-state', 3],
+    queryFn: () => fetchDataCenterPositions({ limit: 10, perState: 3 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })

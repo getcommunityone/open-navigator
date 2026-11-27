@@ -21,6 +21,7 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { isTouchOnly } from '../../utils/touchOnly'
+import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
 
 export interface StateMarker {
@@ -210,6 +211,28 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     }
     return out
   }, [grid, stanceBy])
+  // Keyboard (#1146): one tab stop, the arrows move state to state west to east; each state shows its first box's card.
+  const firstBox = useMemo(() => {
+    const m = new Map<string, number>()
+    boxes?.forEach((b, i) => {
+      if (b.code && b.rank === 0) m.set(b.code, i)
+    })
+    return m
+  }, [boxes])
+  const order = useMemo(() => (boxes ? westToEast(boxes, (i) => boxes[i]!.code) : []), [boxes])
+  const keyNav = useMapKeyboard<string>({
+    keys: order,
+    active: hover != null ? boxes?.[hover]?.code ?? null : null,
+    setActive: (code) => setHover(code ? firstBox.get(code) ?? null : null),
+    initial: highlight,
+    noun: 'state',
+    describe: (code) => {
+      const n = byState?.find((s) => s.state_code === code)
+      const st = stanceLine(stanceBy.get(code))
+      return `${n?.state ?? STATE_CODE_TO_NAME[code] ?? code}: ${plural(n?.meetings ?? 0, 'meeting', 'meetings')}${st ? `; ${st}` : ''}.`
+    },
+    onActivate: (code) => navigate(href(code)),
+  })
 
   if (isError) return <p className="text-sm text-stone-500">The map could not be loaded.</p>
   if (!grid || !boxes || byState == null) return <p className="text-sm text-stone-500" role="status">Loading the map…</p>
@@ -245,9 +268,12 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   let quote: StateQuote | undefined
   if (shown && shownCode) {
     const all = quotes?.get(shownCode) ?? []
-    const own = shown.side ? all.filter((q) => q.side === shown.side) : []
+    // A named speaker's own words ("Rob D.") first, wherever the state has some; passages with no one named after.
+    const named = all.filter((q) => q.speakerName)
+    const own = shown.side ? (named.some((q) => q.side === shown.side) ? named : all).filter((q) => q.side === shown.side) : []
+    const pool = named.length ? named : all
     if (own.length) quote = own[shown.bandRank % own.length]
-    else if (all.length) quote = all[shown.rank % all.length]
+    else if (pool.length) quote = pool[shown.rank % pool.length]
   }
   const shownStance = shownCode ? stanceLine(stanceBy.get(shownCode), stanceUnit) : null
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
@@ -280,8 +306,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   }
 
   return (
-    <div style={{ position: 'relative' }} onMouseLeave={() => setHover(null)}>
-      <svg viewBox={`${-pad} ${-pad} ${W + pad * 2} ${H + pad * 2}`} className="block h-auto w-full" role="img" aria-label={summary}>
+    <div style={{ position: 'relative' }} onMouseLeave={() => setHover(null)} {...keyNav.stageProps}>
+      {keyNav.sr}
+      <svg viewBox={`${-pad} ${-pad} ${W + pad * 2} ${H + pad * 2}`} className="block h-auto w-full" aria-label={summary} {...keyNav.svgProps}>
         {boxes.map((b, i) => {
           const muted = shownCode ? b.code !== shownCode : !!highlight && b.code !== highlight
           const on = (meetings.get(b.code ?? '') ?? 0) > 0 || !!b.side
@@ -336,11 +363,16 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             {shownStance ? ` · ${shownStance}` : hasStance ? (byMeetings ? ' · no AI reading yet' : ' · no stance on record') : ''}
           </p>
           {shownLean && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#57534e' }}>{shownLean}</p>}
-          {touch && (
+          {touch ? (
             <p style={{ margin: '6px 0 0', fontSize: 13 }}>
               <Link to={href(shownCode)} style={{ color: '#0f766e', fontWeight: 600 }}>
                 Open the story for {stateName(shownCode)} →
               </Link>
+            </p>
+          ) : (
+            // Say what a click does (owner, 2026-11-26): clicking a box drills into that state's story.
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
+              Click to open the story for {stateName(shownCode)} →
             </p>
           )}
         </QuoteCard>
