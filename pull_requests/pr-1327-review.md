@@ -5,7 +5,7 @@ title: "feat(stories): who supported and opposed each decision, and its vote, on
 author: jcbowyer
 reviewed_at: 2026-11-27
 reviewer: github-actions
-head_sha: 2004d18507a4c70de197b057b9bc1f195e912aa5
+head_sha: 641c687aed47342ecff1c8b73295f6f01362dd15
 verdict: approve
 ---
 
@@ -21,12 +21,14 @@ Automated review (#648) for PR #1327 on `feat/1320-decision-supporters`. Heurist
 - `api/routes/data_centers.py`
 - `api/routes/decision_people.py`
 - `api/routes/topics.py`
+- `pull_requests/pr-1327-review.md`
 - `tests/test_api_decision_people.py`
 - `tests/test_api_topic_said.py`
 - `web_app/src/api/dataCenters.ts`
 - `web_app/src/api/topics.ts`
 - `web_app/src/components/stance/FitDisplay.tsx`
 - `web_app/src/components/stance/TopicRecordCards.tsx`
+- `web_app/src/components/stance/UnitMatrixChart.tsx`
 - `web_app/src/styles/topic-story.css`
 - `web_app/src/utils/saidCards.test.ts`
 - `web_app/src/utils/saidCards.ts`
@@ -35,7 +37,7 @@ Automated review (#648) for PR #1327 on `feat/1320-decision-supporters`. Heurist
 
 ## CI Status
 
-See the PR checks on `2004d18507a4`.
+See the PR checks on `641c687aed47`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
