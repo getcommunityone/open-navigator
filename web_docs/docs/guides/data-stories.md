@@ -59,7 +59,7 @@ passage. They now quote it this way, server-side:
    topic's own position words from `web_app/src/utils/topicPositions.ts` (its "against", "for" or "Split" label, so a
    topic reworded there is reworded on the card too), or, when the reading found the public didn't speak on it, "Mentions
    `<topic>`; no public stance in this meeting". A meeting not read yet gets only "Mentions `<topic>`", with no claim
-   about the public. A data-center passage gets its "against" words or the no-stance line,
+   about the public. A data-center passage (the home map and, since [#1265](https://github.com/getcommunityone/open-navigator/issues/1265), the Data Center Story's national and county maps) gets its "against" words or the no-stance line,
    and no line for the audit-only supported or mixed readings. The line never says "AI reading".
 
 The quote stays a verbatim excerpt with the matched words marked, with the meeting title, date, place and recording
