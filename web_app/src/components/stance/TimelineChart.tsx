@@ -6,11 +6,17 @@ import {
   buildSeries,
   dateToYearPos,
   defaultMarker,
+  defaultSeriesMode,
   gapYears,
+  isHollow,
   milestoneLanes,
   MILESTONE_LABELS,
   niceMax,
+  splitRun,
   stepMarker,
+  thinNote,
+  thinYears,
+  MIN_RECORDED_FOR_ZERO,
   type SeriesMode,
 } from '../../utils/storyTimeline'
 import { HOUSE_STYLE } from '../../utils/houseTheme'
@@ -89,7 +95,8 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const reduced = usePrefersReducedMotion()
   const { ref, width } = useChartWidth<HTMLDivElement>()
   const { bind, tip } = useTooltip()
-  const [mode, setMode] = useState<SeriesMode>('meetings')
+  // null until the reader picks: the chart opens on the share when a year's count isn't comparable (#1207).
+  const [mode, setMode] = useState<SeriesMode | null>(null)
   const [sel, setSel] = useState(-1)
   const [tableOpen, setTableOpen] = useState(false)
   const [showAll, setShowAll] = useState(false)
@@ -101,8 +108,12 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const years = useMemo(() => data?.years ?? [], [data])
   const ms = useMemo(() => data?.milestones ?? [], [data])
   const shareOk = Boolean(data?.coverage_available) && years.some((y) => y.share != null)
-  const activeMode: SeriesMode = mode === 'share' && shareOk ? 'share' : 'meetings'
+  const thin = useMemo(() => thinYears(years), [years])
+  const openOn = useMemo(() => defaultSeriesMode(years, Boolean(data?.coverage_available)), [years, data])
+  const activeMode: SeriesMode = (mode ?? openOn) === 'share' && shareOk ? 'share' : 'meetings'
   const runs = useMemo(() => buildSeries(years, activeMode), [years, activeMode])
+  // Dashed pieces only on the count line: the share stays comparable in a thin year.
+  const pieces = useMemo(() => runs.map((run) => splitRun(run, activeMode === 'meetings' ? thin : new Set<number>())), [runs, activeMode, thin])
   const gaps = useMemo(() => gapYears(years, activeMode), [years, activeMode])
   const lanes = useMemo(() => milestoneLanes(ms), [ms])
 
@@ -142,6 +153,10 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const valueText = (v: number) => (activeMode === 'share' ? `${v < 10 ? v.toFixed(1) : Math.round(v)}%` : fmt(v))
   const last = pts[pts.length - 1]!
   const compact = w < COMPACT_W
+  const drawnYears = new Set(allYears)
+  const thinDrawn = new Set([...thin].filter((y) => drawnYears.has(y)))
+  const thinText = thinNote(years, thinDrawn)
+  const hollowShare = activeMode === 'share' && pts.some((p) => isHollow(p, 'share', thin))
 
   const pick = (i: number, focus = false) => {
     setSel(i)
@@ -198,16 +213,19 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
                 {y}
               </text>
             ))}
-          {runs.map((run) =>
-            run.length > 1 ? (
+          {pieces.flat().map((piece) => {
+            const d = piece.points.map((p, i) => `${i ? 'L' : 'M'} ${xYear(p.year).toFixed(1)} ${ys(p.value).toFixed(1)}`).join(' ')
+            return piece.dashed ? (
+              <path key={`${activeMode}-thin-${piece.points[0]!.year}`} className="sc-line sc-line--thin" d={d} />
+            ) : (
               <path
-                key={`${activeMode}-${run[0]!.year}`}
+                key={`${activeMode}-${piece.points[0]!.year}`}
                 className={`sc-line${drawn && !reduced ? ' is-drawing' : ''}`}
                 pathLength={1}
-                d={run.map((p, i) => `${i ? 'L' : 'M'} ${xYear(p.year).toFixed(1)} ${ys(p.value).toFixed(1)}`).join(' ')}
+                d={d}
               />
-            ) : null,
-          )}
+            )
+          })}
           {pts.map((p) => {
             const y = p.src
             const sub = [
@@ -217,11 +235,17 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
             ]
               .filter(Boolean)
               .join(' · ')
-            const label = `${y.year}: ${fmt(y.meetings)} meetings${sub ? `, ${sub}` : ''}`
+            const hollow = isHollow(p, activeMode, thin)
+            const caveat = hollow
+              ? activeMode === 'meetings'
+                ? ' (few meetings were recorded that year: the count is not comparable)'
+                : ` (fewer than ${MIN_RECORDED_FOR_ZERO} meetings recorded)`
+              : ''
+            const label = `${y.year}: ${fmt(y.meetings)} meetings${sub ? `, ${sub}` : ''}${caveat}`
             return (
               <rect
                 key={`${activeMode}-${p.year}`}
-                className="sc-pt sc-focusable"
+                className={`sc-pt sc-focusable${hollow ? ' is-hollow' : ''}`}
                 x={xYear(p.year) - 3.5}
                 y={ys(p.value) - 3.5}
                 width={7}
@@ -229,7 +253,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
                 tabIndex={0}
                 role="img"
                 aria-label={label}
-                {...bind({ cat: y.year, val: activeMode === 'share' ? valueText(p.value) : `${fmt(y.meetings)} meetings`, sub: sub || undefined })}
+                {...bind({ cat: y.year, val: activeMode === 'share' ? valueText(p.value) : `${fmt(y.meetings)} meetings`, sub: (sub + caveat).trim() || undefined })}
               />
             )
           })}
@@ -315,6 +339,11 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
       <p className="sc-note">
         {COVERAGE_NOTE}
         {activeMode === 'share' && ' The share divides by every recorded meeting in the same place and year.'}
+        {thinText &&
+          (activeMode === 'meetings'
+            ? ` ${thinText} ${thinDrawn.size === 1 ? 'It is drawn as a hollow point' : 'They are drawn as hollow points'} on a dashed line.`
+            : ` ${thinText} The share of recorded meetings still compares, so the chart opens on it; Meetings shows the counts.`)}
+        {hollowShare && ` A hollow point is a share of fewer than ${MIN_RECORDED_FOR_ZERO} recorded meetings.`}
         {gaps.length > 0 && ` No line is drawn for ${gaps.join(', ')}: too few recorded meetings to say.`}
         {data.undated_meetings > 0 && ` ${fmt(data.undated_meetings)} ${data.undated_meetings === 1 ? 'meeting has' : 'meetings have'} no date and ${data.undated_meetings === 1 ? 'is' : 'are'} not on the line.`}
         {ms.length > 0 &&
