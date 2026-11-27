@@ -802,26 +802,9 @@ export default function HomeV9() {
   // many real results that scope would return. Fetched lazily (only while the
   // menu is open) with limit=1 — we want `type_totals`, not rows — so it never
   // slows the hero. No fabricated numbers: a type the API doesn't count is blank.
-  const { data: catCountsData, isFetching: catCountsFetching } = useQuery<Record<string, number>>({
-    queryKey: ['home-v9-cat-counts', debouncedQuery, national, stateCode, city],
-    queryFn: async () => {
-      const params: Record<string, string> = {
-        types: SEARCH_CATEGORY_TYPES.join(','),
-        limit: '1',
-      }
-      if (debouncedQuery.length >= 2) params.q = debouncedQuery
-      if (!national && stateCode) params.state = stateCode
-      if (!national && city) params.city = city
-      const res = await api.get('/search/', { params }).then((r) => r.data).catch(() => null)
-      return (res?.type_totals ?? {}) as Record<string, number>
-    },
-    enabled: catOpen,
-    staleTime: 60 * 1000,
-    placeholderData: (prev) => prev, // keep last counts while the next query loads
-  })
   // Organization sub-type counts (#1221) in their OWN organizations-only call, so
   // the sub-rows get real numbers (and the exact org total) without waiting on
-  // the slow transcript legs of the all-types call above. The API omits
+  // the slow transcript legs of the all-types call below. The API omits
   // org_type_totals on timeout, and those rows then show no badge.
   const { data: orgFacetData, isFetching: orgFacetFetching } = useQuery<{
     total?: number
@@ -835,11 +818,31 @@ export default function HomeV9() {
       if (!national && city) params.city = city
       const res = await api.get('/search/', { params }).then((r) => r.data).catch(() => null)
       if (!res?.org_type_totals) return {}
-      return { total: res.type_totals?.organizations, byType: res.org_type_totals as Record<string, number> }
+      return { total: res.organizations_total, byType: res.org_type_totals as Record<string, number> }
     },
     enabled: catOpen,
     staleTime: 60 * 1000,
     placeholderData: (prev) => prev,
+  })
+  const orgFacetSettled = !orgFacetFetching
+  const { data: catCountsData, isFetching: catCountsFetching } = useQuery<Record<string, number>>({
+    queryKey: ['home-v9-cat-counts', debouncedQuery, national, stateCode, city],
+    queryFn: async () => {
+      const params: Record<string, string> = {
+        types: SEARCH_CATEGORY_TYPES.join(','),
+        limit: '1',
+      }
+      if (debouncedQuery.length >= 2) params.q = debouncedQuery
+      if (!national && stateCode) params.state = stateCode
+      if (!national && city) params.city = city
+      const res = await api.get('/search/', { params }).then((r) => r.data).catch(() => null)
+      return (res?.type_totals ?? {}) as Record<string, number>
+    },
+    // Starts once the cheap org facet call below has settled, so the two don't
+    // contend for the DB at the same moment (the all-types call is the heavy one).
+    enabled: catOpen && orgFacetSettled,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev, // keep last counts while the next query loads
   })
   // Each row maps 1:1 to its type_totals key (c.types); undefined when the API
   // didn't count that type (→ no badge). 'All' intentionally shows NO count: its
@@ -1105,13 +1108,15 @@ export default function HomeV9() {
                   // so the counts read as "loading", not "missing". 'All' never
                   // shows a count, so it never shows a skeleton.
                   const showCountSkeleton =
-                    c.id !== 'all' && n == null && (c.types === 'organizations' ? orgFacetFetching : catCountsFetching)
+                    c.id !== 'all' && n == null && (c.types === 'organizations' ? orgFacetFetching : catCountsFetching || !orgFacetSettled)
                   return (
                     <button
                       key={c.id}
                       type="button"
                       role="option"
                       aria-selected={selected}
+                      // Sub-type rows are only indented visually; name the parent for screen readers.
+                      aria-label={c.child ? `Organizations: ${c.label}${n != null ? `, ${n.toLocaleString('en-US')}` : ''}` : undefined}
                       onClick={() => {
                         setCat(c)
                         setCatOpen(false)

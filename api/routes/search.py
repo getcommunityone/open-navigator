@@ -461,6 +461,7 @@ async def count_organizations(
 # is omitted (the UI shows no count) rather than guessed.
 ORG_TYPE_FACET_TIMEOUT_S = float(os.getenv("SEARCH_ORG_TYPE_FACET_TIMEOUT_S", "6.0"))
 _org_type_facet_cache: Dict[str, tuple] = {}
+ORG_TYPE_FACET_NEGATIVE_TTL_S = 60
 
 
 async def count_organization_types(
@@ -486,7 +487,7 @@ async def count_organization_types(
         f"{','.join(org_types or [])}"
     )
     hit = _org_type_facet_cache.get(cache_key)
-    if hit and (datetime.now() - hit[0]).total_seconds() < 3600:
+    if hit is not None and (datetime.now() - hit[0]).total_seconds() < 3600:
         return hit[1]
 
     with tracer.start_as_current_span("search.count_organization_types") as span:
@@ -521,6 +522,12 @@ async def count_organization_types(
         except TimeoutError:
             logger.warning(f"⏱️ org_type facet exceeded {ORG_TYPE_FACET_TIMEOUT_S}s — omitting")
             span.set_attribute("search.timed_out", True)
+            # Short negative cache so a scope that always times out doesn't rerun the
+            # heavy count on every request.
+            _org_type_facet_cache[cache_key] = (
+                datetime.now() - timedelta(seconds=3600 - ORG_TYPE_FACET_NEGATIVE_TTL_S),
+                None,
+            )
             return None
         except Exception as e:
             logger.error(f"org_type facet error: {e}")
@@ -1986,7 +1993,7 @@ async def unified_search(
         unknown_facets = facet_set - {'org_type'}
         if unknown_facets:
             raise HTTPException(status_code=400, detail=f"unknown facets {','.join(sorted(unknown_facets))}")
-        want_org_type_facets = 'org_type' in facet_set and 'organizations' in requested_types and not ein
+        want_org_type_facets = 'org_type' in facet_set and not ein
 
         # Advanced "Topic" / "Question" filters. Each narrows the result set to the
         # types it can honor, dropping the rest so the filter genuinely constrains
@@ -2265,6 +2272,7 @@ async def unified_search(
         # estimate (the pre-existing type_totals value).
         count_tasks: List[tuple] = []
         org_type_totals: Optional[Dict[str, int]] = None
+        organizations_total: Optional[int] = None
 
         if not q and len(requested_types) == 1 and 'organizations' in requested_types:
             # Single-type org browse: accurate count (unchanged behavior, now
@@ -2278,7 +2286,9 @@ async def unified_search(
         # for this query/place scope, plus the exact org total for the selected
         # sub-types (replaces the capped fetched-length estimate). Time-boxed inside
         # count_organization_types; None (timeout) omits the facet.
-        if want_org_type_facets:
+        # Re-checked here, AFTER the topic/cause/question narrowing above may have
+        # dropped organizations: a filter orgs can't honour must not get an org count.
+        if want_org_type_facets and 'organizations' in requested_types:
             count_tasks.append(('__org_type_facets', count_organization_types(
                 state=state, ntee_code=ntee_code, query=q, city=city,
                 county_fips=county_fips, jurisdiction_id=jurisdiction_id, org_types=org_types,
@@ -2389,7 +2399,16 @@ async def unified_search(
                 if key == '__org_type_facets':
                     if outcome:
                         org_type_totals = {k: v for k, v in outcome.items() if k != 'selected'}
-                        type_totals['organizations'] = outcome['selected']
+                        organizations_total = outcome['selected']
+                        # Browse pages through the whole match set, so the exact total
+                        # is the pager total. A text query caps its candidate scan at
+                        # ORG_CANDIDATE_CAP, so its pager total is the exact count
+                        # clamped to that cap: every page it offers is reachable, and
+                        # the full count rides separately in organizations_total.
+                        type_totals['organizations'] = (
+                            organizations_total if not q
+                            else min(organizations_total, search_postgres.ORG_CANDIDATE_CAP)
+                        )
                     continue
                 type_totals[key] = outcome
 
@@ -2451,6 +2470,7 @@ async def unified_search(
         
         if org_type_totals is not None:
             response_data["org_type_totals"] = org_type_totals
+            response_data["organizations_total"] = organizations_total
 
         logger.info(f"✅ Search complete - returning {total_results} total results, {len(paginated_results)} on this page")
         return response_data

@@ -213,3 +213,112 @@ def test_rare_sub_type_browse_is_fenced(monkeypatch):
     conn.calls.clear()
     asyncio.run(search_postgres.search_organizations_pg(None, org_types=["nonprofit"]))
     assert "OFFSET 0" not in conn.calls[0][0]
+
+
+# ---- endpoint facet behaviour (review of #1226) -----------------------------------
+
+
+@pytest.fixture
+def stub_org_legs(monkeypatch):
+    """Stub the org search + counts so only the endpoint's own wiring runs."""
+    calls: dict[str, Any] = {"facet": 0}
+
+    async def fake_search(*a, **k):
+        return []
+
+    async def fake_count(**k):
+        return 5
+
+    async def fake_facets(**k):
+        calls["facet"] += 1
+        return calls.get("facet_result")
+
+    monkeypatch.setattr(search_postgres, "search_organizations_pg", fake_search)
+    monkeypatch.setattr(search, "count_organizations", fake_count)
+    monkeypatch.setattr(search, "count_organization_types", fake_facets)
+    return calls
+
+
+def _facets(selected: int = 999):
+    out = {k: 1 for k in ORG_TYPE_PREDICATES}
+    out["selected"] = selected
+    return out
+
+
+def test_browse_facet_sets_exact_pager_total(stub_org_legs):
+    stub_org_legs["facet_result"] = _facets(999)
+    body = _get({"types": "organizations", "facets": "org_type"}).json()
+    assert body["type_totals"]["organizations"] == 999
+    assert body["organizations_total"] == 999
+    assert "selected" not in body["org_type_totals"]
+
+
+def test_text_query_keeps_reachable_pager_total(stub_org_legs):
+    # A text query caps its candidate scan, so the exact count must not drive the pager.
+    stub_org_legs["facet_result"] = _facets(250_000)
+    body = _get({"q": "church", "types": "organizations", "facets": "org_type"}).json()
+    assert body["organizations_total"] == 250_000
+    assert body["type_totals"]["organizations"] == search_postgres.ORG_CANDIDATE_CAP
+    assert body["pagination"]["total_pages"] == search_postgres.ORG_CANDIDATE_CAP // 20
+
+
+def test_text_query_small_match_set_gets_exact_pager_total(stub_org_legs):
+    stub_org_legs["facet_result"] = _facets(168)
+    body = _get({"q": "health", "types": "organizations", "facets": "org_type", "org_type": "church"}).json()
+    assert body["type_totals"]["organizations"] == 168
+
+
+def test_facet_timeout_omits_counts(stub_org_legs):
+    stub_org_legs["facet_result"] = None
+    body = _get({"types": "organizations", "facets": "org_type"}).json()
+    assert "org_type_totals" not in body
+    assert "organizations_total" not in body
+
+
+def test_facet_skipped_when_cause_filter_drops_organizations(stub_org_legs, monkeypatch):
+    stub_org_legs["facet_result"] = _facets(999)
+
+    async def no_decisions(*a, **k):
+        return []
+
+    monkeypatch.setattr(search_postgres, "search_decisions_pg", no_decisions, raising=False)
+    body = _get({"types": "organizations,decisions", "cause_id": "animals", "facets": "org_type"}).json()
+    assert stub_org_legs["facet"] == 0
+    assert "org_type_totals" not in body
+    assert body.get("type_totals", {}).get("organizations", 0) == 0
+
+
+def test_facet_skipped_for_ein_lookup(stub_org_legs):
+    stub_org_legs["facet_result"] = _facets(999)
+    _get({"types": "organizations", "facets": "org_type", "ein": "123456789"})
+    assert stub_org_legs["facet"] == 0
+
+
+def test_unknown_cause_id_is_400_not_500():
+    r = _get({"types": "decisions", "cause_id": "not-a-real-cause"})
+    assert r.status_code == 400
+
+
+def test_count_organizations_honours_jurisdiction_id(monkeypatch):
+    search._count_cache.clear()
+    conn = _Conn(total=3)
+    _patch_pool(monkeypatch, conn)
+    asyncio.run(search.count_organizations(jurisdiction_id="j_1"))
+    sql, params = conn.calls[0]
+    assert "b.jurisdiction_id = $1" in sql and params == ("j_1",)
+
+
+def test_facet_timeout_is_negatively_cached(monkeypatch):
+    search._org_type_facet_cache.clear()
+    calls = {"n": 0}
+
+    class _Slow(_Conn):
+        async def fetchrow(self, sql, *params):
+            calls["n"] += 1
+            await asyncio.sleep(1)
+
+    _patch_pool(monkeypatch, _Slow())
+    monkeypatch.setattr(search, "ORG_TYPE_FACET_TIMEOUT_S", 0.01)
+    assert asyncio.run(search.count_organization_types(query="x")) is None
+    assert asyncio.run(search.count_organization_types(query="x")) is None
+    assert calls["n"] == 1

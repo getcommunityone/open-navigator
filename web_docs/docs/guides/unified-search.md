@@ -98,10 +98,19 @@ and living trusts from property records, so they name private persons (see AGENT
 "Privacy and data ethics").
 
 `facets=org_type` returns `org_type_totals` (one real count per sub-type for the same
-query and place scope, ignoring the `org_type` narrowing itself) and sets
-`type_totals.organizations` to the exact total for the selected sub-types. The facet is
-cached for an hour and time-boxed (`SEARCH_ORG_TYPE_FACET_TIMEOUT_S`, default 6s). When it
-times out it is omitted, and the UI shows no count rather than a guess.
+query and place scope, ignoring the `org_type` narrowing itself) and `organizations_total`
+(the exact total for the selected sub-types). `type_totals.organizations`, which drives
+the pager, is that exact total in browse mode (no `q`). With a text query it is clamped to
+`ORG_CANDIDATE_CAP` (2,000), the most rows the capped candidate scan can return, so every
+page the pager offers is reachable.
+
+The facet runs only when `organizations` survives the topic, cause and question narrowing,
+and never for an `ein` lookup. It is cached for an hour and time-boxed
+(`SEARCH_ORG_TYPE_FACET_TIMEOUT_S`, default 6s). On a timeout the facet is omitted, the
+timeout is cached for 5 minutes, and the UI shows no count rather than a guess.
+
+On `/search`, `?org_type=` is ignored (no chip, not sent) while the Organizations result
+type is unticked.
 
 ### Search categories in the UI
 

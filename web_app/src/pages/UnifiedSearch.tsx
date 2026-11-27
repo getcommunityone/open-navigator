@@ -468,7 +468,10 @@ function UnifiedSearchInner() {
   const [nteeCategory, setNteeCategory] = useState(() => searchParams.get('ntee') || '')
   // Organization sub-types (#1221), read straight from ?org_type= — the URL is the
   // authority for both the chip/tab label and the API query, so they can't drift.
-  const orgTypes = parseOrgTypes(searchParams.get('org_type'))
+  // Ignored (no chip, not sent) while the Organizations type itself is unticked,
+  // so the label never names a filter that applies to nothing on screen.
+  const orgTypesInUrl = parseOrgTypes(searchParams.get('org_type'))
+  const orgTypes = selectedTypes.includes('organizations') ? orgTypesInUrl : []
   const orgTypesKey = orgTypes.join(',')
   const setOrgTypes = (next: string[]) => {
     setCurrentPage(1)
@@ -794,8 +797,9 @@ function UnifiedSearchInner() {
     queryFn: async () => {
       if (!effectiveTab) return null
       const params: Record<string, unknown> = { ...buildSearchParams(), types: effectiveTab, limit: 20, page: currentPage }
-      // The org facet also returns the exact org total for the selected sub-types,
-      // so the pager reads the real count rather than the capped fetch (#1221).
+      // Org facet → exact org total, clamped server-side to the reachable candidate
+      // cap, for the pager (#1221). No extra cost: this call only starts once the
+      // tab-counts call (same facet) has returned, so the facet is already cached.
       if (effectiveTab === 'organizations') params.facets = 'org_type'
 
       // Trace the search data-load. Low-cardinality attributes only — query
