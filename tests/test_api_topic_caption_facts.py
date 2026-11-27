@@ -290,3 +290,13 @@ def test_split_counts_mixed_and_unsure_leans_only():
     """A label outside the question's choices (#1201) is never counted as split."""
     sql, _ = tcf.build_lean_sql(100002, None, None)
     assert "l.public_lean = 'mixed'" in sql and "public_lean_p, 0) < 0.7" in sql
+
+
+def test_nothing_read_is_zero_and_a_failed_read_is_null(get):
+    """#1200: a lean query that ran and found nothing is 0 ("no reading yet"); one that failed stays null."""
+    empty = [{"lean_meetings": 0, "public_against_meetings": 0, "public_against_states": 0, "public_for_meetings": 0,
+              "public_silent_meetings": 0, "public_split_meetings": 0, "disagreement_meetings": 0, "disagreement_states": 0}]
+    d = get(topic_conn(routes={"FROM topic_meeting_lean": empty}), "guns").json()
+    assert d["lean_meetings"] == 0 and d["public_against_meetings"] is None
+    d = get(topic_conn(fail=("topic_meeting_lean",)), "guns").json()
+    assert d["lean_meetings"] is None

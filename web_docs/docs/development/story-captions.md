@@ -152,17 +152,24 @@ available — for positions on each of our topics, and state the conclusion summ
   The denominator leaves out meetings where the public didn't speak: they hold no position. The basis line gives every
   count, larger first and no zeros: "AI reading of each meeting's transcript: of 1,203 meetings read nationwide, the
   public spoke in 221 (186 against the cameras, 19 for the cameras and 16 split). In 982 it didn't speak on it."
-- **(p2) `wider_position`.** A city or state below the floor takes the nearest broader scope with a conclusion, named,
-  as (a2) did: "America hates data centers: … (AI reading); Tuscaloosa, Alabama brought them up in 2 meetings."
-- **Too few.** Below the floor the earlier rules (a) to (e) run unchanged, and the line under the title says how far the
+- **(p2) `wider_position`.** It takes (a2)'s place: after the place's own (a) and (b), so counted speakers can still give
+  a place its own title ("Ohio hates data centers."), and before the volume rules. A city or state below the floor then
+  takes the nearest broader scope with a conclusion, named: "America hates data centers: … (AI reading); Tuscaloosa, Alabama brought them up in 2 meetings."
+- **Too few.** Below the floor the earlier rules run (with (p2) in (a2)'s place, since the against-only (a2) could
+  contradict a broader scope that is split), and the line under the title says how far the
   reading has got: "20 of 7,623 meetings have an AI reading so far; the public spoke on guns in 1, too few for a
-  conclusion." or "No meeting in Ohio has an AI reading of the public's position yet."
+  conclusion." or "No meeting in Ohio has an AI reading of the public's position yet." (only when the reading loaded
+  and found none: caption-facts sends `lean_meetings: 0` then, and null when the read failed, which adds no line).
+  Readings whose label is outside the question's choices (#1204) are said as such ("113 meetings more have a reading in
+  labels this page can't show yet."), never as "not read yet".
 - **Supersedes** "Only the confident 'against' reading is used" (#1125) for titles: the owner asked for for, against and
   neutral. The for and split readings are still unverified by hand check (2 of 4 right for data centers), so every title
   and basis says "AI reading". The national subhead of a "hates" conclusion keeps the story's own subhead.
 - **API.** caption-facts adds `public_split_meetings` and `public_silent_meetings` and fills `public_for_meetings` for
   data centers too; each `wider[]` entry adds the same three. state-map adds `silent_meetings` per state, and
   `no_side_meetings` is the split count above.
+- **Unit matrix.** `GET /api/data-centers/meeting-mentions` rows serve `ai_public_lean` with a lean under P 0.7 as `mixed`,
+  so the matrix's "By who spoke" groups match the title's split.
 - **Where the words show.** Topic map legend, hover line and data table (`StoryStatesMap`'s `positions` prop, with a
   "Public didn't speak on it" column), the Data Center Story's unit matrix "By who spoke" groups (`sideLabelsFor`), and
   the Overview, which states the same title.

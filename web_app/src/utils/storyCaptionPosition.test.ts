@@ -107,6 +107,34 @@ describe('pickCaption (p) position, in the topic words (#1200)', () => {
     )
   })
 
+  const NATIONAL_DC = { level: 'national' as const, state_code: null, state: null, lean_meetings: 900, public_against_meetings: 300, public_against_states: 30, public_for_meetings: 20, public_split_meetings: 20, public_silent_meetings: 560, disagreement_meetings: 0 }
+
+  it("a place's own counted-speaker title still beats the broader scope's conclusion (p2 sits where a2 did)", () => {
+    const f = facts({ against: 1, for: 0, split: 0, silent: 4 }, oh, { speakers: { for: 2, against: 12, question: 0, neutral: 0, states: 1 }, wider: [NATIONAL_DC] })
+    const c = pickCaption('data-centers', f, oh)
+    expect(c.kind).toBe('sentiment')
+    expect(captionText(c, 'data centers')).toBe('Ohio hates data centers.')
+  })
+
+  it('p2 never states a zero for a place where the public did not speak', () => {
+    const f = facts({ against: 0, for: 0, split: 0, silent: 5 }, oh, { wider: [NATIONAL_DC] })
+    const c = pickCaption('data-centers', f, oh)
+    expect(c.kind).toBe('wider_position')
+    expect(c.basis).toMatch(/Ohio has 5 meetings with an AI reading, and in none of them did the public speak on it\.$/)
+    expect(c.basis).not.toMatch(/\b0 /)
+  })
+
+  it('readings in off-list labels are not called "not read yet" in a conclusion basis (#1204)', () => {
+    const f = facts({ against: 40, for: 5, split: 5, silent: 100 }, nat, { meetings: 300, lean_meetings: 170 })
+    const c = pickCaption('pickleball', f, nat)
+    expect(c.basis).toMatch(/20 meetings more have a reading in labels this page can't show yet\. 130 meetings not read yet\./)
+  })
+
+  it('a failed reading (null) adds no "no reading yet" claim', () => {
+    const f = facts(null, oh)
+    expect(pickCaption('guns', f, oh).basis).not.toMatch(/AI reading/)
+  })
+
   it('an older API without split and silent keeps the earlier rules and adds no note', () => {
     const f = facts(null)
     delete (f as Partial<TopicCaptionFacts>).public_split_meetings

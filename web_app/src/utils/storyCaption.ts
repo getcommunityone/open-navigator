@@ -301,22 +301,24 @@ export function pickCaption(topicKey: string, facts: TopicCaptionFacts | null | 
         kind: 'position',
         template: positionTemplate(copy, words, v, { blank: true, national }),
         place,
-        basis: positionBasis(own, words, where2, dis),
+        basis: positionBasis(own, words, where2, dis, facts.lean_meetings),
         ai: true,
         verdict: v.kind === 'majority' ? v.side : 'split',
       }
     }
   }
-  // (p2) Too few (or none) of its own: the nearest broader scope with a conclusion, named.
-  const widerPos = national ? null : widerPosition(copy, words, facts, own, label, level)
-  if (widerPos) return widerPos
+  // (p2) Too few (or none) of its own: the nearest broader scope with a conclusion, named. It takes (a2)'s place, after
+  // the place's own (a) and (b) (counted speakers can still give a place its own title), and only with the new counts:
+  // the against-only (a2) would contradict a broader scope that is split.
+  const hasPositions = 'public_split_meetings' in facts
+  const widerFn = hasPositions ? () => (national ? null : widerPosition(copy, words, facts, own, label, level)) : null
   // Below the floor (or no reading): the rules below keep today's title; the line under it says how many meetings have a
   // reading so far (#1200).
   // An older API without the split and silent counts gets no note (it can't tell none from not sent).
-  const readingNote = hasTopicPositions(topicKey) && 'public_split_meetings' in facts ? readingSoFar(own, facts.meetings ?? null, copy.topic, where, facts.lean_meetings) : null
+  const readingNote = hasTopicPositions(topicKey) && hasPositions && facts.lean_meetings != null ? readingSoFar(own, facts.meetings ?? null, copy.topic, where, facts.lean_meetings) : null
   const withNote = (c: Caption): Caption =>
     readingNote && c.kind !== 'question' && !c.ai ? { ...c, basis: [c.basis, readingNote].filter(Boolean).join(' ') } : c
-  return withNote(pickLegacy(copy, topicKey, facts, scope, { national, level, label, place, where, sp, dis, question }))
+  return withNote(pickLegacy(copy, topicKey, facts, scope, { national, level, label, place, where, sp, dis, question, widerFn }))
 }
 
 interface LegacyCtx {
@@ -328,11 +330,13 @@ interface LegacyCtx {
   sp: TopicCaptionFacts['speakers']
   dis: number
   question: Caption
+  /** (p2) when the API sends the position counts (#1200); null: the older (a2). */
+  widerFn: (() => Caption | null) | null
 }
 
 /** Rules (a) to (e), unchanged since #1190: they run when the place has no conclusion from the AI reading. */
 function pickLegacy(copy: CaptionCopy, topicKey: string, facts: TopicCaptionFacts, scope: StoryScope, ctx: LegacyCtx): Caption {
-  const { national, level, label, place, where, sp, dis, question } = ctx
+  const { national, level, label, place, where, sp, dis, question, widerFn } = ctx
 
   // (a) "[Place] hates [topic]." / "In 81 meetings, the public mostly opposed [topic]." (#1190)
   const object = opposedObject(copy)
@@ -391,7 +395,8 @@ function pickLegacy(copy: CaptionCopy, topicKey: string, facts: TopicCaptionFact
   }
 
   // (a2) The place's own reading is too thin: the nearest broader scope whose reading passes (a), named (#1182).
-  const wider = stanceVerb ? widerSentiment(copy, facts, label, level, scope.stateName ?? null) : null
+  // (p2) replaces it when the API sends the position counts (#1200).
+  const wider = widerFn ? widerFn() : stanceVerb ? widerSentiment(copy, facts, label, level, scope.stateName ?? null) : null
   if (wider) return wider
 
   // (c) Volume with state differences.
@@ -459,7 +464,7 @@ function positionTemplate(copy: CaptionCopy, words: TopicPositions, v: Verdict, 
  * of 225 meetings read in California, the public spoke in 45: 30 were against the cameras, 6 for the cameras and 9 split.
  * In 180 it didn't speak on it."
  */
-function positionBasis(c: PositionCounts, words: TopicPositions, where: string, disagreement = 0): string {
+function positionBasis(c: PositionCounts, words: TopicPositions, where: string, disagreement = 0, leanMeetings?: number | null): string {
   const spoke = c.against + c.for + c.split
   const sides = countClauses(
     [
@@ -471,7 +476,10 @@ function positionBasis(c: PositionCounts, words: TopicPositions, where: string, 
   )
   const parts = [`AI reading of each meeting's transcript: of ${meetingsWord(c.read)} read ${where}, the public spoke in ${fmt(spoke)}${sides ? ` (${sides})` : ''}.`]
   if (c.silent > 0) parts.push(`In ${fmt(c.silent)} it didn't speak on it.`)
-  const unread = c.meetings != null ? c.meetings - c.read : 0
+  // Readings in labels outside the question's choices (#1204) were read, but count in none of the four.
+  const lean = Math.max(c.read, leanMeetings ?? c.read)
+  if (lean > c.read) parts.push(`${meetingsWord(lean - c.read)} more have a reading in labels this page can't show yet.`)
+  const unread = c.meetings != null ? c.meetings - lean : 0
   if (unread > 0) parts.push(`${meetingsWord(unread)} not read yet.`)
   if (disagreement > 0) parts.push(`Officials sided against the public in ${fmt(disagreement)}.`)
   return parts.join(' ')
@@ -518,15 +526,20 @@ function widerPosition(
     const last = claim[claim.length - 1]
     const trimmed = typeof last === 'string' ? [...claim.slice(0, -1), last.replace(/\.$/, '')] : claim
     const spoke = own ? own.against + own.for + own.split : 0
+    // The place's own reading as it is; never a zero (owner rule), and nothing when its read failed (null).
     const ownLine = !own
-      ? `${label} has no AI reading of its own yet.`
-      : `${label} has ${meetingsWord(own.read)} with an AI reading, the public speaking in ${fmt(spoke)}, under the ${fmt(HATES_MIN_MEETINGS[level])} a conclusion of its own needs.`
+      ? facts.lean_meetings === 0
+        ? `${label} has no AI reading of its own yet.`
+        : ''
+      : spoke === 0
+        ? `${label} has ${meetingsWord(own.read)} with an AI reading, and in none of them did the public speak on it.`
+        : `${label} has ${meetingsWord(own.read)} with an AI reading, the public speaking in ${fmt(spoke)}, under the ${fmt(HATES_MIN_MEETINGS[level])} a conclusion of its own needs.`
     return {
       kind: 'wider_position',
       template: [...trimmed, ...tail],
       place: label,
       widerPlace: name,
-      basis: `${positionBasis(c, words, w.level === 'national' ? 'nationwide' : `in ${name}`)} ${ownLine}`,
+      basis: `${positionBasis(c, words, w.level === 'national' ? 'nationwide' : `in ${name}`, 0, w.lean_meetings)}${ownLine ? ` ${ownLine}` : ''}`,
       ai: true,
       verdict: v.kind === 'majority' ? v.side : 'split',
     }

@@ -155,7 +155,7 @@ export function stanceLine(s: StanceCounts | undefined, unit: StanceUnit = 'spea
 
 /**
  * A state's AI reading in the topic's words (#1200): "AI reading of 45 meetings where the public spoke: 30 against the
- * cameras · 9 split · 6 for the cameras; in 180 more it didn't speak on it". Zero clauses are left out; null with no reading.
+ * cameras · 6 for the cameras · 9 split; in 180 more it didn't speak on it". Zero clauses are left out; null with no reading.
  */
 export function positionLine(s: StateStance | undefined, words: TopicPositions): string | null {
   const spoke = s ? speakersOf(s) : 0
@@ -272,6 +272,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const hasStance = stance != null
   const split = (stance ?? []).filter((s) => speakersOf(s) > 0)
   const speakersTotal = split.reduce((n, s) => n + speakersOf(s), 0)
+  const silentTotal = (stance ?? []).reduce((n, s) => n + Math.max(0, s.silent_meetings ?? 0), 0)
   const stateName = (code: string) => byState.find((s) => s.state_code === code)?.state ?? STATE_CODE_TO_NAME[code] ?? code
   const colorOf = (b: Box): string => {
     if (!b.code) return BOX_COLORS.none
@@ -467,12 +468,14 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           {byMeetings
             ? split.length > 0
               ? `Split by an AI reading of ${plural(speakersTotal, 'meeting', 'meetings')} in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
-              : 'No AI reading of these meetings yet; states show meetings only.'
+              : silentTotal > 0
+                ? `In the ${plural(silentTotal, 'meeting', 'meetings')} the AI read, the public didn't speak on it; states show meetings only.`
+                : 'No AI reading of these meetings yet; states show meetings only.'
             : split.length > 0
               ? `Split by ${plural(speakersTotal, 'speaker', 'speakers')} on record in ${plural(split.length, 'state', 'states')}; other states show meetings only.`
               : 'No speaker positions on record yet; states show meetings only.'}
           {hasLean || (byMeetings && split.length > 0) ? ' The AI reading is a classifier’s reading of each meeting’s transcript, not counted speakers.' : ''}
-          {words ? ` ${SPLIT_NOTE} Grey: ${MISSING_LEGEND.charAt(0).toLowerCase()}${MISSING_LEGEND.slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
+          {words ? `${split.length > 0 ? ` ${SPLIT_NOTE}` : ''} Grey: ${MISSING_LEGEND.charAt(0).toLowerCase()}${MISSING_LEGEND.slice(1)}.${words.forMeans ? ` ${words.forMeans}.` : ''}` : ''}
         </p>
         )}
 
@@ -491,7 +494,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                         {words ? (k === 'neutral' || k === 'question' ? words.split : words[k]) : (byMeetings ? AI_STANCE_LABEL : STANCE_LABEL)[k]}
                       </th>
                     ))}
-                  {words && <th scope="col" className="py-1 pr-2">{words.silent}</th>}
+                  {hasStance && words && <th scope="col" className="py-1 pr-2">{words.silent}</th>}
                   {hasLean && (
                     <>
                       {!byMeetings && <th scope="col" className="py-1 pr-2">AI: public mostly opposed</th>}
@@ -515,7 +518,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
                           {r.st && (speakersOf(r.st) > 0 || (r.st.meetings ?? 1) > 0) ? fmt(stanceCount(r.st, k)) : '—'}
                         </td>
                       ))}
-                    {words && <td className="py-1 pr-2">{r.st ? fmt(Math.max(0, r.st.silent_meetings ?? 0)) : '—'}</td>}
+                    {hasStance && words && <td className="py-1 pr-2">{r.st ? fmt(Math.max(0, r.st.silent_meetings ?? 0)) : '—'}</td>}
                     {hasLean && (
                       <>
                         {!byMeetings && <td className="py-1 pr-2">{fmt(r.st?.public_against_meetings ?? 0)}</td>}

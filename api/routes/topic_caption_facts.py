@@ -402,6 +402,9 @@ async def topic_caption_facts(
     lean: dict[str, Any] = {}
     if lean_rows:
         r = dict(lean_rows[0])
+        if int(r.get("lean_meetings") or 0) == 0:
+            # Read fine, nothing read yet (#1200): 0, so the page can say "no reading yet". A failed read stays null.
+            lean = {"lean_meetings": 0}
         if int(r.get("lean_meetings") or 0) > 0:
             lean = {
                 "lean_meetings": int(r["lean_meetings"]),
