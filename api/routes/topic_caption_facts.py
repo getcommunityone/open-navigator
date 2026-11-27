@@ -72,6 +72,18 @@ class CaptionSpeakers(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class CaptionWiderLean(BaseModel):
+    """One broader scope's AI reading (#1182), so a place too thin for its own reading can name the scope the map colours."""
+
+    level: str = Field(..., description="state or national.")
+    state_code: str | None = None
+    state: str | None = None
+    lean_meetings: int
+    public_against_meetings: int
+    public_against_states: int
+    disagreement_meetings: int
+
+
 class TopicCaptionFacts(BaseModel):
     topic: str = Field(..., description="The topic's query slug.")
     topic_id: int
@@ -105,6 +117,13 @@ class TopicCaptionFacts(BaseModel):
         None, description="AI reading: meetings where officials sided against the public. Null when not loaded."
     )
     disagreement_states: int | None = Field(None, description="States with at least one disagreement meeting in scope.")
+    wider: list[CaptionWiderLean] | None = Field(
+        None,
+        description=(
+            "AI readings for the broader scopes (#1182): city scope [state, national], state scope [national], national "
+            "null. A scope with no reading loaded is left out."
+        ),
+    )
 
 
 RESOLVE_SQL = (
@@ -202,6 +221,35 @@ async def _optional(conn: Any, what: str, sql: str, *params: Any) -> list[Any] |
         return None
 
 
+def wider_scopes(state_code: str | None, city_like: str | None) -> list[tuple[str, str | None]]:
+    """The broader scopes to read for a fallback, nearest first: (level, state_code)."""
+    if not state_code:
+        return []
+    out: list[tuple[str, str | None]] = []
+    if city_like:
+        out.append(("state", state_code))
+    out.append(("national", None))
+    return out
+
+
+def wider_lean(level: str, state_code: str | None, state: str | None, row: Any) -> CaptionWiderLean | None:
+    """A broader scope's reading from one lean-count row, or None when no meeting there has a reading."""
+    if not row:
+        return None
+    r = dict(row)
+    if int(r.get("lean_meetings") or 0) <= 0:
+        return None
+    return CaptionWiderLean(
+        level=level,
+        state_code=state_code,
+        state=state,
+        lean_meetings=int(r["lean_meetings"]),
+        public_against_meetings=int(r.get("public_against_meetings") or 0),
+        public_against_states=int(r.get("public_against_states") or 0),
+        disagreement_meetings=int(r.get("disagreement_meetings") or 0),
+    )
+
+
 def pick_place(places: list[CaptionPlaceCount], city: str) -> CaptionPlaceCount | None:
     """The place a city names: an exact (case-insensitive) name first, else the busiest name containing it."""
     c = city.lower()
@@ -259,6 +307,10 @@ async def topic_caption_facts(
                 )
                 lean_sql, lean_params = build_lean_sql(topic_id, state_code, city_like)
                 lean_rows = await _optional(conn, "meeting lean", lean_sql, *lean_params)
+                wider_rows: list[tuple[str, str | None, list[Any] | None]] = []
+                for w_level, w_state in wider_scopes(state_code, city_like):
+                    w_sql, w_params = build_lean_sql(topic_id, w_state, None)
+                    wider_rows.append((w_level, w_state, await _optional(conn, f"{w_level} lean", w_sql, *w_params)))
         except HTTPException:
             raise
         except Exception as exc:
@@ -323,6 +375,14 @@ async def topic_caption_facts(
                 "disagreement_states": int(r["disagreement_states"] or 0),
             }
 
+    wider: list[CaptionWiderLean] | None = None
+    if wider_rows:
+        wider = [
+            w
+            for lvl, code, rows in wider_rows
+            if (w := wider_lean(lvl, code, state_name if code else None, rows[0] if rows else None))
+        ]
+
     return TopicCaptionFacts(
         topic=query_id,
         topic_id=topic_id,
@@ -339,5 +399,6 @@ async def topic_caption_facts(
         place=place,
         places=places,
         speakers=speakers,
+        wider=wider,
         **lean,
     )

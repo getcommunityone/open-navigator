@@ -5,7 +5,8 @@ import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../
 import { STORIES, scopeQuery, storyScopeLabel } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { fetchTopicCaptionFacts } from '../../api/topics'
-import { CAPTION_COPY, captionSubhead, captionText, pickCaption } from '../../utils/storyCaption'
+import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
+import '../../styles/story-actions.css'
 import HomeTopicStrip, { type HomeStoryKey } from './HomeTopicStrip'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
 import { useTopicStories } from '../../hooks/useTopicStories'
@@ -56,6 +57,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
   const pending = dcFacts.isPending
   const dcCaption = pickCaption('data-centers', dcFacts.data, scope)
   const dcSubhead = captionSubhead(dcCaption, 'data-centers', scope)
+  const dcTitle = dcCaption.kind === 'question' ? STORY.question : captionText(dcCaption, CAPTION_COPY['data-centers']!.topic)
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
@@ -157,8 +159,8 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
           <div className="home-story-text">
             <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
             {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}
-            <h1 id="home-story-dc" className="font-display home-story-headline" aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
-              {dcCaption.kind === 'question' ? STORY.question : captionText(dcCaption, CAPTION_COPY['data-centers']!.topic)}
+            <h1 id="home-story-dc" className={`font-display home-story-headline${isLongTitle(dcTitle) ? ' is-long' : ''}`} aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
+              {dcTitle}
             </h1>
             {/* The subhead speaks only for the caption's scope (#1134): never a national claim on a place's page. */}
             {!pending && dcSubhead && <p className="home-story-subhead">{dcSubhead}</p>}
@@ -170,7 +172,7 @@ export default function HomeDataStories({ stateCode, city = null }: Props) {
             {/* Next steps first (#1176): Start, Next story and the drill-down hint sit in the first screen. */}
             <div className="home-story-actions">
               <Link to={`/stories/data-centers${q}`} className="home-story-start">
-                Start the story{label === 'National' ? '' : ` for ${label}`} <span aria-hidden="true">→</span>
+                {storyStartLabel('data-centers', label)} <span aria-hidden="true">→</span>
               </Link>
               <Link to={nextDc.href} className="home-story-next">
                 {nextDc.label} <span aria-hidden="true">→</span>

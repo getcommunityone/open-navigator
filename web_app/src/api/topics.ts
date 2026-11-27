@@ -182,6 +182,22 @@ export interface TopicCaptionFacts {
   public_for_meetings: number | null
   disagreement_meetings: number | null
   disagreement_states: number | null
+  /**
+   * The broader scopes' AI readings (#1182): for a city `[state, national]`, for a state `[national]`, nationally null.
+   * An entry is left out when no reading is loaded for it. Absent on older servers.
+   */
+  wider?: CaptionWiderLean[] | null
+}
+
+/** One broader scope's AI reading (Jev) for the caption's fallback (#1182). */
+export interface CaptionWiderLean {
+  level: 'state' | 'national'
+  state_code: string | null
+  state: string | null
+  lean_meetings: number
+  public_against_meetings: number
+  public_against_states: number
+  disagreement_meetings: number
 }
 
 /** `GET /api/topics/{topic}/caption-facts?state=&city=` (#1125). */

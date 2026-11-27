@@ -41,9 +41,38 @@ shows no basis) is prefixed **AI reading**.
 a count of confident against-meetings, not a share of meetings read.
 
 **"Hates" only where "against" has one direction.** For data centers, Flock and plate readers, and pickleball, a public
-against is against the thing. For guns, short-term rentals and fluoridation the public can be against the thing or against
-limits on it, so (a) is skipped for them; (b) still applies, because officials and the public disagreeing needs no
-direction.
+against is against the thing. ~~For guns, short-term rentals and fluoridation the public can be against the thing or
+against limits on it, so (a) is skipped for them~~ (superseded 26 Nov 2026, #1182, below); (b) still applies, because
+officials and the public disagreeing needs no direction.
+
+## Decision: the title says what the map shows (#1182)
+
+The owner (26 Nov 2026): "Say what the map says". At `?state=AL&city=Tuscaloosa` the home title read "Tuscaloosa, Alabama
+talked about data centers in 2 meetings." beside an almost all red national map (public leaned against, AI reading).
+
+- **(a2) `wider_sentiment`.** When the place's own reading fails (a) and (b), the picker tries the broader scopes in
+  `facts.wider` (city: the state, then the country; state: the country) and takes the first whose confident
+  public-against meetings pass (a) at that scope's floor (10 state, 50 national). The title names that scope as text and
+  keeps the place as its blank: "America hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings." With no
+  meetings in the place the tail is "has none on record yet". The basis gives the broader count and says the place "has
+  too few AI-read meetings for a reading of its own"; the subhead names only the broader scope's lean. It is an AI
+  reading (`ai: true`). It runs after the place's own (a) and (b) and before (c), because (c) and (d) describe volume
+  while the map beside the title is coloured by lean.
+- **"Leaned against" for the other topics.** `topic_meeting_lean` (#1126) fixes which way "for" points for each topic
+  (allowing short-term rentals, keeping fluoride, building lanes; for guns, the proposal before the body), so a confident
+  "against" now has a stated direction. Those topics get (a) with "leaned against" (`CaptionCopy.against`) on the same
+  thresholds, never "hates"; guns reads "leaned against what was proposed on guns". When (b) also passes for such a topic,
+  "is divided" leads, as before.
+- **API.** `GET /api/topics/{topic}/caption-facts` adds `wider` (`CaptionWiderLean[]`: `level`, `state_code`, `state`,
+  `lean_meetings`, `public_against_meetings`, `public_against_states`, `disagreement_meetings`), read with the same lean
+  SQL at the broader scope; a scope with no reading loaded is left out, and national scope has `wider: null`.
+- **Start button.** `storyStartLabel(topic, label)` names the topic and the place: "Start the data center story for
+  Tuscaloosa, Alabama", "Start the Flock and license plate readers story" nationally.
+
+Titles on 26 Nov 2026 (local warehouse): national data centers "America hates data centers." (283); Flock and license
+plate readers "America hates Flock and license plate readers." (186 confident public-against meetings, over the floor of
+50 since the #1126 run); water fluoridation "America leaned against water fluoridation." (81); Alabama "America hates
+data centers; Alabama brought them up in 71 meetings." (Alabama 6, under 10); Tuscaloosa as above.
 
 **No zero clauses.** No title or basis states a zero ("0 spoke for"): a zero clause is left out (owner rule).
 

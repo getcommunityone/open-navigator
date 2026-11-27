@@ -102,7 +102,17 @@ caption picker (`web_app/src/utils/storyCaption.ts`) reads `GET /api/topics/{top
 and tries, in order:
 1. **"[America] hates [data centers]."** when the public was read as confidently against in enough meetings (an AI
    reading: at least 50 nationally, 10 in a state, 3 in one place) or the counted speakers pass the headline's gate
-   (against at least twice for, at least 10 speakers). Only for topics where "against" has one direction.
+   (against at least twice for, at least 10 speakers). "Hates" is only for data centers, Flock and license plate readers,
+   and pickleball; every other topic says **"[America] leaned against [water fluoridation]."** on the same counts (guns:
+   "leaned against what was proposed on guns", since "for" there means for the proposal before the body), and leads
+   with "is divided" instead when that passes too ([#1182](https://github.com/getcommunityone/open-navigator/issues/1182)).
+1a. **The broader scope the map colours** ([#1182](https://github.com/getcommunityone/open-navigator/issues/1182)). When the
+   place's own AI reading is too thin for rule 1, the title says what the map beside it shows: the nearest broader scope
+   whose reading passes rule 1 (the state, then the country), named, with the place's own count after it. At
+   `?state=AL&city=Tuscaloosa` the home title reads **"America hates data centers; Tuscaloosa, Alabama brought them up in
+   2 meetings."** (Tuscaloosa has no confident public-against meeting and Alabama 6, under the state floor of 10), and the
+   basis says "Tuscaloosa, Alabama has too few AI-read meetings for a reading of its own." A state or national claim is
+   never put under a city label without naming its scope. The broader readings come from `wider` on caption-facts.
 2. **"[America] is divided on [data centers]."** when officials sided against the public in at least 10 meetings (an AI
    reading; the basis says "In 23 meetings across 10 states, officials backed data centers while the public pushed back
    (AI reading).") or counted speakers split with both sides substantial.
@@ -117,12 +127,30 @@ and tries, in order:
 The home story card uses the same title. No title or basis line ever states a zero.
 
 The home story card fits one laptop screen ([#1176](https://github.com/getcommunityone/open-navigator/issues/1176)). Its
-title is at most about 46px (three or four lines beside the map), and right under the subhead and basis line come
-**Start the story** and **Next story: [title] →** (the same `nextStoryLink` as the end of a story, carrying the place),
+title is at most about 46px (three or four lines beside the map; a two-clause title over 60 characters is set at about
+36px), and right under the subhead and basis line come the topic-named **Start the [data center] story for [place] →**
+(national: no place; `storyStartLabel` in `storyCaption.ts`, [#1182](https://github.com/getcommunityone/open-navigator/issues/1182))
+and **Next story: [title] →** (the same `nextStoryLink` as the end of a story, carrying the place),
 then a line naming the scope in effect, "Showing Tuscaloosa, Alabama. Pick a state on the map to open its story.". Every
 topic card has Next story, not only data centers. On the data-center card the three numbered points follow the buttons.
 The map is capped at 60% of the screen height so it never pushes the card below the fold. At 1366×768 the buttons and
 the scope line are in view for the national and a city scope, and on a phone the buttons stack full width.
+
+**The same two buttons open every story** ([#1182](https://github.com/getcommunityone/open-navigator/issues/1182)). The
+stories hub's button names its topic too. A topic story (`/stories/guns`) shows, under its title (now about 36px) and
+lede, **Start the guns story →**, which scrolls to the story's first section (the map), and **Next story: [title] →**,
+carrying `?state=&city=`. On the Data Center Story the subhead, basis line, both buttons and the numbered points are
+the story's opening screen, under the sticky title and progress bar and in normal flow, so they scroll away and the
+sticky bar shrinks to the title and progress on every later screen; **Start** goes to the Overview. The buttons share
+`web_app/src/styles/story-actions.css` (`.home-story-actions`, `.home-story-start`, `.home-story-next`); on the story
+pages the folio house style squares their corners. A topic card on the home page now draws its map from the AI reading
+of meetings (the topic story's four-colour split) whenever a reading exists, so a lean title and the map beside it agree;
+with no reading yet it stays the plain meetings map.
+
+On phones (640px and narrower) the data-center home card leaves out its three numbered points (owner, 26 Nov 2026,
+[#1182](https://github.com/getcommunityone/open-navigator/issues/1182)): the title, subhead, basis line, the topic-named
+Start button and Next story are the whole first screen. Nothing else on the phone card states the points' counts; they
+stay on desktop and in the story itself.
 A small line under the title gives the numbers behind it, and says when coverage varies by state. Every number is a real
 count for the scope; missing data falls through to the next rule. Thresholds and the reasons for them:
 [Story captions](../development/story-captions.md).

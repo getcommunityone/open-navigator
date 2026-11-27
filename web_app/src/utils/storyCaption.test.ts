@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TopicCaptionFacts } from '../api/topics'
 import type { StoryScope } from './dataStory'
-import { CAPTION_COPY, DISAGREEMENT_MIN_MEETINGS, HATES_MIN_MEETINGS, captionSubhead, captionText, pickCaption, type Caption } from './storyCaption'
+import { CAPTION_COPY, DISAGREEMENT_MIN_MEETINGS, HATES_MIN_MEETINGS, captionSubhead, captionText, pickCaption, storyStartLabel, type Caption } from './storyCaption'
 
 // Test stand-ins: shapes of the caption-facts response, not warehouse figures.
 const nat: StoryScope = { stateName: null, city: null }
@@ -82,9 +82,8 @@ describe('pickCaption (a) hates', () => {
     expect(c.basis).not.toMatch(ZERO)
   })
 
-  it('ignores the unreliable "for" readings and skips topics where "against" has no clear direction', () => {
+  it('ignores the unreliable "for" readings; "hates" only for data centers, Flock / plate readers and pickleball', () => {
     expect(pickCaption('data-centers', facts({ public_for_meetings: 500 }), nat).kind).not.toBe('sentiment')
-    expect(pickCaption('guns', facts({ public_against_meetings: 400 }), nat).kind).not.toBe('sentiment')
     expect(captionText(pickCaption('pickleball', facts({ public_against_meetings: 60 }), nat), 'pickleball')).toBe('America hates pickleball.')
   })
 })
@@ -231,5 +230,71 @@ describe('captionSubhead', () => {
       "At local meetings in Alabama, the public and officials don't always land on the same side of data centers.",
     )
     expect(captionSubhead(cap('question'), 'data-centers', al)).toBeNull()
+  })
+})
+
+describe('the title says what the map shows (#1182)', () => {
+  const tus: StoryScope = { stateCode: 'AL', stateName: 'Alabama', city: 'Tuscaloosa' }
+  const al: StoryScope = { stateCode: 'AL', stateName: 'Alabama', city: null }
+  const NATIONAL_RED = { level: 'national' as const, state_code: null, state: null, lean_meetings: 1828, public_against_meetings: 283, public_against_states: 32, disagreement_meetings: 23 }
+  const STATE_THIN = { level: 'state' as const, state_code: 'AL', state: 'Alabama', lean_meetings: 71, public_against_meetings: 6, public_against_states: 1, disagreement_meetings: 0 }
+  const STATE_RED = { ...STATE_THIN, public_against_meetings: 12 }
+
+  it('a national red map: "America hates data centers."', () => {
+    const c = pickCaption('data-centers', facts({ lean_meetings: 1828, public_against_meetings: 283, public_against_states: 32 }), nat)
+    expect(captionText(c, 'data centers')).toBe('America hates data centers.')
+  })
+
+  it('a city with thin readings in a red state names the state, never a bare city claim', () => {
+    const c = pickCaption('data-centers', facts({ meetings: 2, lean_meetings: 2, public_against_meetings: 0, wider: [STATE_RED, NATIONAL_RED] }, tus), tus)
+    expect(c.kind).toBe('wider_sentiment')
+    expect(c.widerPlace).toBe('Alabama')
+    expect(captionText(c, 'data centers')).toBe('Alabama hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings.')
+    expect(c.ai).toBe(true)
+    expect(c.basis).toBe(
+      'In 12 meetings in Alabama, Jev (an AI classifier) read the public as mostly against data centers (AI reading). Tuscaloosa, Alabama has too few AI-read meetings for a reading of its own.',
+    )
+    expect(c.basis).not.toMatch(ZERO)
+    // The place blank stays the scope's own place, so the label and the place picker still name Tuscaloosa.
+    expect(c.place).toBe('Tuscaloosa, Alabama')
+  })
+
+  it('a thin state too: falls back to the country the map colours (Tuscaloosa, 26 Nov 2026 shape)', () => {
+    const c = pickCaption('data-centers', facts({ meetings: 2, lean_meetings: 2, public_against_meetings: 0, wider: [STATE_THIN, NATIONAL_RED] }, tus), tus)
+    expect(captionText(c, 'data centers')).toBe('America hates data centers; Tuscaloosa, Alabama brought them up in 2 meetings.')
+    expect(c.basis).toMatch(/^In 283 meetings across 32 states, /)
+    expect(captionSubhead(c, 'data-centers', tus)).toBe(
+      'Across America, the public has mostly spoken against data centers at local meetings.',
+    )
+    const s = pickCaption('data-centers', facts({ meetings: 71, lean_meetings: 71, public_against_meetings: 6, wider: [NATIONAL_RED] }, al), al)
+    expect(captionText(s, 'data centers')).toBe('America hates data centers; Alabama brought them up in 71 meetings.')
+  })
+
+  it("the place's own reading still wins when it passes", () => {
+    const c = pickCaption('data-centers', facts({ public_against_meetings: 3, wider: [STATE_RED, NATIONAL_RED] }, tus), tus)
+    expect(captionText(c, 'data centers')).toBe('Tuscaloosa, Alabama hates data centers.')
+  })
+
+  it('no broader reading passes: the place keeps its own volume title', () => {
+    const c = pickCaption('data-centers', facts({ meetings: 2, public_against_meetings: 0, wider: [STATE_THIN] }, tus), tus)
+    expect(c.kind).toBe('volume')
+  })
+
+  it('a topic not allowed "hates" says "leaned against"', () => {
+    const c = pickCaption('water-fluoridation', facts({ lean_meetings: 526, public_against_meetings: 81, public_against_states: 19 }), nat)
+    expect(captionText(c, 'water fluoridation')).toBe('America leaned against water fluoridation.')
+    expect(captionText(c, 'water fluoridation')).not.toMatch(/hates/)
+    const g = pickCaption('guns', facts({ public_against_meetings: 400 }), nat)
+    expect(captionText(g, 'guns')).toBe('America leaned against what was proposed on guns.')
+    const w = pickCaption('short-term-rentals', facts({ meetings: 40, public_against_meetings: 1, wider: [{ ...NATIONAL_RED, public_against_meetings: 60 }] }, fl), fl)
+    expect(captionText(w, 'short-term rentals')).toBe('America leaned against short-term rentals; Florida brought them up in 40 meetings.')
+  })
+})
+
+describe('storyStartLabel (#1182)', () => {
+  it('names the topic, and the place unless national', () => {
+    expect(storyStartLabel('data-centers', 'Tuscaloosa, Alabama')).toBe('Start the data center story for Tuscaloosa, Alabama')
+    expect(storyStartLabel('license-plate-readers', 'National')).toBe('Start the Flock and license plate readers story')
+    expect(storyStartLabel('homelessness', 'Georgia', 'Homelessness and shelters')).toBe('Start the homelessness and shelters story for Georgia')
   })
 })

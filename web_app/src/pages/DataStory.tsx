@@ -35,7 +35,8 @@ import {
 import { fetchDataCenterPositions, type DataCenterPositionsResponse } from '../api/dataCenters'
 import { storyHeroPoints } from '../utils/heroPoints'
 import { fetchTopicCaptionFacts } from '../api/topics'
-import { captionSubhead, captionText, pickCaption } from '../utils/storyCaption'
+import { captionSubhead, captionText, pickCaption, storyStartLabel } from '../utils/storyCaption'
+import '../styles/story-actions.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import { NUDGE_ENTRANCE_MS } from '../utils/idleNudge'
 import { SOUND_EVENT, createSoundBoard } from '../utils/stanceSound'
@@ -529,20 +530,6 @@ export default function DataStory() {
               },
             ]}
           />
-          {subhead && <p className="stance-title-subhead">{subhead}</p>}
-          {title.basis && <p className="stance-title-basis">{title.basis}</p>}
-          {points.length > 0 && (
-            <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
-              {points.map((pt) => (
-                <li key={pt.icon}>
-                  <span className="stance-title-point-n">{pt.n}</span>
-                  <span>
-                    <strong>{pt.title}</strong> {pt.line}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
           </>
         }
         stateCode={stateCode}
@@ -563,6 +550,33 @@ export default function DataStory() {
         onPlaceOpenChange={setPlaceOpen}
         onApply={applyPlace}
       />
+      {/* The opening (#1182): subhead, basis, the two story buttons and the points, in the first screen and in normal flow,
+          so they scroll away and the sticky bar above stays the title and the progress only. It is the story's cover
+          (data-cover): a hold at the top of the page, so snapping and the wheel limit never pull the reader past it. */}
+      <div className="stance-intro" data-cover>
+        {subhead && <p className="stance-title-subhead">{subhead}</p>}
+        {title.basis && <p className="stance-title-basis">{title.basis}</p>}
+        <div className="home-story-actions">
+          <button type="button" className="home-story-start" onClick={() => goTo(0)}>
+            {storyStartLabel(storyId, label)} <span aria-hidden="true">→</span>
+          </button>
+          <Link to={onward.href} className="home-story-next">
+            {onward.label} <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        {points.length > 0 && (
+          <ol className="stance-title-points" aria-label={scope.stateName ? `What the record shows for ${label}` : 'What the record shows, nationally'}>
+            {points.map((pt) => (
+              <li key={pt.icon}>
+                <span className="stance-title-point-n">{pt.n}</span>
+                <span>
+                  <strong>{pt.title}</strong> {pt.line}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
       <p className="folio-sr-only" aria-live="polite">
         {screens[active] ? `${screens[active]!.eyebrow}. ${texts[active]!.headline}` : ''}
       </p>

@@ -1,9 +1,11 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { fetchTopicCaptionFacts, fetchTopicStates } from '../../api/topics'
+import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '../../api/topics'
+import { topicStanceForMap } from '../../utils/topicStance'
 import type { StoryScope } from '../../utils/dataStory'
-import { CAPTION_COPY, captionText, pickCaption } from '../../utils/storyCaption'
+import { CAPTION_COPY, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
+import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 
@@ -37,6 +39,16 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
     staleTime: 5 * 60_000,
     retry: 1,
   })
+  // The AI reading of each state's meetings (#1127, #1182), the same four-colour split as the topic story's map, so the
+  // title's lean claim and the map beside it say the same thing. No reading yet, or a failed request, leaves the plain
+  // meetings map.
+  const stanceQ = useQuery({
+    queryKey: ['topic-story', def.topicId, 'state-map'],
+    queryFn: () => fetchTopicStanceMap(def.topicId),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const stance = useMemo(() => topicStanceForMap(stanceQ.data), [stanceQ.data])
   const quotes = useMemo(() => {
     const out = new Map<string, StateQuote[]>()
     for (const m of states.data?.newest ?? []) {
@@ -57,6 +69,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
   }, [states.data])
   const caption = pickCaption(def.slug, facts.data, scope)
   const topicNoun = CAPTION_COPY[def.slug]?.topic ?? def.subject.toLowerCase()
+  const title = captionText(caption, topicNoun)
   const href = `/stories/${encodeURIComponent(def.slug)}${query}`
 
   return (
@@ -65,11 +78,11 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
         <p className="font-mono-x home-story-eyebrow">Data story · {def.title}</p>
         <h1
           id="home-story-dc"
-          className="font-display home-story-headline"
+          className={`font-display home-story-headline${isLongTitle(title) ? ' is-long' : ''}`}
           aria-busy={facts.isPending || undefined}
           style={facts.isPending ? { visibility: 'hidden' } : undefined}
         >
-          {captionText(caption, topicNoun)}
+          {title}
         </h1>
         <p className="home-story-subhead">{def.lede}</p>
         <p className="home-story-basis">
@@ -77,7 +90,7 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
         </p>
         <div className="home-story-actions">
           <Link to={href} className="home-story-start">
-            Start the story{label === 'National' ? '' : ` for ${label}`} <span aria-hidden="true">→</span>
+            {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
           </Link>
           <Link to={next.href} className="home-story-next">
             {next.label} <span aria-hidden="true">→</span>
@@ -95,6 +108,8 @@ export default function HomeTopicStoryCard({ def, scope, query, label, next }: P
             highlight={scope.stateCode ?? null}
             href={(code) => `/stories/${encodeURIComponent(def.slug)}?state=${encodeURIComponent(code)}`}
             subject={topicNoun.toLowerCase()}
+            stance={stance && stance.length > 0 ? stance : undefined}
+            stanceUnit="meetings"
           />
         )}
       </div>

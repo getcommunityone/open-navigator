@@ -1,0 +1,23 @@
+/* The story buttons (#1176, #1182): the topic-named Start and "Next story", shared by the home story card, the stories
+   hub, the topic stories (/stories/<topic>) and the Data Center Story, so every story opens with the same two buttons.
+   Element-qualified so a page theme's link colour (folio) never repaints them. */
+.home-story-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: stretch; }
+a.home-story-start, button.home-story-start {
+  display: inline-block; max-width: 100%; box-sizing: border-box; white-space: normal; text-align: center;
+  background: #0f766e; color: #fff; border: 0; border-radius: 999px; padding: 12px 24px;
+  font: inherit; font-size: 16px; font-weight: 700; line-height: 1.3; text-decoration: none; cursor: pointer;
+}
+a.home-story-start:hover, button.home-story-start:hover { background: #115e59; color: #fff; }
+a.home-story-next {
+  display: inline-block; max-width: 100%; box-sizing: border-box; white-space: normal; text-align: center;
+  border: 1.5px solid #0f766e; color: #0f766e; background: #fff; border-radius: 999px; padding: 11px 22px;
+  font-size: 16px; font-weight: 700; line-height: 1.3; text-decoration: none;
+}
+a.home-story-next:hover { background: #f0fdfa; color: #0f766e; }
+a.home-story-start:focus-visible, button.home-story-start:focus-visible, a.home-story-next:focus-visible {
+  outline: 3px solid #0f766e; outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .home-story-actions { flex-direction: column; }
+  .home-story-actions > a, .home-story-actions > button { display: block; width: 100%; }
+}
