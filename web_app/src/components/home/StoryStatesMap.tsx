@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 // The state's story plays its drill-down transition on arrival, from the national layout (#1195).
 import { DRILL_FROM_NATIONAL } from '../stance/drillState'
 import { useQuery } from '@tanstack/react-query'
@@ -23,6 +23,7 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { isTouchOnly } from '../../utils/touchOnly'
+import { isCurrentPage } from '../../utils/currentPage'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type StanceCounts } from '../../utils/boxSplit'
 import { MISSING_LEGEND, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
@@ -200,6 +201,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const words = byMeetings ? positions : undefined
   const lineOf = (st: StateStance | undefined) => (words ? positionLine(st, words) : stanceLine(st, stanceUnit))
   const navigate = useNavigate()
+  const location = useLocation()
   const [hover, setHover] = useState<number | null>(null)
   const touch = isTouchOnly()
   const { data: topo, isError } = useQuery({
@@ -263,7 +265,9 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       const st = lineOf(stanceBy.get(code))
       return `${n?.state ?? STATE_CODE_TO_NAME[code] ?? code}: ${plural(n?.meetings ?? 0, 'meeting', 'meetings')}${st ? `; ${st}` : ''}.`
     },
-    onActivate: (code) => navigate(href(code), { state: DRILL_FROM_NATIONAL }),
+    onActivate: (code) => {
+      if (!isCurrentPage(href(code), location.pathname, location.search)) navigate(href(code), { state: DRILL_FROM_NATIONAL })
+    },
   })
 
   if (isError) return <p className="text-sm text-stone-500">The map could not be loaded.</p>
@@ -309,6 +313,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     else if (pool.length) quote = pool[shown.rank % pool.length]
   }
   const shownStance = shownCode ? lineOf(stanceBy.get(shownCode)) : null
+  // The card's state is the page the reader is on: no button to it, and the caption says so.
+  const shownIsHere = shownCode ? isCurrentPage(href(shownCode), location.pathname, location.search) : false
   // The words for a state with meetings and no reading: the topic's "No AI reading yet" (#1200).
   const noReading = words ? words.unread.charAt(0).toLowerCase() + words.unread.slice(1) : 'no AI reading yet'
   const shownMeetings = shownCode ? meetings.get(shownCode) ?? 0 : 0
@@ -335,8 +341,15 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const onBox = (i: number) => {
     const b = boxes[i]
     if (!b?.code) return
-    // One tap or click opens the state's story (#1120): on a phone there is no hover, so a first tap that only showed
-    // the card read as a drill-down that didn't work.
+    // On a phone (no hover) the first tap on a state with a card shows that state's card, whose "Open the … story" button
+    // is the way in (#1187); before, the tap navigated at once while the card still showed the page's own state, so its
+    // button led nowhere. A state with no card, or a second tap on the state shown, opens the story directly (#1120).
+    if (touch && b.code !== shownCode && (quotes?.get(b.code)?.length ?? 0) > 0) {
+      setHover(i)
+      return
+    }
+    setHover(i)
+    if (isCurrentPage(href(b.code), location.pathname, location.search)) return
     navigate(href(b.code), { state: DRILL_FROM_NATIONAL })
   }
 
@@ -400,36 +413,43 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           {shownLean && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#57534e' }}>{shownLean}</p>}
           {/* A real button, not a caption (#1187): the way into the state's story, on desktop and phones alike. Inline
               styles so it looks the same on the home page and on topic stories (outside .v9). */}
-          <Link
-            to={href(shownCode)}
-            state={DRILL_FROM_NATIONAL}
-            className="home-map-card-open"
-            style={{
-              display: 'block',
-              margin: '12px 0 0',
-              padding: '12px 16px',
-              minHeight: 44,
-              boxSizing: 'border-box',
-              borderRadius: 999,
-              background: '#0f766e',
-              color: '#fff',
-              fontSize: 15,
-              fontWeight: 700,
-              lineHeight: 1.3,
-              textAlign: 'center',
-              textDecoration: 'none',
-            }}
-          >
-            Open the {stateName(shownCode)} story <span aria-hidden="true">→</span>
-          </Link>
+          {shownIsHere ? (
+            // Already on this state's story: a link here would do nothing, so the card says where the reader is.
+            <p className="home-map-card-here" style={{ margin: '12px 0 0', fontSize: 14, fontWeight: 600, color: '#115e59', textAlign: 'center' }}>
+              You’re reading the {stateName(shownCode)} story
+            </p>
+          ) : (
+            <Link
+              to={href(shownCode)}
+              state={DRILL_FROM_NATIONAL}
+              className="home-map-card-open"
+              style={{
+                display: 'block',
+                margin: '12px 0 0',
+                padding: '12px 16px',
+                minHeight: 44,
+                boxSizing: 'border-box',
+                borderRadius: 999,
+                background: '#0f766e',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 700,
+                lineHeight: 1.3,
+                textAlign: 'center',
+                textDecoration: 'none',
+              }}
+            >
+              Open the {stateName(shownCode)} story <span aria-hidden="true">→</span>
+            </Link>
+          )}
         </QuoteCard>
       )}
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
       <p className="mt-1 min-h-[2.1rem] text-xs leading-snug text-stone-600" aria-live="off">
         {shown && shownCode
-          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${touch ? 'Tap to open its story.' : 'Click to open its story.'}`
-          : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
+          ? `${stateName(shownCode)}: ${plural(shownMeetings, 'meeting', 'meetings')} where ${subject} came up${shownStance ? `; ${shownStance}` : hasStance ? (byMeetings ? `; ${noReading}` : '; no stance on record') : ''}.${shownLean ? ` ${shownLean}` : ''} ${shownIsHere ? 'You’re reading its story.' : touch ? (quote ? 'Tap the button to open its story.' : 'Tap to open its story.') : 'Click to open its story.'}`
+          : `${plural(withMeetings, 'state', 'states')} with at least one meeting where ${subject} came up. ${touch ? 'Tap a state to read what was said, then open its story.' : 'Hover a box to read what was said; click to open that state’s story.'}`}
       </p>
 
       <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-tight text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>

@@ -236,3 +236,8 @@ export function ppLabel(earlier: number, later: number): string {
 }
 
 export const pctLabel = (share: number) => `${(Math.round(share * 1000) / 10).toFixed(1)}%`
+
+/** The plot's side padding: room on the right for the end value and the milestone lane names ("Moratorium · 51"). */
+export function timelinePads(w: number, hasMilestones: boolean): { padL: number; padR: number } {
+  return { padL: 44, padR: hasMilestones ? (w < 420 ? 84 : 112) : w < 420 ? 64 : 58 }
+}

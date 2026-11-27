@@ -2,7 +2,7 @@
 PostgreSQL-based search functions
 Uses indexed search tables for fast queries (10-100x faster than parquet)
 """
-from typing import Any, Optional, List
+from typing import Any, Dict, Optional, List
 from urllib.parse import quote
 from loguru import logger
 import asyncpg
@@ -35,6 +35,84 @@ PERSON_CANDIDATE_CAP = 3000
 #   candidate scan (the GIN index fills the cap and stops), then rank/sort only
 #   those — selective queries return far fewer and rank exactly as before.
 ORG_CANDIDATE_CAP = 2000
+
+# Organization sub-types the search can return (#1221). The golden org master
+# (mdm_organization) carries a canonical org_type; only the nonprofit rows have the
+# mdm_organization_nonprofit satellite, so org search LEFT JOINs it. 'other' is
+# deliberately NOT searchable: its sampled rows are private family / living trusts
+# from property records, i.e. private persons (AGENTS.md privacy rules).
+SEARCHABLE_ORG_TYPES: tuple = (
+    'nonprofit', 'church', 'government', 'business', 'company',
+    'healthcare', 'education', 'political',
+)
+
+# Public sub-type vocabulary (?org_type=) -> a static SQL predicate. `{m}` / `{s}`
+# are the alias prefixes for the org master and the nonprofit satellite. Values
+# are whitelisted, so the predicates carry no user input.
+ORG_TYPE_PREDICATES: Dict[str, str] = {
+    'nonprofit': "{m}org_type = 'nonprofit'",
+    # IRS BMF foundation_code 02/03/04 = private (operating / non-operating) foundations.
+    'foundation': "{s}foundation_code IN ('02','03','04')",
+    'church': "{m}org_type = 'church'",
+    'government': "{m}org_type = 'government'",
+    'company': "{m}org_type IN ('business','company')",
+    'healthcare': "{m}org_type = 'healthcare'",
+    'education': "{m}org_type = 'education'",
+    'political': "{m}org_type = 'political'",
+}
+
+# Description fallback for an org with no 990 mission / NTEE label.
+ORG_TYPE_LABELS: Dict[str, str] = {
+    'nonprofit': 'Nonprofit organization',
+    'church': 'Place of worship',
+    'government': 'Government body',
+    'business': 'Business',
+    'company': 'Company',
+    'healthcare': 'Healthcare organization',
+    'education': 'School or education organization',
+    'political': 'Political organization',
+}
+
+
+# Sub-types with few rows (≤ ~8k of 4.1M). Browsing one in name order lets the
+# planner walk the org_name_norm index and filter almost every row (~6s); for
+# these the search fences the candidate set (OFFSET 0) so Postgres filters first
+# and sorts the handful of matches (~0.4s). Common types (nonprofit, church,
+# government, foundation) hit a match every few index rows and keep the index walk.
+RARE_ORG_TYPES = frozenset({'company', 'healthcare', 'education', 'political'})
+
+
+def parse_org_types(raw: Optional[str]) -> List[str]:
+    """Parse ``?org_type=`` (comma list) into known sub-types, de-duplicated.
+
+    Raises ValueError carrying the first unknown value. None/empty means "every
+    searchable org type" and returns [].
+    """
+    if not raw:
+        return []
+    out: List[str] = []
+    for part in raw.split(','):
+        v = part.strip().lower()
+        if not v:
+            continue
+        if v not in ORG_TYPE_PREDICATES:
+            raise ValueError(v)
+        if v not in out:
+            out.append(v)
+    return out
+
+
+def org_type_where(org_types: Optional[List[str]] = None, m: str = 'm.', s: str = 's.') -> str:
+    """SQL predicate: searchable org types only, narrowed to ``org_types`` (OR'd).
+
+    Always excludes non-searchable types (e.g. 'other'). ``m``/``s`` are the alias
+    prefixes for mdm_organization and mdm_organization_nonprofit ('' for bare names).
+    """
+    base = f"{m}org_type IN ({', '.join(repr(t) for t in SEARCHABLE_ORG_TYPES)})"
+    if not org_types:
+        return base
+    picked = " OR ".join(ORG_TYPE_PREDICATES[t].format(m=m, s=s) for t in org_types)
+    return f"{base} AND ({picked})"
 
 # Document search: ts_headline + detoasting the matched transcript bodies
 # (content averages 43KB and is TOASTed) costs ~40ms/row, so the cost scales with
@@ -1041,9 +1119,14 @@ async def search_organizations_pg(
     offset: int = 0,
     sort: str = 'relevance',
     county_fips: Optional[str] = None,
+    org_types: Optional[List[str]] = None,
 ) -> List[SearchResult]:
     """
-    Search nonprofit organizations using PostgreSQL
+    Search organizations (every searchable org type, #1221) using PostgreSQL.
+
+    ``org_types`` narrows to sub-types from ORG_TYPE_PREDICATES (nonprofit,
+    foundation, church, government, company, healthcare, education, political);
+    empty means every searchable type. 'other' is never returned.
 
     Location scoping goes through the MDM org<->jurisdiction bridge
     (mdm_bridge_org_jurisdiction), NOT the org's own free-text city. The bridge
@@ -1148,6 +1231,9 @@ async def search_organizations_pg(
             params.append(state.upper())
             param_idx += 1
 
+        # Org type: always the searchable set, narrowed to the requested sub-types.
+        where_clauses.append(org_type_where(org_types, m='', s=''))
+
         # NTEE code filter
         if ntee_code:
             where_clauses.append(f"ntee_code LIKE ${param_idx}")
@@ -1193,6 +1279,8 @@ async def search_organizations_pg(
         # Cap the candidate scan for text queries only (browse/exact-filter modes
         # ride the org_name_norm index and need the full ordered scan).
         cap_sql = f"LIMIT {ORG_CANDIDATE_CAP}" if has_text_query else ""
+        if not has_text_query and org_types and set(org_types) <= RARE_ORG_TYPES:
+            cap_sql = "OFFSET 0"  # optimization fence: filter first, then sort (see RARE_ORG_TYPES)
 
         # Org identity/location now come from the golden master (mdm_organization);
         # nonprofit financial/NTEE/990 detail from the mdm_organization_nonprofit
@@ -1215,6 +1303,7 @@ async def search_organizations_pg(
                 state_code,
                 {_STATE_NAME_CASE} AS state,
                 NULL::text AS county,
+                org_type, org_subtype,
                 ntee_code, ntee_description, revenue, assets, income, tax_period,
                 gt990_tax_year, gt990_total_revenue, gt990_total_expenses,
                 gt990_total_assets, gt990_mission, has_gt990_data
@@ -1231,6 +1320,9 @@ async def search_organizations_pg(
                         m.org_name_norm,
                         m.city_norm AS city,
                         m.state_code,
+                        m.org_type,
+                        m.org_subtype,
+                        s.foundation_code,
                         s.ntee_code,
                         s.ntee_description,
                         s.revenue,
@@ -1244,7 +1336,9 @@ async def search_organizations_pg(
                         s.gt990_mission,
                         s.has_gt990_data
                     FROM mdm_organization m
-                    JOIN mdm_organization_nonprofit s USING (master_org_id)
+                    -- LEFT JOIN: only nonprofits carry the satellite; churches,
+                    -- government bodies, companies... are org-master-only (#1221).
+                    LEFT JOIN mdm_organization_nonprofit s USING (master_org_id)
                 ) base
                 WHERE {where_sql}
                 {cap_sql}
@@ -1284,7 +1378,7 @@ async def search_organizations_pg(
                 if mission:
                     description = mission if len(mission) <= 280 else mission[:277] + "..."
                 else:
-                    description = row['ntee_description'] or 'Nonprofit organization'
+                    description = row['ntee_description'] or ORG_TYPE_LABELS.get(row['org_type'] or '', 'Organization')
                 if financials:
                     description += " • " + " • ".join(financials)
 
@@ -1307,6 +1401,8 @@ async def search_organizations_pg(
                         'state_code': row['state_code'],
                         'city': row['city'],
                         'county': row['county'],
+                        'org_type': row['org_type'],
+                        'org_subtype': row['org_subtype'],
                         'ntee_code': row['ntee_code'],
                         'ntee_description': row['ntee_description'],
                         'revenue': row['revenue'],

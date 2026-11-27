@@ -1,4 +1,4 @@
-import { useId, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react'
 
 /** The key a map's arrow keys move to (#1146): next/previous in `keys`, wrapping; Home/End go to the ends. */
 export function nextMapKey<K>(keys: readonly K[], current: K | null, key: string): K | null {
@@ -36,6 +36,9 @@ export function westToEast<K>(dots: readonly { x: number; y: number }[], idOf: (
     .sort((a, b) => a.x - b.x || a.y - b.y)
     .map((a) => a.id)
 }
+
+/** A focus this soon after a press on the map came from the press. */
+const POINTER_FOCUS_MS = 800
 
 interface Options<K> {
   /** The areas the arrow keys move between, in order. */
@@ -85,7 +88,19 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
       move(k)
     }
   }
+  // A tap or click also focuses the map (it is a tab stop). That focus must not pick the starting area: on a phone it
+  // showed the page's own state's card over the box the reader tapped, so its "Open the … story" button led back to the
+  // page they were on. Only keyboard focus starts on `initial`; a pointer shows what it lands on.
+  // A timestamp, not a flag: a press on an already-focused map fires no focus, and a flag left set would skip the next
+  // keyboard focus.
+  const pointerAt = useRef(0)
+  const onPointerDown = () => {
+    pointerAt.current = Date.now()
+  }
   const onFocus = () => {
+    const byPointer = Date.now() - pointerAt.current < POINTER_FOCUS_MS
+    pointerAt.current = 0
+    if (byPointer) return
     if (active == null && keys.length) move(initial != null && keys.includes(initial) ? initial : keys[0]!)
   }
   const svgProps = {
@@ -96,6 +111,7 @@ export function useMapKeyboard<K>({ keys, active, setActive, initial, describe, 
     'data-map-keys': '',
     onKeyDown,
     onFocus,
+    onPointerDown,
   }
   // Leaving the map and its card (not moving between them) hides the card, as leaving with the mouse does.
   const stageProps = {
