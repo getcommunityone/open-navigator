@@ -96,7 +96,7 @@ export default function ConcernsDumbbell({ data, status, place, idBase }: Props)
       <p className="sc-h">{title}</p>
       {compare && built.rows.length > 1 && (
         <div className="sc-controls">
-          <div className="folio-seg" role="group" aria-label="Sort the concerns">
+          <div className="folio-seg sc-chips" role="group" aria-label="Sort the concerns">
             {(
               [
                 ['place', `By ${place}`],
