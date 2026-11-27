@@ -97,6 +97,12 @@ describe('stance headline: below the minimum (#1289)', () => {
     expect(evidenceFacts(recordedEvidence(facts(al, { votes: { decisions: 1, for: 2, against: 5 } })))).toMatch(/^One decision failed 2–5;/)
   })
 
+  it('a data-center scope with no meeting reviewed (speakers and votes null) is below the minimum too', () => {
+    const c = pickCaption('data-centers', facts(al, { speakers: null, votes: null }), al)
+    expect(c.kind).toBe('insufficient')
+    expect(c.basis).toMatch(/^Recorded votes are not available yet; public speakers are not available yet\./)
+  })
+
   it('a topic with no hand counts or votes on record is not held to the minimum (nothing to count yet)', () => {
     const f = facts(al, { topic: 'guns', speakers: null, votes: null, public_against_meetings: 10, public_for_meetings: 41, public_split_meetings: 12, lean_meetings: 63, public_silent_meetings: 0 })
     const c = pickCaption('guns', f, al)

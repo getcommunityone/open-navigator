@@ -69,7 +69,8 @@ interface Props {
 export default function FitDisplay({ spec, scopeLabel, units, barsExtra }: Props) {
   const { display, rows, items } = specDisplay(spec)
   const where = whereIn(scopeLabel)
-  const lead = `${fmt(items)} ${plural(spec.unit, items)} on record ${where}`
+  // Without a whole-scope total the list may be capped (the source note says so): never state it as the total.
+  const lead = `${spec.grandTotal == null ? 'At least ' : ''}${fmt(items)} ${plural(spec.unit, items)} on record ${where}`
   const live = rows.filter((r) => r.count > 0)
   const records = !spec.countsOnly && spec.groups.some((g) => g.dots.length > 0)
   switch (display.kind) {

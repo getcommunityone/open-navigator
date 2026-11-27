@@ -19,6 +19,8 @@ export interface RecordedEvidence {
   decisions: number | null
   votesFor: number
   votesAgainst: number
+  /** The server sends the #1289 `votes` field (null or not): a null then means nothing reviewed, not an older server. */
+  reported: boolean
 }
 
 /** The scope's recorded evidence from its caption facts. Nothing is filled in: a missing count stays null. */
@@ -31,15 +33,22 @@ export function recordedEvidence(f: TopicCaptionFacts | null | undefined): Recor
     decisions: v ? v.decisions : null,
     votesFor: v?.for ?? 0,
     votesAgainst: v?.against ?? 0,
+    reported: Boolean(f && 'votes' in f),
   }
 }
 
+/** Topics whose speakers are hand-counted and whose votes are recorded (`data_center_meeting_position`). */
+export const RECORDED_TOPICS: ReadonlySet<string> = new Set(['data-centers'])
+
 /**
- * Below the minimum: fewer than 3 decisions with a recorded vote and fewer than 5 speakers. Only a scope whose topic keeps
- * these records is held to it; a topic with neither on record (no hand counts or votes are kept for it) is not.
+ * Below the minimum: fewer than 3 decisions with a recorded vote and fewer than 5 speakers. Only a topic that keeps these
+ * records is held to it; for such a topic a scope with nothing reviewed yet (both null) counts as none recorded, so it is
+ * below the minimum too. A topic that keeps neither is not held to it.
  */
-export function belowStanceMinimum(e: RecordedEvidence): boolean {
-  if (e.speakers == null && e.decisions == null) return false
+export function belowStanceMinimum(e: RecordedEvidence, topicKey?: string): boolean {
+  // An older server (no `votes` field) can't tell "nothing reviewed" from "not sent": only real counts gate it.
+  const keeps = topicKey && e.reported ? RECORDED_TOPICS.has(topicKey) : e.speakers != null || e.decisions != null
+  if (!keeps) return false
   return (e.decisions ?? 0) < STANCE_MIN_DECISIONS && (e.speakers ?? 0) < STANCE_MIN_SPEAKERS
 }
 
@@ -76,7 +85,8 @@ export function evidenceFacts(e: RecordedEvidence): string {
   }
   const r = e.meetingsReviewed
   let speakers: string
-  if (e.speakers == null || !r) speakers = 'public speakers are not available yet'
+  if (e.speakers == null) speakers = 'public speakers are not available yet'
+  else if (!r) speakers = `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} on record`
   else {
     const where = `in ${fmt(r)} ${r === 1 ? 'meeting' : 'meetings'} reviewed`
     speakers = e.speakers === 0 ? `no public speakers ${where}` : `${fmt(e.speakers)} public ${e.speakers === 1 ? 'speaker' : 'speakers'} ${where}`

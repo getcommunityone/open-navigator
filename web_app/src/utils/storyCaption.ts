@@ -298,11 +298,11 @@ function checkAgainstRecord(c: Caption, topicKey: string, facts: TopicCaptionFac
   const e = recordedEvidence(facts)
   const national = !scope.stateName
   const place = national ? 'America' : storyScopeLabel(scope)
-  if (belowStanceMinimum(e)) {
+  if (belowStanceMinimum(e, topicKey)) {
     const own = positionCounts(facts, facts.meetings)
     const where = national ? 'nationwide' : `in ${storyScopeLabel(scope)}`
     const reading = own ? positionBasis(own, topicPositions(topicKey), where) : ''
-    return { kind: 'insufficient', template: [NOT_ENOUGH_TITLE], place, basis: [evidenceFacts(e), reading].filter(Boolean).join(' '), ai: false }
+    return { kind: 'insufficient', template: [NOT_ENOUGH_TITLE], place, basis: [evidenceFacts(e), reading].filter(Boolean).join(' '), ai: Boolean(reading) }
   }
   const votes = voteSide(e)
   const side = stanceSide(c)

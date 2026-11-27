@@ -67,7 +67,10 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
           <div key={f.key} data-figure={f.key} className={f.value == null ? 'is-missing' : undefined}>
             <dt>{f.label}</dt>
             {/* "—" with "not available yet" for screen readers: no meeting reviewed, never a made-up 0 (#1289). */}
-            <dd aria-label={f.value == null ? 'not available yet' : undefined}>{figureDisplay(f.value)}</dd>
+            <dd>
+              {f.value == null ? <span aria-hidden="true">{figureDisplay(f.value)}</span> : figureDisplay(f.value)}
+              {f.value == null && <span className="folio-sr-only">not available yet</span>}
+            </dd>
           </div>
         ))}
       </dl>

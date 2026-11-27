@@ -32,6 +32,9 @@ After the rules below pick a caption, the scope's **recorded** activity checks i
   against, in 12 decisions." Nationally this turns "America hates data centers." into "America is divided on data
   centers." (283 AI-read meetings against, 18 of 29 counted speakers against, recorded votes 79–10 for, on 27 Nov 2026).
   The Overview's speaker line (`overviewLean`) follows the same rule.
+- **Nothing reviewed yet.** For data centers, a scope with no meeting reviewed (the API sends `speakers` and `votes` as
+  null) counts as nothing recorded, so it is below the minimum too. Only an older server, which sends no `votes` field at
+  all, keeps the earlier behaviour.
 - **Topics with no hand counts or votes.** Only data centers keep counted speakers and votes
   (`data_center_meeting_position`). A topic with neither on record is not held to the minimum, since there is nothing to
   count for it yet; its title still rests on the AI reading alone.

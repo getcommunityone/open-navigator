@@ -133,7 +133,8 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   if (!data || pts.length === 0) return null
   // A line only with 6 or more points (#1289, utils/displayFit): fewer years read as the numbers in a sentence.
   const counts = buildSeries(years, 'meetings').flat()
-  const fit = pickDisplay({ items: counts.reduce((a, p) => a + p.value, 0), seriesPoints: pts.length })
+  // The choice reads the same series the sentence prints (meetings per year), whichever series the chart opens on.
+  const fit = pickDisplay({ items: counts.reduce((a, p) => a + p.value, 0), seriesPoints: counts.length })
   if (fit.kind !== 'line') {
     return (
       <div className="sc-block" data-display={fit.kind}>
