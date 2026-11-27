@@ -24,7 +24,7 @@ const FIPS_OF_CODE: Record<string, string> = Object.fromEntries(Object.entries(S
 const NEUTRAL = HOUSE_THEME.neutral ?? '#8a8f93'
 
 /** One colour per phase; "proposed" (planned) is drawn outlined in its colour, never filled. */
-export const PHASE_COLOR: Record<Phase, string> = {
+const PHASE_COLOR: Record<Phase, string> = {
   operating: GROUP_COLORS[0]!,
   under_construction: GROUP_COLORS[1]!,
   planned: GROUP_COLORS[2]!,
