@@ -3615,6 +3615,12 @@ html.stance-snap .stance-intro {
   .stance-right .sc-controls { display: none; }
 }
 
+/* #1330: who took which side, named by who, and where officials sided against the public. */
+.stance-positions-summary { display: grid; gap: 4px; margin: 0 0 10px; }
+.stance-positions-who { margin: 0; font-size: 15px; line-height: 1.4; color: var(--ink); }
+.stance-positions-disagree { margin: 4px 0 0; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--ink); }
+.stance-voices-subhead { margin: 8px 0 2px; font-family: var(--font-mono); font-size: var(--t-micro, 12px); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
+
 /* The phone Overview's summary card (#1337): three real facts and a clipped map thumbnail that opens the full map. */
 .story-summary {
   order: 3;

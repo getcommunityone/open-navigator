@@ -68,7 +68,7 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
       // The screen's extras after the panel on a phone (statement, notes, broaden is before it and stays).
       const left = section.querySelector('.stance-left')
       for (const el of left ? [...left.children] : []) {
-        if (el instanceof HTMLElement && !el.matches('.stance-card, .stance-head, .stance-nav, .stance-broaden') && el.getBoundingClientRect().height > 0) {
+        if (el instanceof HTMLElement && !el.matches('.stance-card, .stance-head, .stance-nav, .stance-broaden, .story-summary') && el.getBoundingClientRect().height > 0) {
           el.classList.add('fit-hidden')
           hidden = true
         }

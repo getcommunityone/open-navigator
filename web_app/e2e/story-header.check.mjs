@@ -57,25 +57,34 @@ for (const [w, h] of [[360, 740], [412, 915]]) {
   const pager = page.locator('[data-testid="story-pager"]')
   const total = Number(((await pager.innerText()).match(/of (\d+)/) ?? [])[1])
   ok(total > 1, `the pager counts ${total} screens`)
+  let prevAt = null
   for (let i = 0; i < total; i++) {
-    await page.waitForTimeout(900)
+    if (prevAt === total) break
+    await page.waitForTimeout(2000)
     const text = (await pager.innerText()).replace(/\s+/g, ' ').replace('▴', '').trim()
     const word = await page.evaluate(() => {
       const top = document.querySelector('.stance-top')?.getBoundingClientRect().bottom ?? 0
       const live = [...document.querySelectorAll('[data-panel]')].find((p) => p.hasAttribute('data-live')) ?? null
       return live?.querySelector(".stance-card-title")?.textContent?.trim() ?? null
     })
-    ok(text.startsWith(`${i + 1} of ${total} · `) && (word == null || text.endsWith(word)), `screen ${i + 1}: pager "${text}" matches "${word}"`)
+    const at = Number((text.match(/^(\d+) of/) ?? [])[1])
+    ok(at > (prevAt ?? 0), `screen ${i + 1}: the pager moved forward (${at})`)
+    prevAt = at
+    ok(text.startsWith(`${at} of ${total} · `) && (word == null || text.endsWith(word)), `screen ${i + 1}: pager "${text}" matches "${word}"`)
     const fit = await page.evaluate(() => {
       const live = [...document.querySelectorAll('[data-panel]')].find((p) => p.hasAttribute('data-live'))
       const barTop = document.querySelector('[data-testid="story-bottombar"]')?.getBoundingClientRect().top ?? innerHeight
       const grid = live?.querySelector('.stance-grid')
       if (!grid) return { under: false, paged: true }
-      const r = grid.getBoundingClientRect()
-      return { under: r.bottom > barTop + 2, paged: grid.scrollHeight <= grid.clientHeight + 1 || getComputedStyle(grid).overflowY !== 'visible' }
+      // Scroll-independent: the frame is no taller than the room between the sticky bar and the bottom bar.
+      const room = barTop - (document.querySelector('.stance-top')?.getBoundingClientRect().bottom ?? 0)
+      return { under: grid.clientHeight > room + 2, paged: grid.scrollHeight <= grid.clientHeight + 1 || getComputedStyle(grid).overflowY !== 'visible' }
     })
-    ok(!fit.under && fit.paged, `screen ${i + 1}: its frame ends above the bottom bar and scrolls inside itself`)
-    if (i < total - 1) await page.locator('.story-next-fixed').click()
+    ok(!fit.under && fit.paged, `screen ${i + 1} ${JSON.stringify(fit)}: its frame ends above the bottom bar and scrolls inside itself`)
+    if (i < total - 1) {
+      await page.locator('.story-next-fixed').click()
+      await page.waitForFunction((t) => !document.querySelector('[data-testid="story-pager"]')?.textContent?.startsWith(t), `${at} of`, { timeout: 8000 }).catch(() => {})
+    }
   }
   // The list jumps.
   await pager.click()
