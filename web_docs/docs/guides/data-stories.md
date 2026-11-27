@@ -774,6 +774,16 @@ Owner, 27 Nov 2026: upcoming meetings and legislation are "where we have the gre
 
 How items are found, what the warehouse holds and what is left out: [What's coming up on a topic](../development/topic-upcoming.md).
 
+### Who's working on this: nonprofits on a topic (#1345)
+
+The nonprofits tied to a topic come from `public.topic_organization` (one row per topic × organization) and
+`GET /api/topics/{topic}/organizations?state=&city=`. Each is tied by the record, strongest first: **named in one of the
+topic's recorded meetings** in its state, word for word and near the topic's words; its **990 mission** names the topic;
+its **name** does; or its **IRS (NTEE) category** is the topic's field. The API ranks them that way, then by latest
+revenue, and gives each one's evidence (the meeting passage or mission with the words marked), city, mission, latest
+990 or IRS revenue with its tax year, and a side only where the organization's own name or mission states one. How the
+rules were chosen and checked: [How organizations are tied to topics](../development/topic-organizations.md).
+
 ### What happened next: the chain from meeting to outcome (#1314)
 
 A **What happened** screen follows Coming up on every story. It walks from the meetings where the topic came up to what followed, one step at a time: **Meetings** → **The public** (meetings where the public spoke, mostly opposed / split / mostly supportive) → **Officials** (meetings where the council or board moved it forward, stopped or limited it, put a moratorium on it, or tabled it) → **State bills** (by status) → **Named a bill** (meetings that wrote one of the topic's state bills by number) → **What's next** (meetings and hearings ahead, bills still open). Each step is one count, a line in words and up to three linked examples. **See all** opens that step's screen. An empty step says "No recorded … yet". The flow runs top to bottom on a phone and left to right on a wide screen. The home strip gains a **Votes** card. How meetings are tied to bills: [How meetings are linked to state bills](../development/meeting-bill-links.md).

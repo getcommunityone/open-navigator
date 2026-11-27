@@ -6,7 +6,7 @@
 
     High precision by construction:
       1. Passages: every stretch of a topic meeting's transcript (topic_transcript_link -> event_documents) within
-         about 400 characters of one of the topic's keyword phrases (civicsearch_topic.keyword_stats). A name said
+         about 250 characters of one of the topic's keyword phrases (civicsearch_topic.keyword_stats). A name said
          elsewhere in a three-hour meeting does not count.
       2. Candidates: nonprofits in the meeting's state whose cleaned name (Inc, Corp, The ... dropped) is at least 12
          characters and two indexed words long, is held by no other nonprofit in that state, and has at least one
@@ -60,7 +60,7 @@ passage as (
     from topic_doc as d
     inner join topic_rx as r on r.topic_id = d.topic_id
     inner join {{ ref('event_documents') }} as e on e.video_id = d.video_id
-    cross join lateral regexp_matches(lower(e.content), '(.{0,400}\m' || r.rx || '\M.{0,400})', 'g')
+    cross join lateral regexp_matches(lower(e.content), '(.{0,250}\m' || r.rx || '\M.{0,250})', 'g')
         with ordinality as w(m, ord)
 ),
 
