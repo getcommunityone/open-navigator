@@ -91,9 +91,11 @@ const HEADER_CSS = `
 @media (max-width: 760px) {
   .site-header .sh-brand-sub { display: none; }
 }
+.site-header .sh-brand-home { display: none; }
 /* On a narrow phone the C1 mark stays and the name goes, so the place selector fits beside the menu (#1301). */
 @media (max-width: 519px) {
   .site-header .sh-brand-text { display: none; }
+  .site-header .sh-brand-home { display: block; font-size: 13px; font-weight: 700; color: ${TEAL_DARK}; line-height: 1; }
   .site-header .sh-inner { gap: 8px !important; }
 }
 .site-header .sh-backdrop { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(28,25,23,0.45); animation: sh-fade .15s ease; z-index: 1; }
@@ -324,9 +326,14 @@ export default function SiteHeader() {
     setMenuOpen(false)
     setShowLoginMenu(false)
     setActiveSection('')
+    // Home keeps the chosen place (#1341): the mark from a story or Places goes to /?state=&city= (or ?scope=national).
     const onCleanHome = location.pathname === '/' && !location.hash && !location.search
-    if (!onCleanHome) {
-      navigate('/')
+    if (location.pathname !== '/') {
+      const carried = carriedQuery()
+      const national = new URLSearchParams(location.search).get('scope') === 'national'
+      navigate(`/${carried || (national ? '?scope=national' : '')}`)
+    } else if (!onCleanHome && location.hash) {
+      navigate({ pathname: '/', search: location.search })
     }
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
     window.dispatchEvent(new CustomEvent('open-navigator:go-home'))
@@ -361,7 +368,7 @@ export default function SiteHeader() {
     <header ref={headerRef} className="site-header" style={{ position: 'sticky', top: 0, zIndex: 50, background: '#fff', borderBottom: '1px solid #e7e5e4' }} onKeyDown={trapTab}>
       <style>{HEADER_CSS}</style>
       <div className="sh-inner" style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 20, position: 'relative', background: '#fff', zIndex: 3 }}>
-        <Link to="/" onClick={goHome} style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, textDecoration: 'none', color: INK }}>
+        <Link to="/" onClick={goHome} aria-label="Open Navigator home" data-testid="header-home-link" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, textDecoration: 'none', color: INK }}>
           <div
             className="font-mono-x"
             aria-hidden="true"
@@ -369,6 +376,7 @@ export default function SiteHeader() {
           >
             C1
           </div>
+          <div className="sh-brand-home" aria-hidden="true">Home</div>
           <div className="sh-brand-text">
             <div className="font-display" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.1 }}>
               Open Navigator
@@ -516,6 +524,14 @@ export default function SiteHeader() {
             )}
 
             <nav aria-label="Main" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <button
+                type="button"
+                className={'sh-mitem' + (location.pathname === '/' && !active ? ' active' : '')}
+                data-testid="menu-home"
+                onClick={(e) => goHome(e as unknown as MouseEvent<HTMLAnchorElement>)}
+              >
+                <span aria-hidden="true" style={{ marginRight: 8 }}>🏠</span> Home
+              </button>
               {navItems.map(({ key, label, onClick }) => (
                 <button
                   key={key}

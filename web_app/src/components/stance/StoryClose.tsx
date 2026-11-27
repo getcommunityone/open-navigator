@@ -35,8 +35,9 @@ export default function StoryClose({ to, escape = true }: Props) {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [to, escape, navigate])
   return (
-    <button type="button" className="story-close" aria-label="Close story" title="Close story" data-testid="story-close" onClick={() => navigate(to)}>
+    <button type="button" className="story-close" aria-label="Close story" title="Close · back to home" data-testid="story-close" onClick={() => navigate(to)}>
       <span aria-hidden="true">×</span>
+      <span className="story-close-label" aria-hidden="true">Close</span>
     </button>
   )
 }
