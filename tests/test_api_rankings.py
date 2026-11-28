@@ -122,3 +122,10 @@ def test_topics_summary(monkeypatch) -> None:
 def test_leaning_needs_more_than_half(shrunk: float, against: int, for_: int) -> None:
     s = rk.summarise([_place("p", "mid", 5, 5, True, 1, shrunk)])
     assert (s["places_leaning_against"], s["places_leaning_for"]) == (against, for_)
+
+
+def test_odd_digit_topics_fall_back_to_slug(monkeypatch) -> None:
+    conn = _Conn([], None)
+    assert _get(monkeypatch, conn, "/api/rankings", {"topic": "99999999999"}).status_code == 404
+    assert conn.calls[0][1] == (None, "99999999999")
+    assert _get(monkeypatch, _Conn([], None), "/api/rankings", {"topic": "\u00b2"}).status_code == 404

@@ -1,60 +1,43 @@
 ---
 pr: 1461
+issue: 1437
 branch: feat/1437-topic-place-ranking
 title: "feat(rankings): topic_place_ranking mart and /api/rankings (#1437)"
-author: jcbowyer
 reviewed_at: 2026-11-28
-reviewer: github-actions
-head_sha: 1233a47a97e28c0569ce4d4c36f9110b6b45f768
-verdict: approve
+reviewer: data-dbt-specialist subagent (read-only), findings verified by the coordinator
+verdict: approve-with-nits
 ---
 
-# PR Review: feat(rankings): topic_place_ranking mart and /api/rankings (#1437)
+# PR #1461 review
 
-## Summary
+Reviewed against `.claude/review-rubric.md`.
 
-Automated review (#648) for PR #1461 on `feat/1437-topic-place-ranking`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+- **Issue and branch:** `feat/1437-topic-place-ranking`, `Closes #1437`; the issue has all four parts. The follow-up for the officials' marker is #1460.
+- **Scans:**
+  - No secrets, no fabricated numbers, and no personal data. The mart serves counts per place; the person key exists only inside the model.
+  - School districts and possible minors are excluded.
+  - No data deletion.
+- **Correctness, traced:**
+  - Each speaker counts once on their majority side; a tie becomes `split` with no side.
+  - The window is `> as_of - 24 months` and `<= as_of`.
+  - Shrinkage is `(a + 10·national)/(f + a + 10)`, with national taken over all non-school places' residents.
+  - A place is ranked at ≥10 sided speakers and ≥2 meetings.
+  - Band rank is partitioned by topic and band.
+  - Officials are excluded from resident counts and meetings.
+  - Warehouse checks: 696 rows, 65 ranked, 0 ranked rows under the minimum, 0 school-district rows, and 0 rows with more sided speakers than distinct meeting speakers.
+- **Keys:** PK (jurisdiction_id, topic_id, window_months) with FKs to jurisdictions and civicsearch_topic, contract enforced.
+- **Fixed in review:**
+  - The digit topic id is matched with `[0-9]{1,9}`, so an oversized or Unicode digit falls back to the slug: 404, not 500 or 503. A test was added.
+  - `check=False` on the opt-in dbt subprocess (ruff PLW1510).
+  - `national` is documented as the in-scope summary under a band/state filter. The page labels it by the active filter ("Median of these places").
+- **Nits left:**
+  - A "First L." name that is roster-matched in one meeting and not another becomes two people, one resident and one official. This is rare and errs toward keeping officials apart.
+  - `is_ranked` in the band-rank partition is redundant.
+  - The doc's national table is a dated snapshot.
+- **Checks:**
+  - `pytest tests/test_api_rankings.py tests/test_topic_place_ranking_dbt.py`: 13 passed, 1 skipped (opt-in dbt run).
+  - `dbt build --select topic_place_ranking`: PASS=15, including the unit test.
+  - Ruff is clean.
+  - Endpoints were smoke-tested against the local warehouse.
 
-## Scope of Change
-
-- `api/main.py`
-- `api/routes/rankings.py`
-- `dbt_project/dbt_project.yml`
-- `dbt_project/macros/publish_public_serving.sql`
-- `dbt_project/models/marts/_schema_topic_place_ranking.yml`
-- `dbt_project/models/marts/topic_place_ranking.sql`
-- `tests/test_api_rankings.py`
-- `tests/test_topic_place_ranking_dbt.py`
-- `web_docs/docs/development/topic-place-rankings.md`
-
-## CI Status
-
-See the PR checks on `1233a47a97e2`.
-
-## Scans (secrets, fabricated data, personal data, destructive data changes)
-
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
-
-## Findings
-
-### 🔴 Blocking (Critical)
-
-None.
-
-### 🟡 Should fix (Important)
-
-None from automated heuristics.
-
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
-
-## Verdict
-
-**approve**
+No blocking findings.

@@ -90,7 +90,10 @@ class RankingTopicRef(BaseModel):
 class RankingResponse(BaseModel):
     topic: RankingTopicRef
     window_months: int = WINDOW_MONTHS
-    national: RankingNational
+    national: RankingNational = Field(
+        ..., description="A summary of the places in scope: national with no band/state filter, else that scope only "
+        "(label it by the active filter). Each place's shrinkage target is always the true national rate."
+    )
     places: list[RankingPlace]
 
 
@@ -185,7 +188,7 @@ async def rankings(
     if state is not None and not re.fullmatch(r"[A-Z]{2}", state):
         raise HTTPException(status_code=422, detail="state must be a two-letter code.")
     topic = topic.strip()
-    tid = int(topic) if topic.isdigit() else None
+    tid = int(topic) if re.fullmatch(r"[0-9]{1,9}", topic) else None
     with tracer.start_as_current_span("rankings.places") as span:
         span.set_attribute("topic", topic)
         try:

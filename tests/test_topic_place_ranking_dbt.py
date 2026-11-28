@@ -70,5 +70,5 @@ def test_dbt_project_vars_match_the_decision_record() -> None:
                     reason="set RUN_DBT_UNIT_TESTS=1 with dbt and the warehouse reachable")
 def test_dbt_unit_test_passes() -> None:
     out = subprocess.run(["dbt", "test", "--select", "topic_place_ranking,test_type:unit"], cwd=DBT,
-                         capture_output=True, text=True, timeout=600)
+                         capture_output=True, text=True, timeout=600, check=False)
     assert out.returncode == 0, out.stdout[-3000:]
