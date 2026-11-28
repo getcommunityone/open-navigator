@@ -163,7 +163,6 @@ def score(args: argparse.Namespace) -> None:
 
     from llm.typesafe.client import JevClient, JevError
     from llm.typesafe.screen_transcripts import _database_url
-
     from llm.usage.prices import load_prices, model_price
 
     args.rate = (model_price("jev-", "interactive", load_prices()) or {}).get("input_usd_per_1m") or 0.0
@@ -222,11 +221,29 @@ def score(args: argparse.Namespace) -> None:
     report(args)
 
 
+def combined(gold_files: Sequence[Path], results_files: Sequence[Path]) -> dict[str, dict[str, Any]]:
+    """The gate over several rounds at once (held bike lanes / zoning: round 1 + round 2 items together). An item in
+    two rounds counts once; answers are matched by topic and speaker."""
+    items: dict[str, dict[str, Any]] = {}
+    for g in gold_files:
+        for it in load_gold(g):
+            items.setdefault(f"{it['topic']}|{it['meeting_speaker_id']}", it)
+    preds: dict[str, Any] = {}
+    for r in results_files:
+        if r.exists():
+            preds.update(json.loads(r.read_text(encoding="utf-8"))["predictions"])
+    return agreement(list(items.values()), preds, min_confidence=ss.MIN_SIDE_CONFIDENCE)
+
+
 def report(args: argparse.Namespace) -> None:
-    gold_file = Path(getattr(args, "gold", "") or GOLD_FILE)
-    results_file = Path(getattr(args, "results", "") or RESULTS_FILE)
-    preds = json.loads(results_file.read_text(encoding="utf-8"))["predictions"]
-    res = agreement(load_gold(gold_file), preds, min_confidence=ss.MIN_SIDE_CONFIDENCE)
+    g = getattr(args, "gold", "") or ""
+    r = getattr(args, "results", "") or ""
+    if getattr(args, "all_rounds", False):
+        res = combined([GOLD_FILE, ROUND2_GOLD_FILE], [RESULTS_FILE, ROUND2_RESULTS_FILE])
+        print(json.dumps(res, indent=1, sort_keys=True))
+        return
+    preds = json.loads(Path(r or RESULTS_FILE).read_text(encoding="utf-8"))["predictions"]
+    res = agreement(load_gold(Path(g or GOLD_FILE)), preds, min_confidence=ss.MIN_SIDE_CONFIDENCE)
     print(json.dumps(res, indent=1, sort_keys=True))
 
 
@@ -247,6 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         q.add_argument("--gold", default="", help=f"gold file (default {GOLD_FILE.name}; round 2: {ROUND2_GOLD_FILE.name})")
         q.add_argument("--results", default="", help=f"answers file (default {RESULTS_FILE.name})")
         q.add_argument("--max-usd", type=float, default=0.5, help="score: stop once spend reaches this")
+        q.add_argument("--all-rounds", action="store_true", help="report: the gate over round 1 + round 2 together")
         q.add_argument("--rate", type=float, default=0.0, help=argparse.SUPPRESS)
     args = p.parse_args(argv)
     {"sample": sample, "score": score, "report": report}[args.cmd](args)

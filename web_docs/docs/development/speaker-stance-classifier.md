@@ -77,6 +77,109 @@ fluoridation's speaker question asks plain keep / end, not the meeting screen's 
 - **Curated, dropped for safety:** Drugs and overdoses (100009) mixes harm-reduction sites with health conditions
   (AGENTS.md, sensitive data); Youth crime (100012) and School safety (100014) are about minors and school boards.
 
+## Question coverage (#1436)
+
+Issue: [#1436](https://github.com/getcommunityone/open-navigator/issues/1436). The owner asked that the local
+questions residents most often argue about in town meetings are all asked. A company with a similar public page is
+listed in the citations as reference-only. Its list was used only to check coverage: none of its data, numbers,
+wording or layout is used, and every definition below is ours.
+
+| question | our topic | status |
+|---|---|---|
+| data centers | data-centers (100001) | covered |
+| plate-reader cameras | license-plate-readers (100004) | covered |
+| surveillance cameras | surveillance-cameras (28) | covered |
+| short-term rentals | short-term-rentals (100003) | covered |
+| pickleball courts | pickleball (100006) | covered |
+| bike lanes | bike-lanes (100020) | covered, held (#1402) |
+| upzoning for more homes | zoning-regulations (77) | covered, held (#1402) |
+| duplexes / missing middle | missing-middle-housing (100101) | new; zoning-regulations covers it only in part |
+| road diets | road-diets (100102) | new |
+| backyard chickens | backyard-chickens (100103) | new |
+| speed cameras | speed-cameras (100104) | new; traffic-safety (held) bundles it with humps and crosswalks |
+| speed bumps | speed-bumps (100105) | new; same bundling |
+| roundabouts | roundabouts (100106) | new |
+| gas stations / travel centers | gas-stations (100107) | new |
+| artificial turf fields | artificial-turf (100108) | new |
+| clearing homeless encampments | homeless-encampments (100109) | new; homelessness-and-shelters asks about shelters, not clearing camps |
+| solar farms | solar-farms (100110) | new; renewable-energy bundles solar, wind and battery |
+| battery storage facilities | battery-storage (100111) | new; same bundling |
+
+The eleven new topics are `NEW_TOPICS` in `llm.typesafe.speaker_stance`. Each has a plain "for" (the action moving
+forward: allowing duplexes, narrowing the road, clearing the camp, approving the station) and its own whole-word
+phrases, which decide which speakers are asked (`strict_pattern`: "rotary" never matches roundabouts, "a bump in the
+road" never matches speed bumps). Renewable energy, traffic safety and homelessness-and-shelters keep their wording
+and pinned hashes. The new topics sit beside them, so a speaker on a solar farm can be read on both renewable energy
+and solar farms. Each is listed as its own question and never summed with the bundled topic.
+
+All eleven start **held**, and run only once a gold set passes the same gate as above. Their ids (100101-100111) are
+appended to the `curated_topics` seed, so readings can join `civicsearch_topic`. Seed after #1401 reconciles the
+warehouse's 100007-100020.
+
+### Gold set, round 2 (AI-helper labels)
+
+`gold/speaker_stance_gold_round2.json` holds 538 items: about 30 random and up to 20 stance-cue passages per new topic
+(fewer where the topic is rare), plus 40 more cue passages each for held bike lanes and zoning. **Its labels were made
+by an AI helper (Claude) from the exact passage, blind to any Jev output. No person has reviewed them yet**, and the
+file says so in `labelled_by`. Like round 1, it carries no speech: keys, labels, passage hashes and a short note with
+no names.
+
+| topic | items | clear | for | against | concerns only | no side | off topic |
+|---|---|---|---|---|---|---|---|
+| missing-middle-housing | 50 | 9 | 8 | 7 | 3 | 6 | 26 |
+| homeless-encampments | 50 | 8 | 10 | 11 | 9 | 4 | 16 |
+| speed-bumps | 43 | 10 | 14 | 2 | 3 | 15 | 9 |
+| battery-storage | 35 | 13 | 3 | 10 | 4 | 4 | 14 |
+| solar-farms | 45 | 7 | 6 | 7 | 4 | 4 | 24 |
+| speed-cameras | 31 | 7 | 8 | 2 | 0 | 3 | 18 |
+| artificial-turf | 33 | 5 | 7 | 0 | 4 | 6 | 16 |
+| gas-stations | 50 | 5 | 5 | 7 | 1 | 1 | 36 |
+| road-diets | 38 | 4 | 6 | 0 | 2 | 8 | 22 |
+| roundabouts | 41 | 4 | 6 | 2 | 3 | 3 | 27 |
+| backyard-chickens | 42 | 3 | 5 | 1 | 1 | 1 | 34 |
+| bike-lanes (held; + round 1) | 40 (+50) | 11 (+6) | 16 | 3 | 3 | 4 | 14 |
+| zoning-regulations (held; + round 1) | 40 (+50) | 7 (+5) | 2 | 9 | 1 | 1 | 27 |
+
+The gate needs at least 8 clear items, so only six topics can pass on this set: missing-middle housing, homeless
+encampments, speed bumps, battery storage, and bike lanes and zoning (round 1 + 2 together, `report --all-rounds`).
+The other seven need more labels before any score could pass them. Their passages are mostly off topic: "turf" as
+territory, chicken dinners, gas prices, "a roundabout way", and the public-comment flag letting staff through. Scoring
+them anyway costs under a cent and shows whether Jev drops those off-topic passages.
+
+### Cost estimate and run plan (paid; waits for the owner's yes in the session that runs it)
+
+Rate: $0.042 per 1M Jev input tokens (`llm/usage/prices.yaml`). The free dry run (2026-11-28) counts the speakers
+whose own words match each topic's phrases:
+
+| step | calls | estimate |
+|---|---|---|
+| score round-2 gold (538 items; about 1,090 tokens each, as in round 1) | 538 | ~$0.025 |
+| full run, all 13 new and held topics | 9,518 | ~$0.44 |
+| of which: zoning-regulations 5,098, missing-middle 1,075, bike-lanes 807, gas-stations 601, roundabouts 373, homeless-encampments 367, backyard-chickens 267, solar-farms 237, speed-bumps 229, road-diets 151, battery-storage 146, artificial-turf 113, speed-cameras 54 | | |
+
+Only topics that pass go to the full run. The likely ceiling is the six gate-eligible topics, about 7,722 calls and
+about $0.36. The whole task stays under $0.50, against the previous 13-topic run's $0.94. Commands, in order:
+
+```bash
+python -m llm.usage.report --since 2026-11-28                     # usage before
+python -m llm.typesafe.speaker_stance_gold score \
+  --gold packages/llm/src/llm/typesafe/gold/speaker_stance_gold_round2.json \
+  --results packages/llm/src/llm/typesafe/gold/speaker_stance_gold_round2_results.json --max-usd 0.10
+python -m llm.typesafe.speaker_stance_gold report \
+  --gold packages/llm/src/llm/typesafe/gold/speaker_stance_gold_round2.json \
+  --results packages/llm/src/llm/typesafe/gold/speaker_stance_gold_round2_results.json
+python -m llm.typesafe.speaker_stance_gold report --all-rounds   # bike lanes and zoning across both rounds
+# then name only the topics whose "passes" is true (held topics run when named):
+python -m llm.typesafe.speaker_stance --topic <passing,slugs> --max-usd 1.0 --summary-json <scratch>/run.json
+python -m llm.usage.report --since 2026-11-28                     # usage after
+```
+
+Both commands write as each answer arrives, skip what is already read at the topic's question version, and stop
+cleanly on 401, 402 or 403. Within a topic, the hottest and most contested meetings go first, with 2026 breaking
+ties. Then rebuild `meeting_speaker_topic_side` and `topic_place_ranking`, and release the passing topics from `HELD`
+in a follow-up PR with their gold numbers.
+
+
 ## Positions in plain words
 
 `web_app/src/utils/topicPositions.ts` has an entry per topic in everyday words ("Want more homes allowed" / "Against

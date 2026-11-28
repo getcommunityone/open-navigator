@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from llm.typesafe import speaker_stance as ss
 from llm.typesafe import speaker_stance_gold as gold
 from llm.typesafe import topic_lean as tl
@@ -378,3 +379,17 @@ def test_round2_gold_is_flagged_ai_helper_and_carries_no_speech() -> None:
         assert not it["clear"] or it["label"] in gold.SIDED
         assert re.fullmatch(r"[0-9a-f]{32}", it["meeting_speaker_id"]) and re.fullmatch(r"[0-9a-f]{64}", it["state_sha256"])
         assert len(it["note"].split()) <= 14
+
+
+def test_combined_rounds_count_each_item_once(tmp_path: Path) -> None:
+    item = {"topic": "bike-lanes", "meeting_speaker_id": "a" * 32, "state_sha256": "b" * 64, "label": "for",
+            "clear": True, "note": "asks for lanes"}
+    g1, g2 = tmp_path / "g1.json", tmp_path / "g2.json"
+    g1.write_text(json.dumps({"items": [item]}))
+    g2.write_text(json.dumps({"items": [item, {**item, "meeting_speaker_id": "c" * 32, "label": "against"}]}))
+    r = tmp_path / "r.json"
+    r.write_text(json.dumps({"predictions": {
+        f"bike-lanes|{'a' * 32}": {"side": "for", "side_confidence": 0.95},
+        f"bike-lanes|{'c' * 32}": {"side": "against", "side_confidence": 0.9}}}))
+    res = gold.combined([g1, g2], [r, tmp_path / "missing.json"])
+    assert res["bike-lanes"]["items"] == 2 and res["bike-lanes"]["clear"] == 2 and res["bike-lanes"]["swaps"] == 0
