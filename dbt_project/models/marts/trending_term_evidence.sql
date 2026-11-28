@@ -28,7 +28,7 @@
 
 {%- set n_nat = var('trending_evidence_national', 5) %}
 {%- set n_st = var('trending_evidence_state', 1) %}
-{%- set hl = "StartSel=<mark>, StopSel=</mark>, MaxWords=22, MinWords=10, ShortWord=2, MaxFragments=1, HighlightAll=false" %}
+{%- set hl = "StartSel=<mark>, StopSel=</mark>, MaxWords=20, MinWords=10, ShortWord=2, MaxFragments=1, HighlightAll=false" %}
 {%- set redact = "regexp_replace({}, '(my name is|my name''s|name is)\\s+[A-Za-z''-]+(\\s+[A-Za-z''-]+)?', '\\1 [name]', 'gi')" %}
 
 -- The terms a page can show: in the top var trending_evidence_rank (20) of any sort in the scope.
