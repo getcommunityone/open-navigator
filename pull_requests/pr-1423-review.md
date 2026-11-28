@@ -5,7 +5,7 @@ title: "fix(web): every map and chart gets a takeaway title and colour legend (C
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: 6e1ea490f9a96f818bee4bf52333bf8e993964f0
+head_sha: f492262484173685455d3ef1982d18a6a357c0f6
 verdict: approve
 ---
 
@@ -35,6 +35,7 @@ Automated review (#648) for PR #1423 on `fix/1409-chart-legends`. Heuristic rubr
 - `web_app/src/components/stance/FitDisplay.tsx`
 - `web_app/src/components/stance/LegislationMap.tsx`
 - `web_app/src/components/stance/LocalActionsTracker.tsx`
+- `web_app/src/components/stance/SitesTimelinePanel.css`
 - `web_app/src/components/stance/SitesTimelinePanel.tsx`
 - `web_app/src/components/stance/StoryCountyMap.tsx`
 - `web_app/src/components/stance/StoryDotMap.tsx`
@@ -51,7 +52,7 @@ Automated review (#648) for PR #1423 on `fix/1409-chart-legends`. Heuristic rubr
 
 ## CI Status
 
-See the PR checks on `6e1ea490f9a9`.
+See the PR checks on `f49226248417`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
