@@ -4,7 +4,10 @@ import {
   captureDomBoxes,
   easeOutCubicSafe,
   planCrossFlight,
+  retargetPlan,
   sampleCrossFlight,
+  LANDING_FADE_MS,
+  MAX_MEASURED,
   type CrossFlightPlan,
   type ParticleBox,
 } from './boxFlightBridge'
@@ -25,6 +28,8 @@ interface FlightJob {
   from: ParticleBox[]
   focusGroup: string | null
   targetSelector: string
+  /** Reduced motion: no flight, the target's boxes fade in. */
+  reduced: boolean
 }
 
 export interface BoxFlightApi {
@@ -52,6 +57,32 @@ export function useBoxFlight(): BoxFlightApi {
 }
 
 const WAIT_TARGET_MS = 2200
+/** The target must hold still this long (layout, scroll, fonts) before the flight is planned toward it (#1485). */
+const SETTLE_MS = 110
+/** A target that never holds still is flown to after this long: the landing then follows the live boxes (retargetPlan). */
+const SETTLE_GIVE_UP_MS = 1700
+/** Reduced motion: the old boxes are not drawn; the new ones fade in (ms). */
+const REDUCED_FADE_MS = 160
+
+/** A cheap fingerprint of a target's layout: box count, a spread of box rects, the scroll position and the font state. */
+function layoutSignature(target: Element): string {
+  const all = target.querySelectorAll('[data-box]')
+  const n = all.length
+  const parts: string[] = [String(n), String(Math.round(window.scrollY)), document.fonts?.status ?? '']
+  const k = Math.min(n, 28)
+  for (let i = 0; i < k; i++) {
+    const r = all[k === 1 ? 0 : Math.floor((i * (n - 1)) / (k - 1))]!.getBoundingClientRect()
+    parts.push(`${Math.round(r.left * 4)},${Math.round(r.top * 4)},${Math.round(r.width * 4)}`)
+  }
+  return parts.join('|')
+}
+
+/** Test hook: with `window.__boxFlightProbe = true` each flight leaves its final canvas poses for e2e/box-flight-landing. */
+interface FlightProbe {
+  target: string
+  poses: Array<{ x: number; y: number; w: number; h: number; el: Element | null; kind: string }>
+  at: number
+}
 /** A target that exists but has drawn no boxes after this long has none (#1415). */
 const TARGET_EMPTY_MS = 500
 
@@ -77,6 +108,7 @@ function clearHiddenMarks(): void {
   if (typeof document === 'undefined') return
   document.querySelectorAll('[data-box-flight-hide]').forEach((el) => el.removeAttribute('data-box-flight-hide'))
   document.querySelectorAll('[data-box-flight-prehide]').forEach((el) => el.removeAttribute('data-box-flight-prehide'))
+  document.querySelectorAll('[data-box-flight-reveal]').forEach((el) => el.removeAttribute('data-box-flight-reveal'))
 }
 
 /** Resolve comma-separated selectors in priority order (unlike `querySelector`, which returns first in DOM order). */
@@ -109,7 +141,7 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
 
   const launch = useCallback(
     (opts: LaunchFlightOptions) => {
-      if (reduced || typeof document === 'undefined') return
+      if (typeof document === 'undefined') return
       const from = opts.boxes && opts.boxes.length > 0 ? opts.boxes : captureDomBoxes(opts.source ?? null)
       if (!from.length) return
       lastBoxesRef.current = from
@@ -118,6 +150,7 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
         from,
         focusGroup: opts.focusGroup ?? null,
         targetSelector: opts.targetSelector,
+        reduced,
       })
     },
     [reduced],
@@ -127,7 +160,7 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
     if (!job) return
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d') ?? null
-    if (!canvas || !ctx) {
+    if (!job.reduced && (!canvas || !ctx)) {
       clearHiddenMarks()
       setJob(null)
       return
@@ -138,11 +171,14 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
     let plan: CrossFlightPlan | null = null
     let startedAt = 0
     let hiddenTarget: Element | null = null
-    let stableCount = 0
-    let lastToCount = -1
+    let sig = ''
+    let stableSince = 0
+    // After the flight has landed: the canvas fades out while the DOM boxes fade in, on the same rects.
+    let fadeAt = 0
     const t0 = performance.now()
 
     const syncSize = () => {
+      if (!canvas || !ctx) return
       const dpr = window.devicePixelRatio || 1
       const w = window.innerWidth
       const h = window.innerHeight
@@ -168,20 +204,23 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
         angle?: number
         lifted?: number
       }>,
+      alpha = 1,
     ) => {
+      if (!ctx) return
       syncSize()
       for (let i = frames.length - 1; i >= 0; i--) {
         const f = frames[i]!
-        if (f.opacity <= 0.01 || f.w <= 0.4 || f.h <= 0.4) continue
+        const o = f.opacity * alpha
+        if (o <= 0.01 || f.w <= 0.4 || f.h <= 0.4) continue
         ctx.save()
         ctx.translate(f.x, f.y)
         if (f.angle) ctx.rotate(f.angle)
         if (f.lifted && f.lifted > 0.02) {
-          ctx.globalAlpha = 0.2 * f.lifted * f.opacity
+          ctx.globalAlpha = 0.2 * f.lifted * o
           ctx.fillStyle = '#1c1917'
           drawRoundedBox(ctx, -f.w / 2 + 1.5, -f.h / 2 + 3.5, f.w * 1.04, f.h * 1.04, f.rx)
         }
-        ctx.globalAlpha = Math.min(1, Math.max(0, f.opacity))
+        ctx.globalAlpha = Math.min(1, Math.max(0, o))
         ctx.fillStyle = f.color
         drawRoundedBox(ctx, -f.w / 2, -f.h / 2, f.w, f.h, f.rx)
         ctx.restore()
@@ -198,6 +237,16 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
       setJob(null)
     }
 
+    /** Hand over to the DOM boxes: they fade 0 -> 1 where the canvas boxes stand (a transition on the reveal attribute). */
+    const reveal = (now: number, ms: number) => {
+      fadeAt = now
+      if (hiddenTarget) {
+        hiddenTarget.setAttribute('data-box-flight-reveal', '1')
+        ;(hiddenTarget as HTMLElement).style.setProperty('--box-flight-reveal-ms', `${ms}ms`)
+        hiddenTarget.removeAttribute('data-box-flight-hide')
+      }
+    }
+
     const onInterrupt = () => {
       if (performance.now() - t0 < 90) return
       finish()
@@ -205,13 +254,26 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
 
     const tick = (now: number) => {
       if (dead) return
+      if (fadeAt) {
+        const ms = job.reduced ? REDUCED_FADE_MS : LANDING_FADE_MS
+        const k = (now - fadeAt) / ms
+        if (k >= 1) {
+          finish()
+          return
+        }
+        if (plan) {
+          retargetPlan(plan)
+          renderFrames(sampleCrossFlight(plan, plan.total), 1 - k)
+        }
+        raf = requestAnimationFrame(tick)
+        return
+      }
       if (!plan) {
         if (now - t0 > WAIT_TARGET_MS) {
           finish()
           return
         }
         const target = resolveTarget(job.targetSelector)
-        // Poll with a cheap count; read the (possibly thousands of) boxes once, when the target has settled (#1416).
         const count = target ? target.querySelectorAll('[data-box]').length : 0
         // The target is on screen but has no boxes to land on (a screen of text, a list): there is nothing to fly to, so the
         // held boxes are let go at once, not left drawn over the new screen for the rest of the wait (#1415).
@@ -219,27 +281,37 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
           finish()
           return
         }
-        if (count > 0) {
-          if (count === lastToCount) stableCount += 1
-          else {
-            lastToCount = count
-            stableCount = 1
+        // Settled: the same boxes at the same rects for SETTLE_MS, with the fonts loaded. A target read before this (fit zoom,
+        // scroll landing, a late font, boxes still mounting a slice a frame) is what made the canvas land off the DOM (#1485).
+        let settled = false
+        if (target && count > 0) {
+          const s = layoutSignature(target)
+          if (s !== sig) {
+            sig = s
+            stableSince = now
           }
+          settled = now - stableSince >= SETTLE_MS && (document.fonts?.status ?? 'loaded') !== 'loading'
+          if (!settled && now - t0 > SETTLE_GIVE_UP_MS) settled = true
         }
-        const to = target && count > 0 && stableCount >= 2 ? captureDomBoxes(target) : []
+        const to = settled && target ? captureDomBoxes(target, MAX_MEASURED, true) : []
         if (target && to.length > 0) {
           hiddenTarget = target
           target.setAttribute('data-box-flight-hide', '1')
+          if (job.reduced) {
+            reveal(now, REDUCED_FADE_MS)
+            raf = requestAnimationFrame(tick)
+            return
+          }
           plan = planCrossFlight(job.from, to, { focusGroup: job.focusGroup })
           startedAt = job.focusGroup ? now - Math.min(plan.lift, now - t0) : now
         } else {
-          // Hold / gently lift the starting boxes while waiting for the next page/screen to render its marks.
+          // Hold the starting boxes (a gentle lift only when one group is in focus) while the next screen settles.
           const holdP = easeOutCubicSafe((now - t0) / 140)
           const focus = job.focusGroup
           const hasFocusMatch = Boolean(focus && job.from.some((b) => b.group === focus))
           renderFrames(
             job.from.map((b) => {
-              const isFocus = !hasFocusMatch || b.group === focus
+              const isFocus = hasFocusMatch && b.group === focus
               const liftScale = isFocus ? 1 + 0.18 * holdP : 1
               return {
                 x: b.x,
@@ -248,7 +320,7 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
                 h: b.h * liftScale,
                 rx: (b.rx ?? Math.min(b.w, b.h) * 0.14) * liftScale,
                 color: b.color,
-                opacity: (b.opacity ?? 1) * (isFocus ? 1 : 1 - 0.55 * holdP),
+                opacity: (b.opacity ?? 1) * (focus && hasFocusMatch && !isFocus ? 1 - 0.55 * holdP : 1),
                 lifted: isFocus ? holdP : 0,
               }
             }),
@@ -257,10 +329,28 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
           return
         }
       }
+      if (!plan) {
+        raf = requestAnimationFrame(tick)
+        return
+      }
 
       const elapsed = now - startedAt
+      // Landing poses follow the live DOM boxes, so whatever moved since the plan was made, the flight ends on them.
+      retargetPlan(plan)
       if (elapsed >= plan.total) {
-        finish()
+        const probe = (window as unknown as { __boxFlightProbe?: boolean }).__boxFlightProbe
+        const final = sampleCrossFlight(plan, plan.total)
+        if (probe) {
+          const rec: FlightProbe = {
+            target: job.targetSelector,
+            at: performance.now(),
+            poses: final.map((f, i) => ({ x: f.x, y: f.y, w: f.w, h: f.h, el: plan!.steps[i]!.toEl ?? null, kind: plan!.steps[i]!.kind })),
+          }
+          ;(window as unknown as { __boxFlightLast?: FlightProbe }).__boxFlightLast = rec
+        }
+        renderFrames(final)
+        reveal(now, LANDING_FADE_MS)
+        raf = requestAnimationFrame(tick)
         return
       }
       renderFrames(sampleCrossFlight(plan, elapsed))
@@ -303,7 +393,7 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
   return (
     <BoxFlightContext.Provider value={value}>
       {children}
-      {job && <canvas ref={canvasRef} className="box-flight-canvas" aria-hidden="true" />}
+      {job && !job.reduced && <canvas ref={canvasRef} className="box-flight-canvas" aria-hidden="true" />}
     </BoxFlightContext.Provider>
   )
 }

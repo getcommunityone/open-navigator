@@ -50,7 +50,7 @@ export function useStoryBoxTransition(
   useEffect(() => {
     const prev = prevActive.current
     prevActive.current = active
-    if (reduced || prev == null || prev === active) return
+    if (prev == null || prev === active) return
     const root = rootRef.current
     if (!root) return
     const prevPanel = root.querySelector<HTMLElement>(`[data-panel="${prev}"]`)

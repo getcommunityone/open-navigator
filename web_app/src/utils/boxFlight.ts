@@ -6,7 +6,7 @@
  * Bezier arcs with subtle mid-flight tilt, cross-fade colour/size, and reassemble into the destination page's
  * or screen's `[data-box]` layout.
  */
-import { easeOutCubic, easeOutExpo, mixColor } from './boxMorph'
+import { easeOutCubic, mixColor } from './boxMorph'
 
 export const MAX_PARTICLES = 360
 /** The most `[data-box]` elements a capture measures (see `captureDomBoxes`). */
@@ -28,6 +28,8 @@ export interface ParticleBox {
   opacity?: number
   /** Optional group key (`data-state` or `data-group`) for focus/matching. */
   group?: string
+  /** The live element this box was measured from (target captures only): a landing re-reads its rect every frame. */
+  el?: Element
 }
 
 export type CrossFlightKind = 'carry' | 'spawn' | 'fade' | 'scatter'
@@ -54,6 +56,8 @@ export interface CrossFlightStep {
   delay: number
   duration: number
   lifts: boolean
+  /** The live destination element: `retargetPlan` keeps `to` equal to its rect, so the flight lands where the DOM box is. */
+  toEl?: Element
 }
 
 export interface CrossFlightPlan {
@@ -79,14 +83,62 @@ export interface CrossFlightOptions {
   arc?: number
 }
 
+/** Cross-fade from the canvas to the real DOM boxes once the flight has landed (ms). */
+export const LANDING_FADE_MS = 120
+
+/**
+ * Motion taken from the owner's vizjb12 matrix: a `transform` transition of 600 ms on cubic-bezier(0.7, 0, 0.2, 1) with a
+ * small delay by position (index / total, capped), opacity 240 ms. Straight lines, no tilt, no arc, no overshoot.
+ */
 export const FLIGHT_DEFAULTS = {
-  lift: 120,
-  flight: 580,
-  stagger: 220,
-  drift: 68,
+  lift: 0,
+  flight: 640,
+  stagger: 260,
+  drift: 0,
   maxParticles: MAX_PARTICLES,
-  arc: 0.16,
+  arc: 0,
 } as const
+
+/** `cubic-bezier(x1, y1, x2, y2)` as a function of progress, the CSS timing-function maths. */
+export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
+  const cx = 3 * x1
+  const bx = 3 * (x2 - x1) - cx
+  const ax = 1 - cx - bx
+  const cy = 3 * y1
+  const by = 3 * (y2 - y1) - cy
+  const ay = 1 - cy - by
+  const X = (u: number) => ((ax * u + bx) * u + cx) * u
+  const dX = (u: number) => (3 * ax * u + 2 * bx) * u + cx
+  const Y = (u: number) => ((ay * u + by) * u + cy) * u
+  return (t) => {
+    if (t <= 0) return 0
+    if (t >= 1) return 1
+    let u = t
+    for (let i = 0; i < 8; i++) {
+      const err = X(u) - t
+      if (Math.abs(err) < 1e-5) return Y(u)
+      const d = dX(u)
+      if (Math.abs(d) < 1e-6) break
+      u -= err / d
+    }
+    let lo = 0
+    let hi = 1
+    u = t
+    for (let i = 0; i < 24; i++) {
+      const x = X(u)
+      if (Math.abs(x - t) < 1e-5) break
+      if (x < t) lo = u
+      else hi = u
+      u = (lo + hi) / 2
+    }
+    return Y(u)
+  }
+}
+
+/** vizjb12's `--ease-in-out`. */
+export const easeFlight = cubicBezier(0.7, 0, 0.2, 1)
+/** vizjb12's `--ease-out`, for opacity. */
+export const easeFade = cubicBezier(0.2, 0, 0, 1)
 
 const pose = (b: ParticleBox): CrossFlightPose => ({
   x: b.x,
@@ -116,21 +168,6 @@ export function sampleBoxes(boxes: ParticleBox[], max = MAX_PARTICLES): Particle
     out.push(boxes[Math.min(boxes.length - 1, Math.floor(i * step))]!)
   }
   return out
-}
-
-function bezierCtrl(ax: number, ay: number, bx: number, by: number, idx: number, arcRatio: number): { cx: number; cy: number } {
-  const dx = bx - ax
-  const dy = by - ay
-  const dist = Math.hypot(dx, dy)
-  if (dist < 4) return { cx: (ax + bx) / 2, cy: (ay + by) / 2 }
-  const sign = idx % 2 === 0 ? 1 : -1
-  const bow = Math.min(96, dist * arcRatio) * sign
-  const nx = -dy / dist
-  const ny = dx / dist
-  return {
-    cx: (ax + bx) / 2 + nx * bow,
-    cy: (ay + by) / 2 + ny * bow,
-  }
 }
 
 /**
@@ -170,120 +207,122 @@ export function planCrossFlight(
   const to = sampleBoxes(rawTo, maxP)
   const others = sampleBoxes(scatterRaw, Math.max(0, maxP - Math.min(from.length, to.length)))
 
-  const lift = from.length > 0 ? liftMs : 0
+  const lift = from.length > 0 && focus ? liftMs : 0
   const steps: CrossFlightStep[] = []
   const toCenter = centroid(to) ?? centroid(from) ?? { x: 0, y: 0 }
   const fromCenter = centroid(from) ?? toCenter
 
-  // Pair each `to` box to its nearest available `from` box (preferring matching `group` when present).
+  // Identity (#1485): a box that stands for the same group keeps its place in the order. Within each group the source and the
+  // destination boxes are put in reading order and paired rank to rank, so the group moves as a block, no lines cross, and the
+  // same record goes to the same slot every time. What a group lacks on one side is paired by nearest among what is left.
+  const readOrder = (arr: ParticleBox[], idxs: number[]): number[] => {
+    const row = Math.max(2, median(arr.map((b) => b.h)) * 0.6)
+    return [...idxs].sort((a, b) => {
+      const ra = Math.round(arr[a]!.y / row)
+      const rb = Math.round(arr[b]!.y / row)
+      return ra !== rb ? ra - rb : arr[a]!.x - arr[b]!.x
+    })
+  }
+  const byGroup = (arr: ParticleBox[]): Map<string, number[]> => {
+    const m = new Map<string, number[]>()
+    arr.forEach((b, i) => {
+      const k = b.group ?? ''
+      const l = m.get(k)
+      if (l) l.push(i)
+      else m.set(k, [i])
+    })
+    return m
+  }
   const usedFrom = new Set<number>()
   const pairedFrom = new Array<number>(to.length).fill(-1)
-
-  const pickBest = (t: ParticleBox, requireUnused: boolean, preferGroup: boolean): number => {
+  const fromG = byGroup(from)
+  const toG = byGroup(to)
+  toG.forEach((tIdx, key) => {
+    const fIdx = fromG.get(key)
+    if (!fIdx) return
+    const f = readOrder(from, fIdx)
+    const t = readOrder(to, tIdx)
+    for (let i = 0; i < Math.min(f.length, t.length); i++) {
+      pairedFrom[t[i]!] = f[i]!
+      usedFrom.add(f[i]!)
+    }
+  })
+  // Leftovers across groups (a destination group the source never had, e.g. grey cells): nearest unused source box.
+  for (let j = 0; j < to.length; j++) {
+    if (pairedFrom[j]! >= 0 || usedFrom.size >= from.length) continue
     let best = -1
-    let bestScore = Infinity
+    let bestD = Infinity
     for (let i = 0; i < from.length; i++) {
-      if (requireUnused && usedFrom.has(i)) continue
-      const f = from[i]!
-      const dx = f.x - t.x
-      const dy = f.y - t.y
-      const distSq = dx * dx + dy * dy
-      const groupPenalty = preferGroup && t.group && f.group && t.group !== f.group ? 1e8 : 0
-      const score = distSq + groupPenalty
-      if (score < bestScore) {
-        bestScore = score
+      if (usedFrom.has(i)) continue
+      const d = (from[i]!.x - to[j]!.x) ** 2 + (from[i]!.y - to[j]!.y) ** 2
+      if (d < bestD) {
+        bestD = d
         best = i
       }
     }
-    return best
-  }
-
-  // First pass: 1-to-1 carry pairings (each `from` box carries at most one `to` box).
-  for (let j = 0; j < to.length; j++) {
-    if (usedFrom.size >= from.length) break
-    const p = pickBest(to[j]!, true, true)
-    if (p >= 0) {
-      usedFrom.add(p)
-      pairedFrom[j] = p
+    if (best >= 0) {
+      pairedFrom[j] = best
+      usedFrom.add(best)
     }
   }
 
-  // Stagger center-out around destination centroid.
-  const dists = to.map((t) => Math.hypot(t.x - toCenter.x, t.y - toCenter.y))
-  const maxDist = Math.max(0, ...dists)
+  // Stagger by position in the destination's reading order (vizjb12: delay = index / total), so a layout fills in like a wave.
+  const order = readOrder(to, to.map((_, i) => i))
+  const rank = new Array<number>(to.length).fill(0)
+  order.forEach((j, r) => (rank[j] = to.length > 1 ? r / (to.length - 1) : 0))
 
   to.forEach((t, j) => {
     const end = pose(t)
-    const delay = lift + (maxDist > 0 ? (dists[j]! / maxDist) * staggerMs : 0)
+    const delay = lift + rank[j]! * staggerMs
     const carryIdx = pairedFrom[j]!
     if (carryIdx >= 0) {
-      const start = pose(from[carryIdx]!)
-      const { cx, cy } = bezierCtrl(start.x, start.y, end.x, end.y, j, arcRatio)
-      const angleMax = ((j % 2 === 0 ? 1 : -1) * (0.08 + ((j * 7) % 10) * 0.012))
       steps.push({
         kind: 'carry',
-        from: start,
+        from: pose(from[carryIdx]!),
         to: end,
-        cx,
-        cy,
-        angleMax,
-        delay,
-        duration: flightMs,
-        lifts: Boolean(focus),
-      })
-    } else {
-      const nearest = pickBest(t, false, false)
-      const src = nearest >= 0 ? pose(from[nearest]!) : { ...end, x: fromCenter.x, y: fromCenter.y }
-      const spawnFrom: CrossFlightPose = {
-        ...src,
-        w: Math.min(src.w, end.w) * 0.45,
-        h: Math.min(src.h, end.h) * 0.45,
-        opacity: 0,
-      }
-      const { cx, cy } = bezierCtrl(spawnFrom.x, spawnFrom.y, end.x, end.y, j, arcRatio)
-      steps.push({
-        kind: 'spawn',
-        from: spawnFrom,
-        to: end,
-        cx,
-        cy,
+        cx: 0,
+        cy: 0,
         angleMax: 0,
         delay,
         duration: flightMs,
+        lifts: Boolean(focus),
+        toEl: t.el,
+      })
+    } else {
+      // More boxes here than there: the extra ones fade in where they belong, a little after the rest have started to move.
+      steps.push({
+        kind: 'spawn',
+        from: { ...end, opacity: 0, w: end.w * 0.6, h: end.h * 0.6 },
+        to: end,
+        cx: 0,
+        cy: 0,
+        angleMax: 0,
+        delay: delay + flightMs * 0.25,
+        duration: flightMs * 0.6,
         lifts: false,
+        toEl: t.el,
       })
     }
   })
 
-  // Surplus `from` boxes fade cleanly toward the destination centroid.
+  // Fewer boxes here than there: the surplus fade out where they stand.
   from.forEach((f, i) => {
     if (usedFrom.has(i)) return
     const start = pose(f)
-    const targetX = start.x + (toCenter.x - start.x) * 0.25
-    const targetY = start.y + (toCenter.y - start.y) * 0.25
-    const end: CrossFlightPose = {
-      ...start,
-      x: targetX,
-      y: targetY,
-      w: start.w * 0.35,
-      h: start.h * 0.35,
-      opacity: 0,
-    }
-    const { cx, cy } = bezierCtrl(start.x, start.y, end.x, end.y, i, arcRatio * 0.7)
     steps.push({
       kind: 'fade',
       from: start,
-      to: end,
-      cx,
-      cy,
+      to: { ...start, opacity: 0 },
+      cx: 0,
+      cy: 0,
       angleMax: 0,
       delay: lift,
-      duration: flightMs * 0.65,
-      lifts: Boolean(focus),
+      duration: flightMs * 0.5,
+      lifts: false,
     })
   })
 
-  // Unfocused boxes scatter outward from the focused centroid and dissolve.
+  // Boxes outside the focused group (a map drill) step back and dissolve; with `drift` 0 they stay put.
   others.forEach((b, i) => {
     const start = pose(b)
     const dx = b.x - fromCenter.x
@@ -293,8 +332,8 @@ export function planCrossFlight(
       ...start,
       x: b.x + (dx / len) * driftPx,
       y: b.y + (dy / len) * driftPx,
-      w: start.w * 0.75,
-      h: start.h * 0.75,
+      w: start.w * (driftPx > 0 ? 0.75 : 1),
+      h: start.h * (driftPx > 0 ? 0.75 : 1),
       opacity: 0,
     }
     steps.push({
@@ -305,13 +344,44 @@ export function planCrossFlight(
       cy: (start.y + end.y) / 2,
       angleMax: 0,
       delay: (i % 6) * 14,
-      duration: flightMs * 0.75,
+      duration: flightMs * 0.6,
       lifts: false,
     })
   })
 
+  void toCenter
+  void arcRatio
   const total = steps.reduce((a, s) => Math.max(a, s.delay + s.duration), 0)
   return { steps, total, lift }
+}
+
+function median(xs: number[]): number {
+  if (!xs.length) return 0
+  const s = [...xs].sort((a, b) => a - b)
+  return s[Math.floor(s.length / 2)]!
+}
+
+/**
+ * Re-read every landing box's live rect into its step (#1485). The plan was made from a measure taken a moment earlier; if the
+ * screen has moved since (fit zoom, scroll, a font, boxes still arriving), the flight lands on where the DOM box is now, not
+ * where it was. Reads only; call it before sampling, never between writes.
+ */
+export function retargetPlan(plan: CrossFlightPlan): number {
+  let moved = 0
+  for (const s of plan.steps) {
+    const el = s.toEl
+    if (!el || !el.isConnected) continue
+    const r = el.getBoundingClientRect()
+    if (r.width <= 0.5 || r.height <= 0.5) continue
+    const x = r.left + r.width / 2
+    const y = r.top + r.height / 2
+    if (Math.abs(s.to.x - x) > 0.01 || Math.abs(s.to.y - y) > 0.01 || Math.abs(s.to.w - r.width) > 0.01) moved++
+    s.to.x = x
+    s.to.y = y
+    s.to.w = r.width
+    s.to.h = r.height
+  }
+  return moved
 }
 
 export function sampleCrossStep(step: CrossFlightStep, ms: number, lift: number): CrossFlightFrame {
@@ -321,29 +391,22 @@ export function sampleCrossStep(step: CrossFlightStep, ms: number, lift: number)
 
   const up = step.lifts && lift > 0 ? easeOutCubic(Math.min(1, Math.max(0, ms / lift))) : 0
   const lifted = up * (1 - p)
-  const e = step.kind === 'scatter' || step.kind === 'fade' ? easeOutCubic(p) : easeOutExpo(p)
+  const e = easeFlight(p)
   const scale = 1 + (FLIGHT_LIFT_SCALE - 1) * lifted
-
-  // Quadratic Bezier interpolation: (1-e)^2*P0 + 2(1-e)e*C + e^2*P1
-  const inv = 1 - e
-  const x = inv * inv * step.from.x + 2 * inv * e * step.cx + e * e * step.to.x
-  const y = inv * inv * step.from.y + 2 * inv * e * step.cy + e * e * step.to.y
   const lerp = (a: number, b: number) => a + (b - a) * e
-
-  const opacity =
-    step.kind === 'spawn'
-      ? step.to.opacity * Math.min(1, p / 0.42)
-      : lerp(step.from.opacity, step.to.opacity)
+  // Opacity runs on its own, quicker curve (vizjb12: 240 ms against 600 ms for the move).
+  const eo = easeFade(Math.min(1, p / 0.45))
+  const opacity = step.from.opacity + (step.to.opacity - step.from.opacity) * eo
 
   return {
-    x,
-    y,
+    x: lerp(step.from.x, step.to.x),
+    y: lerp(step.from.y, step.to.y),
     w: lerp(step.from.w, step.to.w) * scale,
     h: lerp(step.from.h, step.to.h) * scale,
     rx: lerp(step.from.rx, step.to.rx) * scale,
-    color: mixColor(step.from.color, step.to.color, easeOutCubic(Math.max(0, (p - 0.3) / 0.7))),
+    color: mixColor(step.from.color, step.to.color, e),
     opacity,
-    angle: step.angleMax * Math.sin(Math.PI * p),
+    angle: 0,
     lifted,
   }
 }
@@ -354,9 +417,10 @@ export function sampleCrossFlight(plan: CrossFlightPlan, ms: number): CrossFligh
 
 function readBoxColor(el: Element): string {
   const cs = getComputedStyle(el)
-  const fill = cs.fill
+  // `fill` computes to black on an HTML box (it only means something on SVG): reading it painted every span box black (#1485).
+  const fill = el instanceof SVGElement ? cs.fill : ''
   if (fill && fill !== 'none' && fill !== 'transparent' && fill !== 'rgba(0, 0, 0, 0)') return fill
-  const attrFill = el.getAttribute('fill')
+  const attrFill = el instanceof SVGElement ? el.getAttribute('fill') : null
   if (attrFill && attrFill !== 'none' && !attrFill.startsWith('url(') && !attrFill.startsWith('var(')) return attrFill
   const bg = cs.backgroundColor
   if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') return bg
@@ -368,13 +432,16 @@ function readBoxColor(el: Element): string {
 /**
  * Snapshot all visible `[data-box]` elements inside `root` (or the viewport) in viewport coordinates.
  */
-function boxOf(el: Element, vw: number, vh: number): ParticleBox | null {
+function boxOf(el: Element, vw: number, vh: number, live = false): ParticleBox | null {
   const r = el.getBoundingClientRect()
   if (r.width <= 0.5 || r.height <= 0.5) return null
   if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) return null
   const cs = getComputedStyle(el)
-  const op = Number(cs.opacity)
-  if (Number.isFinite(op) && op <= 0.01) return null
+  let op = Number(cs.opacity)
+  // A landing box is read for where it will be and in what colour, not how far its own fade-in has got (#1485): a box measured
+  // at 40 % opacity would be landed dim and then jump to full.
+  if (live) op = 1
+  else if (Number.isFinite(op) && op <= 0.01) return null
   const rxAttr = Number(el.getAttribute('rx'))
   const rx = Number.isFinite(rxAttr) && rxAttr > 0 ? rxAttr : Math.min(r.width, r.height) * 0.14
   const group = el.getAttribute('data-state') || el.getAttribute('data-group') || undefined
@@ -387,10 +454,11 @@ function boxOf(el: Element, vw: number, vh: number): ParticleBox | null {
     color: readBoxColor(el),
     opacity: Number.isFinite(op) ? op : 1,
     group,
+    ...(live ? { el } : {}),
   }
 }
 
-export function captureDomBoxes(root?: Element | null, maxMeasured = MAX_MEASURED): ParticleBox[] {
+export function captureDomBoxes(root?: Element | null, maxMeasured = MAX_MEASURED, live = false): ParticleBox[] {
   if (typeof document === 'undefined' || typeof window === 'undefined') return []
   const scope: ParentNode = root ?? document
   const all = scope.querySelectorAll('[data-box]')
@@ -403,7 +471,7 @@ export function captureDomBoxes(root?: Element | null, maxMeasured = MAX_MEASURE
   const vh = window.innerHeight
   const out: ParticleBox[] = []
   nodes.forEach((el) => {
-    const b = boxOf(el, vw, vh)
+    const b = boxOf(el, vw, vh, live)
     if (b) out.push(b)
   })
   return out
