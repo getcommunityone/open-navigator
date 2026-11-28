@@ -194,6 +194,7 @@
     'segmented_meeting':                   "_s.state_code in {{states}}",
     'meeting_comment':                     "_s.state_code in {{states}}",
     'meeting_speaker_position':            "_s.state_code in {{states}}",
+    'governing_body':                      "_s.state_code in {{states}}",
     'meeting_speaker_topic_side':          "_s.state_code in {{states}}",
     'topic_place_ranking':                 "_s.state_code in {{states}}",
     'data_center_comment':                 "_s.state_code in {{states}}",
@@ -307,6 +308,7 @@
     'segmented_meeting', 'meeting_speaker_position', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
     'meeting_passage_speaker', 'meeting_speaker_topic_side',
     'topic_place_ranking',
+    'governing_body', 'meeting_body', 'body_membership', 'body_recent_speaker',
     'trending_term', 'trending_term_evidence'
 ] -%}
 

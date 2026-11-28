@@ -9,6 +9,8 @@
 import { easeOutCubic, easeOutExpo, mixColor } from './boxMorph'
 
 export const MAX_PARTICLES = 360
+/** The most `[data-box]` elements a capture measures (see `captureDomBoxes`). */
+export const MAX_MEASURED = 1000
 export const FLIGHT_LIFT_SCALE = 1.32
 
 export interface ParticleBox {
@@ -388,10 +390,15 @@ function boxOf(el: Element, vw: number, vh: number): ParticleBox | null {
   }
 }
 
-export function captureDomBoxes(root?: Element | null): ParticleBox[] {
+export function captureDomBoxes(root?: Element | null, maxMeasured = MAX_MEASURED): ParticleBox[] {
   if (typeof document === 'undefined' || typeof window === 'undefined') return []
   const scope: ParentNode = root ?? document
-  const nodes = scope.querySelectorAll('[data-box]')
+  const all = scope.querySelectorAll('[data-box]')
+  // A county map draws thousands of boxes and a flight carries at most MAX_PARTICLES: measuring every one (a layout read and a
+  // style read each) cost hundreds of ms on a phone per screen change (#1411). An even stride keeps every group represented.
+  const stride = all.length > maxMeasured ? all.length / maxMeasured : 1
+  const nodes: Element[] = []
+  for (let i = 0; i < all.length; i += stride) nodes.push(all[Math.floor(i)]!)
   const vw = window.innerWidth
   const vh = window.innerHeight
   const out: ParticleBox[] = []

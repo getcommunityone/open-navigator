@@ -283,14 +283,21 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
     }
   }, [job])
 
+  // The API never changes identity while a flight starts and ends (#1411): every story panel and map reads it from context, and a
+  // new value redrew them all (the county map's thousands of boxes included) twice per screen change. `isFlying` is read on
+  // demand from a ref.
+  const flyingRef = useRef(false)
+  flyingRef.current = job != null
   const value = useMemo<BoxFlightApi>(
     () => ({
       launch,
       rememberBoxes,
       getLastBoxes,
-      isFlying: job != null,
+      get isFlying() {
+        return flyingRef.current
+      },
     }),
-    [launch, rememberBoxes, getLastBoxes, job],
+    [launch, rememberBoxes, getLastBoxes],
   )
 
   return (

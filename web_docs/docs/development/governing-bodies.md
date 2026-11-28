@@ -102,7 +102,92 @@ it, so it is not stored. On 2026-11-28 all 24 portals we read meetings from answ
 Minneapolis publish bodies but no current office records. The API returned server errors for about 20 minutes during
 the run; the reader records those as `error` and a later run picks them up.
 
+## Officials heard most recently (body_recent_speaker)
+
+Captions carry no speaker labels, and officials almost never say "my name is", so the speaker layer (#1387) names
+residents but hardly ever an official (4 of 152k speaker rows were `official_roster_match`). The chair and the clerk do
+name officials at the moment they speak, so `python -m ingestion.youtube.official_mentions` (regex, no model) looks
+for a title plus a roster surname of the meeting place's members and keeps only three shapes:
+
+| Pattern | Real caption text (Tuscaloosa City Council, 2026) |
+|---|---|
+| roll_call | "voting with councelor Howard. >> Yes. >> Yes." / "voting on the application, Mr. Lanier. No. No." |
+| chair_call | "Thank you, Zach. Mayor Maddox. >> Yes, sir." / "Councilman Busby. >> Yeah, I'll do these two." |
+| self_intro | "this is Councilor Howard" |
+
+A plain mention ("Mr. Henry will be here at 2:00") is not counted. Only names on the place's roster can match, so a
+name heard in a meeting never makes anyone an official; a surname two members share needs the first name too. Caption
+misspellings of a surname ("Laneir") are missed rather than guessed. The rows land in
+`bronze.bronze_meeting_official_mention` with the seconds from the timed caption segments.
+
+`body_recent_speaker` has one row per body × member heard in that body's meetings in the last 18 months: meetings
+heard, moments, the last date and a YouTube link three seconds before the latest moment. Official self-introductions
+already matched in `meeting_speaker_intro` count too. A member is shown with their seat on the place's primary body
+(so a council member heard in a committee keeps their council role). Residents never appear: every row joins a
+`body_membership` row.
+
+On 2026-11-28: 3,812 recent transcripts in 482 places with a roster were scanned; 540 had a moment (5,474 moments);
+212 body × member rows across 92 bodies in 46 places. Tuscaloosa: the mayor, Raevan Howard, Cassius Lanier, Lee Busby
+and Richard Henry, across the council, its committees and Planning and Zoning.
+
+## API and place page
+
+- `GET /api/jurisdictions/{id}/bodies` (id = jurisdiction_id or Census geoid): each body with meeting count and date
+  range, member count (distinct people with a current seat), members and roles (current, plus seats that ended in
+  the last year so a vacancy reads as one), and officials heard recently. 404 for an unknown place; an empty list when
+  we know no bodies.
+- `GET /api/bodies/{id}?limit=`: the body with its place, members, officials heard and recent meetings.
+- The four marts are on the `publish_public_serving` list with ODCS contracts. Their routes live in `api/main.py`, so
+  `api.types.ts` (generated from `api.app`) does not change.
+- The place home `/jurisdiction/:jurisdictionId/meetings` shows "Who governs `<place>`" (the heading names the place in
+  the URL, the scope label) and "Officials heard most recently" with a play link to the YouTube moment and a link to
+  the official's person page. `/bodies/:bodyId` shows the body with its place as the scope label, members and roles,
+  ended seats, officials heard and recent meetings; the Close comes from Layout like every sub-page. Empty states say
+  "not on file" instead of showing a number. Checked at Pixel 7 and 1440 by `web_app/e2e/who-governs.check.mjs`.
+
+## Coverage (local warehouse, 2026-11-28)
+
+Places are jurisdictions other than states. "Member with a role" = a current seat from a roster source (officials data,
+council roster or Legistar; OpenStates chamber seats are counted separately: 7,387 seats on 100 chamber bodies in 50
+states).
+
+| State | Places with meetings | Places with ≥1 body | Places with ≥1 member with a role | Places with officials heard |
+|---|---|---|---|---|
+| AL | 100 | 104 | 13 | 4 |
+| CA | 161 | 214 | 78 | 6 |
+| NC | 138 | 139 | 5 | 2 |
+| IL | 137 | 159 | 36 | 3 |
+| OH | 155 | 160 | 11 | 1 |
+| MA | 62 | 68 | 9 | 2 |
+| TX | 149 | 175 | 41 | 1 |
+| MN | 91 | 95 | 9 | 1 |
+| MI | 91 | 103 | 13 | 0 |
+| WI | 119 | 125 | 9 | 1 |
+| NJ | 108 | 123 | 18 | 2 |
+| **All** | 2,628 | 2,949 | 483 | 46 |
+
+Rows after AL are the ten states with the most meetings on file.
+
+What is missing:
+
+- **Council members.** Most places' only member is a mayor from OpenStates. Only 23 places have three or more seated
+  members on their primary body; in Alabama, Tuscaloosa (mayor + 6 seated, District 5 vacant since 2026-09-18) and
+  Northport. The Alabama places with the most meetings (Mobile, Scottsboro, Homewood, Montgomery, Fairhope) have no
+  roster. Follow-up: [#1472](https://github.com/getcommunityone/open-navigator/issues/1472).
+- **Committee members.** Committees get members only from Legistar; elsewhere a committee shows "Members not on file".
+- **Legistar people pages.** 2 of 2,197 Legistar members match a `person_government` row by exact name, so most have
+  no person page yet (#1472).
+- **Renamed bodies** appear twice (Tuscaloosa "Public Projects Committee" in 2020-2026 agendas and "Projects
+  Committee" on YouTube since 2024) until an alias seed merges them (#1472).
+- **Officials heard** depends on captions naming members; misspelled surnames are missed by design.
+
+Sources blocked by terms or robots: none in this run. All 24 Legistar portals answered through the polite client
+(Dallas, Atlanta and Minneapolis publish bodies but no current office records). The Legistar agenda/minutes PDF hosts
+disallow crawlers in robots.txt and were not touched. No city roster page was fetched in this work; the council roster
+scraper's existing curated rosters (Tuscaloosa, Northport, Boston, Kingsport) flow in through the officials data.
+
 ## Publish set
 
-The API reads these through `public` (publish_public_serving). Nothing is written to Neon by this work; the relations
-to add to the Neon publish list when the owner runs a publish are listed in each pull request.
+The API reads these through `public` (publish_public_serving). Nothing was written to Neon. When the owner publishes,
+the relations to add to the Neon set are `governing_body`, `meeting_body`, `body_membership` and
+`body_recent_speaker` (local sizes: 10,667, 168,227, 10,121 and 212 rows).

@@ -1,5 +1,6 @@
 import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useScreenActive } from './ActiveScreen'
 import { useQuery } from '@tanstack/react-query'
 import type { SitesTimelineResponse, TimelineSite } from '../../api/sitesTimeline'
 import { STATES_ALBERS_TOPO, NATIONAL_BBOX, albersPoint, bboxOf, fetchTopo, toFeats } from '../../lib/dotMatrix'
@@ -42,7 +43,10 @@ interface Props {
   scopeLabel: string
   stateCode?: string
   /** The screen is on view: autoplay starts once per visit (never under reduced motion). */
-  active: boolean
+  /** Only for a story without ActiveScreenContext. */
+  active?: boolean
+  /** The screen's index: the panel plays when that screen is the one in view. */
+  screenIndex?: number
   reduced: boolean
 }
 
@@ -56,7 +60,8 @@ const fmt = (n: number) => n.toLocaleString('en-US')
  * in the frame plus a "not mapped" line, a stacked strip of the API's per-year totals (undated sites as an outlined block,
  * never as growth), and a card for the site tapped. 1–5 sites are listed instead (utils/displayFit, the shared rule).
  */
-export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active, reduced }: Props) {
+export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active: activeProp, screenIndex, reduced }: Props) {
+  const active = useScreenActive(screenIndex ?? -1, activeProp ?? false)
   const years = useMemo(() => timelineYears(res), [res])
   const current = Number.parseInt(res?.current_year ?? '', 10)
   const lastYear = years[years.length - 1]

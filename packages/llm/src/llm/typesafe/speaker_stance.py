@@ -330,6 +330,207 @@ TOPICS: dict[str, SpeakerTopic] = {
     ),
 }
 
+#: Topics added for question coverage (#1436): each local question a resident can be for or against that the 19
+#: topics above did not ask at speaker grain. They carry their own whole-word phrases (``strict_pattern``) and are
+#: HELD (pending their gold check) until a hand-labelled set passes. The 19 topics above are untouched: their question
+#: hashes are pinned (``test_question_versions_are_pinned``).
+NEW_TOPICS: dict[str, SpeakerTopic] = {
+    "missing-middle-housing": SpeakerTopic(
+        slug="missing-middle-housing",
+        topic_id=100101,
+        subject=(
+            "allowing duplexes, triplexes, fourplexes, cottage courts or accessory dwelling units (ADUs, backyard "
+            "cottages) on lots zoned for one single-family house"
+        ),
+        item="duplex or accessory dwelling rule",
+        excludes=(
+            "A large apartment complex, a commercial rezoning, and one owner's variance for a porch or fence do not "
+            "count."
+        ),
+        sides=(
+            "Residents asking the body to allow duplexes, fourplexes or ADUs in single-family neighborhoods are for. "
+            "Residents asking to keep neighborhoods single-family only, or to deny or limit those homes, are against."
+        ),
+        keywords=(
+            "duplex", "duplexes", "triplex", "triplexes", "fourplex", "fourplexes", "four-plex", "quadplex",
+            "missing middle", "middle housing", "accessory dwelling", "accessory dwelling unit", "adu", "adus",
+            "backyard cottage", "granny flat", "granny flats", "cottage court", "lot split", "lot splits",
+        ),
+    ),
+    "road-diets": SpeakerTopic(
+        slug="road-diets",
+        topic_id=100102,
+        subject=(
+            "a road diet: narrowing a street or removing a travel lane to add bike lanes, sidewalks, a turn lane, "
+            "parking or for safety"
+        ),
+        item="road diet",
+        excludes="Repaving, a new road, widening a highway, or a detour during construction do not count.",
+        sides=(
+            "Residents asking the body to narrow the street or take out a lane for safety, walking or biking are for. "
+            "Residents objecting to losing a lane (congestion, emergency vehicles, business access) or asking to put "
+            "lanes back are against."
+        ),
+        keywords=(
+            "road diet", "road diets", "lane reduction", "lane reductions", "lane removal", "remove a lane",
+            "removing a lane", "removing lanes", "rechannelization", "road narrowing", "narrowing the road",
+            "narrowing the street", "four lanes to three", "four lanes to two", "complete street", "complete streets",
+        ),
+    ),
+    "backyard-chickens": SpeakerTopic(
+        slug="backyard-chickens",
+        topic_id=100103,
+        subject="allowing residents to keep hens or other chickens at their homes in residential neighborhoods",
+        item="backyard chicken rule",
+        excludes="Chicken served as food, a restaurant, a poultry farm or processing plant, and a fundraiser dinner do not count.",
+        sides=(
+            "Residents asking the body to allow backyard hens, or more of them, are for. Residents objecting to "
+            "chickens next door (noise, smell, rodents) or asking for a ban are against."
+        ),
+        keywords=(
+            "backyard chickens", "backyard chicken", "backyard hens", "chickens", "hens", "chicken coop",
+            "chicken coops", "coop", "coops", "roosters", "poultry",
+        ),
+    ),
+    "speed-cameras": SpeakerTopic(
+        slug="speed-cameras",
+        topic_id=100104,
+        subject="automated traffic enforcement: speed cameras, red-light cameras or school-zone cameras that issue tickets",
+        item="speed or red-light camera",
+        excludes=(
+            "License plate readers, security or surveillance cameras, police body cameras and dash cameras do not "
+            "count."
+        ),
+        sides=(
+            "Residents asking for speed or red-light cameras to slow drivers are for. Residents objecting to them "
+            "(a money grab, privacy, tickets by mail) or asking to remove them are against."
+        ),
+        keywords=(
+            "speed camera", "speed cameras", "speed safety camera", "speed safety cameras", "red light camera",
+            "red light cameras", "red-light camera", "photo enforcement", "photo radar", "automated speed enforcement",
+            "automated enforcement", "school zone camera", "school zone cameras", "traffic enforcement camera",
+            "traffic enforcement cameras",
+        ),
+    ),
+    "speed-bumps": SpeakerTopic(
+        slug="speed-bumps",
+        topic_id=100105,
+        subject="speed bumps, speed humps, speed tables or speed cushions on a local street",
+        item="speed bump",
+        excludes="Speed limits alone, speed cameras, and a figure of speech ('a bump in the road') do not count.",
+        sides=(
+            "Residents asking for speed bumps or humps on their street are for. Residents objecting to them (slower "
+            "fire trucks, noise, car damage) or asking to remove them are against."
+        ),
+        keywords=(
+            "speed bump", "speed bumps", "speed hump", "speed humps", "speed table", "speed tables", "speed cushion",
+            "speed cushions",
+        ),
+    ),
+    "roundabouts": SpeakerTopic(
+        slug="roundabouts",
+        topic_id=100106,
+        subject="building a roundabout or traffic circle at an intersection",
+        item="roundabout",
+        excludes="A 'roundabout way' of saying something and a Rotary club do not count.",
+        sides=(
+            "Residents backing a roundabout for safety or traffic flow are for. Residents objecting to one (confusing, "
+            "trucks, cost, taking land) or asking for a signal or stop sign instead are against."
+        ),
+        keywords=("roundabout", "roundabouts", "traffic circle", "traffic circles", "mini roundabout"),
+    ),
+    "gas-stations": SpeakerTopic(
+        slug="gas-stations",
+        topic_id=100107,
+        subject=(
+            "approving a new gas station, fuel station, truck stop or travel center (a permit, rezoning or site plan "
+            "for one)"
+        ),
+        item="gas station or travel center",
+        excludes="Gas prices, natural gas service or pipelines, and an existing station mentioned as a landmark do not count.",
+        sides=(
+            "Owners and residents backing the station or travel center (convenience, jobs, taxes) are for. Neighbors "
+            "objecting to one (traffic, trucks, lights, fuel leaks, too many stations) are against."
+        ),
+        keywords=(
+            "gas station", "gas stations", "fuel station", "fuel stations", "fueling station", "filling station",
+            "gas pumps", "fuel pumps", "truck stop", "truck stops", "travel center", "travel centers", "travel plaza",
+        ),
+    ),
+    "artificial-turf": SpeakerTopic(
+        slug="artificial-turf",
+        topic_id=100108,
+        subject="installing artificial or synthetic turf on a public playing field",
+        item="artificial turf field",
+        excludes="Lawn care, a golf course's grass, and turf as a word for territory do not count.",
+        sides=(
+            "Residents and sports groups asking for a synthetic turf field are for. Residents objecting to it (heat, "
+            "PFAS or crumb rubber, cost, runoff) or asking for natural grass are against."
+        ),
+        keywords=(
+            "artificial turf", "synthetic turf", "turf field", "turf fields", "astroturf", "crumb rubber",
+            "synthetic field", "synthetic fields", "artificial grass", "artificial field",
+        ),
+    ),
+    "homeless-encampments": SpeakerTopic(
+        slug="homeless-encampments",
+        topic_id=100109,
+        subject=(
+            "clearing or banning homeless encampments: a camping ban, removing tents from public land, or sweeps of "
+            "camps"
+        ),
+        item="encampment clearing or camping ban",
+        excludes=(
+            "A shelter or housing project alone (with no camp or camping rule at issue), campgrounds, and camping "
+            "trips do not count."
+        ),
+        sides=(
+            "Residents asking the body to clear camps, enforce or adopt a camping ban are for. Residents asking the "
+            "body to stop sweeps, repeal a camping ban or let people stay until housing is offered are against."
+        ),
+        keywords=(
+            "encampment", "encampments", "homeless camp", "homeless camps", "camping ban", "camping bans",
+            "urban camping", "public camping", "unsanctioned camping", "tent city", "tent encampment", "sweeps",
+        ),
+    ),
+    "solar-farms": SpeakerTopic(
+        slug="solar-farms",
+        topic_id=100110,
+        subject="approving a solar farm: a utility-scale or community solar facility on open or farm land",
+        item="solar farm",
+        excludes=(
+            "Rooftop solar on one home or a public building, wind turbines, battery storage alone, and an electric "
+            "bill complaint do not count."
+        ),
+        sides=(
+            "Landowners and residents backing the solar farm (lease income, taxes, clean power) are for. Neighbors "
+            "objecting to it (farmland, views, glare, property values) or asking for a moratorium are against."
+        ),
+        keywords=(
+            "solar farm", "solar farms", "solar project", "solar projects", "solar facility", "solar facilities",
+            "solar array", "solar arrays", "utility-scale solar", "solar energy facility", "solar field",
+            "solar fields", "community solar", "solar installation", "solar development",
+        ),
+    ),
+    "battery-storage": SpeakerTopic(
+        slug="battery-storage",
+        topic_id=100111,
+        subject="approving a battery energy storage facility (a large lithium-ion battery site connected to the grid)",
+        item="battery storage facility",
+        excludes="Batteries in a car, a phone or one home, and a battery recycling drop-off do not count.",
+        sides=(
+            "Developers and residents backing the battery site (grid reliability, taxes) are for. Neighbors objecting "
+            "to it (fire risk, toxic smoke, noise, location) or asking for a moratorium are against."
+        ),
+        keywords=(
+            "battery storage", "battery energy storage", "bess", "energy storage facility", "energy storage facilities",
+            "energy storage system", "energy storage systems", "battery facility", "battery facilities",
+            "battery storage facility", "lithium-ion battery", "lithium ion battery", "battery site",
+        ),
+    ),
+}
+TOPICS.update(NEW_TOPICS)
+
 #: Run order (#1391, owner: "sort by the most trending topics with heat or different opinions"). Data centers first,
 #: then by the equal-weight score of normalized YoY rise + contention + AI heat (``speaker_stance_priority``), recorded
 #: with its numbers in the decision page. A topic missing here runs last, in TOPICS order.
@@ -338,6 +539,9 @@ PRIORITY: tuple[str, ...] = (
     "guns", "surveillance-cameras", "zoning-regulations", "homelessness-and-shelters", "affordable-housing",
     "pickleball", "water-fluoridation", "alcohol-licensing", "bike-lanes", "traffic-safety", "local-taxation",
     "renewable-energy", "public-transit", "parks-funding",
+    # #1436: the coverage topics, after the 19 (each also HELD until its gold check passes)
+    "homeless-encampments", "solar-farms", "battery-storage", "missing-middle-housing", "speed-cameras", "road-diets",
+    "speed-bumps", "roundabouts", "gas-stations", "artificial-turf", "backyard-chickens",
 )
 
 
@@ -345,6 +549,7 @@ PRIORITY: tuple[str, ...] = (
 #: ``--topic all`` skips them until more hand labels show they work. Named explicitly, they still run.
 HELD: frozenset[str] = frozenset({
     "bike-lanes", "local-taxation", "parks-funding", "public-transit", "traffic-safety", "zoning-regulations",
+    *NEW_TOPICS,
 })
 
 

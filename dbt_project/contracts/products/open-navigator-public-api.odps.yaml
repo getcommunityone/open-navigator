@@ -610,6 +610,26 @@ outputPorts:
   contractId: open-navigator-public-topic_place_ranking
   type: table
   description: 'One row per place x topic x window (#1437): where a place''s public speakers stood on a topic, from their own classifier sides (meeting_speaker_topic_side).'
+- name: governing_body
+  version: 1.0.0
+  contractId: open-navigator-public-governing_body
+  type: table
+  description: One row per jurisdiction x governing body (city council, county commission, school board, planning and zoning, board of adjustment, historic preservation, committees, commissions, boards, authorities).
+- name: meeting_body
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_body
+  type: table
+  description: 'One row per meeting we matched to a governing body: YouTube videos (title, then the AI body name), Legistar / Granicus meetings (platform body name, then title) and scraped agenda/minutes meetings (body name, then title).'
+- name: body_membership
+  version: 1.0.0
+  contractId: open-navigator-public-body_membership
+  type: table
+  description: 'One row per governing body x member x role: mayors and council members from our officials data (and the council roster scraper), current Legistar office records, and OpenStates chamber seats.'
+- name: body_recent_speaker
+  version: 1.0.0
+  contractId: open-navigator-public-body_recent_speaker
+  type: table
+  description: 'One row per governing body x member heard in that body''s meetings in the last 18 months: a roster member called on by the chair, answering a roll call or naming themself (bronze_meeting_official_mention), or an official self-introduction matched to our officials (meeting_speaker_intro).'
 - name: trending_term
   version: 1.0.0
   contractId: open-navigator-public-trending_term

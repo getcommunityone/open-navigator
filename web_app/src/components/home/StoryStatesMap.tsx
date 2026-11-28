@@ -1,10 +1,11 @@
 import { sumStances } from '../../utils/boxSplit'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 // The state's story plays its drill-down transition on arrival, from the national layout (#1195).
 import { DRILL_FROM_NATIONAL } from '../stance/drillState'
 import { useBoxFlight } from '../stance/BoxFlightProvider'
+import { useProgressiveCount } from '../stance/useProgressiveCount'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import MapSkeleton, { NATIONAL_MAP_ASPECT } from '../stance/MapSkeleton'
 import { COUNTIES_ALBERS_TOPO, NATIONAL_BBOX, STATES_ALBERS_TOPO, albersPoint, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
@@ -224,6 +225,49 @@ interface Box {
  * the map (never over it), with the recording playing muted at the quoted moment (#1277); clicking opens that state's story. On a
  * phone there is no card: a tap opens the state's story at once. Nothing is drawn from a guess: no counts, no split.
  */
+interface StateBoxProps {
+  i: number
+  code: string | undefined
+  x: number
+  y: number
+  size: number
+  active: boolean
+  fill: string
+  opacity: number
+  strokeWidth: number | undefined
+  hoverable: boolean
+  onEnter: (i: number) => void
+  onPick: (i: number) => void
+}
+
+/**
+ * One box of the national map. The map draws 2,240 of them (4,188 zoomed), and a hover, a topic switch or a place pick used to
+ * redraw every one (#1458); as a memo of primitives only the boxes whose own look changed are touched. The handlers are
+ * stable (see `boxEnter`), so they never defeat it.
+ */
+const StateBox = memo(function StateBox(p: StateBoxProps) {
+  return (
+    <rect
+      data-box=""
+      data-state={p.code}
+      x={p.x}
+      y={p.y}
+      width={p.size}
+      height={p.size}
+      rx={p.size * 0.12}
+      data-active={p.active ? '' : undefined}
+      fill={p.fill}
+      opacity={p.opacity}
+      // The whole hovered state stands out (#1277), with the hovered box itself crisp so per-meeting moves read (#1357).
+      stroke={p.active ? '#1c1917' : undefined}
+      strokeWidth={p.strokeWidth}
+      style={{ cursor: p.code ? 'pointer' : 'default' }}
+      onMouseEnter={p.hoverable ? () => p.onEnter(p.i) : undefined}
+      onClick={() => p.onPick(p.i)}
+    />
+  )
+})
+
 export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions, cardSlot = null, zoom = null, insightExtras }: Props) {
   const byMeetings = stanceUnit === 'meetings'
   // Topic words (#1200) only for an AI-read meeting split; the speaker map keeps its own words.
@@ -247,6 +291,10 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   }
   useEffect(() => keepCard, [])
   const touch = isTouchOnly()
+  // Stable handlers for the boxes (see StateBox): they call whatever this render's closures are.
+  const boxActs = useRef<{ enter: (i: number) => void; pick: (i: number) => void }>({ enter: () => {}, pick: () => {} })
+  const boxEnter = useCallback((i: number) => boxActs.current.enter(i), [])
+  const boxPick = useCallback((i: number) => boxActs.current.pick(i), [])
   const qc = useQueryClient()
   // The state drill's county shapes, fetched on the first hover so the next map is ready when clicked (#1328).
   const prefetchCounties = () =>
@@ -273,6 +321,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     return { feats, dots, step, frame, zoomed: Boolean(zf) }
   }, [topo, zoomFips])
 
+  // The boxes mount a slice per frame, not all in one task (#1458).
+  const drawn = useProgressiveCount(grid ? (grid.zoomed ? 0 : (grid.dots.length)) : 0)
   const stanceBy = useMemo(() => new Map((stance ?? []).map((s) => [s.state_code, s])), [stance])
   const boxes = useMemo<Box[] | null>(() => {
     if (!grid) return null
@@ -460,6 +510,14 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     })
     navigate(href(b.code), { state: DRILL_FROM_NATIONAL })
   }
+  boxActs.current = {
+    enter: (i) => {
+      keepCard()
+      keyNav.pointed()
+      setHover(i)
+    },
+    pick: onBox,
+  }
 
   // Title and key (#1409): the most impactful finding the real counts support (utils/chartInsight), the description as caption.
   const stateTotal = byState.reduce((a, r) => a + Math.max(0, r.meetings), 0)
@@ -548,38 +606,26 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
             }}
           />
         )}
-        {!grid.zoomed && boxes.map((b, i) => {
+        {!grid.zoomed && boxes.slice(0, drawn).map((b, i) => {
           const active = !!shownCode && b.code === shownCode
           const muted = shownCode ? !active : !!highlight && b.code !== highlight
           const on = (meetings.get(b.code ?? '') ?? 0) > 0 || !!b.side
           const s = on ? size : size * 0.6
           return (
-            <rect
+            <StateBox
               key={i}
-              data-box=""
-              data-state={b.code ?? undefined}
+              i={i}
+              code={b.code ?? undefined}
               x={b.x - s / 2}
               y={b.y - s / 2}
-              width={s}
-              height={s}
-              rx={s * 0.12}
-              data-active={active ? '' : undefined}
+              size={s}
+              active={active}
               fill={colorOf(b)}
               opacity={muted ? (shownCode ? 0.45 : 0.7) : 1}
-              // The whole hovered state stands out (#1277), with the hovered box itself crisp so per-meeting moves read (#1357).
-              stroke={active ? '#1c1917' : undefined}
               strokeWidth={i === hover ? grid.step * 0.16 : active ? grid.step * 0.06 : undefined}
-              style={{ cursor: b.code ? 'pointer' : 'default' }}
-              onMouseEnter={
-                touch || !b.code
-                  ? undefined
-                  : () => {
-                      keepCard()
-                      keyNav.pointed()
-                      setHover(i)
-                    }
-              }
-              onClick={() => onBox(i)}
+              hoverable={!(touch || !b.code)}
+              onEnter={boxEnter}
+              onPick={boxPick}
             />
           )
         })}
