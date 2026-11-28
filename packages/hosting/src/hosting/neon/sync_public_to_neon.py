@@ -304,6 +304,9 @@ CIVIC_SERVING = frozenset(
         # Each public speaker's side and heat on a topic, read by a classifier from their own words (#1391): the
         # caption facts' "speakers' own words" counts read it; slim projection without not_sure rows (~3 MB)
         "meeting_speaker_topic_side",
+        # Per-year speaker heat and the top concern per topic and scope (#1418): backs the chart-title picker; small
+        "topic_heat_year",
+        "topic_top_concern",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

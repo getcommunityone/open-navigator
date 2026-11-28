@@ -1,0 +1,155 @@
+version: 2
+
+models:
+  - name: topic_heat_year
+    description: >
+      Public-speaker heat per topic, place scope (national, state, city) and calendar year (#1418), from the
+      classifier's 1-5 heat reading of each speaker's own words (meeting_speaker_topic_side). A row exists only with
+      at least var('heat_year_min_speakers') rated speakers; a thin year is omitted, never zero. Feeds the chart-title
+      picker ("heat doubled in 2026"). No names, no text.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [topic_id, scope_level, scope_key, year]
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [topic_id, scope_level, scope_key, year]
+    columns:
+      - name: topic_id
+        data_type: int
+        description: "The topic (FK to civicsearch_topic). Part of the primary key."
+        constraints: [{type: not_null}]
+      - name: scope_level
+        data_type: text
+        description: "national, state or city."
+        constraints: [{type: not_null}]
+      - name: scope_key
+        data_type: text
+        description: "US for national, the state_code for a state, the jurisdiction_id for a city."
+        constraints: [{type: not_null}]
+      - name: state_code
+        data_type: text
+        description: "Two-letter state code; null at national scope."
+      - name: state
+        data_type: text
+        description: "Full state name; null at national scope."
+      - name: city
+        data_type: text
+        description: "City scope: the government's name; null otherwise."
+      - name: jurisdiction_id
+        data_type: text
+        description: "City scope: the government (FK to jurisdictions); null otherwise."
+      - name: year
+        data_type: int
+        description: "Calendar year of the meeting (the API serializes it as a string). Part of the primary key."
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: "between 2000 and 2100"}
+      - name: mean_heat
+        data_type: numeric(3, 2)
+        description: "Mean heat (1-5) over the year's rated speakers."
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: "between 1 and 5"}
+      - name: share_heated
+        data_type: numeric(4, 3)
+        description: "Share (0-1) of rated speakers with heat 4 or 5."
+        constraints: [{type: not_null}]
+      - name: speakers_rated
+        data_type: int
+        description: "Rated speaker-meetings in the year; always at least var('heat_year_min_speakers')."
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: ">= 20"}
+      - name: meetings
+        data_type: int
+        description: "Distinct meetings those speakers spoke at."
+        constraints: [{type: not_null}]
+
+  - name: topic_top_concern
+    description: >
+      The most-cited concern among opposing or heated speaker turns, per topic and place scope (#1418), from the free
+      concern keyword classification (comment_concern_terms). basis is 'opposing' (speaker side against) or 'heated'
+      (heat 4 or 5). turns_read is how many such turns were read; a row exists only with at least
+      var('top_concern_min_turns'). Only topics with a concern list appear. Feeds the chart-title picker
+      ("<concern> leads the complaints"). No names, no text.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [topic_id, basis, scope_level, scope_key]
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [topic_id, basis, scope_level, scope_key]
+    columns:
+      - name: topic_id
+        data_type: int
+        description: "The topic (FK to civicsearch_topic). Part of the primary key."
+        constraints: [{type: not_null}]
+      - name: basis
+        data_type: text
+        description: "opposing or heated: which turns were read. Part of the primary key."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values: {values: ['opposing', 'heated']}
+      - name: scope_level
+        data_type: text
+        description: "national, state or city."
+        constraints: [{type: not_null}]
+      - name: scope_key
+        data_type: text
+        description: "US for national, the state_code for a state, the jurisdiction_id for a city."
+        constraints: [{type: not_null}]
+      - name: state_code
+        data_type: text
+        description: "Two-letter state code; null at national scope."
+      - name: state
+        data_type: text
+        description: "Full state name; null at national scope."
+      - name: city
+        data_type: text
+        description: "City scope: the government's name; null otherwise."
+      - name: jurisdiction_id
+        data_type: text
+        description: "City scope: the government (FK to jurisdictions); null otherwise."
+      - name: concern_key
+        data_type: text
+        description: "The top concern's key (comment_concern_terms)."
+        constraints: [{type: not_null}]
+      - name: concern_label
+        data_type: text
+        description: "The top concern's label, e.g. Water use."
+        constraints: [{type: not_null}]
+      - name: turns_with_concern
+        data_type: int
+        description: "Read turns that raise the top concern."
+        constraints: [{type: not_null}]
+      - name: turns_read
+        data_type: int
+        description: "Opposing or heated turns read in scope; at least var('top_concern_min_turns')."
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: ">= 20"}
+      - name: share
+        data_type: numeric(4, 3)
+        description: "turns_with_concern / turns_read (0-1)."
+        constraints: [{type: not_null}]

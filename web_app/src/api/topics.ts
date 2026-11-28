@@ -394,3 +394,35 @@ export async function fetchTopicCaptionFacts(topic: string, state?: string, city
   const res = await api.get<TopicCaptionFacts>(`/topics/${encodeURIComponent(topic)}/caption-facts`, { params })
   return res.data
 }
+
+/** `GET /api/topics/{topic}/heat-by-year?state=&city=` (#1418): mean speaker heat per year; thin years are omitted. */
+export interface TopicHeatByYear {
+  topic: string
+  years: { year: string; mean: number; speakers_rated: number; share_heated: number | null }[]
+}
+
+export async function fetchTopicHeatByYear(topic: string, state?: string, city?: string | null): Promise<TopicHeatByYear> {
+  const params: Record<string, string> = {}
+  if (state) params.state = state
+  if (state && city) params.city = city
+  const res = await api.get<TopicHeatByYear>(`/topics/${encodeURIComponent(topic)}/heat-by-year`, { params })
+  return res.data
+}
+
+/** `GET /api/topics/{topic}/top-concern?state=&city=` (#1418): the most-cited concern in the opposing or heated turns. */
+export interface TopicTopConcern {
+  topic: string
+  label: string | null
+  count: number | null
+  of: number | null
+  basis: 'opposing' | 'heated' | null
+  share: number | null
+}
+
+export async function fetchTopicTopConcern(topic: string, state?: string, city?: string | null): Promise<TopicTopConcern> {
+  const params: Record<string, string> = {}
+  if (state) params.state = state
+  if (state && city) params.city = city
+  const res = await api.get<TopicTopConcern>(`/topics/${encodeURIComponent(topic)}/top-concern`, { params })
+  return res.data
+}

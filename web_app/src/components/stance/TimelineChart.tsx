@@ -28,6 +28,7 @@ import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
 import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { pickInsight } from '../../utils/chartInsight'
+import { useInsightHeatConcern } from '../chart/useInsightHeatConcern'
 import { useChartReveal } from './useChartReveal'
 import { useChartWidth } from './useChartWidth'
 import { pickYearTicks } from '../../utils/axisTicks'
@@ -103,6 +104,7 @@ function MilestoneCard({ m }: { m: TimelineMilestone }) {
  */
 export default function TimelineChart({ topic, stateCode, city, scopeLabel, subject, idBase }: Props) {
   const q = useTopicTimeline(topic, stateCode, city)
+  const heatConcern = useInsightHeatConcern(topic, stateCode, city)
   const { ref, width } = useChartWidth<HTMLDivElement>()
   const { bind, tip } = useTooltip()
   // null until the reader picks: the chart opens on the share when a year's count isn't comparable (#1207).
@@ -213,6 +215,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
     subject,
     place: scopeLabel === 'National' ? 'the United States' : scopeLabel,
     totalMeetings: data.total_meetings,
+    heatByYear: heatConcern.heatByYear,
     years: years.map((y) => ({ year: y.year, meetings: y.meetings, share: y.share, recorded: y.all_recorded_meetings })),
   })
   const captionText = activeMode === 'share' ? `Share of recorded meetings that discussed ${subject}, by year · ${scopeLabel}` : `Meetings that discussed ${subject}, by year · ${scopeLabel}`

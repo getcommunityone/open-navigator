@@ -441,6 +441,126 @@ def pick_place(places: list[CaptionPlaceCount], city: str) -> CaptionPlaceCount 
     return loose[0] if loose else None
 
 
+class HeatYear(BaseModel):
+    year: str = Field(..., description="Calendar year, as a string.")
+    mean: float = Field(..., description="Mean heat (1-5) over the year's rated speakers.")
+    speakers_rated: int
+    share_heated: float | None = Field(None, description="Share (0-1) of rated speakers with heat 4 or 5.")
+
+
+class TopicHeatByYear(BaseModel):
+    """#1418: per-year speaker heat for a topic and scope. Years below the minimum rated speakers are omitted."""
+
+    topic: str
+    scope: CaptionScope
+    years: list[HeatYear] = Field(default_factory=list)
+
+
+class TopicTopConcern(BaseModel):
+    """#1418: the most-cited concern in the opposing (or, failing that, heated) speaker turns; null fields mean none."""
+
+    topic: str
+    scope: CaptionScope
+    label: str | None = None
+    count: int | None = Field(None, description="Turns that raise the concern.")
+    of: int | None = Field(None, description="Opposing or heated turns read.")
+    basis: str | None = Field(None, description="opposing or heated.")
+    share: float | None = None
+
+
+HEAT_BY_YEAR_SQL = (
+    "WITH m AS (SELECT * FROM topic_heat_year WHERE topic_id = $1 AND scope_level = $2 "
+    "AND ($2 = 'national' OR state_code = $3) AND ($2 <> 'city' OR lower(city) = lower($4))), "
+    "best AS (SELECT scope_key FROM m GROUP BY scope_key ORDER BY sum(speakers_rated) DESC, scope_key LIMIT 1) "
+    "SELECT year, mean_heat, speakers_rated, share_heated FROM m "
+    "WHERE scope_key = (SELECT scope_key FROM best) ORDER BY year"
+)
+
+TOP_CONCERN_SQL = (
+    "WITH m AS (SELECT * FROM topic_top_concern WHERE topic_id = $1 AND scope_level = $2 "
+    "AND ($2 = 'national' OR state_code = $3) AND ($2 <> 'city' OR lower(city) = lower($4))) "
+    "SELECT concern_label, turns_with_concern, turns_read, basis, share FROM m "
+    "ORDER BY (basis = 'opposing') DESC, turns_read DESC, scope_key LIMIT 1"
+)
+
+
+def _scope(state: str | None, city: str | None) -> tuple[CaptionScope, str | None, str | None]:
+    """(scope, state_code, city) with city honoured only alongside a state."""
+    state_code = state.strip().upper() if state and state.strip() else None
+    city_clean = city.strip() if city and city.strip() and state_code else None
+    level = "city" if city_clean else "state" if state_code else "national"
+    return CaptionScope(level=level, state_code=state_code, city=city_clean), state_code, city_clean
+
+
+async def _resolve_topic_id(conn: Any, topic: str) -> tuple[int, str]:
+    slug = TOPIC_ALIASES.get(topic.strip().lower(), topic.strip().lower())
+    found = await conn.fetch(RESOLVE_SQL, slug)
+    if not found:
+        raise HTTPException(status_code=404, detail="No such topic.")
+    return int(found[0]["topic_id"]), slug
+
+
+@router.get("/{topic}/heat-by-year", response_model=TopicHeatByYear)
+async def topic_heat_by_year(
+    topic: str = Path(..., description="Topic query slug or topic id."),
+    state: str | None = Query(None, description="Optional 2-letter state code."),
+    city: str | None = Query(None, description="Optional city (with a state)."),
+) -> TopicHeatByYear:
+    """Mean speaker heat per calendar year for the scope (#1418). A year under the minimum rated speakers is left out;
+    an unavailable mart gives no years, never a zero."""
+    scope, state_code, city_clean = _scope(state, city)
+    with tracer.start_as_current_span("topics.heat-by-year"):
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                topic_id, slug = await _resolve_topic_id(conn, topic)
+                rows = await _optional(conn, "topic_heat_year", HEAT_BY_YEAR_SQL, topic_id, scope.level, state_code, city_clean)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("heat-by-year failed")
+            raise HTTPException(status_code=503, detail="Heat by year is unavailable right now.") from exc
+    years = [
+        HeatYear(
+            year=str(int(r["year"])),
+            mean=float(r["mean_heat"]),
+            speakers_rated=int(r["speakers_rated"]),
+            share_heated=float(r["share_heated"]) if r["share_heated"] is not None else None,
+        )
+        for r in (rows or [])
+    ]
+    return TopicHeatByYear(topic=slug, scope=scope, years=years)
+
+
+@router.get("/{topic}/top-concern", response_model=TopicTopConcern)
+async def topic_top_concern(
+    topic: str = Path(..., description="Topic query slug or topic id."),
+    state: str | None = Query(None, description="Optional 2-letter state code."),
+    city: str | None = Query(None, description="Optional city (with a state)."),
+) -> TopicTopConcern:
+    """The most-cited concern in the opposing (else heated) speaker turns for the scope (#1418); null when fewer than the
+    minimum turns were read or the topic has no concern list."""
+    scope, state_code, city_clean = _scope(state, city)
+    with tracer.start_as_current_span("topics.top-concern"):
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                topic_id, slug = await _resolve_topic_id(conn, topic)
+                rows = await _optional(conn, "topic_top_concern", TOP_CONCERN_SQL, topic_id, scope.level, state_code, city_clean)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("top-concern failed")
+            raise HTTPException(status_code=503, detail="The top concern is unavailable right now.") from exc
+    if not rows:
+        return TopicTopConcern(topic=slug, scope=scope)
+    r = dict(rows[0])
+    return TopicTopConcern(
+        topic=slug, scope=scope, label=r["concern_label"], count=int(r["turns_with_concern"]),
+        of=int(r["turns_read"]), basis=r["basis"], share=float(r["share"]),
+    )
+
+
 @router.get("/{topic}/caption-facts", response_model=TopicCaptionFacts, response_model_by_alias=True)
 async def topic_caption_facts(
     topic: str = Path(..., description="Topic query slug (e.g. short-term-rentals) or topic id."),
