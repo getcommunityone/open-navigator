@@ -76,6 +76,9 @@ const isHomePath = (pathname: string) => (pathname.replace(/\/+$/, '') || '/') =
  * `scope=national` is added; on a scoped page the place is dropped, so the label, the URL and the data go national together.
  * Null when there is nothing to reset.
  */
+/** A story (`/stories/:id`) walks its screens by `?screen=`; a new place starts it on its first one (#1450). */
+const isStoryPath = (pathname: string) => /^\/stories\/[^/]+\/?$/.test(pathname)
+
 export function searchForNational(pathname: string, search: URLSearchParams, hasTown: boolean): URLSearchParams | null {
   const next = new URLSearchParams(search)
   next.delete('page')
@@ -87,6 +90,8 @@ export function searchForNational(pathname: string, search: URLSearchParams, has
   if (!next.has('state') && !next.has('city')) return null
   next.delete('state')
   next.delete('city')
+  // The page is remounted on this change (Layout); its fresh mount reads `?screen=`, so a stale mid-story screen must not travel.
+  if (isStoryPath(pathname) && next.has('screen')) next.set('screen', 'overview')
   return next
 }
 
@@ -111,6 +116,7 @@ export function searchAfterPick(pathname: string, search: URLSearchParams, loc: 
     if (c) next.set('city', c)
   }
   next.delete('page')
+  if (isStoryPath(pathname) && next.has('screen')) next.set('screen', 'overview')
   return next
 }
 
@@ -156,6 +162,7 @@ export function searchForScope(pathname: string, search: URLSearchParams, target
     next.delete('state')
     next.delete('city')
     next.delete('page')
+    if (isStoryPath(pathname) && next.has('screen')) next.set('screen', 'overview')
     if (target === 'place') {
       const p = headerPlace(new URLSearchParams(), saved)
       if (p) {

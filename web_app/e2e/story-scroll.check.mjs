@@ -113,7 +113,10 @@ async function open(path) {
   const national = page.getByRole('button', { name: /National/ }).first()
   if (await national.count()) {
     await national.click()
-    await page.waitForTimeout(4000)
+    // The page remounts and lands on its screen; on a loaded machine that takes a while. Wait for Overview, then hold 2 s: a
+    // regression lands on it for a moment and goes back to the old screen (#1463).
+    for (let t = 0; t < 30 && (screen() !== 'overview' || !/Overview/.test(await label())); t++) await page.waitForTimeout(500)
+    await page.waitForTimeout(2000)
     if (screen() !== 'overview' || !/Overview/.test(await label())) fail(`broadening to National landed on "${screen()}" / "${await label()}", not Overview`)
     else console.log('ok   broadening to National from Sites lands on Overview')
   } else console.log('skip no National button found')

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { headerPlace, headerPlaceLabel, headerPlaceState, isScopeAwarePath, searchAfterPick } from './headerPlace'
+import { headerPlace, headerPlaceLabel, headerPlaceState, isScopeAwarePath, searchAfterPick, searchForNational, searchForScope } from './headerPlace'
 
 const sp = (s: string) => new URLSearchParams(s)
 
@@ -77,5 +77,16 @@ describe('National in one click (#1285)', () => {
   })
   it('a pick clears scope=national', () => {
     expect(searchAfterPick('/', sp('scope=national'), { state: 'AL', city: 'Tuscaloosa' }).toString()).toBe('')
+  })
+})
+
+describe('a place change on a story starts it over (#1463)', () => {
+  it('sets ?screen=overview on National, a pick and the scope toggle', () => {
+    expect(searchForNational('/stories/data-centers', sp('state=AL&screen=sites'), true)?.toString()).toBe('screen=overview')
+    expect(searchAfterPick('/stories/data-centers', sp('state=AL&screen=sites'), { state: 'MA', city: 'Boston' }).toString()).toBe('screen=overview&state=MA&city=Boston')
+    expect(searchForScope('/stories/data-centers', sp('state=AL&screen=sites'), 'national', null).toString()).toBe('screen=overview')
+  })
+  it('keeps ?screen= elsewhere', () => {
+    expect(searchForNational('/search', sp('state=AL&screen=x'), true)?.toString()).toBe('screen=x')
   })
 })
