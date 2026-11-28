@@ -14,10 +14,10 @@ CommunityOne · Open Navigator
 Local decisions shape daily life.  
 Most people never see them.  
 Open Navigator reads public meeting records, budgets and nonprofit filings, and shows what local governments decided, with the passage from the record that says so.  
-Open source · Apache 2.0  
+Open source · MIT License  
 John Bowyer · Founder, CommunityOne, a 501(c)(3) nonprofit · communityone.com  
 
-**Speaker notes:** Local governments decide property taxes, school start times, policing budgets and zoning. Those decisions are public, but they are buried in agendas, minutes and meeting videos that few people have time to read. Open Navigator is the open-source engine behind CommunityOne. It reads those public records and shows what was decided, and every result carries the passage from the record that backs it up. CommunityOne is a nonprofit I founded; the code is Apache 2.0, so anyone can check it or build on it.
+**Speaker notes:** Local governments decide property taxes, school start times, policing budgets and zoning. Those decisions are public, but they are buried in agendas, minutes and meeting videos that few people have time to read. Open Navigator is the open-source engine behind CommunityOne. It reads those public records and shows what was decided, and every result carries the passage from the record that backs it up. CommunityOne is a nonprofit I founded; the code is MIT-licensed, so anyone can check it or build on it.
 
 ## Slide 2: Four kinds of people, one record
 
@@ -155,7 +155,7 @@ These are written rules for every contributor and coding agent (CLAUDE.md) · 8
 Open by design  
 Anyone can check it, use it or build on it  
 Open code.  
-Apache 2.0 on GitHub, with issues, pull requests and reviews in the open.  
+MIT-licensed on GitHub, with issues, pull requests and reviews in the open.  
 Open data.  
 Datasets published on Hugging Face for download and reuse.  
 Open to AI assistants.  
@@ -165,7 +165,7 @@ Meeting data compatible with the Council Data Project; place IDs from the Open C
 Public records should stay public when they are made easier to use.  
 github.com/getcommunityone/open-navigator · 9  
 
-**Speaker notes:** Everything is open. The code is Apache 2.0, and the work happens in public issues and pull requests. The datasets are published on Hugging Face. There is an MCP server, so an AI assistant can query the data directly instead of guessing. And the data follows existing civic standards, like the Council Data Project's meeting model and Open Civic Data identifiers, so it can connect to other civic tools rather than becoming another silo.
+**Speaker notes:** Everything is open. The code is MIT-licensed, and the work happens in public issues and pull requests. The datasets are published on Hugging Face. There is an MCP server, so an AI assistant can query the data directly instead of guessing. And the data follows existing civic standards, like the Council Data Project's meeting model and Open Civic Data identifiers, so it can connect to other civic tools rather than becoming another silo.
 
 ## Slide 10: Data centers: what’s coming, and whether the jobs are real
 
