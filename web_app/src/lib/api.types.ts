@@ -4092,6 +4092,13 @@ export interface components {
              */
             available: boolean;
             /**
+             * By Basis
+             * @description Sites in scope by appear_basis.
+             */
+            by_basis?: {
+                [key: string]: number;
+            };
+            /**
              * City Applied
              * @description Always false: sites narrow by state only.
              * @default false
@@ -4101,7 +4108,7 @@ export interface components {
             current_year: string;
             /**
              * Dated
-             * @description Sites with a date on record (all of them, mapped or not).
+             * @description Sites with a real start date (announced or epoch_first_report), mapped or not.
              * @default 0
              */
             dated: number;
@@ -4110,24 +4117,50 @@ export interface components {
             /** Last Year */
             last_year?: string | null;
             /**
+             * Listed Year
+             * @description Latest year a listed_by site was first listed.
+             */
+            listed_year?: string | null;
+            /**
              * Mapped
-             * @description Dated sites with coordinates.
+             * @description Sites in scope with coordinates (all bases).
              * @default 0
              */
             mapped: number;
+            /**
+             * Not Mapped
+             * @description Sites in scope without coordinates.
+             * @default 0
+             */
+            not_mapped: number;
             scope: components["schemas"]["JobClaimScope"];
             /** Sites */
             sites?: components["schemas"]["TimelineSite"][];
             /**
+             * Total
+             * @description Every site in scope.
+             * @default 0
+             */
+            total: number;
+            /**
              * Undated
-             * @description Sites in scope with no date on record.
+             * @description Sites with no start date on record (listed_by or none).
              * @default 0
              */
             undated: number;
-            /** Undated By Status */
+            /**
+             * Undated By Status
+             * @description Undated sites by status today.
+             */
             undated_by_status?: {
                 [key: string]: number;
             };
+            /**
+             * Unplaced
+             * @description Of undated: sites with no date at all (none), shown from this year only.
+             * @default 0
+             */
+            unplaced: number;
             /** Years */
             years?: components["schemas"]["TimelineYear"][];
         };
@@ -4430,24 +4463,24 @@ export interface components {
         };
         /**
          * TimelineSite
-         * @description One dated data center site; unknown values are null.
+         * @description One data center site; unknown values are null.
          */
         TimelineSite: {
             /**
              * Appear Basis
-             * @description announced (registry) or first_report (Epoch AI's first dated row).
+             * @description announced, epoch_first_report, listed_by (an upper bound) or none.
              */
             appear_basis: string;
             /**
              * Appear Precision
-             * @description day, month or year.
+             * @description day, month or year; listed_by for a listed-by date.
              */
             appear_precision?: string | null;
             /**
              * Appear Year
-             * @description Year of the site's earliest real date on record (a 4-digit string).
+             * @description Year the site appears (a 4-digit string); for listed_by the year it was first listed; null for none.
              */
-            appear_year: string;
+            appear_year?: string | null;
             /** Capacity Mw Operational */
             capacity_mw_operational?: number | null;
             /** Capacity Mw Planned */
@@ -4460,6 +4493,11 @@ export interface components {
             it_power_mw?: number | null;
             /** Latitude */
             latitude?: number | null;
+            /**
+             * Listed On
+             * @description Earliest date a source had the site listed (an upper bound).
+             */
+            listed_on?: string | null;
             /** Longitude */
             longitude?: number | null;
             /**
@@ -4529,6 +4567,12 @@ export interface components {
              * @default 0
              */
             total: number;
+            /**
+             * Undated
+             * @description Of total: sites with no start date on record (listed_by or none).
+             * @default 0
+             */
+            undated: number;
             /**
              * Under Construction
              * @default 0

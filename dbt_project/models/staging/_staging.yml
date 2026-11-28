@@ -1537,6 +1537,25 @@ sources:
             description: "Functional category code (see seed aspep_function_code)."
           - name: full_time_payroll
             description: "Full-time March payroll, 31-day monthly equivalent, dollars (text as landed)."
+      - name: bronze_opioid_settlement_spending
+        description: |
+          State opioid settlement spending lines. Pilot: Michigan MDHHS dashboard workbook,
+          landed by `python -m ingestion.opioid_settlement.michigan` (#1396).
+        columns:
+          - name: source_row
+            description: "Row number in the source sheet (with state_code, the primary key)."
+          - name: expenditures
+            description: "Expenditures in dollars as text; blank when not yet reported."
+      - name: bronze_hud_cdbg_activity
+        description: |
+          HUD CDBG activities (HUD Open Data), one row per OBJECTID. Landed by
+          `python -m ingestion.hud.load_cdbg` (#1394). Street addresses and point locations
+          are deliberately not loaded.
+        columns:
+          - name: objectid
+            description: "Service OBJECTID (primary key)."
+          - name: funding_amount
+            description: "Activity funding in dollars."
       - name: bronze_grants_gov_opportunity
         description: |
           Grants.gov federal grant opportunities — one row per prospective

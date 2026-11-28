@@ -192,6 +192,32 @@ https://www.census.gov/programs-surveys/apes.html
 
 ---
 
+### 5e. Michigan DHHS Opioid Settlement Spending
+
+**Publisher:** Michigan Department of Health and Human Services
+**Data Type:** State opioid settlement spending lines (pilot)
+**License:** State public record; no licence text on the page
+**Source:** [Michigan Opioid Settlement spending](https://www.michigan.gov/opioids/opioidsettlements/settlement-spending/prior-years-spending)
+**Coverage:** Michigan, FY22 to FY24 (as of 30 Jun 2024)
+### 5d. HUD Open Data: CDBG Activity
+
+**Publisher:** U.S. Department of Housing and Urban Development
+**Data Type:** CDBG activities by grantee (no addresses loaded)
+**License:** U.S. Government data, public access
+**Source:** [HUD Open Data](https://hudgis-hud.opendata.arcgis.com/)
+**Coverage:** United States, activities since 1996
+**Last updated:** 27 Nov 2026
+
+**Attribution (Recommended):**
+```
+Data source: Michigan Department of Health and Human Services, Opioid Settlement spending
+https://www.michigan.gov/opioids/
+Data source: U.S. Department of Housing and Urban Development, HUD Open Data
+https://hudgis-hud.opendata.arcgis.com/
+```
+
+---
+
 ## Google Services
 
 ### 8. Google BigQuery IRS 990 Public Dataset

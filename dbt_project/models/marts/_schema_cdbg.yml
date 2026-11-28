@@ -1,0 +1,109 @@
+version: 2
+
+# #1394: HUD CDBG. cdbg_activity PK cdbg_activity_id, FK jurisdiction_id (nullable);
+# cdbg_allocation PK (jurisdiction_id, fiscal_year); cdbg_activity_summary PK
+# (jurisdiction_id, fiscal_year, activity_group); all FK jurisdictions.
+
+models:
+  - name: cdbg_activity
+    description: >
+      One row per HUD CDBG activity (IDIS), all years since 1996, from HUD Open Data. No
+      addresses. jurisdiction_id is NULL for grantees we could not match (match_confidence
+      0.99 state, 0.95 unique name, 0.60 several). fiscal_year is NULL while open.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: cdbg_activity_id
+        description: "PK: grantee_id-idis_activity_id."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique, not_null]
+      - name: jurisdiction_id
+        description: "FK to jurisdictions; NULL when unmatched."
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
+      - {name: match_confidence, description: "Grantee match score; NULL when unmatched.", data_type: numeric}
+      - {name: grantee_id, description: "HUD grantee id.", data_type: text}
+      - {name: grantee_name, description: "Grantee name as HUD reports it.", data_type: text}
+      - {name: state_code, description: "2-letter state.", data_type: text}
+      - {name: state, description: "Full state name.", data_type: text}
+      - {name: activity_group, description: "HUD activity group (Public Services, Housing, ...).", data_type: text}
+      - {name: activity_name, description: "Matrix-code activity name.", data_type: text}
+      - {name: funding_amount, description: "Activity funding, dollars.", data_type: numeric}
+      - {name: completed_on, description: "Completion date.", data_type: date}
+      - {name: fiscal_year, description: "Federal fiscal year of completion (integer).", data_type: integer}
+      - {name: source_updated_at, description: "When HUD data was loaded.", data_type: timestamp}
+
+  - name: cdbg_allocation
+    description: >
+      CDBG grant dollars per matched jurisdiction and federal fiscal year, summed from the
+      USAspending awards under 14.218 and 14.228 (current total obligations).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      constraints:
+        - type: primary_key
+          columns: [jurisdiction_id, fiscal_year]
+    columns:
+      - name: jurisdiction_id
+        description: "FK to jurisdictions."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
+      - {name: fiscal_year, description: "Federal fiscal year (integer).", data_type: integer, constraints: [{type: not_null}]}
+      - {name: state_code, description: "2-letter state.", data_type: text}
+      - {name: state, description: "Full state name.", data_type: text}
+      - {name: award_count, description: "Awards summed.", data_type: integer}
+      - {name: total_obligation, description: "Sum of total obligations, dollars.", data_type: numeric}
+      - {name: source_updated_at, description: "Latest USAspending modification loaded.", data_type: timestamp}
+
+  - name: cdbg_activity_summary
+    description: >
+      Completed CDBG activities, FY2019 onward, matched to a jurisdiction, summed per fiscal
+      year and HUD activity group. Served slice of cdbg_activity.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      constraints:
+        - type: primary_key
+          columns: [jurisdiction_id, fiscal_year, activity_group]
+    columns:
+      - name: jurisdiction_id
+        description: "FK to jurisdictions."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
+      - {name: fiscal_year, description: "Federal fiscal year of completion (integer).", data_type: integer, constraints: [{type: not_null}]}
+      - {name: activity_group, description: "HUD activity group.", data_type: text, constraints: [{type: not_null}]}
+      - {name: state_code, description: "2-letter state.", data_type: text}
+      - {name: state, description: "Full state name.", data_type: text}
+      - {name: activity_count, description: "Activities summed.", data_type: integer}
+      - {name: funding_amount, description: "Activity funding summed, dollars.", data_type: numeric}
+      - {name: source_updated_at, description: "When HUD data was loaded.", data_type: timestamp}

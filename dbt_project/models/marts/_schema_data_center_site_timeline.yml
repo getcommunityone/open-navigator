@@ -7,10 +7,11 @@ models:
   - name: data_center_site_timeline
     description: >
       One row per data center site (PK data_center_site_id, FK data_center_site): the year of its earliest
-      date on record (appear_year; the registry's announced date or Epoch AI's first dated timeline row,
-      appear_basis says which, appear_precision how precise), Epoch's first operating year (operating_year,
+      date on record (appear_year; the registry's announced date or Epoch AI's first dated timeline row, else (#1428)
+      the earliest date a source had it listed, an upper bound labelled listed_by; appear_basis says which,
+      appear_precision how precise), Epoch's first operating year (operating_year,
       operating_is_expected when after today) and the coordinates the sources publish. A site with no date
-      on record has appear_year null: it is counted as undated, never placed at a guessed year.
+      on record at all (appear_basis none) has appear_year null: it is shown only at today, never at a guessed year.
     config:
       materialized: table
       on_schema_change: fail
@@ -48,25 +49,31 @@ models:
         description: "Registry longitude, same rule."
         data_type: double precision
       - name: appear_year
-        description: "Year of the earliest real date on record; null when the site has none."
+        description: "Year of the earliest real date on record (for listed_by, the year it was first listed: an upper bound); null only for appear_basis none."
         data_type: integer
         constraints:
           - type: check
             expression: "appear_year is null or appear_year between 1990 and 2100"
       - name: appear_basis
-        description: "announced (registry announced_date) or first_report (Epoch's first dated timeline row); null with appear_year."
+        description: "announced (registry announced_date), epoch_first_report (Epoch's first dated timeline row), listed_by (earliest of first_seen_on / status_as_of: the site existed by then, not an opening date) or none."
         data_type: text
+        constraints:
+          - type: not_null
         tests:
+          - not_null
           - accepted_values:
               arguments:
-                values: ['announced', 'first_report']
+                values: ['announced', 'epoch_first_report', 'listed_by', 'none']
       - name: appear_precision
-        description: "day, month or year: how precise the date behind appear_year is."
+        description: "day, month or year for a start date; listed_by for an upper-bound listed date; null for none."
         data_type: text
         tests:
           - accepted_values:
               arguments:
-                values: ['day', 'month', 'year']
+                values: ['day', 'month', 'year', 'listed_by']
+      - name: listed_on
+        description: "Earliest date a source had the site listed (least of data_center_site.first_seen_on and status_as_of). An upper bound on when the site existed, never an opening date."
+        data_type: date
       - name: first_report_year
         description: "Epoch only: year of the first dated timeline row (work on the site on record); null for registry sites."
         data_type: integer

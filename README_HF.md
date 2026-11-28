@@ -6,7 +6,7 @@ colorTo: green
 sdk: docker
 app_port: 7860
 pinned: false
-license: apache-2.0
+license: mit
 tags:
   - civic-engagement
   - policy-tracking
@@ -84,7 +84,7 @@ All services are reverse-proxied through nginx on port 7860.
 
 ## 📝 License
 
-Apache License 2.0 - Free for commercial and non-commercial use
+MIT License - Free for commercial and non-commercial use. See [LICENSE](LICENSE).
 
 ## 🤝 Contributing
 

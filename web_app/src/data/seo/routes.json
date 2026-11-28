@@ -1,0 +1,291 @@
+{
+  "site": {
+    "name": "CommunityOne",
+    "alternateName": "Open Navigator",
+    "baseUrl": "https://www.communityone.com",
+    "logo": "/communityone_logo_512.png",
+    "titleSuffix": "CommunityOne",
+    "defaultTitle": "CommunityOne — Open Navigator | Civic data & policy tracking",
+    "defaultDescription": "Follow what local governments decide: cities, counties and school districts across the U.S. Explore nonprofits and analyze meeting minutes with AI. The open path to everything local - policy tracking, advocacy, and civic engagement."
+  },
+  "routes": [
+    {
+      "path": "/",
+      "title": "",
+      "description": "Follow what local governments decide: cities, counties and school districts across the U.S. Explore nonprofits and analyze meeting minutes with AI. The open path to everything local - policy tracking, advocacy, and civic engagement.",
+      "sitemap": true,
+      "changefreq": "daily",
+      "priority": "1.0"
+    },
+    {
+      "path": "/stories",
+      "title": "All data stories",
+      "description": "Data stories told from local government meetings, in the words said at the meeting, for the nation, a state or a town.",
+      "sitemap": true,
+      "changefreq": "daily",
+      "priority": "0.9"
+    },
+    {
+      "path": "/browse-topics",
+      "title": "Browse topics",
+      "description": "Browse the topics local governments discuss, with the decisions and meetings behind each one, for the nation, a state or a town.",
+      "sitemap": true,
+      "changefreq": "daily",
+      "priority": "0.8"
+    },
+    {
+      "path": "/browse-topics/all",
+      "title": "Browse all topics",
+      "description": "Every main topic side by side: how often local meetings discussed it last year against this year.",
+      "sitemap": true,
+      "changefreq": "weekly",
+      "priority": "0.8"
+    },
+    {
+      "path": "/browse-causes",
+      "title": "Browse causes",
+      "description": "Browse causes and the local government meetings and decisions that discussed them, for the nation, a state or a town.",
+      "sitemap": true,
+      "changefreq": "daily",
+      "priority": "0.7"
+    },
+    {
+      "path": "/policy-questions",
+      "title": "Policy questions",
+      "description": "The policy questions that keep coming up in local government meetings, with the decisions that answered them.",
+      "sitemap": true,
+      "changefreq": "weekly",
+      "priority": "0.7"
+    },
+    {
+      "path": "/search",
+      "title": "Search",
+      "description": "Search local government meetings, decisions, officials, places and nonprofits in one place.",
+      "sitemap": true,
+      "changefreq": "weekly",
+      "priority": "0.8"
+    },
+    {
+      "path": "/jurisdictions",
+      "title": "Places",
+      "description": "Browse cities, counties, school districts and states, and open the meetings and decisions for each.",
+      "sitemap": true,
+      "changefreq": "weekly",
+      "priority": "0.7"
+    },
+    {
+      "path": "/decisions-map",
+      "title": "Decisions map",
+      "description": "A map of decisions made at local government meetings, pinned to the place that made them.",
+      "sitemap": true,
+      "changefreq": "weekly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/money-and-talk",
+      "title": "Money and talk",
+      "description": "Where local governments put money against how much they talk about each theme, from the decisions in their meetings.",
+      "sitemap": true,
+      "changefreq": "weekly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/data-centers",
+      "title": "Data center jobs promised",
+      "description": "The jobs data center projects promised, as recorded in local government meetings, for the nation, a state or a town.",
+      "sitemap": true,
+      "changefreq": "weekly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/nonprofits",
+      "title": "Nonprofits",
+      "description": "Explore nonprofit organizations across the U.S. and their missions, from public IRS filings.",
+      "sitemap": true,
+      "changefreq": "weekly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/explore",
+      "title": "Take action",
+      "description": "Learn from public records and census context, then connect and act in your community.",
+      "sitemap": true,
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/data-explorer/map/us/2024/median_household_income",
+      "title": "Data Explorer",
+      "description": "Map census measures such as median household income for every state, county and place in the U.S.",
+      "sitemap": true,
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/data-explorer/scorecard",
+      "title": "Data Explorer scorecard",
+      "description": "A scorecard of census measures for a state or place, side by side with the nation.",
+      "sitemap": true,
+      "changefreq": "monthly",
+      "priority": "0.4"
+    },
+    {
+      "path": "/developers",
+      "title": "Developers",
+      "description": "The Open Navigator API and data for developers: endpoints, datasets and how to build on them.",
+      "sitemap": true,
+      "changefreq": "monthly",
+      "priority": "0.4"
+    },
+    {
+      "path": "/opensource",
+      "title": "Open source",
+      "description": "Open Navigator is open source under Apache 2.0: the code, the data pipeline and how to contribute.",
+      "sitemap": true,
+      "changefreq": "monthly",
+      "priority": "0.4"
+    },
+    {
+      "path": "/chat",
+      "title": "Chat & contact",
+      "description": "Ask questions about local government meetings, or get in touch with CommunityOne.",
+      "sitemap": false
+    },
+    {
+      "path": "/people",
+      "title": "People",
+      "description": "Find officials and other people named in local government records.",
+      "sitemap": false
+    },
+    {
+      "path": "/documents",
+      "title": "Documents",
+      "description": "Meeting minutes, agendas and other local government documents.",
+      "sitemap": false
+    },
+    {
+      "path": "/opportunities",
+      "title": "Policy opportunities",
+      "description": "Policy opportunities found in local government meetings.",
+      "sitemap": false
+    },
+    {
+      "path": "/policy-map",
+      "title": "Policy map",
+      "description": "A map of legislative and policy activity.",
+      "sitemap": false
+    },
+    {
+      "path": "/heatmap",
+      "title": "Heatmap",
+      "description": "Where policy activity is concentrated across the U.S.",
+      "sitemap": false
+    },
+    {
+      "path": "/support",
+      "title": "Contact",
+      "description": "Get in touch with CommunityOne.",
+      "sitemap": false
+    },
+    {
+      "path": "/events",
+      "title": "Events",
+      "description": "Local government events.",
+      "sitemap": false
+    },
+    {
+      "path": "/hackathons",
+      "title": "Hackathons",
+      "description": "Hackathons built on Open Navigator data.",
+      "sitemap": false
+    },
+    {
+      "path": "/advocacy-topics",
+      "title": "Advocacy topics",
+      "description": "Advocacy topics tracked across local governments.",
+      "sitemap": false
+    },
+    {
+      "path": "/fact-checking",
+      "title": "Fact checking",
+      "description": "Check claims against public records.",
+      "sitemap": false
+    },
+    {
+      "path": "/nonprofits-hf",
+      "title": "Nonprofits (dataset)",
+      "description": "Nonprofit organizations from the published dataset.",
+      "sitemap": false
+    }
+  ],
+  "private": [
+    {
+      "prefix": "/dashboard",
+      "title": "Dashboard"
+    },
+    {
+      "prefix": "/analytics",
+      "title": "Analytics"
+    },
+    {
+      "prefix": "/profile",
+      "title": "My profile"
+    },
+    {
+      "prefix": "/settings",
+      "title": "Settings"
+    },
+    {
+      "prefix": "/feed-setup",
+      "title": "Feed setup"
+    },
+    {
+      "prefix": "/admin",
+      "title": "Admin"
+    },
+    {
+      "prefix": "/auth",
+      "title": "Sign in"
+    },
+    {
+      "prefix": "/build",
+      "title": "Build"
+    },
+    {
+      "prefix": "/debate-grader",
+      "title": "Debate grader"
+    },
+    {
+      "prefix": "/services",
+      "title": "Services"
+    },
+    {
+      "prefix": "/home-original",
+      "title": "Previous home page"
+    },
+    {
+      "prefix": "/data-explorer/jurisdiction-quality",
+      "title": "Jurisdiction mapping quality"
+    }
+  ],
+  "sameAs": [
+    "https://www.linkedin.com/company/getcommunityone",
+    "https://www.facebook.com/getcommunityone",
+    "https://www.instagram.com/getcommunityone/",
+    "https://x.com/getcommunityone/",
+    "https://www.youtube.com/@getcommunityone",
+    "https://github.com/getcommunityone/open-navigator"
+  ],
+  "indexablePrefixes": [
+    "/decisions/",
+    "/meetings/",
+    "/organizations/",
+    "/person/",
+    "/bill/",
+    "/bills/",
+    "/grants/",
+    "/efile990",
+    "/jurisdiction/",
+    "/policy-question/"
+  ]
+}
