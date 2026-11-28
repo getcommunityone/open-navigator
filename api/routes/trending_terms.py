@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
@@ -94,7 +94,9 @@ class TrendEvidenceResponse(BaseModel):
     term: str
     scope: TrendScope
     is_sensitive: bool
-    total_meetings: int = Field(..., description="Meetings in the scope (both years) whose transcript says the term.")
+    total_meetings: int | None = Field(
+        None, description="Meetings in the scope (both years) whose transcript says the term; null when not published."
+    )
     total: int = Field(..., description="Stored excerpts in the scope (the newest meetings).")
     limit: int
     offset: int
@@ -176,7 +178,7 @@ def shape_terms(rows: list[dict[str, Any]], scope: TrendScope, sort: Sort) -> Tr
 async def trending_terms(
     state: str | None = Query(None, description="2-letter state code (or full name). Omit for national."),
     city: str | None = Query(None, description="Accepted for scope carry-over; terms are counted per state."),
-    sort: Sort = Query("rising", description="rising | hot | volume"),
+    sort: Annotated[Sort, Query(description="rising | hot | volume")] = "rising",
     limit: int = Query(20, ge=1, le=MAX_LIMIT),
 ) -> TrendTermsResponse:
     """Terms rising in meeting speech, or over-represented in heated public comment.
@@ -224,7 +226,7 @@ async def trending_term_evidence(
                 )
                 if head is None:
                     head = await conn.fetchrow(
-                        "SELECT term, is_sensitive, 0 AS n_meetings FROM trending_term WHERE term_key = $1 LIMIT 1", tid
+                        "SELECT term, is_sensitive, NULL::int AS n_meetings FROM trending_term WHERE term_key = $1 LIMIT 1", tid
                     )
                 if head is None:
                     raise HTTPException(status_code=404, detail="Unknown term.")
@@ -250,5 +252,6 @@ async def trending_term_evidence(
     total = int(rows[0]["total"]) if rows else 0
     return TrendEvidenceResponse(
         term_id=tid, term=head["term"], scope=scope, is_sensitive=sensitive,
-        total_meetings=int(head["n_meetings"]), total=total, limit=limit, offset=offset, items=items,
+        total_meetings=None if head["n_meetings"] is None else int(head["n_meetings"]),
+        total=total, limit=limit, offset=offset, items=items,
     )

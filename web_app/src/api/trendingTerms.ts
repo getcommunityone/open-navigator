@@ -59,16 +59,23 @@ export interface TrendEvidenceResponse {
   term: string
   scope: TrendScope
   is_sensitive: boolean
-  total_meetings: number
+  /** Null when the term isn't published for this scope. */
+  total_meetings: number | null
   total: number
   limit: number
   offset: number
   items: TrendEvidence[]
 }
 
-export async function fetchTrendingTerms(state: string | undefined, sort: TrendSort, limit = 20): Promise<TrendTermsResponse> {
+export async function fetchTrendingTerms(
+  state: string | undefined,
+  sort: TrendSort,
+  limit = 20,
+  city?: string,
+): Promise<TrendTermsResponse> {
   const params: Record<string, string | number> = { sort, limit }
   if (state) params.state = state
+  if (state && city) params.city = city
   const { data } = await api.get<TrendTermsResponse>('/trends/terms', { params })
   return data
 }

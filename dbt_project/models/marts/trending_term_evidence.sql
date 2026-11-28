@@ -22,7 +22,8 @@
       2. otherwise the transcript (event_documents.content): speaker null ("not identified").
     Privacy: for a sensitive term (health, religion, immigration ... see trending_term_sensitive) the speaker is always
     null, so the term is never tied to a person. A self-introduction ("my name is Jane Doe") inside an excerpt is
-    replaced by "my name is [name]". School-board meetings are not counted, so never quoted.
+    replaced by "my name is [name]". School-board meetings are not counted, so never quoted. A meeting where a possible
+    minor's own segment says the term is never quoted for that term, and a row whose excerpt has no <mark> is dropped.
 */
 
 {%- set n_nat = var('trending_evidence_national', 5) %}
@@ -93,6 +94,15 @@ picked as materialized (
     order by g.term_key, g.jurisdiction_key, m.video_id
 ),
 
+-- Meetings where a possible minor's own segment says the term: never quoted for that term, not even from the
+-- transcript (the window could be the minor's words).
+minor_hit as materialized (
+    select distinct p.term_key, p.video_id
+    from picked as p
+    inner join {{ ref('int_meeting_comment__flags') }} as f on f.video_id = p.video_id and f.possible_minor
+    where to_tsvector('english', f.comment_text) @@ p.q
+),
+
 seg_tsv as materialized (
     select f.video_id, f.comment_index, f.comment_segment_id, f.comment_text, f.start_seconds,
            to_tsvector('english', f.comment_text) as tsv
@@ -110,6 +120,7 @@ seg as (
     order by p.term_key, p.video_id, f.comment_index
 )
 
+select * from (
 select
     md5(p.term_key || '|' || p.video_id)::text                                        as trending_term_evidence_id,
     p.term_key::text                                                                  as term_key,
@@ -131,13 +142,18 @@ from picked as p
 inner join {{ ref('event_documents') }} as ed on ed.event_document_id = p.event_document_id
 left join seg as s on s.term_key = p.term_key and s.video_id = p.video_id
 -- ts_headline parses the whole text it is given, so a transcript excerpt is cut from a 2,000-character window around
--- the first place the term's display form appears (the whole transcript when that exact form isn't found).
+-- the first place the term's display form appears as whole words (the whole transcript when that exact form isn't
+-- found). Terms are lower-case letters, spaces and apostrophes only, so they are safe inside the regex.
 cross join lateral (
     select case
         when s.comment_segment_id is not null then null
-        when strpos(lower(ed.content), lower(p.term)) > 0
-            then substr(ed.content, greatest(1, strpos(lower(ed.content), lower(p.term)) - 800), 2000)
+        when regexp_instr(ed.content, '\m' || p.term || '\M', 1, 1, 0, 'i') > 0
+            then substr(ed.content, greatest(1, regexp_instr(ed.content, '\m' || p.term || '\M', 1, 1, 0, 'i') - 800), 2000)
         else ed.content
     end as txt
 ) as win
 left join {{ ref('meeting_comment') }} as mc on mc.meeting_comment_id = s.comment_segment_id
+where not exists (select 1 from minor_hit mh where mh.term_key = p.term_key and mh.video_id = p.video_id)
+) as ev
+-- A row is evidence only when the excerpt really marks the term.
+where ev.excerpt like '%<mark>%'

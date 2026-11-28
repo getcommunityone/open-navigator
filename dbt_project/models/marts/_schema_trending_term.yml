@@ -180,6 +180,10 @@ models:
         description: "Recording link."
       - name: excerpt
         data_type: text
+        data_tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "like '%<mark>%'"
         description: "Verbatim excerpt with the term in <mark>...</mark> (ts_headline); self-introduced names replaced by [name]."
         constraints: [{type: not_null}]
       - name: excerpt_source

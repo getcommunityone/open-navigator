@@ -39,15 +39,16 @@ export default function TrendingTermsRow({ stateCode, city, sort, onSortChange }
   const [offset, setOffset] = useState(0)
 
   const q = useQuery<TrendTermsResponse>({
-    queryKey: ['trending-terms', stateCode ?? '', sort],
-    queryFn: () => fetchTrendingTerms(stateCode, sort, 20),
+    queryKey: ['trending-terms', stateCode ?? '', city ?? '', sort],
+    queryFn: () => fetchTrendingTerms(stateCode, sort, 20, city),
     staleTime: 5 * 60_000,
     retry: 1,
   })
   const d = q.data
   const scopeState = d ? d.scope.state_code : (stateCode ?? null)
   const stateName = scopeState ? (STATE_CODE_TO_NAME[scopeState] ?? scopeState) : null
-  const label = trendScopeLabel(stateName, d ? d.scope.requested_city : (city ?? null))
+  // A city in the URL is answered for its state: say so from the URL itself, so the note never depends on the response.
+  const label = trendScopeLabel(stateName, scopeState ? (city ?? d?.scope.requested_city ?? null) : null)
   const open = d?.terms.find((t) => t.term_id === openId) ?? null
 
   const toggle = (t: TrendTerm) => {

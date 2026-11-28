@@ -65,9 +65,9 @@ def _get(monkeypatch, pool_factory, path: str, params: dict | None = None) -> ht
 
 def _term_row(**kw: Any) -> dict[str, Any]:
     # Test-only row: nothing here is served by the app.
-    row = dict(term_key=TID, term="sample term", rank=1, meetings_a=10, meetings_b=40, recorded_a=1000,
-               recorded_b=2000, share_a=0.01, share_b=0.02, rise=2.0, n_meetings=50, n_jurisdictions=12,
-               hot_score=None, is_sensitive=False, latest_meeting_date=date(2026, 11, 1), year_a=2025, year_b=2026)
+    row = {"term_key": TID, "term": "sample term", "rank": 1, "meetings_a": 10, "meetings_b": 40, "recorded_a": 1000,
+               "recorded_b": 2000, "share_a": 0.01, "share_b": 0.02, "rise": 2.0, "n_meetings": 50, "n_jurisdictions": 12,
+               "hot_score": None, "is_sensitive": False, "latest_meeting_date": date(2026, 11, 1), "year_a": 2025, "year_b": 2026}
     row.update(kw)
     return row
 
@@ -118,9 +118,9 @@ def test_bad_sort_is_422_and_db_failure_is_503(monkeypatch) -> None:
 
 
 def test_evidence_never_names_a_speaker_for_a_sensitive_term(monkeypatch) -> None:
-    ev = dict(video_id="abcdefghijk", meeting_date=date(2026, 10, 1), jurisdiction_name="Somewhere",
-              state_code="GA", excerpt="… the <mark>term</mark> …", excerpt_source="public_comment",
-              start_seconds=12.0, speaker_display_name="Jane D.", total=1)
+    ev = {"video_id": "abcdefghijk", "meeting_date": date(2026, 10, 1), "jurisdiction_name": "Somewhere",
+              "state_code": "GA", "excerpt": "… the <mark>term</mark> …", "excerpt_source": "public_comment",
+              "start_seconds": 12.0, "speaker_display_name": "Jane D.", "total": 1}
     conn = _Conn([ev], head={"term": "sample", "is_sensitive": True, "n_meetings": 7})
 
     async def pool():
@@ -134,6 +134,19 @@ def test_evidence_never_names_a_speaker_for_a_sensitive_term(monkeypatch) -> Non
     assert tt.video_url("not a youtube id") is None
     sql, params = conn.calls[-1]
     assert "e.state_code = $2" in sql and params[:2] == (TID, "GA")
+
+
+def test_evidence_total_is_null_when_the_scope_row_is_not_published(monkeypatch) -> None:
+    class _Fallback(_Conn):
+        async def fetchrow(self, sql: str, *params: Any):
+            self.calls.append((sql, params))
+            return None if "scope_code" in sql else {"term": "sample", "is_sensitive": False, "n_meetings": None}
+
+    async def pool():
+        return _Pool(_Fallback([]))
+
+    body = _get(monkeypatch, pool, f"/api/trends/terms/{TID}/evidence", {"state": "GA"}).json()
+    assert body["total_meetings"] is None and body["items"] == []
 
 
 def test_evidence_rejects_a_malformed_id(monkeypatch) -> None:

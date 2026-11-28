@@ -129,8 +129,11 @@ flags as (
         (sn1.word is not null)                                                          as single_name,
         exists (select 1 from place_name pl where pl.term = t.term)                     as place_name,
         (np.tsq is not null)                                                            as name_pair,
+        -- On the surface form OR the stemmed key, so "homelessness" (stem 'homeless') and plurals are caught too; a
+        -- stem that over-matches ("aids" -> 'aid') only ever adds protection.
         (select min(sv.category) from {{ ref('trending_term_sensitive') }} sv
-         where (' ' || t.term || ' ') like ('% ' || sv.term || ' %'))                   as sensitive_category
+         where (' ' || t.term || ' ') like ('% ' || sv.term || ' %')
+            or position(phraseto_tsquery('english', sv.term)::text in t.tsq) > 0)       as sensitive_category
     from term as t
     inner join words as wd on wd.tsq = t.tsq
     left join name_word as sn1 on array_length(wd.w, 1) = 1 and sn1.word = wd.w[1] and sn1.is_name

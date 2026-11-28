@@ -26,7 +26,8 @@ const resp = (sort: 'rising' | 'hot', state: string | null, city: string | null 
 
 function render(sort: 'rising' | 'hot', state?: string, city?: string) {
   const qc = new QueryClient()
-  qc.setQueryData(['trending-terms', state ?? '', sort], resp(sort, state ?? null, city ?? null))
+  // requested_city is left null on purpose: the city note must come from the URL's city, not the response.
+  qc.setQueryData(['trending-terms', state ?? '', city ?? '', sort], resp(sort, state ?? null, null))
   return renderToStaticMarkup(
     <QueryClientProvider client={qc}>
       <TrendingTermsRow stateCode={state} city={city} sort={sort} onSortChange={() => {}} />

@@ -323,7 +323,7 @@
     * meeting_speaker_turn: nothing reads it, so it is not published (see `served`). -#}
 {#- trending_term (#1399): gold keeps every scope x term; public serves only is_served (the top
     trending_served_per_sort of each sort per scope) and only the columns api/routes/trending_terms.py reads; the
-    evidence drops its id, title and video_url (every row is a YouTube recording; the API builds the link from video_id).
+    evidence keeps its key but drops its title and video_url (every row is a YouTube recording; the API builds the link from video_id).
     Together they stay under 3 MB. -#}
 {%- set projections = {
     'trending_term':
@@ -332,7 +332,7 @@
         'hot_score, is_sensitive, rank_rising, rank_hot, rank_volume, is_served '
         'from gold.trending_term where is_served',
     'trending_term_evidence':
-        'select term_key, video_id, meeting_date, state_code, jurisdiction_name, excerpt, '
+        'select trending_term_evidence_id, term_key, video_id, meeting_date, state_code, jurisdiction_name, excerpt, '
         'excerpt_source, start_seconds, speaker_display_name from gold.trending_term_evidence',
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
