@@ -123,7 +123,7 @@ jobs:
           # ingestion is needed since main.py/api import `ingestion.delta_lake`
           # (formerly the root `pipeline/` tree). llm is needed since the
           # meeting_comparison route imports `llm.gemini.*`.
-          pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion -e packages/llm
+          pip install --no-deps -e packages/core -e packages/core-lib -e packages/datamodels -e packages/agents -e packages/ingestion -e packages/llm
           # What the tests import that requirements.txt doesn't list (#305): dependencies the workspace packages declare
           # (core-lib: aiolimiter, h2 for httpx[http2]; ingestion: zipfile-deflate64; llm: google-genai), and aiosqlite
           # for the SQLite engine in the core-lib session tests.
@@ -191,7 +191,7 @@ jobs:
           # Mirror backend-test: local workspace packages import as top-level modules.
           # ingestion included so export_openapi.py -> api.app import resolves.
           # llm included so the meeting_comparison route's `llm.gemini.*` import resolves.
-          pip install --no-deps -e packages/core -e packages/datamodels -e packages/agents -e packages/ingestion -e packages/llm
+          pip install --no-deps -e packages/core -e packages/core-lib -e packages/datamodels -e packages/agents -e packages/ingestion -e packages/llm
 
       - name: Install frontend dependencies
         run: |

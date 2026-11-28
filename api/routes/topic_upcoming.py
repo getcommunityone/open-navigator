@@ -33,6 +33,7 @@ from pydantic import BaseModel
 
 from api.routes.topic_policy import _iso, _state_code, _state_name, _topic_key
 from api.routes.search_postgres import get_db_pool
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/topics", tags=["topics"])
 tracer = trace.get_tracer(__name__)
@@ -290,7 +291,7 @@ async def topic_upcoming(
                     )
         except asyncpg.exceptions.UndefinedTableError:
             span.set_attribute("topics.relation_missing", True)
-            return TopicUpcoming(**base)
+            return await redact_response(TopicUpcoming(**base), TEXT_FIELDS)
         except Exception as exc:
             logger.exception("topic upcoming failed")
             span.record_exception(exc)
@@ -300,7 +301,7 @@ async def topic_upcoming(
         last_updated = max((r["last_updated"] for r in count_rows if r["last_updated"] is not None), default=None)
         topic_id = (meta["topic_id"] if meta else None) or next((r["topic_id"] for r in count_rows), None)
         span.set_attribute("topics.upcoming_total", _total(counts))
-        return TopicUpcoming(
+        return await redact_response(TopicUpcoming(
             **base,
             topic_id=topic_id,
             available=bool(meta and meta["built_at"] is not None) or bool(pending_rows),
@@ -311,4 +312,4 @@ async def topic_upcoming(
             items=shape_items(item_rows),
             pending_bills=shape_pending(pending_rows, latest_val),
             broader=broader,
-        )
+        ), TEXT_FIELDS)

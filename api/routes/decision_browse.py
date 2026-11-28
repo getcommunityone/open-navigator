@@ -45,6 +45,7 @@ from api.routes.lenses import (
 )
 from api.routes.search import resolve_topic_tsquery, require_cause_tsquery
 from api.routes.search_postgres import get_db_pool, normalize_state_input
+from api.privacy_redaction import SNIPPET_FIELDS, redact_response
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
 
@@ -296,12 +297,12 @@ async def list_decisions(
                    if (tq := await resolve_topic_tsquery(tid))]
             span.set_attribute("decisions.topic_resolved", bool(sub))
             if not sub:
-                return DecisionListResponse(
+                return await redact_response(DecisionListResponse(
                     items=[],
                     pagination=DecisionListPagination(
                         total=0, limit=limit, offset=offset
                     ),
-                )
+                ), SNIPPET_FIELDS)
             topic_tsquery = " | ".join(sub)
 
         # Cause filter: resolve to an OR-tsquery and AND it onto the topic filter
@@ -358,9 +359,9 @@ async def list_decisions(
             len(items), total, sort_key, state_code, city,
         )
 
-        return DecisionListResponse(
+        return await redact_response(DecisionListResponse(
             items=items,
             pagination=DecisionListPagination(
                 total=total, limit=limit, offset=offset
             ),
-        )
+        ), SNIPPET_FIELDS)

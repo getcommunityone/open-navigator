@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from api.routes.search_postgres import get_db_pool
 from api.routes.short_term_rentals import CompanyMention
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/organizations", tags=["organizations"])
 tracer = trace.get_tracer(__name__)
@@ -125,7 +126,7 @@ async def organization_profile(
         name = org.get("org_name") or (company["company_name"] if company else master_org_id)
         if company:
             name = company["company_name"]  # the curated company name is the one people use
-        return OrganizationProfile(
+        return await redact_response(OrganizationProfile(
             master_org_id=master_org_id,
             name=name,
             org_type=org.get("org_type") or ("company" if company else None),
@@ -155,7 +156,7 @@ async def organization_profile(
                 )
                 for m in mentions
             ],
-        )
+        ), TEXT_FIELDS)
 
 
 # ---------------------------------------------------------------------------------------------------------------

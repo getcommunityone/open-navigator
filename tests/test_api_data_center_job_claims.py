@@ -342,7 +342,8 @@ def test_claim_names_speaker_role_and_meeting_body(make_client) -> None:
     resp = make_client(_FakeConn(rows=rows)).get(PATH)
     assert resp.status_code == 200
     (item,) = resp.json()["items"]
-    assert item["speaker_name"] == "Dana Ruiz"
+    # An applicant is a private person: served as "First L." (#1468).
+    assert item["speaker_name"] == "Dana R."
     assert item["speaker_role"] == "applicant"
     assert item["body_name"] == "Tuscaloosa City Council"
     assert item["event_meeting_id"] == 9

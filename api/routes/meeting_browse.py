@@ -46,6 +46,7 @@ from pydantic import BaseModel
 
 from api.routes.data_centers import jump_url
 from api.routes.search_postgres import get_db_pool, normalize_state_input
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -492,9 +493,9 @@ async def list_meetings(
             len(items), total, sort_key, topic_id, state_code, city,
         )
 
-        return MeetingListResponse(
+        return await redact_response(MeetingListResponse(
             items=items,
             pagination=MeetingListPagination(
                 total=total, limit=limit, offset=offset
             ),
-        )
+        ), TEXT_FIELDS)

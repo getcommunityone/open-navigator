@@ -161,7 +161,10 @@ These rules follow AGENTS.md, Privacy and data ethics.
   as "cancer", religion, immigration status, sexual orientation, disability, race or ethnicity, criminal history,
   finances) carries `is_sensitive`. Its evidence never names a speaker: the mart drops the name and the API drops it
   again.
-- **Self-introductions are redacted.** In every excerpt, "my name is Jane Doe" becomes "my name is [name]".
+- **Names and addresses are redacted** (#1468). The mart runs `redact_person_names` on the text before `ts_headline`
+  ("my name is Jane Doe" becomes "my name is Jane D.", "of 12 Elm Street" becomes "of [address]"), and the API runs the
+  full redactor again on every excerpt it serves. See
+  [Privacy and data ethics](./privacy-and-data-ethics.md#names-and-addresses-in-quoted-meeting-text).
 - **Minors and school boards.** School-board meetings are left out of the counts, the denominator and the quotes.
   Possible-minor segments are never read.
 - Speaker names are only ever "First L.", taken from the segment's own self-introduction (`meeting_comment`).

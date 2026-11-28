@@ -29,6 +29,8 @@ from scripts.utils.calendar_year_util import calendar_year_label
 
 # Import PostgreSQL search functions (primary)
 from api.routes import search_postgres
+from api.privacy_redaction import ensure_officials, redact_text
+from core_lib.privacy import is_school_board
 
 # Import HuggingFace Search helpers
 # (search_contacts_hf removed: officials now come from contact_official via
@@ -282,13 +284,29 @@ class SearchResult:
         }
 
 
+# Result types whose title/description quote meeting text (transcript snippets, AI summaries, decision statements,
+# agenda/minutes): names in them are shortened to "First L." (#1468). People, places, organizations, bills and grants
+# are not meeting text.
+_MEETING_TEXT_TYPES = frozenset({"meeting", "document", "meeting_document", "decision", "topic"})
+
+
 def convert_pg_result(pg_result: search_postgres.SearchResult) -> 'SearchResult':
     """Convert PostgreSQL SearchResult dataclass to SearchResult class"""
+    title, description = pg_result.title, pg_result.description
+    if pg_result.result_type in _MEETING_TEXT_TYPES:
+        meta = pg_result.metadata or {}
+        juris = meta.get("jurisdiction") or meta.get("jurisdiction_name")
+        # A school board's meeting: names become "[name]" (a resident there may be a student).
+        school = is_school_board(juris, meta.get("jurisdiction_type"), pg_result.title, pg_result.subtitle)
+        place = (meta.get("state_code"), juris, school)
+        description = redact_text(description, *place)
+        if pg_result.result_type in ("decision", "topic"):
+            title = redact_text(title, *place)
     return SearchResult(
         result_type=pg_result.result_type,
-        title=pg_result.title,
+        title=title,
         subtitle=pg_result.subtitle,
-        description=pg_result.description,
+        description=description,
         url=pg_result.url,
         score=pg_result.score,
         metadata=pg_result.metadata
@@ -2172,6 +2190,7 @@ async def unified_search(
                 if isinstance(outcome, Exception):
                     logger.error(f"❌ {label} search failed: {outcome}")
                     continue
+                await ensure_officials()
                 converted = [convert_pg_result(r) for r in outcome]
                 logger.info(f"🔎 {label} search returned {len(converted)} results")
                 all_results.extend(converted)

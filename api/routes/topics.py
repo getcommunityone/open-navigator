@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 from api.attribution_tier import TIER_FILTER, fetch_tier_aware, fetchrow_tier_aware
 from api.routes.decision_people import DecisionPeople
 from api.routes.search_postgres import get_db_pool
+from api.privacy_redaction import SNIPPET_FIELDS, TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/topics", tags=["topics"])
 tracer = trace.get_tracer(__name__)
@@ -530,12 +531,12 @@ async def list_topic_meetings(
                     counts = said_counts(counts_row) if offset == 0 else None
                     span.set_attribute("topics.meetings_with_person", sum(1 for i in items if i.speaker_display_name or i.commenters))
                     span.set_attribute("topics.meetings_with_position", sum(1 for i in items if i.position))
-                    return TopicMeetingList(
+                    return await redact_response(TopicMeetingList(
                         topic_id=topic_id,
                         total=int((counts_row or {}).get("total") or 0),
                         items=items,
                         position_counts=counts,
-                    )
+                    ), TEXT_FIELDS)
                 except asyncpg.exceptions.PostgresError as e:
                     # A serving copy without the lean / speaker / comment tables (or a column): the plain list.
                     logger.warning("topic meetings: people/position tables unavailable ({}); plain list", e)
@@ -554,7 +555,7 @@ async def list_topic_meetings(
             ) from exc
 
         span.set_attribute("topics.meetings_total", int(total or 0))
-        return TopicMeetingList(
+        return await redact_response(TopicMeetingList(
             topic_id=topic_id,
             total=int(total or 0),
             items=[
@@ -572,7 +573,7 @@ async def list_topic_meetings(
                 )
                 for r in rows
             ],
-        )
+        ), TEXT_FIELDS)
 
 
 class TopicStateCount(BaseModel):
@@ -1033,7 +1034,7 @@ async def topic_states(
         states = [TopicStateCount(state_code=r["state_code"], state=r["state"], meetings=int(r["meetings"])) for r in counts]
         span.set_attribute("topics.states", len(states))
         span.set_attribute("topics.newest_with_speaker", len(speakers))
-        return TopicStates(
+        return await redact_response(TopicStates(
             topic_id=topic_id,
             total_meetings=sum(s.meetings for s in states),
             states=states,
@@ -1055,7 +1056,7 @@ async def topic_states(
                 )
                 for r in newest
             ],
-        )
+        ), TEXT_FIELDS)
 
 
 # --- Decisions: on the topic or in passing (#1293) ------------------------------------------------------------------------
@@ -1219,7 +1220,7 @@ async def list_topic_decisions(
         span.set_attribute("topics.state", state_code or "")
         tsq = await resolve_topic_tsquery(topic_id)
         if not tsq:
-            return TopicDecisionList(topic_id=topic_id)
+            return await redact_response(TopicDecisionList(topic_id=topic_id), SNIPPET_FIELDS)
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
@@ -1242,4 +1243,4 @@ async def list_topic_decisions(
         out = shape_topic_decisions(topic_id, slug, rows, lean, limit, officials)
         span.set_attribute("topics.decisions_total", out.total)
         span.set_attribute("topics.decisions_on_topic", out.on_topic_total)
-        return out
+        return await redact_response(out, SNIPPET_FIELDS)

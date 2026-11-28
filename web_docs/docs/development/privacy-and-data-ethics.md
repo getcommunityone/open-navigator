@@ -22,6 +22,55 @@ This page gives the reasons.
 A public meeting is a public record, but that doesn't make a resident a public figure. Someone who spoke for three
 minutes about a rezoning is shown with the quote and where it was said, and nothing more.
 
+## Names and addresses in quoted meeting text
+
+Issue: [#1468](https://github.com/getcommunityone/open-navigator/issues/1468). The site quotes meetings word for word:
+transcript excerpts, public-comment quotes, search snippets, decision statements and agenda passages. A verbatim
+quote can carry a resident's full name even when the speaker label beside it says "First L.": the chair calls "Next,
+John Smith of 412 Elm Street", a speaker says "my name is Mary Ann Smith", or someone names a neighbour.
+
+**The rule.** Before any meeting text leaves the API, one shared step rewrites it:
+
+| In the text | Served as |
+|---|---|
+| A private person's name ("John Smith", "Mary Ann Smith", "my neighbor Bob Jones") | "First L." ("John S.", "Mary S.", "Bob J.") |
+| A surname after a courtesy title ("Mr. Smith") | Its initial ("Mr. S.") |
+| A street address after "I live at", "my address is", or "of / at / from &lt;number&gt; &lt;street&gt;" | `[address]` |
+| Any private name in a school board's meeting (a resident there may be a student) | `[name]`, a lone first name included |
+| A roster official of that government (`person_government`, `body_membership`), or a state-level official of that state | Kept as said |
+| A name right after an office title ("Councilman Joe Roe", "Superintendent Dana Whitley") | Kept: a public role |
+| A widely known public figure on the reviewed allow-list (`trending_term_public_figure` seed) | Kept |
+
+**How a name is found.** No model, no network and no lookup about anyone. A name is the words after a cue ("my name
+is", "next speaker is", "I'm", "this is", "thank you", "Mr./Ms./Dr.", "my neighbor"), or a known given name followed
+by capitalised words that aren't ordinary words, places or roles. The given names are the aggregate list speaker
+introductions already use (#1231, #1245): first names carried by at least 4 people in the person master or shared by
+at least 2 officials, with no surname or person attached. The step is conservative: when a pair might be a name, it is
+shortened. A name followed by an organisation or place word ("John Smith Park", "Jones Construction") is an entity's
+name and is kept. `<mark>` highlighting from `ts_headline` survives the rewrite.
+
+**Where it runs.**
+
+- `core_lib.privacy` (`packages/core-lib/src/core_lib/privacy/names.py`) holds the redactor. `api/privacy_redaction.py`
+  applies it to every endpoint that serves meeting text (`redact_response`), with the officials of each row's own
+  place. The officials index is read from the served tables once an hour; if it can't be read, every name is shortened.
+- Every served excerpt endpoint goes through it: `/api/search` (meeting, transcript, agenda/minutes, decision and topic
+  results), `/api/trends/terms/{id}/evidence`, the topic routes (`/meetings`, `/states`, `/decisions`, `/outcomes`,
+  `/upcoming`, `/companies`, `/organizations`), the data-center routes (`/meeting-mentions`, `/positions`,
+  `/speakers`, `/comments`, `/agenda-items`, `/job-claims`, `/projects`, `/decisions`, `/vote-decisions`,
+  `/hearings`), the policy-question routes, `/api/meetings`, `/api/meeting/{id}`, `/api/meeting/{video_id}/transcript`,
+  the meeting comparison and document gaps, `/api/decision/*`, `/api/decisions`, `/api/lenses`, `/api/chat/meetings`,
+  `/api/organizations/{id}` and `/api/short-term-rentals/companies`. `tests/test_privacy_redaction_api.py` fails when
+  one of these returns without it, or when its response model has a text field the step doesn't cover.
+- The dbt macro `redact_person_names` is the SQL twin for stored excerpts (cues, courtesy titles and addresses only);
+  `trending_term_evidence` applies it before `ts_headline`. Other marts store the raw passage in the private warehouse
+  and rely on the API step.
+
+**Limits.** A name with no cue and no known given name ("Tatum Okafor said") can pass, and so can a single surname.
+Property addresses in land-use decisions ("rezoning of 1234 Main Street") are masked as well, which loses a public
+detail; we accept that for now rather than risk a home address. The full recording stays linked: it is the
+government's record.
+
 ## Sensitive data
 
 Health, religion, race or ethnicity, immigration status, sexual orientation, disability, criminal history, personal

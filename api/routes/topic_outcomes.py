@@ -37,6 +37,7 @@ from pydantic import BaseModel
 from api.routes.search_postgres import get_db_pool
 from api.routes.topic_policy import _iso, _state_code, _state_name, _topic_key
 from api.routes.topic_upcoming import _PENDING_SQL
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/topics", tags=["topics"])
 tracer = trace.get_tracer(__name__)
@@ -418,6 +419,6 @@ async def topic_outcomes(
         ),
     )
     steps.next.count = steps.next.upcoming + steps.next.pending_bills
-    return TopicOutcomes(
+    return await redact_response(TopicOutcomes(
         topic=key, state_code=state_code, state=_state_name(None, state_code), city=city_name, steps=steps
-    )
+    ), TEXT_FIELDS)

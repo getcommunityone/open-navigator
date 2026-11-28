@@ -30,6 +30,7 @@ from pydantic import BaseModel
 from llm.gemini.document_text import extract_text_from_bytes
 from llm.gemini.meeting_gap_analysis import analyze_gaps
 from api.routes.search_postgres import get_db_pool
+from api.privacy_redaction import SNIPPET_FIELDS, redact_response
 
 router = APIRouter(prefix="/meeting", tags=["meeting"])
 
@@ -300,7 +301,7 @@ async def get_meeting_comparison(
             if isinstance(parsed, dict):
                 cached_gaps[r["document_url"]] = GapAnalysis(**parsed)
 
-        return MeetingComparison(
+        return await redact_response(MeetingComparison(
             event_meeting_id=meeting["event_meeting_id"],
             body_name=meeting["body_name"],
             meeting_date=_meeting_iso_date(meeting["meeting_date"]),
@@ -315,7 +316,7 @@ async def get_meeting_comparison(
                 for d in document_rows
             ],
             cached_gaps=cached_gaps,
-        )
+        ), SNIPPET_FIELDS)
 
 
 @router.post("/{event_meeting_id}/document-gaps", response_model=GapAnalysis)
@@ -354,7 +355,7 @@ async def analyze_document_gaps(
                     parsed = _parse_json(cached)
                     if isinstance(parsed, dict):
                         span.set_attribute("cache.hit", True)
-                        return GapAnalysis(**parsed)
+                        return await redact_response(GapAnalysis(**parsed), SNIPPET_FIELDS)
 
                 # Assemble the AI summary side.
                 meeting = await conn.fetchrow(_MEETING_SQL, event_meeting_id)
@@ -421,7 +422,7 @@ async def analyze_document_gaps(
                     result.get("model"),
                 )
 
-            return GapAnalysis(**result)
+            return await redact_response(GapAnalysis(**result), SNIPPET_FIELDS)
         except HTTPException:
             raise
         except Exception as e:  # noqa: BLE001

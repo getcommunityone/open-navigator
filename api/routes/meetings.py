@@ -38,6 +38,8 @@ from api.meeting_type import (
 )
 from api.provenance import Provenance, build_provenance
 from api.routes.search_postgres import get_db_pool
+from core_lib.privacy import default_redactor, is_school_board
+from api.privacy_redaction import ensure_officials, officials_for, SNIPPET_FIELDS, redact_response
 
 router = APIRouter(prefix="/meeting", tags=["meeting"])
 
@@ -64,6 +66,10 @@ _TRANSCRIPT_SQL = """
         video_id,
         language,
         segments,
+        state_code,
+        jurisdiction_name,
+        jurisdiction_type,
+        event_title,
         (segments IS NOT NULL AND jsonb_array_length(segments) > 0) AS has_transcript
     FROM public.event_documents
     WHERE video_id = $1
@@ -138,6 +144,14 @@ async def get_meeting_transcript(
 
             span.set_attribute("meeting.found", True)
             segments = _coerce_segments(row["segments"])
+            # Private residents' full names -> "First L.", home addresses -> "[address]" (#1468).
+            await ensure_officials()
+            cleaned = default_redactor().redact_segments(
+                [c.text for c in segments],
+                official_names=officials_for(row.get("state_code"), row.get("jurisdiction_name")),
+                school=is_school_board(row.get("jurisdiction_name"), row.get("jurisdiction_type"), row.get("event_title")),
+            )
+            segments = [TranscriptCue(start=c.start, text=t) for c, t in zip(segments, cleaned)]
             span.set_attribute("meeting.segment_count", len(segments))
 
             logger.info("🎬 Meeting transcript {} -> {} cues", video_id, len(segments))
@@ -312,7 +326,7 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
             "🏛️ Meeting {} -> {} decisions, {} financial items, {} documents",
             event_meeting_id, len(decisions), len(financial), len(doc_models),
         )
-        return MeetingDetail(
+        return await redact_response(MeetingDetail(
             event_meeting_id=row["event_meeting_id"],
             c1_event_id=c1,
             body_name=row["body_name"],
@@ -348,4 +362,4 @@ async def get_meeting(event_meeting_id: int = Path(..., ge=1)) -> MeetingDetail:
             provenance=build_provenance(
                 dict(prov_row) if prov_row is not None else None, video_id=row["video_id"]
             ),
-        )
+        ), SNIPPET_FIELDS | {"event_description"})

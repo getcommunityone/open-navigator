@@ -31,6 +31,7 @@ from pydantic import BaseModel
 
 from api.routes.search_postgres import get_db_pool
 from api.routes.topic_policy import _iso, _state_code, _state_name, _topic_key
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/topics", tags=["topics"])
 tracer = trace.get_tracer(__name__)
@@ -220,7 +221,7 @@ async def topic_organizations(
                     count_rows = count_rows or up_rows  # still says the mart covers the topic
         except asyncpg.exceptions.UndefinedTableError:
             span.set_attribute("topics.relation_missing", True)
-            return TopicOrganizations(**base)
+            return await redact_response(TopicOrganizations(**base), TEXT_FIELDS)
         except Exception as exc:
             logger.exception("topic organizations failed")
             span.record_exception(exc)
@@ -229,7 +230,7 @@ async def topic_organizations(
         topic_id = next((r["topic_id"] for r in count_rows if r["topic_id"] is not None), None)
         built_at = max((r["built_at"] for r in count_rows if r["built_at"] is not None), default=None)
         span.set_attribute("topics.organizations_total", _total(counts))
-        return TopicOrganizations(
+        return await redact_response(TopicOrganizations(
             **base,
             topic_id=topic_id,
             available=built_at is not None,
@@ -239,4 +240,4 @@ async def topic_organizations(
             broader=broader,
             built_at=_iso(built_at),
             partial=partial,
-        )
+        ), TEXT_FIELDS)

@@ -21,15 +21,16 @@
          or null when unknown. start_seconds is where it starts in the recording.
       2. otherwise the transcript (event_documents.content): speaker null ("not identified").
     Privacy: for a sensitive term (health, religion, immigration ... see trending_term_sensitive) the speaker is always
-    null, so the term is never tied to a person. A self-introduction ("my name is Jane Doe") inside an excerpt is
-    replaced by "my name is [name]". School-board meetings are not counted, so never quoted. A meeting where a possible
+    null, so the term is never tied to a person. Names and home addresses in the excerpt pass through
+    redact_person_names (#1468): "my name is Jane Doe" -> "my name is Jane D.", "Mr. Smith" -> "Mr. S.", "of 12 Elm
+    Street" -> "of [address]"; the API redacts again on serve, keeping roster officials.
+    School-board meetings are not counted, so never quoted. A meeting where a possible
     minor's own segment says the term is never quoted for that term, and a row whose excerpt has no <mark> is dropped.
 */
 
 {%- set n_nat = var('trending_evidence_national', 5) %}
 {%- set n_st = var('trending_evidence_state', 1) %}
 {%- set hl = "StartSel=<mark>, StopSel=</mark>, MaxWords=20, MinWords=10, ShortWord=2, MaxFragments=1, HighlightAll=false" %}
-{%- set redact = "regexp_replace({}, '(my name is|my name''s|name is)\\s+[A-Za-z''-]+(\\s+[A-Za-z''-]+)?', '\\1 [name]', 'gi')" %}
 
 -- The terms a page can show: in the top var trending_evidence_rank (20) of any sort in the scope.
 with served as materialized (
@@ -132,8 +133,8 @@ select
     coalesce(ed.event_title, '')::text                                                as meeting_title,
     ed.video_url::text                                                                as video_url,
     (case when s.comment_segment_id is not null
-          then ts_headline('english', {{ redact.replace('{}', 's.comment_text') }}, p.q, '{{ hl }}')
-          else ts_headline('english', {{ redact.replace('{}', 'win.txt') }}, p.q, '{{ hl }}')
+          then ts_headline('english', {{ redact_person_names('s.comment_text') }}, p.q, '{{ hl }}')
+          else ts_headline('english', {{ redact_person_names('win.txt') }}, p.q, '{{ hl }}')
      end)::text                                                                       as excerpt,
     (case when s.comment_segment_id is not null then 'public_comment' else 'transcript' end)::text as excerpt_source,
     s.start_seconds::numeric(12, 3)                                                   as start_seconds,
