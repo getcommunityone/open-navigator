@@ -205,4 +205,4 @@ Opens web UI to test tools interactively.
 
 ## License
 
-Apache 2.0 - See [LICENSE](../../LICENSE)
+MIT License - See [LICENSE](../../LICENSE)

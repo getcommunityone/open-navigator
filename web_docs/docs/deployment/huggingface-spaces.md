@@ -42,7 +42,7 @@ The script will:
 4. Yes Push your code
 5. Yes Trigger automatic build (~10-15 minutes)
 
-**Note**: This project uses **Apache 2.0 license** (updated from MIT in April 2026).
+**Note**: This project uses the **MIT License** (relicensed from Apache 2.0 in November 2026).
 
 
 ## Cost Breakdown
@@ -88,7 +88,7 @@ Dockerfile.huggingface # Multi-stage Docker build
 1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
 2. Configure:
  - **Space name**: `open-navigator-for-engagement`
- - **License**: `Apache 2.0`
+ - **License**: `MIT`
  - **Space SDK**: Select `Docker`
  - **Visibility**: Public or Private
 3. Click **Create Space**

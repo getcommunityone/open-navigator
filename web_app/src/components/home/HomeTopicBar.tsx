@@ -1,8 +1,22 @@
-import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { tabKeyTarget } from '../../utils/homeTopic'
 import { pillBadgeText, type HotPill } from '../../utils/hotTopics'
 import '../../styles/home-topic-bar.css'
+
+/** The story a topic chip links to, with the place kept: `/stories/<slug>?state=...` (#1430). */
+export function topicChipHref(slug: string, query: string): string {
+  const q = query.replace(/^\?/, '')
+  return `/stories/${encodeURIComponent(slug)}${q ? `?${q}` : ''}`
+}
+
+/** A pill's crawlable link: its story when it has one, else its meetings in Browse topics, the place kept. */
+export function pillHref(p: Pick<HotPill, 'id' | 'live' | 'topicId'>, query: string): string {
+  if (p.live || p.topicId == null) return topicChipHref(p.id, query)
+  const q = new URLSearchParams(query.replace(/^\?/, ''))
+  q.set('topic_id', String(p.topicId))
+  return `/browse-topics?${q.toString()}`
+}
 
 interface Props {
   /** Hot and trending topics for the place (#1416): live stories plus rising and heated topics, already ordered. */
@@ -96,9 +110,10 @@ export default function HomeTopicBar({ pills, selected, pendingId = null, onSele
             const on = t.id === active
             const badge = pillBadgeText(t)
             return (
-              <button
+              // A tab that is also a real link (#1430): crawlers follow the href; a plain click switches the hero in place.
+              <a
                 key={t.id}
-                type="button"
+                href={pillHref(t, query)}
                 role="tab"
                 id={`home-tab-${t.id}`}
                 data-topic={t.id}
@@ -109,7 +124,11 @@ export default function HomeTopicBar({ pills, selected, pendingId = null, onSele
                 tabIndex={i === idx ? 0 : -1}
                 title={[t.live ? 'Has a data story' : null, badge || null].filter(Boolean).join('; ') || undefined}
                 className={'home-tbar-chip' + (on ? ' is-on' : '') + (pendingId === t.id ? ' is-pending' : '')}
-                onClick={() => onSelect(t.id)}
+                onClick={(e: MouseEvent<HTMLAnchorElement>) => {
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                  e.preventDefault()
+                  onSelect(t.id)
+                }}
                 onPointerEnter={() => onPrefetch?.(t.id)}
                 onPointerDown={() => onPrefetch?.(t.id)}
                 onFocus={() => onPrefetch?.(t.id)}
@@ -123,7 +142,7 @@ export default function HomeTopicBar({ pills, selected, pendingId = null, onSele
                   </span>
                 )}
                 {(t.live || badge) && <span className="sr-only">{[t.live ? ', data story' : '', badge ? `, ${badge}` : ''].join('')}</span>}
-              </button>
+              </a>
             )
           })}
         </div>

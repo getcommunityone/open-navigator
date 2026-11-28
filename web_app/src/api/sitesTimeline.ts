@@ -1,5 +1,5 @@
 // API clients for the Data Center Story's "Over time" screen and the recording-coverage line (#1348).
-//   GET /api/data-centers/sites-timeline?state=   dated sites with coordinates + per-year totals by phase (SQL)
+//   GET /api/data-centers/sites-timeline?state=   every site (by appear_basis) + per-year totals by phase (SQL)
 //   GET /api/coverage/recorded-meetings?state=&city=   the local governments and recorded meetings in scope
 // Types are generated from the FastAPI schema (`npm run gen:api`). Years arrive as 4-digit strings (CLAUDE.md).
 import type { components } from '../lib/api.types'

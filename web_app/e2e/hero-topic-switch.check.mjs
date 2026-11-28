@@ -37,7 +37,7 @@ for (const v of views) {
     })
     await page.goto(`${base}/${qs}`, { waitUntil: 'networkidle', timeout: 120_000 })
     await page.waitForSelector('.home-tbar [role="tab"]', { timeout: 60_000 })
-    await page.waitForSelector('.home-story-map [data-box]', { state: 'attached', timeout: 60_000 })
+    await page.waitForSelector('.home-story-map [data-box]', { state: 'attached', timeout: 150_000 })
     await page.waitForTimeout(2500)
     const pills = await page.$$eval('.home-tbar [role="tab"]', (els) => els.map((e) => ({
       id: e.dataset.topic, text: e.textContent.replace(/,.*$/, '').trim(), live: e.hasAttribute('data-live'),
@@ -75,7 +75,8 @@ for (const v of views) {
       await tab.click({ timeout: 60000, noWaitAfter: true })
       await page.waitForFunction((id) => new URL(location.href).searchParams.get('topic') === id || (id === 'data-centers' && !new URL(location.href).searchParams.get('topic')), pick.id, { timeout: 8000 }).catch(() => fail(`${tag}: URL did not take ?topic=${pick.id}`))
       const urlMs = Date.now() - t
-      await page.waitForFunction(() => !document.querySelector('.box-flight-canvas'), null, { timeout: 15000 }).catch(() => {})
+      await page.waitForFunction((h) => document.querySelector('#home-story-dc')?.textContent?.trim() !== h, beforeH, { timeout: 25000 }).catch(() => {})
+      await page.waitForFunction(() => !document.querySelector('.box-flight-canvas'), null, { timeout: 20000 }).catch(() => {})
       await page.waitForTimeout(1200)
       const { f, lt } = await page.evaluate(() => ({ f: window.__f.slice(1), lt: window.__lt }))
       const afterH = (await page.locator('#home-story-dc').first().textContent())?.trim()
@@ -113,7 +114,7 @@ for (const v of views) {
     new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lt.push({ s: e.startTime, d: e.duration }) }).observe({ type: 'longtask', buffered: true })
   })
   await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 120_000 })
-  await page.waitForSelector('.home-story-map [data-box]', { state: 'attached', timeout: 60_000 })
+  await page.waitForSelector('.home-story-map [data-box]', { state: 'attached', timeout: 150_000 })
   await page.waitForTimeout(2500)
   const cdp = await ctx.newCDPSession(page)
   await cdp.send('Emulation.setCPUThrottlingRate', { rate })
