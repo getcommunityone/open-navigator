@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { PlayCircleIcon } from '@heroicons/react/24/outline'
 import api from '../lib/api'
 import { withSpan } from '../instrumentation'
-import PageClose from '../components/PageClose'
 import { useDocumentTitle } from '../utils/useDocumentTitle'
 import {
   formatDay,
@@ -18,7 +17,8 @@ import {
 /**
  * One governing body (#1446): its members and roles, officials heard recently, and its recent meetings.
  * Route: /bodies/:bodyId. The scope label under the title names the place the body belongs to (the body is the
- * filter), and links back to that place's page. Every figure comes from GET /api/bodies/{id}.
+ * filter), and links back to that place's page. Every figure comes from GET /api/bodies/{id}. The Close (PageClose) comes
+ * from Layout, like every sub-page (lib/pageClose.ts names this page "the body").
  */
 export default function BodyDetail() {
   const { bodyId = '' } = useParams<{ bodyId: string }>()
@@ -41,7 +41,6 @@ export default function BodyDetail() {
 
   return (
     <div className="min-h-screen page-bg">
-      <PageClose />
       <div className="mx-auto max-w-5xl px-4 pb-10 sm:px-6">
         {isLoading && <p className="text-gray-600">Loading…</p>}
         {isError && (

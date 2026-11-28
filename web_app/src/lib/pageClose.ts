@@ -50,6 +50,7 @@ const LABELS: Record<string, string> = {
   jurisdiction: 'the jurisdiction',
   decisions: 'the decision',
   meetings: 'the meeting',
+  bodies: 'the body',
   stories: 'data stories',
   organizations: 'the organization',
   nonprofits: 'nonprofits',
