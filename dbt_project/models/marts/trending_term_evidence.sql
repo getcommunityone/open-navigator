@@ -10,9 +10,9 @@
 /*
     The evidence behind each served trending term (#1399, CLAUDE.md "show the match evidence"): one row per
     (term_key, video_id), a verbatim excerpt of a meeting that says the term, with the term marked by ts_headline
-    (<mark>...</mark>), for the terms in the top var trending_evidence_rank (30) of any sort in a scope: each
+    (<mark>...</mark>), for the terms in the top var trending_evidence_rank (24) of any sort in a scope: each
     government's newest counted meeting that says the term, for the newest
-    var trending_evidence_national (10) governments nationally and the newest var trending_evidence_state (3) per state
+    var trending_evidence_national (6) governments nationally and the newest var trending_evidence_state (2) per state
     where the term is served in that state. One meeting per government keeps one place from filling the list.
 
     Excerpt source, in order:
@@ -25,22 +25,22 @@
     replaced by "my name is [name]". School-board meetings are not counted, so never quoted.
 */
 
-{%- set n_nat = var('trending_evidence_national', 10) %}
-{%- set n_st = var('trending_evidence_state', 3) %}
-{%- set hl = "StartSel=<mark>, StopSel=</mark>, MaxWords=30, MinWords=14, ShortWord=2, MaxFragments=1, HighlightAll=false" %}
+{%- set n_nat = var('trending_evidence_national', 6) %}
+{%- set n_st = var('trending_evidence_state', 2) %}
+{%- set hl = "StartSel=<mark>, StopSel=</mark>, MaxWords=22, MinWords=10, ShortWord=2, MaxFragments=1, HighlightAll=false" %}
 {%- set redact = "regexp_replace({}, '(my name is|my name''s|name is)\\s+[A-Za-z''-]+(\\s+[A-Za-z''-]+)?', '\\1 [name]', 'gi')" %}
 
--- The terms a page can show: in the top var trending_evidence_rank (30) of any sort in the scope.
+-- The terms a page can show: in the top var trending_evidence_rank (24) of any sort in the scope.
 with served as materialized (
     select distinct term_key, scope_code
     from {{ ref('trending_term') }}
     where is_served
       and least(coalesce(rank_rising, 1000000), coalesce(rank_hot, 1000000), coalesce(rank_volume, 1000000))
-          <= {{ var('trending_evidence_rank', 30) }}
+          <= {{ var('trending_evidence_rank', 24) }}
 ),
 
 term as (
-    select c.term_key, c.term_tsquery::tsquery as q, c.is_sensitive
+    select c.term_key, c.term, c.term_tsquery::tsquery as q, c.is_sensitive
     from {{ ref('int_trending_term__candidate') }} as c
     where c.term_key in (select term_key from served)
 ),
@@ -82,7 +82,7 @@ doc as materialized (
 -- That meeting (one per government; the same-day meeting that says it when there were several).
 picked as materialized (
     select distinct on (g.term_key, g.jurisdiction_key)
-        t.term_key, t.q, t.is_sensitive, m.video_id, m.meeting_date, m.state_code, m.jurisdiction_name,
+        t.term_key, t.term, t.q, t.is_sensitive, m.video_id, m.meeting_date, m.state_code, m.jurisdiction_name,
         d.event_document_id
     from gov_picked as g
     inner join term as t on t.term_key = g.term_key
@@ -121,7 +121,7 @@ select
     ed.video_url::text                                                                as video_url,
     (case when s.comment_segment_id is not null
           then ts_headline('english', {{ redact.replace('{}', 's.comment_text') }}, p.q, '{{ hl }}')
-          else ts_headline('english', {{ redact.replace('{}', 'ed.content') }}, p.q, '{{ hl }}')
+          else ts_headline('english', {{ redact.replace('{}', 'win.txt') }}, p.q, '{{ hl }}')
      end)::text                                                                       as excerpt,
     (case when s.comment_segment_id is not null then 'public_comment' else 'transcript' end)::text as excerpt_source,
     s.start_seconds::numeric(12, 3)                                                   as start_seconds,
@@ -129,4 +129,14 @@ select
 from picked as p
 inner join {{ ref('event_documents') }} as ed on ed.event_document_id = p.event_document_id
 left join seg as s on s.term_key = p.term_key and s.video_id = p.video_id
+-- ts_headline parses the whole text it is given, so a transcript excerpt is cut from a 2,000-character window around
+-- the first place the term's display form appears (the whole transcript when that exact form isn't found).
+cross join lateral (
+    select case
+        when s.comment_segment_id is not null then null
+        when strpos(lower(ed.content), lower(p.term)) > 0
+            then substr(ed.content, greatest(1, strpos(lower(ed.content), lower(p.term)) - 800), 2000)
+        else ed.content
+    end as txt
+) as win
 left join {{ ref('meeting_comment') }} as mc on mc.meeting_comment_id = s.comment_segment_id

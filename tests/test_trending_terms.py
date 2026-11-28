@@ -226,14 +226,16 @@ def test_privacy_filter_drops_private_first_names() -> None:
         served = await c.fetch(
             "SELECT DISTINCT t.term FROM gold.trending_term t "
             "JOIN intermediate.int_trending_term__name_lexicon l ON l.word = t.term "
-            "WHERE t.is_served AND t.n_words = 1 AND t.name_allowed_as IS NULL AND l.n_given >= 20")
+            "WHERE t.is_served AND t.n_words = 1 AND t.name_allowed_as IS NULL AND l.n_given >= 20 "
+            "AND t.term NOT IN (SELECT term FROM seeds.trending_term_common_word)")
         return cand, [r["term"] for r in served]
 
     cand, served_names = _live(q)
     # A sample private first name heard in many meetings is a candidate, and the filter drops it.
     assert cand.get("john") == "person_name"
     assert all(cand.get(n) in (None, "person_name", "thin_sample") for n in ("sarah", "michael", "jennifer"))
-    # No served single word is a common given name, unless it is a reviewed public figure / official.
+    # No served single word is a common given name, unless it is a reviewed public figure / official or a reviewed
+    # common civic word that is also a name (trending_term_common_word: "bill", "april").
     assert served_names == []
 
 
