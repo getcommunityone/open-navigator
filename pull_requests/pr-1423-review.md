@@ -5,7 +5,7 @@ title: "fix(web): every map and chart gets a takeaway title and colour legend (C
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: de7cac05bfa40dca67ffb8a992db298a7867d5ad
+head_sha: 78045c09f2a46890e0fad94b44e9ad7c26e845d9
 verdict: approve
 ---
 
@@ -18,6 +18,7 @@ Automated review (#648) for PR #1423 on `fix/1409-chart-legends`. Heuristic rubr
 
 ## Scope of Change
 
+- `pull_requests/pr-1423-review.md`
 - `web_app/e2e/chart-legends.check.mjs`
 - `web_app/src/components/chart/ChartFrame.test.tsx`
 - `web_app/src/components/chart/ChartFrame.tsx`
@@ -50,7 +51,7 @@ Automated review (#648) for PR #1423 on `fix/1409-chart-legends`. Heuristic rubr
 
 ## CI Status
 
-See the PR checks on `de7cac05bfa4`.
+See the PR checks on `78045c09f2a4`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
