@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
@@ -14,6 +14,8 @@ import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
 import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import { useStoryScope } from '../../hooks/useStoryScope'
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
+import { useBoxFlight } from '../stance/BoxFlightProvider'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import HomeOutcomesScroller from './HomeOutcomesScroller'
 import { storyStartHref } from '../../utils/storyNav'
@@ -81,13 +83,24 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   const [sp, setSp] = useSearchParams()
   // The map's hover card goes in the text column, under Start (#1277), never over the map.
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
+  const mapWrapRef = useRef<HTMLDivElement | null>(null)
+  const reduced = usePrefersReducedMotion()
+  const boxFlight = useBoxFlight()
   // Any live topic story can be shown (#1133); an unknown or not-yet-loaded ?story= shows data centers.
   const topicStories = useTopicStories()
   const askedStory = askedStoryOf(sp)
   const topicDef = askedStory ? topicStories.stories[askedStory] : undefined
   const story = topicDef ? askedStory : 'data-centers'
   // ?topic= (the legacy ?story= still reads) keeps the place and replaces history, so Back leaves the page (#1350).
-  const selectStory = (next: string) => setSp((prev) => withStory(prev, next), { replace: true, preventScrollReset: true })
+  const selectStory = (next: string) => {
+    const go = () => setSp((prev) => withStory(prev, next), { replace: true, preventScrollReset: true })
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown }
+    if (!reduced && typeof doc.startViewTransition === 'function') {
+      doc.startViewTransition(go)
+    } else {
+      go()
+    }
+  }
   // The topic word in the headline: a dropdown of every live story, the same list as the chip row and the story pages.
   const topicWord = topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : dcTopic
   const topicControl = { value: story, options: storyTopicOptions(topicStories.live, story, topicWord), onPick: selectStory }
@@ -166,6 +179,13 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   const stateAspect = useStateAspect(scope.stateCode)
   const drill = (city: string | null) => {
     if (!scope.stateCode) return
+    if (mapWrapRef.current) {
+      boxFlight.launch({
+        source: mapWrapRef.current,
+        focusGroup: city ?? scope.stateCode,
+        targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+      })
+    }
     const p = new URLSearchParams({ state: scope.stateCode, screen: 'overview' })
     if (city) p.set('city', city)
     navigate(`/stories/data-centers?${p.toString()}`)
@@ -206,7 +226,19 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
             {!pending && <CoverageLine scope={scope} className="home-story-coverage" />}
             {/* Next steps first (#1176): Start, Next story and the drill-down hint sit in the first screen. */}
             <div className="home-story-actions">
-              <Link to={storyStartHref('data-centers', q)} className="home-story-start">
+              <Link
+                to={storyStartHref('data-centers', q)}
+                className="home-story-start"
+                onClick={() => {
+                  if (mapWrapRef.current) {
+                    boxFlight.launch({
+                      source: mapWrapRef.current,
+                      focusGroup: scope.stateCode ?? undefined,
+                      targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+                    })
+                  }
+                }}
+              >
                 {storyStartLabel('data-centers', label)} <span aria-hidden="true">→</span>
               </Link>
             </div>
@@ -216,7 +248,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
             />
           </div>
 
-          <div className="home-story-map">
+          <div className="home-story-map" ref={mapWrapRef}>
             {scope.stateCode && (statePlaces.isPending || (byPlace && byPlace.length > 0)) ? (
               byPlace && byPlace.length > 0 ? (
                 <StoryCountyMap

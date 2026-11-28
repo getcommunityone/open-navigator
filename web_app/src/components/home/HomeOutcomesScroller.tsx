@@ -6,6 +6,7 @@ import { useTopicOutcomes } from '../../hooks/useTopicOutcomes'
 import { stepScreen } from '../../utils/topicOutcomes'
 import { upcomingCardLine } from '../../utils/topicUpcoming'
 import { outcomeCardHref, type OutcomeCard } from '../../utils/homeOutcomes'
+import { useBoxFlight } from '../stance/BoxFlightProvider'
 import './HomeOutcomesScroller.css'
 
 interface Props {
@@ -31,6 +32,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
  * Browse topics; a sideways scroll on a phone.
  */
 export default function HomeOutcomesScroller({ topic, subject, stateCode, city, label, dataCenterStory }: Props) {
+  const boxFlight = useBoxFlight()
   const upcoming = useTopicUpcoming(topic, stateCode, city)
   const facts = useQuery({
     queryKey: ['caption-facts', topic, stateCode ?? '', city ?? ''],
@@ -105,7 +107,18 @@ export default function HomeOutcomesScroller({ topic, subject, stateCode, city, 
       <ol className="home-outcomes-list">
         {cards.map((c) => (
           <li key={c.key}>
-            <Link to={outcomeCardHref(topic, scope, c.screen)} className={`home-outcome${c.lead ? ' is-lead' : ''}`}>
+            <Link
+              to={outcomeCardHref(topic, scope, c.screen)}
+              className={`home-outcome${c.lead ? ' is-lead' : ''}`}
+              onClick={(e) => {
+                const src = document.querySelector<HTMLElement>('.home-story-map') ?? e.currentTarget
+                boxFlight.launch({
+                  source: src,
+                  focusGroup: c.key,
+                  targetSelector: '.stance-story [data-live], .stance-story [data-panel]',
+                })
+              }}
+            >
               <span className="home-outcome-eyebrow">{c.eyebrow}</span>
               <span className="home-outcome-num" aria-busy={c.value == null || undefined}>
                 {c.value == null ? '—' : fmt(c.value)}

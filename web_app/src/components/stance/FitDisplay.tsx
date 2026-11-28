@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import type { DotsSpec } from '../../utils/stanceGame'
+import { GROUP_COLORS } from '../../utils/houseTheme'
 import { countsSentence, specDisplay, topCategories, type CategoryCount } from '../../utils/displayFit'
+import BoxWaffleChart from './BoxWaffleChart'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 /** "data center project" → "data center projects" (the spec's units are all regular). */
@@ -119,6 +121,21 @@ export default function FitDisplay({ spec, scopeLabel, units, barsExtra }: Props
       return (
         <div className="stance-fit" data-display={display.kind}>
           <p className="stance-fit-lead">{lead}.</p>
+          {items >= 20 && live.length >= 2 && (
+            <BoxWaffleChart
+              categories={[...live]
+                .sort((a, b) => b.count - a.count)
+                .map((r, i) => ({
+                  key: r.label,
+                  label: r.label,
+                  count: r.count,
+                  color: GROUP_COLORS[i % GROUP_COLORS.length]!,
+                }))}
+              title={spec.title}
+              unitLabel={plural(spec.unit, items)}
+              replayKey={`${spec.title}|${scopeLabel}|${items}`}
+            />
+          )}
           <CountBars rows={rows} label={`${spec.title}, ${scopeLabel}`} />
           {barsExtra}
         </div>

@@ -8,6 +8,7 @@ import { LIFT_SCALE, MORPH_DEFAULTS, easeOutCubic, planDrillMorph, sampleAt, typ
 import type { StateCount } from './StoryDotMap'
 import { NATIONAL_PAD, nationalGrid, nationalPaint } from './nationalDots'
 import { DRILL_FROM_NATIONAL } from './drillState'
+import { useBoxFlight } from './BoxFlightProvider'
 
 
 type Dir = 'in' | 'out'
@@ -59,15 +60,17 @@ function readCounty(wrap: HTMLElement): MorphBox[] | null {
   const m = svg.getScreenCTM()
   if (!m) return null
   const out: MorphBox[] = []
-  svg.querySelectorAll<SVGCircleElement>('circle[data-box]').forEach((c) => {
-    const cx = Number(c.getAttribute('cx'))
-    const cy = Number(c.getAttribute('cy'))
+  svg.querySelectorAll<SVGGraphicsElement>('rect[data-box], circle[data-box]').forEach((el) => {
+    const isRect = el.tagName.toLowerCase() === 'rect'
+    const cx = isRect ? Number(el.getAttribute('x')) + Number(el.getAttribute('width')) / 2 : Number(el.getAttribute('cx'))
+    const cy = isRect ? Number(el.getAttribute('y')) + Number(el.getAttribute('height')) / 2 : Number(el.getAttribute('cy'))
+    const r = isRect ? Number(el.getAttribute('width')) / 2 : Number(el.getAttribute('r'))
     out.push({
       x: m.a * cx + m.c * cy + m.e - w.left,
       y: m.b * cx + m.d * cy + m.f - w.top,
-      r: Number(c.getAttribute('r')) * m.a,
-      color: c.getAttribute('fill') ?? '#000',
-      opacity: Number(c.getAttribute('opacity') ?? 1),
+      r: r * m.a,
+      color: el.getAttribute('fill') ?? '#000',
+      opacity: Number(el.getAttribute('opacity') ?? 1),
       mx: cx,
       my: cy,
     })
@@ -88,6 +91,7 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const reduced = usePrefersReducedMotion()
+  const boxFlight = useBoxFlight()
   const location = useLocation()
   const navigate = useNavigate()
   const arrival = useRef((location.state as { drillFrom?: string } | null)?.drillFrom === DRILL_FROM_NATIONAL.drillFrom)
@@ -159,7 +163,7 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
     pending.current = null
     const snap = fresh ? { national: fresh.national, county: fresh.county } : null
     let dir: Dir | null = null
-    if (prev === undefined) dir = stateCode && arrival.current ? 'in' : null
+    if (prev === undefined) dir = stateCode && arrival.current && !boxFlight.isFlying ? 'in' : null
     else if (!prev && stateCode) dir = 'in'
     else if (prev && !stateCode && snap?.county) dir = 'out'
     if (!dir || reduced) {
@@ -214,21 +218,28 @@ export default function MapDrill({ stateCode, byState, county, children }: Props
     const draw = (frames: { x: number; y: number; r: number; color: string; opacity: number; lifted?: number }[]) => {
       size(frames.reduce((a, f) => Math.max(a, f.y + f.r + 2), 0))
       // Back to front: the other states first, the state's own boxes on top.
+      const fillBox = (x: number, y: number, r: number) => {
+        const s = r * 1.85
+        const rx = s * 0.14
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath()
+          ctx.roundRect(x - s / 2, y - s / 2, s, s, rx)
+          ctx.fill()
+        } else {
+          ctx.fillRect(x - s / 2, y - s / 2, s, s)
+        }
+      }
       for (let i = frames.length - 1; i >= 0; i--) {
         const f = frames[i]!
         if (f.opacity <= 0.01 || f.r <= 0.05) continue
         if (f.lifted && f.lifted > 0.02) {
           ctx.globalAlpha = 0.22 * f.lifted * f.opacity
           ctx.fillStyle = '#1c1917'
-          ctx.beginPath()
-          ctx.arc(f.x + f.r * 0.15, f.y + f.r * 0.45, f.r * 1.12, 0, Math.PI * 2)
-          ctx.fill()
+          fillBox(f.x + f.r * 0.15, f.y + f.r * 0.45, f.r * 1.12)
         }
         ctx.globalAlpha = f.opacity
         ctx.fillStyle = f.color
-        ctx.beginPath()
-        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2)
-        ctx.fill()
+        fillBox(f.x, f.y, f.r)
       }
       ctx.globalAlpha = 1
     }

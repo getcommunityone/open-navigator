@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 // The state's story plays its drill-down transition on arrival, from the national layout (#1195).
 import { DRILL_FROM_NATIONAL } from '../stance/drillState'
+import { useBoxFlight } from '../stance/BoxFlightProvider'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import MapSkeleton, { NATIONAL_MAP_ASPECT } from '../stance/MapSkeleton'
 import { COUNTIES_ALBERS_TOPO, NATIONAL_BBOX, STATES_ALBERS_TOPO, albersPoint, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
@@ -225,6 +226,8 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
   const lineOf = (st: StateStance | undefined) => (words ? positionLine(st, words) : stanceLine(st, stanceUnit))
   const navigate = useNavigate()
   const location = useLocation()
+  const boxFlight = useBoxFlight()
+  const mapWrapRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<number | null>(null)
   // Leaving the map hides the card after a moment, so the mouse can cross to the card (in the home page's text column,
   // #1277) and click its link; entering the map or the card again keeps it.
@@ -414,7 +417,20 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           <p className="map-hover-here">You’re reading the {stateName(shownCode)} story</p>
         ) : (
           // A real link, the same target as a click on the state (#1277).
-          <Link to={href(shownCode)} state={DRILL_FROM_NATIONAL} className="map-hover-open">
+          <Link
+            to={href(shownCode)}
+            state={DRILL_FROM_NATIONAL}
+            className="map-hover-open"
+            onClick={() => {
+              if (!isCurrentPage(href(shownCode), location.pathname, location.search)) {
+                boxFlight.launch({
+                  source: mapWrapRef.current,
+                  focusGroup: shownCode,
+                  targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+                })
+              }
+            }}
+          >
             {keyNav.keyed ? `Press Enter to open the ${stateName(shownCode)} story` : `Click ${stateName(shownCode)} to open its story`} <span aria-hidden="true">→</span>
           </Link>
         )}
@@ -432,12 +448,18 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     if (!b?.code) return
     setHover(firstBox.get(b.code) ?? i)
     if (isCurrentPage(href(b.code), location.pathname, location.search)) return
+    boxFlight.launch({
+      source: mapWrapRef.current,
+      focusGroup: b.code,
+      targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+    })
     navigate(href(b.code), { state: DRILL_FROM_NATIONAL })
   }
 
   return (
     // The map, its lines and its card: leaving all of them (not moving between them) hides the card and stops its recording.
     <div
+      ref={mapWrapRef}
       className="map-fade-in"
       onMouseLeave={hideSoon}
       onMouseEnter={() => {
@@ -491,6 +513,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           return (
             <rect
               key={i}
+              data-box=""
               data-state={b.code ?? undefined}
               x={b.x - s / 2}
               y={b.y - s / 2}

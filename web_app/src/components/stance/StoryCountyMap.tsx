@@ -425,14 +425,18 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           {grid.dots.map((d, i) => {
             const n = counts.get(d.id)
             const mine = !cityCounties || cityCounties.has(d.id)
+            const s = (n ? r : r * 0.55) * 1.85
             return (
-              <circle
+              <rect
                 key={i}
                 data-box=""
+                data-state={stateCode}
                 data-active={hover === d.id ? '' : undefined}
-                cx={d.x}
-                cy={d.y}
-                r={n ? r : r * 0.55}
+                x={d.x - s / 2}
+                y={d.y - s / 2}
+                width={s}
+                height={s}
+                rx={s * 0.14}
                 fill={colorFor(i, n)}
                 opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
                 style={{ cursor: 'pointer' }}
