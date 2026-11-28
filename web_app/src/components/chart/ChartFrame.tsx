@@ -24,11 +24,19 @@ export interface ChartFrameProps {
   source?: ReactNode
   children: ReactNode
   /** The title's element; the page's own heading level decides. */
-  titleAs?: 'p' | 'h2' | 'h3' | 'h4'
+  titleAs?: 'div' | 'p' | 'h2' | 'h3' | 'h4'
   className?: string
   style?: CSSProperties
   /** Key above the visual instead of below. */
   legendFirst?: boolean
+  /** A picker or button beside the title (the county map's "United States" and state picker). */
+  controls?: ReactNode
+  /** Class names for the title row and the key, for figures that lay them out on a grid. */
+  headClassName?: string
+  legendClassName?: string
+  titleClassName?: string
+  /** Extra attributes for the root (a `data-*` hook). */
+  rootProps?: Record<string, string | undefined>
 }
 
 const SW = 9
@@ -69,11 +77,25 @@ const isItems = (l: ChartFrameProps['legend']): l is readonly LegendItem[] => Ar
  * is visible on phones (compact, wraps to one or two lines) and is never behind a "More" control.
  * DOM hooks for tests: `[data-chart-frame]`, `[data-chart-title]`, `[data-chart-legend]`.
  */
-export default function ChartFrame({ title, legend, source, children, titleAs = 'p', className = '', style, legendFirst = false }: ChartFrameProps) {
+export default function ChartFrame({
+  title,
+  legend,
+  source,
+  children,
+  titleAs = 'div',
+  className = '',
+  style,
+  legendFirst = false,
+  controls,
+  headClassName = '',
+  legendClassName = '',
+  titleClassName = '',
+  rootProps,
+}: ChartFrameProps) {
   const titleId = useId()
   const Title = titleAs
   const key = (
-    <div data-chart-legend="" className="chart-frame-legend mt-1 text-[11px] leading-tight text-stone-700">
+    <div data-chart-legend="" className={`chart-frame-legend mt-1 text-[11px] leading-tight text-stone-700 ${legendClassName}`.trim()}>
       {isItems(legend) ? (
         <ul aria-label="Legend" className="m-0 flex list-none flex-wrap gap-x-2.5 gap-y-0.5 p-0">
           {legend.map((it) => (
@@ -88,11 +110,21 @@ export default function ChartFrame({ title, legend, source, children, titleAs = 
       )}
     </div>
   )
+  const heading = (
+    <Title id={titleId} data-chart-title="" className={`chart-frame-title m-0 text-[13px] font-semibold leading-snug text-stone-900 ${titleClassName}`.trim()}>
+      {title}
+    </Title>
+  )
   return (
-    <div data-chart-frame="" role="group" aria-labelledby={titleId} className={`chart-frame ${className}`.trim()} style={style}>
-      <Title id={titleId} data-chart-title="" className="chart-frame-title m-0 mb-1 text-[13px] font-semibold leading-snug text-stone-900">
-        {title}
-      </Title>
+    <div data-chart-frame="" role="group" aria-labelledby={titleId} className={`chart-frame ${className}`.trim()} style={style} {...rootProps}>
+      {controls ? (
+        <div className={`chart-frame-head mb-1 flex flex-wrap items-center justify-between gap-2 ${headClassName}`.trim()}>
+          {heading}
+          {controls}
+        </div>
+      ) : (
+        <div className={`chart-frame-head mb-1 ${headClassName}`.trim()}>{heading}</div>
+      )}
       {legendFirst && key}
       {children}
       {!legendFirst && key}
