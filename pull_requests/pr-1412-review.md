@@ -1,8 +1,8 @@
 ---
-pr: 1410
+pr: 1412
 verdict: approve-with-nits
 ---
-# Review of PR 1410
+# Review of PR 1412
 
 Scope is small and builds on #1404's flight layer. Every box maps to real yearly counts (partial top box is proportional); no placeholder data. Copy fix removes a capped-list claim and states the peak from full counts.
 
