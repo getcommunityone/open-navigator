@@ -5,7 +5,7 @@ title: "feat(stance): Jev side and heat per public speaker for curated and major
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: ab0397ba25b0ff73682dc753fd7a05685a46e2e6
+head_sha: 353e6d7d49cacc2fc5d3f5989ae9a8d1f36dea35
 verdict: approve
 ---
 
@@ -50,7 +50,7 @@ Automated review (#648) for PR #1405 on `feat/1391-speaker-stance-jev`. Heuristi
 
 ## CI Status
 
-See the PR checks on `ab0397ba25b0`.
+See the PR checks on `353e6d7d49ca`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
