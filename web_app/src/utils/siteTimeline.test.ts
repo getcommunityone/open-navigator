@@ -13,6 +13,7 @@ import {
   timelineHeadline,
   undatedCaption,
 } from './siteTimeline'
+import { sitesTimelineBoxes } from './screenBoxes'
 
 const site = (kw: Partial<TimelineSite>): TimelineSite =>
   ({
@@ -107,6 +108,14 @@ describe('the legend and strip count every site (#1428)', () => {
     const c26 = stripColumns(ALL_RES).find((c) => c.year === 2026)!
     expect(c26.undated).toBe(2)
     expect(c26.total).toBe(7)
+  })
+})
+
+describe('the box summary counts today’s frame, not a sum across years (#1428)', () => {
+  it('boxes every site once', () => {
+    const spec = sitesTimelineBoxes(ALL_YEARS as never, 'Virginia')!
+    const n = spec.groups.reduce((t, g) => t + g.count, 0)
+    expect(n).toBe(ALL_YEARS.find((y) => y.year === '2026')!.total)
   })
 })
 
