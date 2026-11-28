@@ -16,7 +16,8 @@
     scraped agenda/minutes body names) and from official rosters (person_government: a place with a mayor or
     council members has a governing body even before we hold any of its meetings).
 
-    body_name: the name most meetings use for the body (ties: the longer name), else a default for the body type.
+    body_name: the multi-word name most meetings use for the body (ties: the longer name), else a default for the
+    body type.
     meeting_count: distinct meeting dates on file (re-uploads and the same meeting from two sources count once);
     undated meetings count once each.
     is_primary: the place's own legislative body (city council / county commission / a school district's board).
@@ -52,7 +53,9 @@ name_vote as (
     from meeting as m
     where m.body_name is not null
     group by m.jurisdiction_id, m.body_key, m.body_name
-    order by m.jurisdiction_id, m.body_key, count(*) desc, length(m.body_name) desc, m.body_name
+    -- A multi-word name ("City Council") beats a bare one ("Council") some sources use.
+    order by m.jurisdiction_id, m.body_key, (position(' ' in m.body_name) > 0) desc, count(*) desc,
+             length(m.body_name) desc, m.body_name
 ),
 
 type_vote as (
