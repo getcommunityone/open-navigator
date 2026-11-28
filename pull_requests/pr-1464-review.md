@@ -5,7 +5,7 @@ title: "feat(trends): trending terms and hot words from meeting speech"
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: 603203fa98f536a920abdcdebfcef2b689b65ef4
+head_sha: 210e93300ec17501e7806ee3d3f959b28cde9b4e
 verdict: approve
 ---
 
@@ -20,6 +20,9 @@ Automated review (#648) for PR #1464 on `feat/1399-trending-terms`. Heuristic ru
 
 - `api/main.py`
 - `api/routes/trending_terms.py`
+- `dbt_project/contracts/products/open-navigator-public-api.odps.yaml`
+- `dbt_project/contracts/trending_term.odcs.yaml`
+- `dbt_project/contracts/trending_term_evidence.odcs.yaml`
 - `dbt_project/dbt_project.yml`
 - `dbt_project/macros/publish_public_serving.sql`
 - `dbt_project/models/intermediate/trending_terms/_schema_trending_terms.yml`
@@ -39,6 +42,7 @@ Automated review (#648) for PR #1464 on `feat/1399-trending-terms`. Heuristic ru
 - `dbt_project/seeds/trending_term_public_figure.csv`
 - `dbt_project/seeds/trending_term_sensitive.csv`
 - `packages/hosting/src/hosting/neon/sync_public_to_neon.py`
+- `pull_requests/pr-1464-review.md`
 - `tests/test_trending_terms.py`
 - `web_app/e2e/trending-terms.check.mjs`
 - `web_app/src/api/trendingTerms.ts`
@@ -51,7 +55,7 @@ Automated review (#648) for PR #1464 on `feat/1399-trending-terms`. Heuristic ru
 
 ## CI Status
 
-See the PR checks on `603203fa98f5`.
+See the PR checks on `210e93300ec1`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
