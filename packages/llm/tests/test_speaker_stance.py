@@ -362,3 +362,19 @@ def test_meeting_heat_orders_hottest_meetings_first_within_a_topic() -> None:
     heat = ss.meeting_heat_scores(rows, set(), [100005])
     jobs, _ = ss.build_jobs(speakers, topics, pats, set(), heat=heat)
     assert [j.meeting_speaker_id for j in jobs] == ["b", "c", "a"]
+
+
+def test_round2_gold_is_flagged_ai_helper_and_carries_no_speech() -> None:
+    """#1436: the coverage topics' gold set (plus more held bike-lanes / zoning items) holds keys, labels and hashes
+    only, and says its labels were made by an AI helper, not a person."""
+    doc = json.loads(gold.ROUND2_GOLD_FILE.read_text(encoding="utf-8"))
+    assert "AI helper" in doc["labelled_by"]
+    items = doc["items"]
+    assert {it["topic"] for it in items} == set(ss.NEW_TOPICS) | {"bike-lanes", "zoning-regulations"}
+    assert len({(it["topic"], it["meeting_speaker_id"]) for it in items}) == len(items)
+    for it in items:
+        assert set(it) <= {"topic", "meeting_speaker_id", "state_sha256", "label", "clear", "note"}
+        assert it["label"] in ss.SIDES
+        assert not it["clear"] or it["label"] in gold.SIDED
+        assert re.fullmatch(r"[0-9a-f]{32}", it["meeting_speaker_id"]) and re.fullmatch(r"[0-9a-f]{64}", it["state_sha256"])
+        assert len(it["note"].split()) <= 14
