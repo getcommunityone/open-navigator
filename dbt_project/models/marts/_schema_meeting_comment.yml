@@ -411,7 +411,7 @@ models:
         description: "Each segment's own verbatim cue phrase, in order."
       - name: heat
         data_type: int
-        description: "Comment heat 1-5 (1 calm, 5 furious); null when none. From the AI meeting analysis where a rated comment matches; the rules baseline is off (not calibrated)."
+        description: "Comment heat 1-5 (1 calm, 5 furious); null when none. From the AI meeting analysis where a rated comment matches, else the classifier's heat ladder (#1391, confidence >= var speaker_side_min_confidence); the rules baseline is off (not calibrated)."
         tests:
           - dbt_utils.expression_is_true: {expression: "is null or (heat between 1 and 5)"}
       - name: heat_method
@@ -421,10 +421,10 @@ models:
           - accepted_values: {values: ['ai_meeting_analysis', 'rules', 'classifier']}
       - name: heat_confidence
         data_type: numeric(3, 2)
-        description: "0.80 for the AI analysis rating; for rules, the measured within +-1 agreement."
+        description: "0.80 for the AI analysis rating; for the classifier, the mean margin of its threshold decisions; for rules, the measured within +-1 agreement."
       - name: heat_version
         data_type: text
-        description: "heat/N: the heat rule-set version."
+        description: "heat/N for the AI analysis and rules; jev:<question_version>[+...] for the classifier."
       - name: possible_name
         data_type: text
         description: "A low-confidence candidate (\"First L.\") from the nearest earlier introduction. Never shown by default; null for minors, students and school boards."

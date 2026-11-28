@@ -1,0 +1,86 @@
+version: 2
+
+models:
+  - name: meeting_speaker_topic_side
+    description: >
+      One row per meeting x public speaker x topic (#1391): the side the speaker's own words took on the topic, read by
+      a classifier (TypeSafe Jev, llm.typesafe.speaker_stance) from the passages of their turn text that name the topic,
+      at the topic's current question version. Only topics the speaker's own words match are read; possible minors and
+      school-board speakers are never read. side is 'not_sure' below var('speaker_side_min_confidence'); off_topic
+      readings are dropped. No text and no name. Decision record:
+      web_docs/docs/development/speaker-stance-classifier.md.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [meeting_speaker_id, topic_id]
+      - type: foreign_key
+        columns: [meeting_speaker_id]
+        to: ref('meeting_speaker_position')
+        to_columns: [meeting_speaker_id]
+      - type: foreign_key
+        columns: [topic_id]
+        to: ref('civicsearch_topic')
+        to_columns: [topic_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [meeting_speaker_id, topic_id]
+    columns:
+      - name: meeting_speaker_id
+        data_type: text
+        description: "The speaker in one meeting (FK to meeting_speaker_position). Part of the primary key."
+        constraints: [{type: not_null}]
+        tests:
+          - not_null
+          - relationships: {to: ref('meeting_speaker_position'), field: meeting_speaker_id}
+      - name: topic_id
+        data_type: int
+        description: "The topic (FK to civicsearch_topic). Part of the primary key."
+        constraints: [{type: not_null}]
+        tests: [not_null]
+      - name: video_id
+        data_type: text
+        description: "The meeting video."
+        constraints: [{type: not_null}]
+      - name: meeting_date
+        data_type: date
+        description: "The meeting date."
+      - name: jurisdiction_id
+        data_type: text
+        description: "The government (FK to jurisdictions)."
+      - name: jurisdiction_name
+        data_type: text
+        description: "The government's name (the caption-facts city filter reads it)."
+      - name: state_code
+        data_type: text
+        description: "Two-letter state code."
+      - name: side
+        data_type: text
+        description: "for | against | concerns_only | no_position | not_sure (a reading under the confidence floor)."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values: {values: ['for', 'against', 'concerns_only', 'no_position', 'not_sure']}
+      - name: side_confidence
+        data_type: numeric(4, 3)
+        description: "The classifier's probability for the side it chose (0-1)."
+      - name: side_method
+        data_type: text
+        description: "classifier (the provenance pattern of meeting_speaker_position.heat_method)."
+        constraints: [{type: not_null}]
+      - name: side_version
+        data_type: text
+        description: "jev:<question_version>: the hash of the topic's side and heat questions."
+        constraints: [{type: not_null}]
+      - name: heat
+        data_type: smallint
+        description: "Heat 1-5 from the same reading's yes/no ladder; null under the confidence floor."
+        tests:
+          - dbt_utils.expression_is_true: {expression: "is null or (heat between 1 and 5)"}
+      - name: heat_confidence
+        data_type: numeric(4, 3)
+        description: "The weakest margin among the ladder's threshold decisions (0.5-1)."

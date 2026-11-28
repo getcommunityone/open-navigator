@@ -6,6 +6,10 @@
       ai_meeting_analysis  the AI meeting analysis's own rating (public_comment.heat) of a comment in the same
                            meeting whose verbatim quote (stance_evidence, 40+ characters, first 60 normalized
                            characters) sits inside one of the speaker's segments; several -> the rounded mean.
+      classifier           (#1391) TypeSafe Jev's heat ladder (P(heat >= k), k = 2..5) on the speaker's own passages,
+                           current question version, heat_confidence >= var('speaker_heat_min_confidence'); a speaker
+                           read for several topics -> the rounded mean, confidence the mean margin. Only where the AI
+                           meeting analysis has no rating for the speaker (that one is kept).
       rules                free baseline from the comment_heat_terms lexicon + "!" + ALL-CAPS words on the
                            speaker's own text. NULL unless var heat_rules_enabled (it is off: the calibration
                            against the AI-rated comments did not beat a constant guess; see the decision page).
@@ -43,6 +47,19 @@ ai as (
     group by s.meeting_speaker_id
 ),
 
+clf as (
+    select
+        meeting_speaker_id,
+        round(avg(heat))::int              as heat,
+        round(avg(heat_confidence), 2)     as heat_confidence,
+        'jev:' || string_agg(distinct question_version, '+' order by question_version) as heat_version
+    from {{ ref('stg_jev__speaker_topic_stance') }}
+    where is_current_question_version and heat between 1 and 5
+      and side is distinct from 'off_topic'
+      and heat_confidence >= {{ var('speaker_heat_min_confidence') }}
+    group by meeting_speaker_id
+),
+
 rules as (
     select
         spk.meeting_speaker_id,
@@ -61,18 +78,27 @@ select
     spk.meeting_speaker_id::text as meeting_speaker_id,
     (case
         when ai.heat is not null then ai.heat
+        when clf.heat is not null then clf.heat
         when {{ 'true' if var('heat_rules_enabled') else 'false' }} then
             1 + {% for t in thresholds %}(r.raw_score >= {{ t }})::int{{ ' + ' if not loop.last }}{% endfor %}
     end)::int as heat,
     (case
         when ai.heat is not null then 'ai_meeting_analysis'
+        when clf.heat is not null then 'classifier'
         when {{ 'true' if var('heat_rules_enabled') else 'false' }} then 'rules'
     end)::text as heat_method,
     (case
         when ai.heat is not null then 0.80
+        when clf.heat is not null then clf.heat_confidence
         when {{ 'true' if var('heat_rules_enabled') else 'false' }} then {{ var('heat_rules_within1') }}
     end)::numeric(3, 2) as heat_confidence,
+    (case
+        when ai.heat is not null then '{{ var("heat_version") }}'
+        when clf.heat is not null then clf.heat_version
+        when {{ 'true' if var('heat_rules_enabled') else 'false' }} then '{{ var("heat_version") }}'
+    end)::text as heat_version,
     r.raw_score::numeric(8, 2) as rules_raw_score
 from spk
 inner join rules as r on r.meeting_speaker_id = spk.meeting_speaker_id
 left join ai on ai.meeting_speaker_id = spk.meeting_speaker_id
+left join clf on clf.meeting_speaker_id = spk.meeting_speaker_id

@@ -44,6 +44,8 @@ export interface RecordedEvidence {
   officialDivided: number | null
   /** Meetings where officials sided against the public. */
   disagreement: number | null
+  /** #1391: speakers' own words read by a classifier (confident readings only); null when none read in scope. */
+  classifier: { for: number; against: number; concernsOnly: number; noPosition: number; meetings: number } | null
 }
 
 /** The scope's recorded evidence from its caption facts. Nothing is filled in: a missing count stays null. */
@@ -69,6 +71,15 @@ export function recordedEvidence(f: TopicCaptionFacts | null | undefined): Recor
     officialFor: f?.official_for_meetings ?? null,
     officialDivided: f?.official_divided_meetings ?? null,
     disagreement: f?.disagreement_meetings ?? null,
+    classifier: f?.classifier_speakers
+      ? {
+          for: f.classifier_speakers.for,
+          against: f.classifier_speakers.against,
+          concernsOnly: f.classifier_speakers.concerns_only,
+          noPosition: f.classifier_speakers.no_position,
+          meetings: f.classifier_speakers.meetings,
+        }
+      : null,
   }
 }
 
@@ -130,6 +141,30 @@ export function publicPositionsLine(e: RecordedEvidence): string | null {
   const total = parts.reduce((a, [n]) => a + n, 0)
   if (total === 0) return 'Public: took no side in the meetings read'
   return `Public: ${parts.map(([n, w]) => `${fmtN(n)} ${w}`).join(' · ')} (${meetings(total)})`
+}
+
+/** The label for the classifier's source wherever its counts are shown (#1391). */
+export const CLASSIFIER_SOURCE = "Speakers' own words (classifier)"
+
+/**
+ * "Speakers' own words (classifier): 9 against · 4 for · 3 concerns only (16 speakers)" (#1391), in the topic's own words when
+ * `words` is given; no zero side; null when nothing was read with confidence in scope. Speakers who took no side are counted
+ * in the total but never as a side.
+ */
+export function speakersOwnWordsLine(e: RecordedEvidence, words?: { for: string; against: string }): string | null {
+  const c = e.classifier
+  if (!c) return null
+  const total = c.for + c.against + c.concernsOnly + c.noPosition
+  if (total <= 0) return null
+  const parts = (
+    [
+      [c.against, words ? words.against : 'against'],
+      [c.for, words ? words.for : 'for'],
+      [c.concernsOnly, 'concerns only'],
+    ] as [number, string][]
+  ).filter(([n]) => n > 0)
+  const body = parts.length ? parts.map(([n, w]) => `${fmtN(n)} ${w}`).join(' · ') : 'no side taken'
+  return `${CLASSIFIER_SOURCE}: ${body} (${fmtN(total)} ${total === 1 ? 'speaker' : 'speakers'})`
 }
 
 /**
