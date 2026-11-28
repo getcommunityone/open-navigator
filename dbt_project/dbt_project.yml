@@ -105,6 +105,13 @@ seeds:
         body_name: text
         body_type: text
         name_from_title: boolean
+    body_role_rule:
+      # #1443: title -> member role rules, tried by priority (Python twin: ingestion.governance.roles).
+      +column_types:
+        rule_id: text
+        priority: integer
+        pattern: text
+        role: text
     governing_body_title_example:
       # #1442: real titles and the body each must map to (pytest and assert_governing_body_title_examples).
       +column_types:
