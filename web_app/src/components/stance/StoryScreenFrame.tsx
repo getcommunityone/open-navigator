@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useScreenActive } from './ActiveScreen'
 import { useScreenFit } from './useScreenFit'
 import KineticText from './KineticText'
 import ScreenNav from './ScreenNav'
@@ -8,7 +9,8 @@ interface Props {
   id: string
   /** 0-based position (`data-panel`, what the scroller counts). */
   index: number
-  active: boolean
+  /** Only for a story that has no ActiveScreenContext; otherwise the screen reads the active index itself. */
+  active?: boolean
   /** The screen's short word ("Overview", "Who spoke"). */
   eyebrow: string
   /** The line above the word ("For context · source: …"), when the screen has one. */
@@ -36,7 +38,9 @@ interface Props {
  * `.stance-right`, `.stance-nav`) are the ones `useActs` and stance.css animate, so every story's screens move alike. Shared
  * by the Data Center Story (StoryScreenView) and the topic stories.
  */
-export default function StoryScreenFrame(p: Props) {
+export default function StoryScreenFrame(props: Props) {
+  const active = useScreenActive(props.index, props.active ?? false)
+  const p = { ...props, active }
   const leftRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
@@ -57,7 +61,8 @@ export default function StoryScreenFrame(p: Props) {
     const ro = new ResizeObserver(mark)
     els.forEach((e) => ro.observe(e))
     return () => ro.disconnect()
-  })
+    // Re-marked by the observer as the columns resize; only the headline and figure changing can add content.
+  }, [p.headline, p.right])
 
   return (
     <section

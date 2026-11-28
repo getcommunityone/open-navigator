@@ -31,11 +31,18 @@ export function useStoryBoxTransition(
         flight.rememberBoxes(boxes)
       }
     }
-    const t1 = window.setTimeout(snap, 260)
-    const t2 = window.setTimeout(snap, 900)
+    // One snapshot, once the screen is quiet and the browser is idle: a flight measures the live boxes itself, this is the
+    // fallback for a screen that has none by then (#1411: two measures of every box per Next were a long task each).
+    const idle = (window as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback
+    const cancelIdle = (window as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback
+    let h = 0
+    const t1 = window.setTimeout(() => {
+      if (idle) h = idle(snap, { timeout: 1500 })
+      else snap()
+    }, 600)
     return () => {
       window.clearTimeout(t1)
-      window.clearTimeout(t2)
+      if (h && cancelIdle) cancelIdle(h)
     }
   }, [rootRef, active, reduced, flight])
 

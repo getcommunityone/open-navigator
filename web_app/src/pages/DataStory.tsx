@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import '../styles/folio.css'
@@ -31,6 +31,7 @@ import { outcomesHeadline } from '../utils/topicOutcomes'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
 import StoryClose from '../components/stance/StoryClose'
 import { useBoxFlight } from '../components/stance/BoxFlightProvider'
+import { ActiveScreenContext, MemoPanel, createActiveScreenStore } from '../components/stance/ActiveScreen'
 import { useStoryBoxTransition } from '../components/stance/useStoryBoxTransition'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
 import { QuestionScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
@@ -221,6 +222,9 @@ export default function DataStory() {
     onMove: () => board.play('open'),
   })
   const boxFlight = useBoxFlight()
+  // The screen in view, read by each panel's frame without redrawing the story (#1411); set before paint so data-live is in step.
+  const activeStore = useMemo(createActiveScreenStore, [])
+  useLayoutEffect(() => activeStore.set(active), [activeStore, active])
   useStoryBoxTransition(rootRef, active, reduced)
   // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
   useIdleNudge({
@@ -311,6 +315,20 @@ export default function DataStory() {
     [setSp, store, stateCode, city],
   )
 
+  // Handlers the memoized panels call (#1411): the panel keeps the closure from the render that drew it, so what it calls must
+  // always reach the latest one.
+  const latest = useRef({ goTo, applyPlace, answer, refetch, retryPack: () => void packQ.refetch(), screens })
+  latest.current = { goTo, applyPlace, answer, refetch, retryPack: () => void packQ.refetch(), screens }
+  const goStable = useCallback((i: number) => latest.current.goTo(i), [])
+  const applyPlaceStable = useCallback((code: string | null, community: string | null) => latest.current.applyPlace(code, community), [])
+  const answerStable = useCallback((moment: ChoiceMoment, choice: string) => void latest.current.answer(moment, choice), [])
+  const retryPackStable = useCallback(() => latest.current.retryPack(), [])
+  const refetchStable = useCallback((chart: string) => latest.current.refetch(chart as never), [])
+  const openScreenStable = useCallback((id: string) => {
+    const at = latest.current.screens.findIndex((x) => x.id === id)
+    if (at >= 0) latest.current.goTo(at)
+  }, [])
+
   if (!story) {
     return (
       <div className="folio stance-game stance-message" style={HOUSE_STYLE} role="alert">
@@ -353,12 +371,12 @@ export default function DataStory() {
     question,
     loading: packQ.isLoading,
     failed: packQ.isError || (packQ.isSuccess && !question),
-    onRetryLoad: () => void packQ.refetch(),
+    onRetryLoad: retryPackStable,
     before,
     after,
     pending,
     error: voteError,
-    onAnswer: (moment, choice) => void answer(moment, choice),
+    onAnswer: answerStable,
   }
   const placeBlank = (open: boolean, onOpenChange: (o: boolean) => void, display = storyPlaceDisplay(scope)) => (
     <PlaceControl
@@ -368,7 +386,7 @@ export default function DataStory() {
       city={city}
       open={open}
       onOpenChange={onOpenChange}
-      onApply={applyPlace}
+      onApply={applyPlaceStable}
     />
   )
   // The opening's subhead, basis and points (#1282) sit in Overview's left column, under its headline: Overview is screen 1.
@@ -482,25 +500,28 @@ export default function DataStory() {
         {/* Keyed by which screens are in the story: when empty screens drop out (#1002) the list is rebuilt whole, because
             the pinned layout has moved the old screens into its own wrappers and React can't remove them one by one. */}
         <div className="stance-acts" key={keepKey}>
+          <ActiveScreenContext.Provider value={activeStore}>
           {screens.map((s, i) => {
             const common = {
               screen: s,
               index: i,
               text: texts[i]!,
               scope,
-              active: active === i,
               nextLabel: i < n - 1 ? screens[i + 1]!.eyebrow : null,
-              onPrev: i > 0 ? () => goTo(i - 1) : undefined,
-              onNext: () => goTo(i + 1),
+              onPrev: i > 0 ? () => goStable(i - 1) : undefined,
+              onNext: () => goStable(i + 1),
             }
-            if (s.kind === 'question') return <QuestionScreen key={s.id} {...common} vote={vote} />
+            // What every panel is drawn from besides the active screen (#1411): `active` is read by the frame from context, so
+            // moving to the next screen redraws no panel; only a change in one of these does.
+            const base = [s, i, common.text, scope, common.nextLabel, goStable] as const
+            const voteDeps = [vote.question, vote.loading, vote.failed, vote.before, vote.after, vote.pending, vote.error] as const
+            const panel = (deps: readonly unknown[], render: () => ReactNode) => <MemoPanel key={s.id} deps={[...base, ...deps]} render={render} />
+            if (s.kind === 'question') return panel(voteDeps, () => <QuestionScreen {...common} vote={vote} />)
             if (s.kind === 'outcomes') {
-              return (
+              return panel([outcomesQ.isPending, outcomesQ.isError, outcomesQ.data, story.topic, label, storyId, stateCode, city], () => (
                 <StoryScreenFrame
-                  key={s.id}
                   id={s.id}
                   index={i}
-                  active={active === i}
                   eyebrow={s.eyebrow}
                   headline={
                     outcomesQ.isPending
@@ -522,23 +543,18 @@ export default function DataStory() {
                       subject={story.topic}
                       actionWords={{ advanced: 'Approved', blocked: 'Denied' }}
                       dataCenterStory
-                      onOpenScreen={(id) => {
-                        const at = screens.findIndex((x) => x.id === id)
-                        if (at >= 0) goTo(at)
-                      }}
+                      onOpenScreen={openScreenStable}
                     />
                   }
                 />
-              )
+              ))
             }
             if (s.kind === 'timeline') {
               const sitesLabel = chartScopeLabel('sites', scope)
-              return (
+              return panel([timelineQ.isPending, timelineQ.isError, timelineQ.data, stateCode, reduced], () => (
                 <StoryScreenFrame
-                  key={s.id}
                   id={s.id}
                   index={i}
-                  active={active === i}
                   eyebrow={s.eyebrow}
                   kicker={`${s.kicker ?? 'For context'} · source: ${contextSourceFor(s.id)}`}
                   headline={
@@ -553,17 +569,15 @@ export default function DataStory() {
                   onNext={common.onNext}
                   onPrev={common.onPrev}
                   boxes={<ScreenBoxes spec={sitesTimelineBoxes(timelineQ.data?.years, sitesLabel)} />}
-                  right={<SitesTimelinePanel res={timelineQ.data} scopeLabel={sitesLabel} stateCode={stateCode} active={active === i} reduced={reduced} />}
+                  right={<SitesTimelinePanel res={timelineQ.data} scopeLabel={sitesLabel} stateCode={stateCode} screenIndex={i} reduced={reduced} />}
                 />
-              )
+              ))
             }
             if (s.kind === 'nonprofits') {
-              return (
+              return panel([nonprofitsQ.isPending, nonprofitsQ.isError, nonprofitsQ.data, story.topic, label, storyId, stateCode, city], () => (
                 <StoryScreenFrame
-                  key={s.id}
                   id={s.id}
                   index={i}
-                  active={active === i}
                   eyebrow={s.eyebrow}
                   headline={
                     nonprofitsQ.isPending
@@ -588,15 +602,13 @@ export default function DataStory() {
                     />
                   }
                 />
-              )
+              ))
             }
             if (s.kind === 'upcoming') {
-              return (
+              return panel([upcomingQ.isPending, upcomingQ.isError, upcomingQ.data, story.topic, label, storyId, stateCode, city], () => (
                 <StoryScreenFrame
-                  key={s.id}
                   id={s.id}
                   index={i}
-                  active={active === i}
                   eyebrow={s.eyebrow}
                   headline={
                     upcomingQ.isPending
@@ -621,36 +633,33 @@ export default function DataStory() {
                     />
                   }
                 />
-              )
+              ))
             }
             if (s.kind === 'verdict') {
-              return (
-                <VerdictScreen
-                  key={s.id}
-                  {...common}
-                  vote={vote}
-                  results={choiceQ.data}
-                  resultsFailed={choiceQ.isError}
-                  fresh={fresh}
-                  links={links}
-                />
-              )
+              return panel([...voteDeps, choiceQ.data, choiceQ.isError, fresh, links.dataCenters, links.decisions], () => (
+                <VerdictScreen {...common} vote={vote} results={choiceQ.data} resultsFailed={choiceQ.isError} fresh={fresh} links={links} />
+              ))
             }
-            return (
+            const overview = s.kind === 'overview'
+            const questionLine = overview && question ? questionText(question, scope) : null
+            const saidLine = overview ? optionLabel(question, before) : null
+            // The overview's lead is built each render; it is drawn again only when what it says changes.
+            const leadKey = overview ? JSON.stringify([title, subhead, subheadPlace, points, label, storyId, placeOpen, stateCode, city]) : ''
+            return panel([data, status, statements.get(s.id), questionLine, saidLine, leadKey], () => (
               <StoryScreenView
-                key={s.id}
                 {...common}
                 data={data}
                 status={status}
-                onBroaden={applyPlace}
-                onRetry={() => s.chart && refetch(s.chart)}
+                onBroaden={applyPlaceStable}
+                onRetry={() => s.chart && refetchStable(s.chart)}
                 stance={statements.get(s.id)}
-                question={s.kind === 'overview' && question ? questionText(question, scope) : null}
-                said={s.kind === 'overview' ? optionLabel(question, before) : null}
-                lead={s.kind === 'overview' ? overviewLead : null}
+                question={questionLine}
+                said={saidLine}
+                lead={overview ? overviewLead : null}
               />
-            )
+            ))
           })}
+          </ActiveScreenContext.Provider>
         </div>
         {/* After the last screen, outside the screens ([data-panel]) the scroller counts: the way on to the next story. */}
         {/* The story ends on its last screen (#1234): at most a small plain-text link on to another story, never a button.
