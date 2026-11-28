@@ -413,3 +413,82 @@ def test_story_page_has_breadcrumb_jsonld(stories, built_index):
     # Every other JSON-LD block on the page still parses.
     for b in h.jsonld:
         _check_node(json.loads(b))
+
+
+# --- review follow-ups (#1430) ------------------------------------------------------------------------------------
+
+
+def test_state_without_meetings_is_noindex_with_the_story_as_canonical(
+    stories, built_index
+):
+    h = _head(
+        _get(
+            "/api/spa-shell", headers={"X-Original-URI": "/stories/guns?state=GA"}
+        ).text
+    )
+    assert h.title == "Gun control in Georgia — Data story | CommunityOne"
+    assert h.meta["robots"] == "noindex, follow"
+    assert h.canonical == f"{BASE}/stories/guns"
+    # A code that isn't a state is ignored, not named in the title.
+    zz = _head(
+        _get(
+            "/api/spa-shell", headers={"X-Original-URI": "/stories/guns?state=ZZ"}
+        ).text
+    )
+    assert zz.title == "Gun control — Data story | CommunityOne"
+    assert zz.canonical == f"{BASE}/stories/guns"
+
+
+def test_state_names_come_from_the_shared_map(stories):
+    # The warehouse's spelling is not used for the label: server and app read the same states.json.
+    assert seo.STATE_NAMES["GA"] == "Georgia" and len(seo.STATE_NAMES) == 51
+    meta = seo.route_meta("/stories/guns", {"state": ["al"]}, stories)
+    assert meta.title == "Gun control in Alabama — Data story | CommunityOne"
+    assert meta.robots == "index, follow"
+
+
+def test_unknown_paths_are_noindex_and_detail_pages_stay_indexable():
+    assert seo.route_meta("/no-such-page").robots == "noindex, follow"
+    assert seo.route_meta("/decisions/123").robots == "index, follow"
+    assert seo.route_meta("/organizations/abc").robots == "index, follow"
+
+
+def test_private_check_decodes_the_path():
+    assert seo.route_meta("/admi%6e").robots == "noindex, nofollow"
+    assert seo.route_meta("/%73ettings").robots == "noindex, nofollow"
+
+
+def test_browse_all_topics_title_matches_the_page():
+    assert (
+        seo.route_meta("/browse-topics/all").title == "Browse all topics | CommunityOne"
+    )
+
+
+def test_rendered_page_marks_which_page_it_was_rendered_for(stories, built_index):
+    text = _get(
+        "/api/spa-shell", headers={"X-Original-URI": "/stories/guns?state=AL"}
+    ).text
+    assert _head(text).meta["seo-rendered"] == "/stories/guns?state=AL"
+
+
+def test_outage_serves_the_stale_list_and_backs_off(monkeypatch, stories):
+    calls = {"n": 0}
+
+    async def down():
+        calls["n"] += 1
+        raise ConnectionError("warehouse down")
+
+    async def run():
+        first = await seo.load_stories()  # fresh fetch from the `stories` fixture
+        assert first is not None and "guns" in first
+        monkeypatch.setattr(seo, "_fetch_stories", down)
+        seo._stories_cache["at"] = -1e9  # the cached list is now stale
+        again = await seo.load_stories()
+        third = await seo.load_stories()
+        return first, again, third
+
+    first, again, third = asyncio.run(run())
+    assert again is first and third is first  # the last good list keeps being served
+    assert (
+        calls["n"] == 1
+    )  # the second call is inside the back-off and doesn't hit the warehouse

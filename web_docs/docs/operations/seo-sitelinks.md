@@ -22,6 +22,12 @@ description on each page, plain links between pages, and consistent brand signal
 | Structured data | `web_app/index.html`: Organization (name **CommunityOne**, logo `communityone_logo_512.png`, `sameAs` to the official profiles), WebSite with SearchAction, WebApplication (Open Navigator, created by CommunityOne), and an ItemList of the main public sections. Story pages also get a BreadcrumbList (Home › Data stories › topic › state). `tests/test_seo.py` checks every block. |
 | Crawlable navigation | The header's Data Stories, Search and How It Works links and the home page's topic chips are real `<a href>` links (to `/stories`, `/search` and `/stories/<slug>`). A plain click still scrolls or switches in place. |
 
+Indexing rules: a story page for a state with no meetings on that topic, any path the app doesn't know, and the
+private pages are served with `noindex`. The state page's canonical points to the story. State names come from
+`web_app/src/data/seo/states.json`, which the server and the app share. On first load the app keeps the tags the server
+wrote (`<meta name="seo-rendered">`) and only rewrites them on later in-app navigation. If the warehouse is down, the
+server keeps serving the last good story list and retries at most once a minute.
+
 To add a page to the sitemap, add it to `routes.json` with `"sitemap": true`, a distinct title and a description.
 Detail pages keyed by warehouse ids (decisions, meetings) are left out until their ids are confirmed stable across
 rebuilds.

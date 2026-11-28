@@ -67,8 +67,7 @@ import { recordLocation } from './lib/pageClose'
 import { STORIES } from './utils/dataStory'
 import { useTopicStories } from './hooks/useTopicStories'
 import { useDocumentTitle } from './utils/useDocumentTitle'
-import { storyPageTitle } from './utils/routeMeta'
-import { STATE_CODE_TO_NAME } from './utils/stateMapping'
+import { stateName, storyPageTitle } from './utils/routeMeta'
 import RouteMetaSync from './components/RouteMetaSync'
 import { BoxFlightProvider } from './components/stance/BoxFlightProvider'
 
@@ -193,9 +192,7 @@ function StoryRoute() {
   const reg = STORIES[storyId]
   const topic = reg ? reg.topic : stories[storyId]?.title
   // The same title the server sends in the page's HTML (#1430): "Gun control in Alabama — Data story".
-  const rawState = (params.get('state') ?? '').trim().toUpperCase()
-  const stateCode = /^[A-Z]{2}$/.test(rawState) ? rawState : ''
-  useDocumentTitle(topic ? storyPageTitle(topic, STATE_CODE_TO_NAME[stateCode] ?? (stateCode || null)) : 'Data story')
+  useDocumentTitle(topic ? storyPageTitle(topic, stateName(params.get('state'))) : 'Data story')
   return storyRoute(storyId) === 'data' ? <DataStory /> : <TopicStory slug={storyId} />
 }
 

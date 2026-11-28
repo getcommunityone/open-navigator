@@ -10,10 +10,12 @@
   "topics": {
     "short-term-rentals": {
       "lede": "Airbnb, VRBO and vacation rentals: where local governments are talking about them, in the words said at the meeting.",
-      "companiesPath": "/short-term-rentals/companies"
+      "companiesPath": "/short-term-rentals/companies",
+      "title": "Short-term rentals"
     },
     "license-plate-readers": {
-      "lede": "Flock Safety cameras and other automated plate readers: who uses them, for what, and the contracts behind them, in the words said at the meeting."
+      "lede": "Flock Safety cameras and other automated plate readers: who uses them, for what, and the contracts behind them, in the words said at the meeting.",
+      "title": "Flock and license plate readers"
     },
     "guns": {
       "title": "Gun control",
@@ -21,7 +23,8 @@
       "lede": "Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them, in the words said at the meeting."
     },
     "pickleball": {
-      "lede": "Courts, noise and new venues, as councils and parks boards weigh them, in the words said at the meeting."
+      "lede": "Courts, noise and new venues, as councils and parks boards weigh them, in the words said at the meeting.",
+      "title": "Pickleball"
     }
   }
 }

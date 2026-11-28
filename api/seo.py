@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, quote, urlencode
+from urllib.parse import parse_qs, quote, unquote, urlencode
 from xml.sax.saxutils import escape as xml_escape
 
 from loguru import logger
@@ -68,6 +68,10 @@ ROUTES: dict[str, dict[str, Any]] = {
 PRIVATE_PREFIXES: list[dict[str, str]] = ROUTES_DATA.get("private", [])
 REGISTRY_STORIES: dict[str, dict[str, str]] = STORY_COPY.get("stories", {})
 TOPIC_COPY: dict[str, dict[str, str]] = STORY_COPY.get("topics", {})
+# The one state-name map the server and the app share (web_app/src/data/seo/states.json): 50 states + DC.
+STATE_NAMES: dict[str, str] = _load_json("states.json")
+# Real detail routes (decisions, meetings, organizations…): indexable though not listed in the sitemap.
+INDEXABLE_PREFIXES: list[str] = ROUTES_DATA.get("indexablePrefixes", [])
 
 
 def site_url() -> str:
@@ -205,31 +209,34 @@ async def _fetch_stories() -> dict[str, Story]:
 
 
 async def load_stories() -> dict[str, Story] | None:
-    """The live stories, cached for an hour. ``None`` when the warehouse can't be read (callers then fall back to the
-    registry's stories and leave the rest out, rather than guess)."""
-    now = time.monotonic()
-    cached = _stories_cache["value"]
-    if cached is not None and now - _stories_cache["at"] < _STORIES_TTL_S:
-        return cached
-    async with _stories_lock:
-        cached = _stories_cache["value"]
-        if (
-            cached is not None
+    """The live stories, cached for an hour. During a warehouse outage the last good list keeps being served (stale)
+    and the warehouse is retried at most once a minute, so story pages never queue behind a dead connection.
+    ``None`` only when nothing has ever loaded (callers then fall back to the registry's stories, rather than guess)."""
+
+    def fresh() -> bool:
+        return (
+            _stories_cache["value"] is not None
             and time.monotonic() - _stories_cache["at"] < _STORIES_TTL_S
-        ):
-            return cached
-        if cached is None and time.monotonic() < _stories_cache.get("retry_at", 0.0):
-            return None
+        )
+
+    def backing_off() -> bool:
+        return time.monotonic() < _stories_cache.get("retry_at", 0.0)
+
+    if fresh() or backing_off():
+        return _stories_cache["value"]
+    async with _stories_lock:
+        # Another request may have refreshed the list, or just failed and set the back-off, while this one waited.
+        if fresh() or backing_off():
+            return _stories_cache["value"]
         try:
             value = await asyncio.wait_for(_fetch_stories(), timeout=_STORIES_TIMEOUT_S)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
-                "SEO: live stories unavailable ({}); serving registry stories only", exc
+                "SEO: live stories unavailable ({}); serving the last good list", exc
             )
-            # Don't make every story page wait on a warehouse that is down: try again in a minute.
             _stories_cache["retry_at"] = time.monotonic() + _STORIES_RETRY_S
-            return cached
-        _stories_cache.update(at=time.monotonic(), value=value)
+            return _stories_cache["value"]
+        _stories_cache.update(at=time.monotonic(), value=value, retry_at=0.0)
         return value
 
 
@@ -256,11 +263,13 @@ class RouteMeta:
     robots: str = "index, follow"
     og_type: str = "website"
     breadcrumbs: list[Breadcrumb] = field(default_factory=list)
+    # The path (and query) these tags were rendered for; set by render_spa_page.
+    rendered_for: str = ""
 
 
 def _norm_path(path: str) -> str:
-    p = "/" + (path or "").strip("/")
-    return p
+    """Decoded, slash-trimmed path, so `/admi%6e` is checked as `/admin`."""
+    return "/" + unquote(path or "").strip("/")
 
 
 def _first(query: Mapping[str, Any], key: str) -> str | None:
@@ -316,30 +325,37 @@ def route_meta(
                 f"{base}{p}",
                 robots=robots,
             )
+        # Only a real state (states.json) is a scope; anything else is ignored rather than named in the title.
         state_code = (_first(query, "state") or "").upper() or None
-        if state_code and not re.fullmatch(r"[A-Z]{2}", state_code):
+        if state_code not in STATE_NAMES:
             state_code = None
-        st = story.states.get(state_code) if state_code else None
-        state_name = st.state if st and st.state else None
         story_url = f"{base}/stories/{quote(slug)}"
-        canonical = (
+        state_url = (
             f"{story_url}?{urlencode({'state': state_code})}"
             if state_code
             else story_url
         )
-        label = state_name or state_code
+        label = STATE_NAMES.get(state_code) if state_code else None
+        # A state with no meetings for this story is a real filter (the page says so) but a thin page: keep it out
+        # of the index and point its canonical at the story. Only when the catalog loaded; never on a guess.
+        thin = (
+            bool(state_code) and stories is not None and state_code not in story.states
+        )
+        canonical = story_url if thin else state_url
+        robots = "noindex, follow" if thin else "index, follow"
         crumbs = [
             Breadcrumb(SITE_NAME, f"{base}/"),
             Breadcrumb("Data stories", f"{base}/stories"),
             Breadcrumb(cap(story.title), story_url),
         ]
-        if state_code:
-            crumbs.append(Breadcrumb(label or state_code, canonical))
+        if state_code and not thin:
+            crumbs.append(Breadcrumb(label or state_code, state_url))
         description = f"{label}: {story.lede}" if label else story.lede
         return RouteMeta(
             page_title(story_page_title(story.title, label)),
             description,
             canonical,
+            robots=robots,
             og_type="article",
             breadcrumbs=crumbs,
         )
@@ -361,8 +377,13 @@ def route_meta(
             canonical,
         )
 
-    # Any other SPA path (detail pages, legacy redirects): the site default, canonical to itself.
-    return RouteMeta(DEFAULT_TITLE, DEFAULT_DESCRIPTION, f"{base}{p}")
+    # A real detail page (decision, meeting, organization…): the site default, canonical to itself.
+    if any(p.startswith(pre) or p == pre.rstrip("/") for pre in INDEXABLE_PREFIXES):
+        return RouteMeta(DEFAULT_TITLE, DEFAULT_DESCRIPTION, f"{base}{p}")
+    # Anything else (a mistyped path the app shows as Not found, a legacy redirect): served, but not indexed.
+    return RouteMeta(
+        DEFAULT_TITLE, DEFAULT_DESCRIPTION, f"{base}{p}", robots="noindex, follow"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -429,6 +450,13 @@ def render_index(doc: str, meta: RouteMeta) -> str:
     doc = _sub_or_insert(
         doc, r'<link\s+rel="canonical"[^>]*>', f'<link rel="canonical" href="{c}" />'
     )
+    # Tells the app these tags were rendered for this page, so it doesn't overwrite them on first load (#1430).
+    if meta.rendered_for:
+        doc = _sub_or_insert(
+            doc,
+            _meta_pattern("name", "seo-rendered"),
+            f'<meta name="seo-rendered" content="{_attr(meta.rendered_for)}" />',
+        )
     if meta.breadcrumbs:
         # `</` can't appear inside the JSON text, so a name can't close the script element early.
         payload = json.dumps(
@@ -465,7 +493,10 @@ def parse_original_uri(uri: str) -> tuple[str, dict[str, list[str]]]:
 async def render_spa_page(index_file: Path, path: str, query: Mapping[str, Any]) -> str:
     """The built ``index.html`` for ``path``, with its own meta. Story pages read the live-story catalog."""
     stories = await load_stories() if _norm_path(path).startswith("/stories/") else None
-    return render_index(read_index(index_file), route_meta(path, query, stories))
+    meta = route_meta(path, query, stories)
+    qs = urlencode(query, doseq=True)
+    meta.rendered_for = path + (f"?{qs}" if qs else "")
+    return render_index(read_index(index_file), meta)
 
 
 # ---------------------------------------------------------------------------

@@ -1,11 +1,10 @@
 // Keeps the <head> in step with in-app navigation (#1430). The server sends each page's meta in the first HTML
 // (api/seo.py); after that the SPA changes pages without a reload, so this updates the title (unless the page names its
 // own with useDocumentTitle), the description, canonical, robots, OpenGraph/Twitter tags and the story breadcrumbs.
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { routeMeta, type RouteMeta } from '../utils/routeMeta'
 import { pageClaimsTitle } from '../utils/useDocumentTitle'
-import { STATE_CODE_TO_NAME } from '../utils/stateMapping'
 
 function setMeta(attr: 'name' | 'property', key: string, value: string) {
   let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`)
@@ -19,6 +18,8 @@ function setMeta(attr: 'name' | 'property', key: string, value: string) {
 
 export function applyRouteMeta(meta: RouteMeta, setTitle: boolean): void {
   if (setTitle) document.title = meta.title
+  setMeta('name', 'title', meta.title)
+  setMeta('property', 'og:type', meta.breadcrumbs.length > 0 ? 'article' : 'website')
   setMeta('name', 'description', meta.description)
   setMeta('name', 'robots', meta.robots)
   setMeta('property', 'og:url', meta.canonical)
@@ -48,11 +49,28 @@ export function applyRouteMeta(meta: RouteMeta, setTitle: boolean): void {
   }
 }
 
+/** True when the server rendered the head for exactly this page (api/seo.py adds `<meta name="seo-rendered">`). */
+export function serverRenderedFor(pathname: string, search: string, rendered: string | null | undefined): boolean {
+  if (!rendered) return false
+  const [rp, rq = ''] = rendered.split('?')
+  const x = new URLSearchParams(rq)
+  const y = new URLSearchParams(search.replace(/^\?/, ''))
+  x.sort()
+  y.sort()
+  return rp === pathname && x.toString() === y.toString()
+}
+
 export default function RouteMetaSync() {
   const { pathname, search } = useLocation()
+  const first = useRef(true)
   useEffect(() => {
-    const code = new URLSearchParams(search).get('state')?.toUpperCase() ?? ''
-    applyRouteMeta(routeMeta(pathname, search, { stateName: STATE_CODE_TO_NAME[code] ?? null }), !pageClaimsTitle())
+    const wasFirst = first.current
+    first.current = false
+    // On first load the server already wrote this page's tags with data the app may not have yet (the story list,
+    // which states have meetings), so keep them rather than downgrade them. Later navigations update everything.
+    const rendered = document.head.querySelector<HTMLMetaElement>('meta[name="seo-rendered"]')?.content
+    if (wasFirst && serverRenderedFor(pathname, search, rendered)) return
+    applyRouteMeta(routeMeta(pathname, search), !pageClaimsTitle())
   }, [pathname, search])
   return null
 }

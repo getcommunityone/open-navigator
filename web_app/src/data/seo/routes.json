@@ -35,7 +35,7 @@
     },
     {
       "path": "/browse-topics/all",
-      "title": "Compare all topics",
+      "title": "Browse all topics",
       "description": "Every main topic side by side: how often local meetings discussed it last year against this year.",
       "sitemap": true,
       "changefreq": "weekly",
@@ -275,5 +275,17 @@
     "https://x.com/getcommunityone/",
     "https://www.youtube.com/@getcommunityone",
     "https://github.com/getcommunityone/open-navigator"
+  ],
+  "indexablePrefixes": [
+    "/decisions/",
+    "/meetings/",
+    "/organizations/",
+    "/person/",
+    "/bill/",
+    "/bills/",
+    "/grants/",
+    "/efile990",
+    "/jurisdiction/",
+    "/policy-question/"
   ]
 }

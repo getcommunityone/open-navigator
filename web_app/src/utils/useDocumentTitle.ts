@@ -14,7 +14,8 @@ export function documentTitle(page?: string | null): string {
 }
 
 // Pages that name their own title (with data the route table doesn't have, e.g. a search query) claim it, so the
-// route-level title (`RouteMetaSync`, which runs after the page's effects) doesn't overwrite it.
+// route-level title (`RouteMetaSync`) leaves it alone. On a navigation the old page's cleanup (claim released) runs
+// before any new effect, and the new page's own title effect wins whichever order the two effects run in.
 let titleClaims = 0
 
 /** True while a mounted page sets its own title with `useDocumentTitle`. */
