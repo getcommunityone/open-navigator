@@ -17,6 +17,7 @@ import { communityEventKindLabel, concernLabel, siteSourcesText, siteTotal } fro
 import type { StanceQuestion } from '../api/stance'
 import { questionText } from './storyQuestion'
 import { countClauses, joinClauses } from './clauses'
+import STORY_COPY from '../data/seo/story-copy.json'
 import {
   DOT_CAP,
   cap,
@@ -132,10 +133,11 @@ export interface StoryEntry {
 
 export const STORIES: Record<string, StoryEntry> = {
   'data-centers': {
-    title: 'The Data Center Story',
-    topic: 'data centers',
+    // Title, topic and question live in data/seo/story-copy.json, which the server's page meta reads too (#1430).
+    title: STORY_COPY.stories['data-centers'].title,
+    topic: STORY_COPY.stories['data-centers'].topic,
     pack: 'data-centers',
-    question: 'What did local meetings say about data centers?',
+    question: STORY_COPY.stories['data-centers'].question,
     screens: DATA_CENTER_STORY,
     conclusion: {
       headline: 'America hates data centers.',

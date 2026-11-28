@@ -104,13 +104,20 @@ export function jobClaimsBoxes(totals: { construction: number; operations: numbe
   return { title: `${place}: ${plural(total, 'job claim')} made in meetings`, unit: 'claims', groups: gs }
 }
 
-/** Sites over time: each box a site in the year's status columns, tallied across years. */
+/**
+ * Sites over time: each box a site, by its status in today's frame (#1428). The per-year rows are running totals, so they
+ * are never added across years (that counted each site once per year); today's row holds every site in scope.
+ */
 export function sitesTimelineBoxes(
-  years: Array<{ operating: number; under_construction: number; planned: number; cancelled: number; no_longer_listed: number; status_not_published: number }> | null | undefined,
+  years:
+    | Array<{ operating: number; under_construction: number; planned: number; cancelled: number; no_longer_listed: number; status_not_published: number; is_future?: boolean }>
+    | null
+    | undefined,
   place: string,
 ): BoxesSpec | null {
   if (!years) return null
-  const s = (k: 'operating' | 'under_construction' | 'planned' | 'cancelled' | 'no_longer_listed' | 'status_not_published') => years.reduce((n, y) => n + (y[k] ?? 0), 0)
+  const today = [...years].reverse().find((y) => !y.is_future) ?? years[years.length - 1]
+  const s = (k: 'operating' | 'under_construction' | 'planned' | 'cancelled' | 'no_longer_listed' | 'status_not_published') => (today ? (today[k] ?? 0) : 0)
   const rows = [
     { key: 'Operating', count: s('operating') },
     { key: 'Under construction', count: s('under_construction') },
@@ -119,7 +126,7 @@ export function sitesTimelineBoxes(
     { key: 'No longer listed', count: s('no_longer_listed') },
     { key: 'Status not published', count: s('status_not_published') },
   ].filter((r) => r.count > 0)
-  return statusBoxes(rows, 'dated sites', place)
+  return statusBoxes(rows, 'sites', place)
 }
 
 const ORG_METHOD: Array<{ key: OrgMatchMethod; label: string }> = [

@@ -1546,6 +1546,16 @@ sources:
             description: "Row number in the source sheet (with state_code, the primary key)."
           - name: expenditures
             description: "Expenditures in dollars as text; blank when not yet reported."
+      - name: bronze_hud_cdbg_activity
+        description: |
+          HUD CDBG activities (HUD Open Data), one row per OBJECTID. Landed by
+          `python -m ingestion.hud.load_cdbg` (#1394). Street addresses and point locations
+          are deliberately not loaded.
+        columns:
+          - name: objectid
+            description: "Service OBJECTID (primary key)."
+          - name: funding_amount
+            description: "Activity funding in dollars."
       - name: bronze_grants_gov_opportunity
         description: |
           Grants.gov federal grant opportunities — one row per prospective

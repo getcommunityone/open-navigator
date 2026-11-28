@@ -1197,6 +1197,7 @@ Municipalities and school boards often publish **official agendas, packets, and 
 - [Annual Survey of State and Local Government Finances (Census Bureau, via Tax Policy Center)](#annual-survey-of-state-and-local-government-finances-census-bureau-via-tax-policy-center)
 - [USAspending.gov](#usaspendinggov)
 - [Michigan opioid settlement spending](#michigan-opioid-settlement-spending-mdhhs)
+- [HUD CDBG activity](#hud-open-data-community-development-block-grant-activity)
 - [Census ASPEP public payroll](#census-annual-survey-of-public-employment--payroll-aspep)
 - [Grants.gov](#grantsgov)
 - [State Symbols USA (reference)](#state-symbols-usa-reference)
@@ -1269,6 +1270,17 @@ Municipalities and school boards often publish **official agendas, packets, and 
 - **Refresh cadence:** the state updates the workbook periodically; we re-run the loader on demand. Rows carry `reported_as_of` and `source_updated_at`.
 - **Date accessed:** 27 Nov 2026.
 - **Caveat:** state-agency lines only, not payments to cities or counties. A pilot for one state; other states are listed in the decision page.
+### HUD Open Data: Community Development Block Grant Activity
+
+**Organization:** U.S. Department of Housing and Urban Development (HUD)
+**What we use:** CDBG activities (grantee, HUD activity group, activity name, funding, completion date) since 1996. They fill `cdbg_activity` and `cdbg_activity_summary` and feed the `cdbg_public_services_share` peer benchmark; `cdbg_allocation` is built from USAspending awards under 14.218 and 14.228 ([decision](../development/hud-cdbg-decision.md)).
+
+- **Source:** https://hudgis-hud.opendata.arcgis.com/ . Service: https://services.arcgis.com/VTyQ9soqVukalItT/arcgis/rest/services/CDBG_PROGRAM_ACTIVITY/FeatureServer
+- **License / terms:** U.S. government data published on HUD Open Data (public access; the item carries no separate licence text). We cite HUD as publisher.
+- **Refresh cadence:** HUD updates the service from IDIS (modified July 2025 at the time of loading). We re-run the loader on demand; each row carries `source_updated_at`.
+- **Date accessed:** 27 Nov 2026.
+- **Not loaded:** street addresses, ZIP codes and coordinates (privacy), HUD Exchange allocation pages (not fetchable).
+- **Caveat:** activities are matched to jurisdictions by grantee name and state with a `match_confidence`.
 
 ### Grants.gov
 

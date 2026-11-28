@@ -144,3 +144,8 @@ def test_opioid_metric_is_null_without_a_source_not_zero():
     assert "FROM opioid_settlement_spending" in spec.values_sql
     assert "HAVING sum(expenditure_dollars) IS NOT NULL" in spec.values_sql  # unreported stays null
     assert "Michigan" in spec.source
+def test_cdbg_metrics_read_their_marts():
+    assert "FROM cdbg_allocation" in benchmark.METRICS["cdbg_allocation"].values_sql
+    share = benchmark.METRICS["cdbg_public_services_share"]
+    assert "cdbg_activity_summary" in share.values_sql and share.per_capita is False
+    assert share.unit == "percent"
