@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTopicsYoy, type YoyResponse } from '../api/topicsYoy'
+import { fetchRankingTopics, type RankingTopicSummary } from '../api/rankings'
 import DumbbellRows, { type DumbbellRow } from '../components/stance/DumbbellRows'
 import { DataTable } from '../components/matrix/SectionShell'
 import { pctLabel } from '../utils/storyTimeline'
@@ -58,6 +59,11 @@ export default function BrowseAllTopics() {
     retry: 1,
   })
   const d = q.data
+
+  // #1438: one-line "Where towns stand" summary per topic with ranked places. A failed fetch renders nothing.
+  const rankQ = useQuery<RankingTopicSummary[]>({ queryKey: ['rankings-topics'], queryFn: fetchRankingTopics, staleTime: 5 * 60_000, retry: 0 })
+  const rankedTopics = (rankQ.data ?? []).filter((t) => t.places_ranked > 0)
+  const rankedTopicsShown = rankedTopics.filter((t) => (d?.topics ?? []).some((y) => y.topic_id === t.topic_id || y.slug === t.slug))
 
   // The label names the scope the data is actually filtered to: the API's normalised scope once loaded, else the URL's.
   const stateCode = d ? d.scope.state_code : (stateParam ?? null)
@@ -127,6 +133,10 @@ export default function BrowseAllTopics() {
       <div className="mb-3 text-sm">
         <Link to={`/browse-topics${here}`} className="font-medium text-primary-700 hover:underline">
           ← Browse topics
+        </Link>
+        {' · '}
+        <Link to={`/where-towns-stand${here}`} className="font-medium text-primary-700 hover:underline">
+          Where towns stand
         </Link>
       </div>
       <section className="folio" style={HOUSE_STYLE} aria-labelledby="all-topics-title">
@@ -261,6 +271,29 @@ export default function BrowseAllTopics() {
                 </>
               )}
             </p>
+          )}
+
+          {rankedTopicsShown.length > 0 && (
+            <div className="sc-note" data-testid="where-towns-stand-summary" style={{ maxWidth: 'none' }}>
+              <p className="sc-h">Where towns stand</p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {rankedTopicsShown.map((t) => {
+                  const lean =
+                    t.places_leaning_against > t.places_leaning_for
+                      ? `${t.places_leaning_against} of ${t.places_ranked} ranked places leaned against`
+                      : t.places_leaning_for > t.places_leaning_against
+                        ? `${t.places_leaning_for} of ${t.places_ranked} ranked places leaned for`
+                        : `${t.places_ranked} ranked places were split`
+                  return (
+                    <li key={t.slug} style={{ padding: '2px 0' }}>
+                      <Link to={`/where-towns-stand?${new URLSearchParams({ topic: t.slug, ...(stateParam ? { state: stateParam } : {}) })}`}>
+                        {t.name}: {lean}
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           )}
 
           {d && tooFew.length > 0 && (
