@@ -139,7 +139,7 @@ and Richard Henry, across the council, its committees and Planning and Zoning.
 - `GET /api/bodies/{id}?limit=`: the body with its place, members, officials heard and recent meetings.
 - The four marts are on the `publish_public_serving` list with ODCS contracts. Their routes live in `api/main.py`, so
   `api.types.ts` (generated from `api.app`) does not change.
-- The place home `/jurisdiction/:jurisdictionId/meetings` shows "Who governs <place>" (the heading names the place in
+- The place home `/jurisdiction/:jurisdictionId/meetings` shows "Who governs `<place>`" (the heading names the place in
   the URL, the scope label) and "Officials heard most recently" with a play link to the YouTube moment and a link to
   the official's person page. `/bodies/:bodyId` shows the body with its place as the scope label, members and roles,
   ended seats, officials heard and recent meetings; the Close comes from Layout like every sub-page. Empty states say
