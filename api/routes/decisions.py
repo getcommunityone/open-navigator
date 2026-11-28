@@ -29,6 +29,7 @@ from api.meeting_type import (
 )
 from api.provenance import Provenance, build_provenance
 from api.routes.search_postgres import get_db_pool
+from api.privacy_redaction import DECISION_JSON_FIELDS, SNIPPET_FIELDS, redact_response
 
 router = APIRouter(prefix="/decision", tags=["decision"])
 
@@ -418,14 +419,14 @@ async def get_decision_map(
             len(pins), state_code, theme, bbox_vals is not None,
         )
 
-        return DecisionMapResponse(
+        return await redact_response(DecisionMapResponse(
             state=state_code,
             theme=theme,
             bbox=bbox_vals,
             total=len(pins),
             limit=limit,
             pins=pins,
-        )
+        ), SNIPPET_FIELDS)
 
 
 @router.get("/{event_decision_id}", response_model=DecisionDetail)
@@ -574,7 +575,7 @@ async def get_decision(event_decision_id: str) -> DecisionDetail:
                 "⚖️ Decision detail {} -> {} ({} docs, {} records)",
                 event_decision_id, data.get("outcome"), len(documents), len(meeting_record_rows),
             )
-            return DecisionDetail(**data)
+            return await redact_response(DecisionDetail(**data), SNIPPET_FIELDS, deep_fields=DECISION_JSON_FIELDS)
 
         except HTTPException:
             raise
@@ -647,7 +648,7 @@ async def get_related_decisions(
             logger.error("Related decisions error for {}: {}", event_decision_id, e)
             raise HTTPException(status_code=500, detail="Failed to load related decisions")
 
-        return [
+        return await redact_response([
             RelatedDecision(
                 event_decision_id=r["event_decision_id"],
                 headline=r["headline"],
@@ -659,7 +660,7 @@ async def get_related_decisions(
                 shared_jurisdiction=bool(r["shared_jurisdiction"]),
             )
             for r in rows
-        ]
+        ], SNIPPET_FIELDS)
 
 
 # ---------------------------------------------------------------------------
@@ -775,4 +776,4 @@ async def get_decision_thread(event_decision_id: str) -> List[DecisionThreadItem
                 )
             )
         span.set_attribute("decision.thread_count", len(items))
-        return items
+        return await redact_response(items, SNIPPET_FIELDS, deep_fields=DECISION_JSON_FIELDS)

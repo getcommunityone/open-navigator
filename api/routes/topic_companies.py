@@ -13,6 +13,7 @@ from opentelemetry import trace
 from pydantic import BaseModel, Field
 
 from api.routes.search_postgres import get_db_pool
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/topics", tags=["topics"])
 tracer = trace.get_tracer(__name__)
@@ -113,13 +114,13 @@ async def topic_companies(
                 rows = await conn.fetch(sql, *params)
         except asyncpg.exceptions.UndefinedTableError:
             span.set_attribute("topic_companies.relation_missing", True)
-            return TopicCompanies(topic_query_id=qid, scope=scope, companies=[])
+            return await redact_response(TopicCompanies(topic_query_id=qid, scope=scope, companies=[]), TEXT_FIELDS)
         except Exception as exc:
             logger.exception("topic companies failed")
             span.record_exception(exc)
             raise HTTPException(status_code=503, detail="Companies are unavailable right now.") from exc
         span.set_attribute("topic_companies.companies", len(rows))
-        return TopicCompanies(
+        return await redact_response(TopicCompanies(
             topic_query_id=qid,
             scope=scope,
             companies=[
@@ -147,4 +148,4 @@ async def topic_companies(
                 )
                 for r in rows
             ],
-        )
+        ), TEXT_FIELDS)

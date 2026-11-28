@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 from api.meeting_type import meeting_type_label
 from api.routes.search_postgres import get_db_pool, normalize_state_input
+from api.privacy_redaction import SNIPPET_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/lenses", tags=["lenses"])
 
@@ -852,9 +853,9 @@ async def get_lenses(
             sum(len(l.cards) for l in ordered_lenses), state_code, city, window,
         )
 
-        return LensesResponse(
+        return await redact_response(LensesResponse(
             lenses=ordered_lenses,
             activity=activity,
             window=window,
             location_label=location_label,
-        )
+        ), SNIPPET_FIELDS | {"event_description"})

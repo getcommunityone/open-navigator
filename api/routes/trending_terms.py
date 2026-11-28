@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 
 from api.routes.search_postgres import get_db_pool
 from api.routes.topic_timeline import build_scope
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/trends", tags=["trends"])
 tracer = trace.get_tracer(__name__)
@@ -250,8 +251,8 @@ async def trending_term_evidence(
         for r in rows
     ]
     total = int(rows[0]["total"]) if rows else 0
-    return TrendEvidenceResponse(
+    return await redact_response(TrendEvidenceResponse(
         term_id=tid, term=head["term"], scope=scope, is_sensitive=sensitive,
         total_meetings=None if head["n_meetings"] is None else int(head["n_meetings"]),
         total=total, limit=limit, offset=offset, items=items,
-    )
+    ), TEXT_FIELDS)

@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from api.routes.data_center_comments import _where as comment_where
 from api.routes.data_centers import JobClaimScope, build_scope, jump_url
 from api.routes.search_postgres import get_db_pool
+from api.privacy_redaction import SNIPPET_FIELDS, TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/data-centers", tags=["data-centers"])
 tracer = trace.get_tracer(__name__)
@@ -167,7 +168,7 @@ async def data_center_speakers(
                 rows = await conn.fetch(page_sql, *page_params)
         except asyncpg.exceptions.UndefinedTableError as e:
             logger.warning("data-centers speakers: mart not loaded ({})", e)
-            return SpeakersResponse(scope=scope, side=side, available=False, limit=limit, offset=offset)
+            return await redact_response(SpeakersResponse(scope=scope, side=side, available=False, limit=limit, offset=offset), TEXT_FIELDS)
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers speakers error (scope={}): {}", scope.model_dump(), e)
@@ -180,7 +181,7 @@ async def data_center_speakers(
             items.append(Speaker(**row))
         total = int(count_rows[0]["n"]) if count_rows else 0
         span.set_attribute("drill.total", total)
-        return SpeakersResponse(scope=scope, side=side, total=total, limit=limit, offset=offset, items=items)
+        return await redact_response(SpeakersResponse(scope=scope, side=side, total=total, limit=limit, offset=offset, items=items), TEXT_FIELDS)
 
 
 # --- votes --------------------------------------------------------------------------------------------------------
@@ -262,13 +263,13 @@ async def data_center_vote_decisions(
                 rows = await conn.fetch(page_sql, *page_params)
         except asyncpg.exceptions.UndefinedTableError as e:
             logger.warning("data-centers vote-decisions: mart not loaded ({})", e)
-            return VoteDecisionsResponse(scope=scope, side=side, available=False, limit=limit, offset=offset)
+            return await redact_response(VoteDecisionsResponse(scope=scope, side=side, available=False, limit=limit, offset=offset), SNIPPET_FIELDS)
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers vote-decisions error (scope={}): {}", scope.model_dump(), e)
             raise HTTPException(status_code=500, detail="Failed to load the decisions")
         t = dict(totals[0]) if totals else {"decisions": 0, "votes": 0}
-        return VoteDecisionsResponse(
+        return await redact_response(VoteDecisionsResponse(
             scope=scope,
             side=side,
             total_decisions=int(t["decisions"]),
@@ -276,7 +277,7 @@ async def data_center_vote_decisions(
             limit=limit,
             offset=offset,
             items=[VoteDecision(**dict(r)) for r in rows],
-        )
+        ), SNIPPET_FIELDS)
 
 
 # --- caption comments ---------------------------------------------------------------------------------------------
@@ -410,15 +411,15 @@ async def data_center_caption_comments(
                 rows = await conn.fetch(page_sql, *page_params)
         except asyncpg.exceptions.UndefinedTableError as e:
             logger.warning("data-centers comments: mart not loaded ({})", e)
-            return CaptionCommentsResponse(
+            return await redact_response(CaptionCommentsResponse(
                 scope=scope, year=str(year_filter) if year_filter else None, filter=flt, company=company_key,
                 available=False, limit=limit, offset=offset,
-            )
+            ), TEXT_FIELDS)
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers comments error (scope={}): {}", scope.model_dump(), e)
             raise HTTPException(status_code=500, detail="Failed to load the comments")
-        return CaptionCommentsResponse(
+        return await redact_response(CaptionCommentsResponse(
             scope=scope,
             year=str(year_filter) if year_filter else None,
             filter=flt,
@@ -427,7 +428,7 @@ async def data_center_caption_comments(
             limit=limit,
             offset=offset,
             items=[shape_comment(dict(r)) for r in rows],
-        )
+        ), TEXT_FIELDS)
 
 
 # --- officials sided against the public (#1330) -----------------------------------------------------------------------

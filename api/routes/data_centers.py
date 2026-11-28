@@ -37,6 +37,7 @@ from api.routes.search_postgres import (
     get_db_pool,
     normalize_state_input,
 )
+from api.privacy_redaction import SNIPPET_FIELDS, TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/data-centers", tags=["data-centers"])
 
@@ -85,10 +86,15 @@ class JobClaim(BaseModel):
     quote: str = Field(
         ..., description="Verbatim words of the claim; the mart drops rows without one."
     )
-    speaker_name: str | None = None
+    speaker_name: str | None = Field(
+        None, description='"First L." unless an official of that government (#1468).'
+    )
     speaker_role: str | None = Field(
         None, description="The speaker's role as said in the meeting (DC-1.2); null when not said."
     )
+    # The place, used only to keep that government's officials' names during redaction (#1468); not served.
+    state_code: str | None = Field(None, exclude=True)
+    jurisdiction_name: str | None = Field(None, exclude=True)
     person_id: str | None = None
     event_meeting_id: int = Field(
         ..., description="FK to event_meeting (the mart's NOT NULL integer key)."
@@ -163,7 +169,9 @@ _SELECT_SQL = """
         meeting_date,
         body_name,
         video_id,
-        start_seconds
+        start_seconds,
+        state_code,
+        jurisdiction_name
     FROM job_claim
 """
 
@@ -339,7 +347,7 @@ async def list_job_claims(
                 e,
             )
             employment, sources = await _payroll_and_sources(scope)
-            return JobClaimsResponse(scope=scope, items=[], employment=employment, sources=sources)
+            return await redact_response(JobClaimsResponse(scope=scope, items=[], employment=employment, sources=sources), TEXT_FIELDS)
         except Exception as e:  # noqa: BLE001 - any other DB failure is a 500
             span.record_exception(e)
             logger.error(
@@ -360,7 +368,7 @@ async def list_job_claims(
         logger.info(
             "🏗️ Data-center job claims -> {} rows (scope={})", len(items), scope.level
         )
-        return JobClaimsResponse(scope=scope, totals=totals, items=items, employment=employment, sources=sources)
+        return await redact_response(JobClaimsResponse(scope=scope, totals=totals, items=items, employment=employment, sources=sources), TEXT_FIELDS)
 
 
 # --- Data center sites (DC-4.1, #249) -----------------------------------------
@@ -661,16 +669,16 @@ async def list_data_center_agenda_items(
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("agenda_items.relation_missing", True)
             logger.warning("data-centers: agenda-item relations aren't here yet ({}); empty list", e)
-            return DataCenterAgendaItemsResponse(scope=applied, items=[])
+            return await redact_response(DataCenterAgendaItemsResponse(scope=applied, items=[]), TEXT_FIELDS)
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers agenda-items error (scope={}): {}", applied.model_dump(), e)
             raise HTTPException(status_code=500, detail="Failed to load agenda items")
         counts = DataCenterAgendaCounts(**dict(count_rows[0])) if count_rows else DataCenterAgendaCounts()
         span.set_attribute("agenda_items.count", len(rows))
-        return DataCenterAgendaItemsResponse(
+        return await redact_response(DataCenterAgendaItemsResponse(
             scope=applied, counts=counts, items=[DataCenterAgendaItem(**dict(r)) for r in rows]
-        )
+        ), TEXT_FIELDS)
 
 
 
@@ -1330,7 +1338,7 @@ async def list_data_center_meeting_mentions(
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("meeting_mentions.relation_missing", True)
             logger.warning("data-centers: relation 'data_center_meeting_mention' isn't here yet ({}); empty list", e)
-            return DataCenterMeetingMentionsResponse(scope=applied, items=[])
+            return await redact_response(DataCenterMeetingMentionsResponse(scope=applied, items=[]), TEXT_FIELDS)
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers meeting-mentions error (scope={}): {}", applied.model_dump(), e)
@@ -1350,7 +1358,7 @@ async def list_data_center_meeting_mentions(
         span.set_attribute("meeting_mentions.count", len(items))
         span.set_attribute("meeting_mentions.with_summary", sum(1 for i in items if i.meeting_summary))
         span.set_attribute("meeting_mentions.with_speaker", sum(1 for i in items if i.speaker_display_name))
-        return DataCenterMeetingMentionsResponse(scope=applied, counts=counts, items=items)
+        return await redact_response(DataCenterMeetingMentionsResponse(scope=applied, counts=counts, items=items), TEXT_FIELDS)
 
 
 # --- company-hosted community meetings and project timelines (#532) ------------------------
@@ -1794,7 +1802,7 @@ async def list_data_center_projects(
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("projects.relation_missing", True)
             logger.warning("data-centers: 'data_center_project' isn't here yet ({}); empty list", e)
-            return DataCenterProjectsResponse(scope=applied, items=[])
+            return await redact_response(DataCenterProjectsResponse(scope=applied, items=[]), SNIPPET_FIELDS | {"label", "source_excerpt", "announced_source_excerpt"})
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers projects error (scope={}): {}", applied.model_dump(), e)
@@ -1824,7 +1832,7 @@ async def list_data_center_projects(
             items.append(project)
         total = int(count_rows[0]["n"]) if count_rows else len(items)
         span.set_attribute("projects.count", len(items))
-        return DataCenterProjectsResponse(scope=applied, total=total, items=items)
+        return await redact_response(DataCenterProjectsResponse(scope=applied, total=total, items=items), SNIPPET_FIELDS | {"label", "source_excerpt", "announced_source_excerpt"})
 
 
 # --- who spoke for and against, and the recorded votes (#930) ------------------------------
@@ -2148,7 +2156,7 @@ async def data_center_positions(
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("positions.relation_missing", True)
             logger.warning("data-centers: 'data_center_meeting_position' isn't here yet ({}); unavailable", e)
-            return DataCenterPositionsResponse(scope=applied, available=False)
+            return await redact_response(DataCenterPositionsResponse(scope=applied, available=False), TEXT_FIELDS)
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers positions error (scope={}): {}", applied.model_dump(), e)
@@ -2166,14 +2174,14 @@ async def data_center_positions(
             row["jump_url"] = jump_url(row["video_url"], row.get("start_seconds")) if row.get("video_url") else None
             sides[side].append(PositionQuote(**row))
         span.set_attribute("positions.meetings", totals.meetings or 0)
-        return DataCenterPositionsResponse(
+        return await redact_response(DataCenterPositionsResponse(
             scope=applied,
             totals=totals,
             quotes=PositionQuotes(for_=sides["for"], against=sides["against"], question=sides["question"]),
             by_state=merge_lean_by_state(state_rows, state_lean),
             lean_totals=lean_totals,
             scope_lean_totals=scope_lean_totals,
-        )
+        ), TEXT_FIELDS)
 
 
 # --- decisions on data center items (#933) ----------------------------------------------------------------------------
@@ -2353,7 +2361,7 @@ async def data_center_decisions(
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("decisions.relation_missing", True)
             logger.warning("data-centers: 'data_center_decision' isn't here yet ({}); unavailable", e)
-            return DataCenterDecisionsResponse(scope=applied, available=False)
+            return await redact_response(DataCenterDecisionsResponse(scope=applied, available=False), SNIPPET_FIELDS | {"vote_text"})
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers decisions error (scope={}): {}", applied.model_dump(), e)
@@ -2364,7 +2372,7 @@ async def data_center_decisions(
         await _decision_people(items)
         span.set_attribute("decisions.items", len(items))
         span.set_attribute("decisions.on_topic", counts.on_topic or 0)
-        return DataCenterDecisionsResponse(scope=applied, counts=counts, items=items)
+        return await redact_response(DataCenterDecisionsResponse(scope=applied, counts=counts, items=items), SNIPPET_FIELDS | {"vote_text"})
 
 
 # --- upcoming data center hearings, verified against the official page (#955) ------------------------------------------
@@ -2477,7 +2485,7 @@ async def list_data_center_hearings(
         except asyncpg.exceptions.UndefinedTableError as e:
             span.set_attribute("hearings.relation_missing", True)
             logger.warning("data-centers: 'data_center_hearing_verified' isn't here yet ({}); unavailable", e)
-            return DataCenterHearingsResponse(scope=applied, available=False)
+            return await redact_response(DataCenterHearingsResponse(scope=applied, available=False), TEXT_FIELDS)
         except Exception as e:  # noqa: BLE001
             span.record_exception(e)
             logger.error("data-centers hearings error (scope={}): {}", applied.model_dump(), e)
@@ -2485,4 +2493,4 @@ async def list_data_center_hearings(
         counts = DataCenterHearingCounts(**dict(count_rows[0])) if count_rows else DataCenterHearingCounts()
         items = [DataCenterHearing(**dict(r)) for r in rows]
         span.set_attribute("hearings.items", len(items))
-        return DataCenterHearingsResponse(scope=applied, counts=counts, items=items)
+        return await redact_response(DataCenterHearingsResponse(scope=applied, counts=counts, items=items), TEXT_FIELDS)

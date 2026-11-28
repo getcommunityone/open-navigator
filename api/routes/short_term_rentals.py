@@ -15,6 +15,7 @@ from opentelemetry import trace
 from pydantic import BaseModel
 
 from api.routes.search_postgres import get_db_pool
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/api/short-term-rentals", tags=["short-term-rentals"])
 tracer = trace.get_tracer(__name__)
@@ -91,7 +92,7 @@ async def platform_companies(
             span.record_exception(exc)
             raise HTTPException(status_code=503, detail="Companies are unavailable right now.") from exc
         span.set_attribute("str.companies", len(rows))
-        return PlatformCompanies(
+        return await redact_response(PlatformCompanies(
             companies=[
                 PlatformCompany(
                     master_org_id=r["master_org_id"],
@@ -117,4 +118,4 @@ async def platform_companies(
                 )
                 for r in rows
             ]
-        )
+        ), TEXT_FIELDS)

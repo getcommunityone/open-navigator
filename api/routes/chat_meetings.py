@@ -29,6 +29,7 @@ from api.routes.search_postgres import (
     normalize_state_input,
     resolve_county_city_names,
 )
+from api.privacy_redaction import TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 tracer = trace.get_tracer(__name__)
@@ -702,13 +703,13 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
         span.set_attribute("chat.question_len", len(question))
 
         if body.detail_video_id and body.detail_topic:
-            return await _chat_passages(
+            return await redact_response(await _chat_passages(
                 question=question,
                 video_id=body.detail_video_id.strip(),
                 topic=body.detail_topic.strip(),
                 filters=filters,
                 span=span,
-            )
+            ), TEXT_FIELDS)
 
         meetings, match = await search_meetings_with_match(
             query=question,
@@ -734,7 +735,7 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
 
         if not meetings:
             _log_zero_result(question, mode="summaries", filters=filters)
-            return ChatMeetingsResponse(
+            return await redact_response(ChatMeetingsResponse(
                 answer=(
                     "No matching analyzed meetings were found for that question "
                     "in the current scope. Try different wording or broaden the place filter."
@@ -742,7 +743,7 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
                 citations=[],
                 found=False,
                 mode="summaries",
-            )
+            ), TEXT_FIELDS)
 
         _require_chat_configured()
         prompt = _meetings_to_prompt(question, meetings)
@@ -770,7 +771,7 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
         if not found:
             _log_zero_result(question, mode="summaries", filters=filters)
 
-        return ChatMeetingsResponse(
+        return await redact_response(ChatMeetingsResponse(
             answer=text or "No answer was returned.",
             citations=citations,
             found=found,
@@ -779,7 +780,7 @@ async def chat_meetings(body: ChatMeetingsRequest, request: Request) -> ChatMeet
                 model=model, input_tokens=in_tok, output_tokens=out_tok, estimated_usd=usd
             ),
             match=match,
-        )
+        ), TEXT_FIELDS)
 
 
 async def _chat_passages(

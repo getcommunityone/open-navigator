@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 from api.routes.data_centers import jump_url
 from api.routes.search_postgres import get_db_pool, normalize_state_input
+from api.privacy_redaction import SNIPPET_FIELDS, TEXT_FIELDS, redact_response
 
 router = APIRouter(prefix="/policy-question", tags=["policy-question"])
 tracer = trace.get_tracer(__name__)
@@ -596,7 +597,7 @@ async def get_policy_question(
         money_sources = [MoneySourceOut(**dict(m)) for m in money_rows]
         money_total = float(sum(m.net_dollar_impact for m in money_sources))
         span.set_attribute("policy_question.instances_total", rollup.instances_total)
-        return PolicyQuestionDetail(
+        return await redact_response(PolicyQuestionDetail(
             question_id=d["question_id"],
             canonical_text=d.get("canonical_text"),
             topic_code=d.get("topic_code"),
@@ -627,7 +628,7 @@ async def get_policy_question(
             trend=[TrendPoint(**dict(t)) for t in trend],
             outcome=outcome,
             outcome_rollup=outcome_rollup,
-        )
+        ), SNIPPET_FIELDS)
 
 
 @router.get("/{question_id}/instances", response_model=List[InstanceOut])
@@ -659,7 +660,7 @@ async def get_question_instances(
                 _INSTANCES_RECENT_SQL if order == "recent" else _INSTANCES_SQL,
                 question_id, state_code, city_param, outcome, limit, offset,
             )
-        return [_instance(r) for r in rows]
+        return await redact_response([_instance(r) for r in rows], SNIPPET_FIELDS)
 
 
 @router.get("/{question_id}/meetings", response_model=List[QuestionMeetingOut])
@@ -693,7 +694,7 @@ async def get_question_meetings(
             d["jump_url"] = jump_url(d.get("video_url") or "", d.get("start_seconds"))
             out.append(QuestionMeetingOut(**d))
         span.set_attribute("policy_question.meeting_count", len(out))
-        return out
+        return await redact_response(out, TEXT_FIELDS)
 
 
 # --- Jev's reading of meetings for a question (#1032) ---------------------------------------------------------------
@@ -777,7 +778,7 @@ async def get_question_jev(
         pool = await get_db_pool()
         async with pool.acquire() as conn:
             if not await conn.fetchval("select to_regclass('public.meeting_policy_question_jev') is not null"):
-                return JevQuestionOut(available=False, scope=scope)
+                return await redact_response(JevQuestionOut(available=False, scope=scope), TEXT_FIELDS)
             c = await conn.fetchrow(_JEV_COUNTS_SQL, question_id, state_code, city_param)
             rows = await conn.fetch(_JEV_ITEMS_SQL, question_id, state_code, city_param, limit, offset, outcome)
         if not c or not c["meetings"]:
@@ -786,18 +787,18 @@ async def get_question_jev(
                 any_rows = await conn.fetchval(
                     "select exists (select 1 from public.meeting_policy_question_jev where question_id = $1)", question_id
                 )
-            return JevQuestionOut(available=bool(any_rows), scope=scope)
+            return await redact_response(JevQuestionOut(available=bool(any_rows), scope=scope), TEXT_FIELDS)
         items = []
         for r in rows:
             d = dict(r)
             d["jump_url"] = jump_url(d.pop("video_url") or "", d.pop("start_seconds"))
             items.append(JevMeetingOut(**d))
         span.set_attribute("policy_question.jev_meetings", int(c["meetings"]))
-        return JevQuestionOut(
+        return await redact_response(JevQuestionOut(
             available=True,
             scope=scope,
             meetings=int(c["meetings"]),
             debated=int(c["debated"]),
             outcomes={k: int(c[k]) for k in _JEV_OUTCOMES},
             items=items,
-        )
+        ), TEXT_FIELDS)
