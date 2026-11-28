@@ -1,62 +1,57 @@
 ---
 pr: 1482
+issue: 1446
 branch: feat/1446-who-governs-ui
 title: "feat(web): Who governs and Officials heard most recently on the place page, body page"
-author: jcbowyer
 reviewed_at: 2026-11-28
-reviewer: github-actions
-head_sha: 9241a6d0b7b59b98c48da2ca7eeb56276e2f7051
-verdict: approve
+reviewer: coordinator
+verdict: approve-with-nits
 ---
 
-# PR Review: feat(web): Who governs and Officials heard most recently on the place page, body page
+# PR #1482 review
+
+Reviewed against `.claude/review-rubric.md`.
 
 ## Summary
 
-Automated review (#648) for PR #1482 on `feat/1446-who-governs-ui`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Adds "Who governs <place>" and "Officials heard most recently" to the place home and a `/bodies/:bodyId` page, all
+from the #1445 endpoints, plus the coverage report. Checked in a real browser at Pixel 7 and 1440 against a branch API
+(Playwright script in `web_app/e2e/who-governs.check.mjs`); vitest and tsc pass. Approve with nits.
 
-## Scope of Change
+## Scans
 
-- `web_app/e2e/who-governs.check.mjs`
-- `web_app/src/App.tsx`
-- `web_app/src/components/bodies/PlaceGovernance.tsx`
-- `web_app/src/components/bodies/WhoGoverns.test.tsx`
-- `web_app/src/components/bodies/WhoGoverns.tsx`
-- `web_app/src/lib/governingBodies.test.ts`
-- `web_app/src/lib/governingBodies.ts`
-- `web_app/src/lib/pageClose.ts`
-- `web_app/src/pages/BodyDetail.tsx`
-- `web_app/src/pages/MeetingDocuments.tsx`
-- `web_docs/docs/development/governing-bodies.md`
-
-## CI Status
-
-See the PR checks on `9241a6d0b7b5`.
-
-## Scans (secrets, fabricated data, personal data, destructive data changes)
-
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
+- Secrets: clean. Fabricated data: clean (no seeded numbers; "Members not on file", "No meetings on file yet" and
+  explicit empty states instead). Personal data: officials only; residents never listed. Destructive changes: none.
 
 ## Findings
 
-### 🔴 Blocking (Critical)
-
+### 🔴 Blocking
 None.
 
-### 🟡 Should fix (Important)
+### 🟡 Should fix
+None.
 
-None from automated heuristics.
+### 🔵 Nits
+- The existing place page subtitle still shows the geoid ("0177256") because the meeting-documents response has no
+  place name; the new section headings name the place correctly. Small follow-up to read the name from the bodies
+  response.
+- Play links open YouTube in a new tab rather than the in-app player; matches the jump-to-moment ask, could reuse
+  `MeetingPlayer` later.
 
-### 🔵 Nit (Minor)
+## Repo-Rule Compliance
 
-None from automated heuristics.
+| Rule | Pass? | Notes |
+|---|---|---|
+| Scope label matches the filter | Yes | headings name the place in the URL; body page shows its place and links back |
+| No fabricated data | Yes | empty states, no fallback numbers |
+| Phone-first, PageClose | Yes | 44px targets; Close from Layout (`showsPageClose`) |
+| React telemetry | Yes | `withSpan` on both loads |
+| Docs with the change | Yes | decision page: API, UI, coverage |
+
+## Test Coverage
+
+vitest 1,071 passed (10 new), tsc clean, Playwright check all ok at Pixel 7 and 1440.
 
 ## Verdict
 
-**approve**
+approve-with-nits.
