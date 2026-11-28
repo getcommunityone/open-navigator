@@ -289,6 +289,10 @@ vars:
   # the hand-labelled gold set; llm.typesafe.speaker_stance.MIN_SIDE_CONFIDENCE, kept equal by a test).
   speaker_side_min_confidence: 0.8
   speaker_heat_min_confidence: 0.65
+  # topic_heat_year / topic_top_concern (#1418): the fewest rated speakers (heat) or opposing-or-heated turns (concern) a
+  # row needs; below it the row is omitted, not zero.
+  heat_year_min_speakers: 20
+  top_concern_min_turns: 20
   # topic_place_ranking (#1437): where places stand on a topic, from the speaker sides above.
   # ranking_as_of: the window's end date ('' = the run date); the window is the last ranking_window_months months.
   ranking_as_of: ''

@@ -67,12 +67,20 @@ function heatFinding(i: InsightInput): Insight | null {
   const [prev, cur] = two
   if (prev.rated < MIN_SPEAKERS || cur.rated < MIN_SPEAKERS || prev.mean <= 0) return null
   const ratio = cur.mean / prev.mean
+  const support = `Average comment heat (1 to 5): ${prev.mean.toFixed(1)} in ${prev.year} (${fmt(prev.rated)} speakers rated), ${cur.mean.toFixed(1)} in ${cur.year} (${fmt(cur.rated)} rated).`
+  if (ratio <= 0.8 && prev.mean - cur.mean >= 0.4) {
+    return {
+      kind: 'heat',
+      title: `${cap(i.subject)} meetings in ${i.place} are cooling: average heat fell from ${prev.mean.toFixed(1)} to ${cur.mean.toFixed(1)} in ${cur.year}`,
+      support,
+    }
+  }
   if (ratio < 1.25 || cur.mean - prev.mean < 0.4) return null
   const how = ratio >= 1.9 ? `heat roughly doubled in ${cur.year}` : `average heat rose from ${prev.mean.toFixed(1)} to ${cur.mean.toFixed(1)} in ${cur.year}`
   return {
     kind: 'heat',
     title: `${cap(i.subject)} meetings in ${i.place} are getting heated: ${how}`,
-    support: `Average comment heat (1 to 5): ${prev.mean.toFixed(1)} in ${prev.year} (${fmt(prev.rated)} speakers rated), ${cur.mean.toFixed(1)} in ${cur.year} (${fmt(cur.rated)} rated).`,
+    support,
   }
 }
 

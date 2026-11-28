@@ -88,8 +88,10 @@ def test_topics_ids_and_priority() -> None:
 
 
 def test_coverage_topics_are_held_until_validated() -> None:
-    assert set(ss.NEW_TOPICS) <= ss.HELD
-    assert not set(ss.NEW_TOPICS) & {t.slug for t in ss.resolve_topics("all")}
+    assert set(ss.NEW_TOPICS) - ss.RELEASED <= ss.HELD
+    assert not ss.RELEASED & ss.HELD
+    assert ss.RELEASED <= {t.slug for t in ss.resolve_topics("all")}
+    assert not (set(ss.NEW_TOPICS) - ss.RELEASED) & {t.slug for t in ss.resolve_topics("all")}
     # renewable energy stays as it was; solar farms and battery storage are separate questions beside it
     assert ss.TOPICS["renewable-energy"].topic_id == 90
     pat = ss.strict_pattern(ss.TOPICS["speed-bumps"].keywords)

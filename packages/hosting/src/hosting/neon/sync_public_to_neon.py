@@ -290,6 +290,12 @@ CIVIC_SERVING = frozenset(
         # Trending terms in meeting speech (#1399): only the served top rows per scope (~2 MB) and their evidence
         "trending_term",
         "trending_term_evidence",
+        # Governing bodies (#1442, #1486): the body page. meeting_body is the latest 25 meetings per body, 7 columns
+        # (~3 MB; the full 168k-row mart stays in gold, totals live in governing_body.meeting_count)
+        "governing_body",
+        "meeting_body",
+        "body_membership",
+        "body_recent_speaker",
         # Meetings per topic, place and year (#1361): backs /api/topics/yoy for all 95 curated + CivicSearch topics (~10 MB)
         "topic_meeting_year",
         # Which videos are real public meetings (#1240, #1258): map cards only quote these; ~1 MB, one row per video
@@ -307,6 +313,9 @@ CIVIC_SERVING = frozenset(
         # Each public speaker's side and heat on a topic, read by a classifier from their own words (#1391): the
         # caption facts' "speakers' own words" counts read it; slim projection without not_sure rows (~3 MB)
         "meeting_speaker_topic_side",
+        # Per-year speaker heat and the top concern per topic and scope (#1418): backs the chart-title picker; small
+        "topic_heat_year",
+        "topic_top_concern",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

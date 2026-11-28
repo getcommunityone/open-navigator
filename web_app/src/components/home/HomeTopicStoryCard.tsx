@@ -13,6 +13,7 @@ import { useBoxFlight } from '../stance/BoxFlightProvider'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { stanceFromPublicLean } from '../../utils/mapQuote'
 import { useInsightYears } from '../chart/useInsightYears'
+import { useInsightHeatConcern } from '../chart/useInsightHeatConcern'
 import TopicCountyMap from '../stance/TopicCountyMap'
 import HomeStoryTitle, { type TopicControl, HomeStorySubhead } from './HomeStoryTitle'
 import { storyStartHref } from '../../utils/storyNav'
@@ -43,6 +44,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   const scope: StoryScope = placeScope.effective
   const label = storyScopeLabel(scope)
   const natYears = useInsightYears(def.slug, scope.stateCode ?? undefined)
+  const natHeatConcern = useInsightHeatConcern(def.slug, scope.stateCode ?? undefined)
   // The map's hover card goes in the text column, under Start (#1277), never over the map.
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   const states = useQuery({
@@ -121,7 +123,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
 
   const statesMap = (
     <StoryStatesMap
-      insightExtras={{ years: natYears }}
+      insightExtras={{ years: natYears, ...natHeatConcern }}
       byState={states.data?.states}
       quotes={quotes}
       highlight={scope.stateCode ?? null}

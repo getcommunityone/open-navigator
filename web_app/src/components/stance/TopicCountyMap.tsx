@@ -5,6 +5,7 @@ import type { TopicPositions } from '../../utils/topicPositions'
 import StoryCountyMap from './StoryCountyMap'
 import MapSkeleton, { useStateAspect } from './MapSkeleton'
 import { useInsightYears } from '../chart/useInsightYears'
+import { useInsightHeatConcern } from '../chart/useInsightHeatConcern'
 import type { MapPassage } from './StoryDotMap'
 
 interface Props {
@@ -54,6 +55,7 @@ export default function TopicCountyMap({
   topicSlug,
 }: Props) {
   const years = useInsightYears(topicSlug, stateCode)
+  const heatConcern = useInsightHeatConcern(topicSlug, stateCode)
   const aspect = useStateAspect(stateCode)
   const places = useQuery({
     queryKey: ['topic-story', topicId, 'places', stateCode],
@@ -81,7 +83,7 @@ export default function TopicCountyMap({
       onPickState={onPickState}
       onDrill={onDrill}
       chrome={chrome}
-      insightExtras={{ years }}
+      insightExtras={{ years, ...heatConcern }}
     />
   )
 }

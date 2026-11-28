@@ -12,6 +12,15 @@ describe('pickInsight', () => {
     expect(r.title).toContain('doubled')
     expect(r.support).toContain('55 rated')
   })
+  it('reports a fall in heat', () => {
+    const r = pickInsight({ ...base, heatByYear: [{ year: '2025', mean: 3.8, rated: 40 }, { year: '2026', mean: 2.9, rated: 55 }] })
+    expect(r.kind).toBe('heat')
+    expect(r.title).toContain('cooling')
+    expect(r.title).toContain('fell from 3.8 to 2.9 in 2026')
+  })
+  it('ignores a small dip in heat', () => {
+    expect(pickInsight({ ...base, heatByYear: [{ year: '2025', mean: 3.7, rated: 100 }, { year: '2026', mean: 3.6, rated: 1321 }] }).kind).toBe('volume')
+  })
   it('does not call thin heat data a headline', () => {
     expect(pickInsight({ ...base, heatByYear: [{ year: '2025', mean: 1, rated: 3 }, { year: '2026', mean: 3, rated: 4 }] }).kind).toBe('volume')
   })
