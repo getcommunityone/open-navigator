@@ -5,7 +5,7 @@ title: "feat(data-centers): speaker turns, stance shapes, attribution provenance
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: d2f93b76cf9d5fb8641f22bcdcfc0a22c27618ac
+head_sha: 2ff6142811e9be641ffe6508b5c1fe5ba247e91d
 verdict: approve-with-nits
 ---
 
@@ -56,13 +56,13 @@ Automated review (#648) for PR #1387 on `feat/1386-mixed-comments`. Heuristic ru
 - `tests/test_api_data_center_comment_metrics.py`
 - `tests/test_api_data_center_drill.py`
 - `tests/test_api_decision_people.py`
+- `tests/test_api_topic_said.py`
 - `web_app/src/components/stance/CommentMetricsBlock.test.ts`
-- `web_app/src/components/stance/CommentMetricsBlock.tsx`
-- …and 11 more
+- …and 12 more
 
 ## CI Status
 
-See the PR checks on `d2f93b76cf9d`.
+See the PR checks on `2ff6142811e9`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
