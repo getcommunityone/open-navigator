@@ -111,6 +111,42 @@ export function buildHotPills(live: LiveChip[], yoy: YoyResponse | null | undefi
   )
 }
 
+/** How the home topic pills are ordered (#1498). Default `hot` = combined rise+heat score (buildHotPills). */
+export type PillSort = 'hot' | 'heat' | 'trending'
+
+export function parsePillSort(raw: string | null | undefined): PillSort {
+  const v = (raw ?? '').trim().toLowerCase()
+  if (v === 'heat' || v === 'trending') return v
+  return 'hot'
+}
+
+/**
+ * Reorder built pills for the user's sort (#1498). `hot` keeps buildHotPills order. `heat` puts the hottest first
+ * (unheated live stories after, catalog order). `trending` puts the biggest rises first (non-rising after).
+ */
+export function sortHotPills(pills: HotPill[], mode: PillSort): HotPill[] {
+  if (mode === 'hot' || pills.length < 2) return pills
+  const copy = [...pills]
+  if (mode === 'heat') {
+    return copy.sort(
+      (a, b) =>
+        (b.heat ?? -1) - (a.heat ?? -1) ||
+        b.heatRated - a.heatRated ||
+        Number(b.live) - Number(a.live) ||
+        b.meetings - a.meetings ||
+        a.title.localeCompare(b.title),
+    )
+  }
+  // trending
+  return copy.sort(
+    (a, b) =>
+      (b.rise ?? -1) - (a.rise ?? -1) ||
+      Number(b.live) - Number(a.live) ||
+      b.meetings - a.meetings ||
+      a.title.localeCompare(b.title),
+  )
+}
+
 /** The text a pill's badges add for a screen reader and a tooltip ("rising, up 62% in share of meetings; heated, 3.7 of 5"). */
 export function pillBadgeText(p: Pick<HotPill, 'rise' | 'heat' | 'heatRated'>): string {
   const out: string[] = []
