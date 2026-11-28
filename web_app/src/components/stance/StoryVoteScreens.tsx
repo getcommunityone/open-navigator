@@ -1,3 +1,5 @@
+import ScreenBoxes from './ScreenBoxes'
+import { verdictBoxes } from '../../utils/screenBoxes'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { ChoiceMoment, ChoiceResults, ChoiceScopes, StanceQuestion } from '../../api/stance'
@@ -218,6 +220,7 @@ export function VerdictScreen(p: VerdictProps) {
             <KineticText text={p.text.headline} />
           </h2>
         </div>
+        <ScreenBoxes spec={verdictBoxes([p.results?.after.national], q?.options, vote.after, 'Across the country')} />
         <div className="stance-qblock">
           {q ? (
             <>

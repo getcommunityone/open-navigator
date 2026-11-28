@@ -4,7 +4,7 @@ import { summaryStats } from '../../utils/storySummary'
 import { useQuery } from '@tanstack/react-query'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
-import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
+import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, DataCenterProjectsResponse, JobClaimsResponse } from '../../api/dataCenters'
 import { fetchDataCenterMeetingMentions } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
 import PayrollJobsPanel from './PayrollJobsPanel'
@@ -19,7 +19,9 @@ import { COUNTIES_ALBERS_TOPO, STATES_ALBERS_TOPO, fetchTopo } from '../../lib/d
 import MapDrill from './MapDrill'
 import StoryStatement from './StoryStatement'
 import type { ScreenStatement } from './useStoryStatements'
-import { speakerCounts } from '../../utils/stanceGame'
+import { speakerCounts, statusLabel, tally } from '../../utils/stanceGame'
+import ScreenBoxes from './ScreenBoxes'
+import { jobClaimsBoxes, positionsBoxes, statusBoxes, type BoxesSpec } from '../../utils/screenBoxes'
 
 interface Props {
   screen: StoryScreen
@@ -110,8 +112,22 @@ export default function StoryScreenView(p: Props) {
   const facts = summary ? summaryStats(stats, p.data.positions as DataCenterPositionsResponse | null | undefined, scope) : []
   const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
+  // The screen's own box strip (#1415), from the data its chart already loaded; the other chart screens draw theirs in the chart.
+  const place = storyScopeLabel(scope)
+  let boxSpec: BoxesSpec | null = null
+  if (screen.chart === 'positions') {
+    const pos = p.data.positions as DataCenterPositionsResponse | null | undefined
+    boxSpec = pos?.available ? positionsBoxes(pos.totals, place) : null
+  } else if (screen.chart === 'projects') {
+    const pr = p.data.projects as DataCenterProjectsResponse | null | undefined
+    boxSpec = pr ? statusBoxes(tally(pr.items ?? [], (x) => statusLabel(x.status)), 'projects', place) : null
+  } else if (screen.chart === 'job-claims') {
+    boxSpec = jobClaimsBoxes(jobsData?.totals, place)
+  }
+
   return (
     <StoryScreenFrame
+      boxes={boxSpec ? <ScreenBoxes spec={boxSpec} /> : null}
       id={screen.id}
       index={p.index}
       active={p.active}

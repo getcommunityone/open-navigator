@@ -3616,3 +3616,12 @@ License: MIT
 This project respects all dataset licenses and terms of use. See [LICENSE](https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/LICENSE) for this project's MIT license.
 
 For dataset-specific licenses, please refer to the original sources listed above.
+
+### Candidate finance sources (inventory only, not loaded)
+
+Listed in the [state grants, budgets and ACFR inventory](../development/state-grants-budgets-acfr-inventory.md) (#1397). Nothing from these is on the site yet, so there is nothing to attribute on screen.
+
+- **Federal Audit Clearinghouse single audits** (GSA): https://www.fac.gov/ , API https://api.fac.gov/ . U.S. government work, public domain. Recommended next. Date reviewed: 27 Nov 2026.
+- **California State Controller, By The Numbers**: https://bythenumbers.sco.ca.gov/ . State open data terms. Recommended. Date reviewed: 27 Nov 2026.
+- **New York Office of the State Comptroller local government data**: https://data.ny.gov/ . Open Data terms. Recommended. Date reviewed: 27 Nov 2026.
+- **MSRB EMMA**: https://emma.msrb.org/ . Terms restrict automated collection; link out only, never ingested.

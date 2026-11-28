@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { hasQuoteText } from '../../lib/highlight'
 
 /** One verbatim passage from a recorded public meeting. */
 export interface Passage {
@@ -47,7 +48,7 @@ export function SideColumn({ title, items }: { title: string; items: Passage[] }
           const who = [p.speakerName, p.speakerRole, p.jurisdictionName, p.meetingDate].filter(Boolean).join(' · ')
           return (
             <li key={`${p.jurisdictionName}-${p.meetingDate ?? ''}-${i}`}>
-              <blockquote>“{p.quote}”</blockquote>
+              {hasQuoteText(p.quote) && <blockquote>“{p.quote}”</blockquote>}
               <p className="stance-side-who">
                 {p.about && <span className="stance-side-about">On: {p.about} · </span>}
                 {who}

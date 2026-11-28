@@ -39,3 +39,8 @@ export function excerptAroundMark(text: string, max = 190): string {
   if ((cut.match(/<mark>/g)?.length ?? 0) > (cut.match(/<\/mark>/g)?.length ?? 0)) cut += '</mark>'
   return `${start > 0 ? '… ' : ''}${cut}${end < plain.length ? ' …' : ''}`
 }
+
+/** True when a quote has real words once markers and whitespace are gone: a quote block is never drawn without text (#1415). */
+export function hasQuoteText(text: string | null | undefined): text is string {
+  return typeof text === 'string' && text.replace(/<\/?mark>/g, '').replace(/[“”"'\s]/g, '').length > 0
+}
