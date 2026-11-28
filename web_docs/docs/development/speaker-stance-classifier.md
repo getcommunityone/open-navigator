@@ -197,3 +197,39 @@ pre-run estimate per meeting (`meeting_heat_scores`), four parts each scaled 0-1
 The owner authorised up to $40, then capped it at the prepaid balance: $25 funded on 2026-11-26, less $5.9485 of Jev
 spend since (`python -m llm.usage.report --since 2026-11-26`), minus a $1 margin. The run's own `--max-usd` stops it
 at the cap. Results and exact cost are in the issue and PR.
+
+## Results of the 2026-11-27 run
+
+All 13 validated topics were read: 18,878 speaker-topics (plus 6 from the skip-logic check), 21,291,040 input tokens,
+**$0.8942**; with the gold run ($0.0428) the task spent **$0.9370** of the $18.0 cap. Container restarts stopped the run
+twice; each restart's job build counted the rows already read as done, so nothing was paid for twice.
+
+| topic | read | on topic | for @0.8 | against @0.8 | concerns only | no side | not sure |
+|---|---|---|---|---|---|---|---|
+| homelessness-and-shelters | 2,974 | 1,624 | 667 | 49 | 7 | 52 | 849 |
+| affordable-housing | 2,685 | 2,152 | 990 | 74 | 18 | 56 | 1,014 |
+| guns | 2,440 | 649 | 153 | 117 | 4 | 4 | 371 |
+| data-centers | 2,430 | 2,214 | 152 | 1,119 | 179 | 58 | 706 |
+| short-term-rentals | 2,095 | 1,879 | 485 | 332 | 36 | 77 | 949 |
+| surveillance-cameras | 2,054 | 1,109 | 151 | 463 | 13 | 12 | 470 |
+| pickleball | 1,269 | 876 | 256 | 61 | 20 | 62 | 477 |
+| alcohol-licensing | 903 | 700 | 135 | 64 | 25 | 42 | 434 |
+| license-plate-readers | 590 | 577 | 82 | 250 | 8 | 14 | 223 |
+| renewable-energy | 487 | 285 | 49 | 56 | 18 | 14 | 148 |
+| police-staffing | 409 | 331 | 33 | 177 | 7 | 6 | 108 |
+| immigration-and-sanctuary | 295 | 199 | 95 | 32 | 0 | 0 | 72 |
+| water-fluoridation | 253 | 194 | 50 | 71 | 5 | 3 | 65 |
+
+Among on-topic speakers read, the share the free cue rules left `unclear` or `concerns_only` and the classifier did not
+give a confident side fell from **74.5% to 36.1% for data centers** (2,214 speakers) and **62.6% to 34.7% for guns**
+(649). Guns has the most off-topic hits (1,791 of 2,440: caption errors such as "fire arm", gun-violence talk with no
+limit at issue), which the classifier drops.
+
+**Heat:** 6,499 public speakers now carry a classifier heat (`heat_confidence >= 0.65`), beside the 138 with the AI
+meeting analysis's rating, which is kept. On the 22 speakers that have both, the classifier's heat matches exactly 22.7%
+and within 1 point 90.9% (Pearson 0.65), against 13.6% / 77.3% for a constant guess of 2; the overlap is small, so
+heat is shown with its method and confidence and is not used to rank anything without a minimum count.
+
+`gold.meeting_speaker_topic_side` holds 12,789 rows (3.5 MB); the public projection drops the 5,886 `not_sure` rows
+(6,903 rows). Publish with `--only meeting_speaker_topic_side,meeting_speaker_position` (the second for the classifier
+heat); no other serving table changes.
