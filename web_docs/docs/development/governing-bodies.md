@@ -102,6 +102,34 @@ it, so it is not stored. On 2026-11-28 all 24 portals we read meetings from answ
 Minneapolis publish bodies but no current office records. The API returned server errors for about 20 minutes during
 the run; the reader records those as `error` and a later run picks them up.
 
+## Officials heard most recently (body_recent_speaker)
+
+Captions carry no speaker labels, and officials almost never say "my name is", so the speaker layer (#1387) names
+residents but hardly ever an official (4 of 152k speaker rows were `official_roster_match`). The chair and the clerk do
+name officials at the moment they speak, so `python -m ingestion.youtube.official_mentions` (regex, no model) looks
+for a title plus a roster surname of the meeting place's members and keeps only three shapes:
+
+| Pattern | Real caption text (Tuscaloosa City Council, 2026) |
+|---|---|
+| roll_call | "voting with councelor Howard. >> Yes. >> Yes." / "voting on the application, Mr. Lanier. No. No." |
+| chair_call | "Thank you, Zach. Mayor Maddox. >> Yes, sir." / "Councilman Busby. >> Yeah, I'll do these two." |
+| self_intro | "this is Councilor Howard" |
+
+A plain mention ("Mr. Henry will be here at 2:00") is not counted. Only names on the place's roster can match, so a
+name heard in a meeting never makes anyone an official; a surname two members share needs the first name too. Caption
+misspellings of a surname ("Laneir") are missed rather than guessed. The rows land in
+`bronze.bronze_meeting_official_mention` with the seconds from the timed caption segments.
+
+`body_recent_speaker` has one row per body × member heard in that body's meetings in the last 18 months: meetings
+heard, moments, the last date and a YouTube link three seconds before the latest moment. Official self-introductions
+already matched in `meeting_speaker_intro` count too. A member is shown with their seat on the place's primary body
+(so a council member heard in a committee keeps their council role). Residents never appear: every row joins a
+`body_membership` row.
+
+On 2026-11-28: 3,812 recent transcripts in 482 places with a roster were scanned; 540 had a moment (5,474 moments);
+212 body × member rows across 92 bodies in 46 places. Tuscaloosa: the mayor, Raevan Howard, Cassius Lanier, Lee Busby
+and Richard Henry, across the council, its committees and Planning and Zoning.
+
 ## Publish set
 
 The API reads these through `public` (publish_public_serving). Nothing is written to Neon by this work; the relations
