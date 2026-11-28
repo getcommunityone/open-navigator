@@ -247,6 +247,7 @@ vars:
   trending_hot_min_meetings: 3
   trending_evidence_national: 10
   trending_evidence_state: 3
+  trending_evidence_rank: 30
   # Speaker attribution (#1386): bump when seeds/speaker_attribution_rules.csv changes
   speaker_attribution_version: 'speaker_attribution/1'
   # Comment heat (#1386). The rules baseline is served only when it passes calibration against the AI-rated

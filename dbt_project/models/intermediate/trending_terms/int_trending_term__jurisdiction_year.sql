@@ -1,4 +1,5 @@
 {{ config(
+    post_hook=["analyze {{ this }}"],
     materialized='table',
     tags=['intermediate', 'trending_terms'],
     indexes=[{'columns': ['term_key']}, {'columns': ['state_code']}],

@@ -1,4 +1,5 @@
-{{ config(materialized='table', tags=['intermediate', 'trending_terms'],
+{{ config(
+    post_hook=["analyze {{ this }}"],materialized='table', tags=['intermediate', 'trending_terms'],
           indexes=[{'columns': ['name_key'], 'unique': true}]) }}
 
 /*

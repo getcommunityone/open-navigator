@@ -1,4 +1,5 @@
 {{ config(
+    post_hook=["analyze {{ this }}"],
     materialized='table',
     tags=['marts', 'serving', 'trending_terms'],
     contract={'enforced': true},
