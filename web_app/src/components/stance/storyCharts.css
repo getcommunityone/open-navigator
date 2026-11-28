@@ -133,6 +133,10 @@
   opacity: 0 !important;
   transition: none !important;
 }
+/* #1485: once the flight has landed the real boxes fade in over the canvas boxes (which fade out) on the same rects. */
+[data-box-flight-reveal='1'] [data-box] {
+  transition: opacity var(--box-flight-reveal-ms, 120ms) linear !important;
+}
 
 /* 10x10 Box Waffle Chart (#1400, vizjb12 §4.8A) */
 .wf-wrap {
