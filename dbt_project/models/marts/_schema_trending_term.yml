@@ -138,6 +138,11 @@ models:
     config:
       contract:
         enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [national_trending_term_id]
+        to: ref('trending_term')
+        to_columns: [trending_term_id]
     columns:
       - name: trending_term_evidence_id
         data_type: text
@@ -147,6 +152,10 @@ models:
       - name: term_key
         data_type: text
         description: "The term (trending_term.term_key)."
+        constraints: [{type: not_null}]
+      - name: national_trending_term_id
+        data_type: text
+        description: "FK to trending_term: the term's national row, md5('US' | term_key)."
         constraints: [{type: not_null}]
       - name: video_id
         data_type: text

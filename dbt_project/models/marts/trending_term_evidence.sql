@@ -113,6 +113,7 @@ seg as (
 select
     md5(p.term_key || '|' || p.video_id)::text                                        as trending_term_evidence_id,
     p.term_key::text                                                                  as term_key,
+    md5('US|' || p.term_key)::text                                                    as national_trending_term_id,
     p.video_id::text                                                                  as video_id,
     p.meeting_date::date                                                              as meeting_date,
     p.state_code::text                                                                as state_code,
