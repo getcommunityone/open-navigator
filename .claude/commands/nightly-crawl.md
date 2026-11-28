@@ -68,7 +68,7 @@ without `--dry-run`.
 ./packages/scrapers/scripts/youtube_run_priority_states_last_n.sh all
 ```
 
-- Keep the script's careful defaults: `STATES=AL,GA,IN,MA,MT,WA,WI`, `N=10`, `DELAY=10`, `PARALLEL=1`. YouTube
+- Keep the script's careful defaults: `STATES=AL,FL,GA,IN,MA,MT,WA,WI`, `N=10`, `DELAY=10`, `PARALLEL=1`. YouTube
   throttles by IP address, so don't shorten the delay or add parallel caption fetches.
 - The analysis calls Gemini, a paid API (not a GPU). It analyzes only new videos, with the current prompt (jobs claims
   and speaker roles, #246, #247).

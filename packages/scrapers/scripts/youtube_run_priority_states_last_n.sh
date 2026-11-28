@@ -12,7 +12,7 @@
 #     — round-robin jurisdictions: captions then analyze per place, then next
 #
 # Optional env:
-#   STATES=AL,GA,IN,MA,MT,WA,WI
+#   STATES=AL,FL,GA,IN,MA,MT,WA,WI   (FL added #1425)
 #   N=10                 — newest N videos for captions/analyze per jurisdiction (default 10)
 #   MAX_VIDEOS=100       — event catalog: max videos per channel/jurisdiction (default: N)
 #   CATALOG_N=           — alias for MAX_VIDEOS
@@ -62,7 +62,7 @@ else
 fi
 
 PYTHON="${PYTHON:-$ROOT/.venv/bin/python}"
-STATES="${STATES:-AL,GA,IN,MA,MT,WA,WI}"
+STATES="${STATES:-AL,FL,GA,IN,MA,MT,WA,WI}"
 N="${N:-10}"
 MAX_VIDEOS="${MAX_VIDEOS:-${CATALOG_N:-$N}}"
 DAYS="${DAYS:-}"

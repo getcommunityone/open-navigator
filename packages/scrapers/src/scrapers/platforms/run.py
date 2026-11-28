@@ -13,6 +13,7 @@ Usage::
 
     python -m scrapers.platforms.run --data-center --pattern-target 20            # dry run
     python -m scrapers.platforms.run --data-center --pattern-target 20 --apply
+    python -m scrapers.platforms.run --data-center --state-code FL --apply   # only the FL survey portals (#1425)
     python -m scrapers.platforms.run --legistar-client dakota --apply
     python -m scrapers.platforms.run --export-whisper-queue data/cache/platform_meetings/whisper_queue.tsv
 
@@ -131,7 +132,10 @@ async def run(args: argparse.Namespace, store: Any) -> dict[str, Any]:
     if args.data_center:
         if cur is None:
             raise SystemExit("--data-center needs the warehouse (it reads the #460 survey)")
-        targets += survey_targets(load_survey_rows(cur))
+        survey = load_survey_rows(cur)
+        if args.state_code:  # one state's portals only (#1425); manual targets below keep their own state
+            survey = [r for r in survey if (r.get("state_code") or "").upper() == args.state_code.upper()]
+        targets += survey_targets(survey)
     for client in args.legistar_client or []:
         targets.append(PortalTarget("legistar", client, args.jurisdiction_id, args.state_code, found_via="manual"))
     for host in args.granicus_host or []:
@@ -180,7 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--granicus-host", action="append", help="read this Granicus host (repeatable)")
     p.add_argument("--granicus-view-id", type=int, action="append")
     p.add_argument("--jurisdiction-id", help="jurisdiction for --legistar-client / --granicus-host")
-    p.add_argument("--state-code")
+    p.add_argument("--state-code", help="state of --legistar-client/--granicus-host; with --data-center, limits the survey portals to this state")
     p.add_argument("--since", type=date.fromisoformat, default=date(2025, 1, 1))
     p.add_argument("--max-events", type=int, default=400, help="most recent meetings per Legistar client")
     p.add_argument("--min-interval", type=float, default=0.75, help="seconds between requests to one host")
