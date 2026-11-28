@@ -29,6 +29,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+import asyncpg
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from opentelemetry import trace
@@ -52,6 +53,9 @@ MIN_MEETINGS = 5
 #: A year is thin when it recorded under this share of the other year's meetings (``THIN_RATIO``, storyTimeline.ts).
 THIN_RATIO = 0.25
 VALID_SOURCES = frozenset({"curated", "civicsearch"})
+#: A topic's heat is shown only with at least this many classifier-rated public speakers in scope (#1407); below it
+#: the page says "too few rated".
+MIN_HEAT_RATED = 20
 
 
 class YoyTopic(BaseModel):
@@ -69,6 +73,12 @@ class YoyTopic(BaseModel):
     share_a: float | None = Field(None, description="meetings_a / recorded_a (0–1); null when recorded_a is 0.")
     share_b: float | None = None
     comparable: bool = Field(..., description="False when either year has too few topic or recorded meetings.")
+    heat_rated: int = Field(
+        0, description="#1407: public speakers in scope whose heat (1-5) a classifier rated on this topic, all years."
+    )
+    heat_mean: float | None = Field(
+        None, description="Mean classifier heat of those speakers; null under min_heat_rated (or none rated)."
+    )
 
 
 class YoyResponse(BaseModel):
@@ -82,6 +92,7 @@ class YoyResponse(BaseModel):
     thin_year: str | None = Field(None, description="A year with thin recording coverage in this scope, if any.")
     min_meetings: int = MIN_MEETINGS
     min_recorded_meetings: int = MIN_RECORDED_MEETINGS
+    min_heat_rated: int = MIN_HEAT_RATED
     topics: list[YoyTopic]
 
 
@@ -141,6 +152,30 @@ LEFT JOIN live_ids ON live_ids.topic_id = c.topic_id
 ORDER BY c.topic_id
 """
     return sql, params
+
+
+def heat_sql(scope: TimelineScope) -> tuple[str, list[Any]]:
+    """Per topic: classifier-rated public speakers in scope and their mean heat (meeting_speaker_topic_side, #1391)."""
+    params: list[Any] = []
+    w = _where(scope, "h.state_code", ("h.jurisdiction_name",), params)
+    sql = (
+        "SELECT h.topic_id, count(*)::int AS heat_rated, round(avg(h.heat), 2)::float8 AS heat_mean "
+        "FROM meeting_speaker_topic_side h WHERE h.heat IS NOT NULL" + _and(w) + " GROUP BY h.topic_id"
+    )
+    return sql, params
+
+
+def apply_heat(resp: YoyResponse, heat_rows: list[dict[str, Any]] | None) -> YoyResponse:
+    """Fill heat_rated / heat_mean from the heat rows; a topic under MIN_HEAT_RATED keeps heat_mean null."""
+    by_id = {int(r["topic_id"]): r for r in heat_rows or []}
+    for t in resp.topics:
+        r = by_id.get(t.topic_id)
+        if not r:
+            continue
+        t.heat_rated = int(r.get("heat_rated") or 0)
+        mean = r.get("heat_mean")
+        t.heat_mean = float(mean) if t.heat_rated >= MIN_HEAT_RATED and mean is not None else None
+    return resp
 
 
 def thin_year(ya: int, yb: int, ra: int, rb: int) -> str | None:
@@ -209,9 +244,15 @@ async def topics_yoy(
             async with pool.acquire() as conn:
                 sql, p = yoy_sql(scope, ya, yb, norm_source)
                 rows = [dict(r) for r in await conn.fetch(sql, *p)]
+                heat_rows: list[dict[str, Any]] | None = None
+                try:
+                    h_sql, h_p = heat_sql(scope)
+                    heat_rows = [dict(r) for r in await conn.fetch(h_sql, *h_p)]
+                except asyncpg.exceptions.PostgresError as e:  # not published yet: no heat, never a failed page
+                    logger.warning("topics yoy: speaker heat unavailable ({})", e)
         except Exception as exc:
             logger.exception("topics yoy failed")
             span.record_exception(exc)
             raise HTTPException(status_code=503, detail="The topic comparison is unavailable right now.") from exc
         span.set_attribute("topics", len(rows))
-    return shape(rows, scope, ya, yb)
+    return apply_heat(shape(rows, scope, ya, yb), heat_rows)

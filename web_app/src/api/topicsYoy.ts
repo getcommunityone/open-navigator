@@ -29,6 +29,10 @@ export interface YoyTopic {
   share_b: number | null
   /** False when either year has too few topic meetings (< min_meetings) or recorded meetings (< min_recorded_meetings). */
   comparable: boolean
+  /** #1407: public speakers in scope whose heat (1-5) a classifier rated on this topic; absent on older servers. */
+  heat_rated?: number
+  /** Their mean heat; null under min_heat_rated (or none rated). */
+  heat_mean?: number | null
 }
 
 export interface YoyResponse {
@@ -44,6 +48,8 @@ export interface YoyResponse {
   thin_year: string | null
   min_meetings: number
   min_recorded_meetings: number
+  /** #1407: rated speakers a topic needs before its heat is shown. */
+  min_heat_rated?: number
   topics: YoyTopic[]
 }
 
