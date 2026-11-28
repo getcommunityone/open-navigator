@@ -24,7 +24,7 @@ function ensureGtagHeadStubPlugin() {
 const config: Config = {
   title: 'Open Navigator',
   tagline: 'One Map for Every Community',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/favicon.svg',
 
   /** Runs before plugin client modules so `window.gtag` is always callable. */
   clientModules: ['./src/clientModules/gtagSafeShim.ts'],
