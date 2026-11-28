@@ -209,6 +209,7 @@ export default function BrowseAllTopics() {
                 {yB}; teal rises, ochre falls. Tap a row to open its story or meetings.
               </p>
               <DumbbellRows
+                title={`${rising} of ${rising + falling} topics compared rose from ${yA} to ${yB} · ${scopeLabel}`}
                 rows={drawn}
                 aName={yA}
                 bName={yB}

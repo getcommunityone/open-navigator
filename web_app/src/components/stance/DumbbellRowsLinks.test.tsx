@@ -11,7 +11,7 @@ const rows: DumbbellRow[] = [
 describe('DumbbellRows options for Browse all topics (#1343)', () => {
   it('prints values over the dots with a custom format, tones the falling dot, and makes rows links', () => {
     const html = renderToStaticMarkup(
-      <DumbbellRows rows={rows} aName="2025" bName="2026" ariaLabel="x" unitPlural="topics" format={(v) => `${v} mtgs`} valuesOverDots toneDots onSelect={() => {}} />,
+      <DumbbellRows title="t" rows={rows} aName="2025" bName="2026" ariaLabel="x" unitPlural="topics" format={(v) => `${v} mtgs`} valuesOverDots toneDots onSelect={() => {}} />,
     )
     expect(html).toContain('40 mtgs')
     expect(html).toContain('10 mtgs')
@@ -20,7 +20,7 @@ describe('DumbbellRows options for Browse all topics (#1343)', () => {
   })
 
   it('leaves the story dumbbell as it was by default', () => {
-    const html = renderToStaticMarkup(<DumbbellRows rows={rows} aName="2025" bName="2026" ariaLabel="x" unitPlural="topics" />)
+    const html = renderToStaticMarkup(<DumbbellRows title="t" rows={rows} aName="2025" bName="2026" ariaLabel="x" unitPlural="topics" />)
     expect(html).not.toContain('sc-dot-down')
     expect(html).not.toContain('role="link"')
     expect(html).toContain('role="img"')
