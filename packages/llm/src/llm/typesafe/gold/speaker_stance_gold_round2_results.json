@@ -1,0 +1,8078 @@
+{
+ "input_tokens": 547144,
+ "model_versions": [
+  "jev"
+ ],
+ "predictions": {
+  "artificial-turf|12d78debdacc8ac272d82c68b9aeb8b4": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 984,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.37,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.02,
+    "for": 0.31,
+    "no_position": 0.29,
+    "off_topic": 0.37
+   }
+  },
+  "artificial-turf|2204482ddeb7c3cb41ad2246024f4d8d": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 987,
+   "question_version": "9a71a0753f17",
+   "side": "no_position",
+   "side_confidence": 0.65,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.03,
+    "no_position": 0.65,
+    "off_topic": 0.32
+   }
+  },
+  "artificial-turf|244b9ce9eaa3ac74d9c2689978fb36f1": {
+   "heat": 1,
+   "input_chars": 1241,
+   "input_tokens": 973,
+   "question_version": "9a71a0753f17",
+   "side": "no_position",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.41,
+    "no_position": 0.58,
+    "off_topic": 0.01
+   }
+  },
+  "artificial-turf|2470d65066a38a3b016ab9ea797c9f99": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 971,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.43,
+   "side_probabilities": {
+    "against": 0.42,
+    "concerns_only": 0.14,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.43
+   }
+  },
+  "artificial-turf|31385d042b89974781a81a562fcb191a": {
+   "heat": 2,
+   "input_chars": 1443,
+   "input_tokens": 993,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.16,
+    "off_topic": 0.82
+   }
+  },
+  "artificial-turf|320bacb6ccbd2454c98807240ee04e86": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 989,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "artificial-turf|3ad2a3163661003ff498177bad87b64a": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 988,
+   "question_version": "9a71a0753f17",
+   "side": "no_position",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.02,
+    "for": 0.39,
+    "no_position": 0.58,
+    "off_topic": 0.01
+   }
+  },
+  "artificial-turf|3e18773ce895d44fb3fb7820d837ae49": {
+   "heat": 2,
+   "input_chars": 1406,
+   "input_tokens": 938,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.67,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.04,
+    "no_position": 0.29,
+    "off_topic": 0.67
+   }
+  },
+  "artificial-turf|45cd995c2556b237e89daaca470f4ca7": {
+   "heat": 4,
+   "input_chars": 1016,
+   "input_tokens": 899,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.95,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.95,
+    "no_position": 0.01,
+    "off_topic": 0.04
+   }
+  },
+  "artificial-turf|49439b7d40fac2abecba72df8a9ff87f": {
+   "heat": 2,
+   "input_chars": 1408,
+   "input_tokens": 966,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.76,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.76,
+    "no_position": 0.14,
+    "off_topic": 0.09
+   }
+  },
+  "artificial-turf|6468d125a714db78480a1c8ffc06b7ea": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 982,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.03,
+    "for": 0.01,
+    "no_position": 0.22,
+    "off_topic": 0.74
+   }
+  },
+  "artificial-turf|67d2b3a88f9480b9060f27d9d85e255c": {
+   "heat": 1,
+   "input_chars": 1410,
+   "input_tokens": 980,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.98
+   }
+  },
+  "artificial-turf|7282c5779f58425bd46bf01088d2ba1f": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 977,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.98
+   }
+  },
+  "artificial-turf|72e55331f9aada9922a9674825fd0d8d": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 983,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.89,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.89,
+    "no_position": 0.11,
+    "off_topic": 0.0
+   }
+  },
+  "artificial-turf|742d17bcfbfdbd60f509739c5315d3de": {
+   "heat": 2,
+   "input_chars": 1410,
+   "input_tokens": 986,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.38,
+    "for": 0.52,
+    "no_position": 0.05,
+    "off_topic": 0.03
+   }
+  },
+  "artificial-turf|75471f9c703c819cdde0d683982efbcd": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 997,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.1,
+    "for": 0.73,
+    "no_position": 0.16,
+    "off_topic": 0.01
+   }
+  },
+  "artificial-turf|75f7c99dce5d36129a8a5d1b7f57e3e0": {
+   "heat": 3,
+   "input_chars": 1408,
+   "input_tokens": 939,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "artificial-turf|7c6046a69eb3383e759bc9d653966a02": {
+   "heat": 1,
+   "input_chars": 1401,
+   "input_tokens": 992,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.44,
+   "side_probabilities": {
+    "against": 0.42,
+    "concerns_only": 0.05,
+    "for": 0.03,
+    "no_position": 0.06,
+    "off_topic": 0.44
+   }
+  },
+  "artificial-turf|8d41a5d23967acf9c8575c7dafbc90ed": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 964,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.86,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.05,
+    "for": 0.86,
+    "no_position": 0.07,
+    "off_topic": 0.02
+   }
+  },
+  "artificial-turf|9425a688d5e010b3f8eb0609f8e970bf": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 972,
+   "question_version": "9a71a0753f17",
+   "side": "no_position",
+   "side_confidence": 0.47,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.16,
+    "for": 0.01,
+    "no_position": 0.47,
+    "off_topic": 0.36
+   }
+  },
+  "artificial-turf|964a29569e3a8393e6aaf73f189adad3": {
+   "heat": 3,
+   "input_chars": 1530,
+   "input_tokens": 1019,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.82,
+    "no_position": 0.06,
+    "off_topic": 0.1
+   }
+  },
+  "artificial-turf|a4a96d1804e8aa22e3719708760461db": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 962,
+   "question_version": "9a71a0753f17",
+   "side": "no_position",
+   "side_confidence": 0.69,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.29,
+    "no_position": 0.69,
+    "off_topic": 0.01
+   }
+  },
+  "artificial-turf|a4cdca487821dfc9bf0a60104829160c": {
+   "heat": 4,
+   "input_chars": 1411,
+   "input_tokens": 985,
+   "question_version": "9a71a0753f17",
+   "side": "against",
+   "side_confidence": 0.59,
+   "side_probabilities": {
+    "against": 0.59,
+    "concerns_only": 0.15,
+    "for": 0.04,
+    "no_position": 0.09,
+    "off_topic": 0.13
+   }
+  },
+  "artificial-turf|aaf6b125c352e1e21c48e9ff48b9869c": {
+   "heat": 3,
+   "input_chars": 1461,
+   "input_tokens": 1019,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.69,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.31,
+    "off_topic": 0.69
+   }
+  },
+  "artificial-turf|b81e930e9e32339e2eebf46daf76c480": {
+   "heat": 1,
+   "input_chars": 1416,
+   "input_tokens": 959,
+   "question_version": "9a71a0753f17",
+   "side": "no_position",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.03,
+    "no_position": 0.93,
+    "off_topic": 0.03
+   }
+  },
+  "artificial-turf|b94df8a08d035e02c665d297a16cb873": {
+   "heat": 3,
+   "input_chars": 1406,
+   "input_tokens": 978,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.99,
+    "no_position": 0.01,
+    "off_topic": 0.0
+   }
+  },
+  "artificial-turf|b99bebc0c548a2d2c57175eefe25486b": {
+   "heat": 2,
+   "input_chars": 1729,
+   "input_tokens": 1058,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.15,
+    "for": 0.84,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "artificial-turf|be8a944095c5fb08bebf5d262cb386f3": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 977,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.04,
+    "for": 0.01,
+    "no_position": 0.42,
+    "off_topic": 0.52
+   }
+  },
+  "artificial-turf|c6cff38cc92080d3c61b297c4b4d18be": {
+   "heat": 2,
+   "input_chars": 1402,
+   "input_tokens": 969,
+   "question_version": "9a71a0753f17",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "artificial-turf|f37a05c9146bd73b9d92d3c489a19741": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 1009,
+   "question_version": "9a71a0753f17",
+   "side": "concerns_only",
+   "side_confidence": 0.64,
+   "side_probabilities": {
+    "against": 0.16,
+    "concerns_only": 0.64,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.19
+   }
+  },
+  "artificial-turf|f72e522e14981b1e66d5b12030eebf50": {
+   "heat": 3,
+   "input_chars": 1402,
+   "input_tokens": 985,
+   "question_version": "9a71a0753f17",
+   "side": "concerns_only",
+   "side_confidence": 0.32,
+   "side_probabilities": {
+    "against": 0.31,
+    "concerns_only": 0.32,
+    "for": 0.29,
+    "no_position": 0.03,
+    "off_topic": 0.05
+   }
+  },
+  "artificial-turf|f8c08701207ac7fcb6f5db3fd06a0aec": {
+   "heat": 1,
+   "input_chars": 1410,
+   "input_tokens": 972,
+   "question_version": "9a71a0753f17",
+   "side": "no_position",
+   "side_confidence": 0.6,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.03,
+    "no_position": 0.6,
+    "off_topic": 0.36
+   }
+  },
+  "artificial-turf|fff965863d505b90a7d994c2c950b39b": {
+   "heat": 3,
+   "input_chars": 1545,
+   "input_tokens": 990,
+   "question_version": "9a71a0753f17",
+   "side": "for",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.98,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "backyard-chickens|0892c95623d4453e224563296c1431dd": {
+   "heat": 1,
+   "input_chars": 1082,
+   "input_tokens": 928,
+   "question_version": "8e07cba2cec4",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "backyard-chickens|0e5ad265ea1b8b019888b1029fdce208": {
+   "heat": 4,
+   "input_chars": 1352,
+   "input_tokens": 995,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|1de31fae53908c6fb529b35fe0067175": {
+   "heat": 1,
+   "input_chars": 1406,
+   "input_tokens": 1002,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|20fb2a1f7b2a09f1525be62b23a531bd": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 1042,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.06,
+    "no_position": 0.03,
+    "off_topic": 0.91
+   }
+  },
+  "backyard-chickens|22d0aca9508ca03556056db6ccd06d49": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 992,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.59,
+   "side_probabilities": {
+    "against": 0.33,
+    "concerns_only": 0.06,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.59
+   }
+  },
+  "backyard-chickens|2330d1a19819ddc58472ddb45dbf5ab6": {
+   "heat": 2,
+   "input_chars": 1401,
+   "input_tokens": 1012,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.97
+   }
+  },
+  "backyard-chickens|270bc3461711b3786c61e63df721de2d": {
+   "heat": 2,
+   "input_chars": 1401,
+   "input_tokens": 988,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|3619dd5fb668620c1e863af77a33efae": {
+   "heat": 2,
+   "input_chars": 1406,
+   "input_tokens": 1004,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|44ab5ad2d929af1337b3f1324b316a36": {
+   "heat": 4,
+   "input_chars": 949,
+   "input_tokens": 933,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.76,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.21,
+    "no_position": 0.02,
+    "off_topic": 0.76
+   }
+  },
+  "backyard-chickens|468f62811062245a1817c18dc55fbf1d": {
+   "heat": 2,
+   "input_chars": 1402,
+   "input_tokens": 986,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.98
+   }
+  },
+  "backyard-chickens|4dfd7c764900e093a67beb87c7d46a5d": {
+   "heat": 3,
+   "input_chars": 1407,
+   "input_tokens": 988,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "backyard-chickens|5a95f590e2167a833918447c621a9c4a": {
+   "heat": 1,
+   "input_chars": 1156,
+   "input_tokens": 947,
+   "question_version": "8e07cba2cec4",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "backyard-chickens|5ad4f306f0631e6e497233b485fb80ec": {
+   "heat": 4,
+   "input_chars": 1251,
+   "input_tokens": 955,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.04,
+    "no_position": 0.04,
+    "off_topic": 0.92
+   }
+  },
+  "backyard-chickens|5f0764cf4b4d0b65305db611082a7f24": {
+   "heat": 4,
+   "input_chars": 917,
+   "input_tokens": 900,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.03,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.94
+   }
+  },
+  "backyard-chickens|6caed00ab61142bfc2a121f9a15bdf1b": {
+   "heat": 3,
+   "input_chars": 1403,
+   "input_tokens": 982,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.79,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.17,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.79
+   }
+  },
+  "backyard-chickens|79c9c65d5e078e15b67ad20445251b79": {
+   "heat": 1,
+   "input_chars": 1220,
+   "input_tokens": 960,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|79d8a103df42d290076c83016d2f3cba": {
+   "heat": 1,
+   "input_chars": 1022,
+   "input_tokens": 911,
+   "question_version": "8e07cba2cec4",
+   "side": "for",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.84,
+    "no_position": 0.01,
+    "off_topic": 0.15
+   }
+  },
+  "backyard-chickens|805763fa6cc3b9ae8efdf8cf8a2fe299": {
+   "heat": 1,
+   "input_chars": 1454,
+   "input_tokens": 1060,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.95,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.02,
+    "no_position": 0.03,
+    "off_topic": 0.95
+   }
+  },
+  "backyard-chickens|85442b62d61d82ec899a55b60e3d5a52": {
+   "heat": 4,
+   "input_chars": 946,
+   "input_tokens": 916,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.65,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.0,
+    "for": 0.31,
+    "no_position": 0.01,
+    "off_topic": 0.65
+   }
+  },
+  "backyard-chickens|860474b6e82ccca87a4f1537beef1a7b": {
+   "heat": 4,
+   "input_chars": 1673,
+   "input_tokens": 1049,
+   "question_version": "8e07cba2cec4",
+   "side": "for",
+   "side_confidence": 0.34,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.17,
+    "for": 0.34,
+    "no_position": 0.28,
+    "off_topic": 0.2
+   }
+  },
+  "backyard-chickens|8c982a5dec52d32edf3f4a6b2351f300": {
+   "heat": 2,
+   "input_chars": 1403,
+   "input_tokens": 1003,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.03,
+    "off_topic": 0.96
+   }
+  },
+  "backyard-chickens|8d50f9bc932f2c00ca1190a6200112ce": {
+   "heat": 4,
+   "input_chars": 1401,
+   "input_tokens": 998,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "backyard-chickens|9296a6352a67b3bb1df2c82d17f04ae7": {
+   "heat": 4,
+   "input_chars": 1395,
+   "input_tokens": 1017,
+   "question_version": "8e07cba2cec4",
+   "side": "against",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.74,
+    "concerns_only": 0.2,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.04
+   }
+  },
+  "backyard-chickens|9503c2542b715ed25f5003360bac858d": {
+   "heat": 1,
+   "input_chars": 1649,
+   "input_tokens": 1062,
+   "question_version": "8e07cba2cec4",
+   "side": "no_position",
+   "side_confidence": 0.69,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.13,
+    "for": 0.09,
+    "no_position": 0.69,
+    "off_topic": 0.05
+   }
+  },
+  "backyard-chickens|964c3314f567fd325788df18ffa9c018": {
+   "heat": 1,
+   "input_chars": 1268,
+   "input_tokens": 973,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.39,
+    "no_position": 0.1,
+    "off_topic": 0.49
+   }
+  },
+  "backyard-chickens|9da389896f2fe5062c5f2ac64b48b137": {
+   "heat": 2,
+   "input_chars": 1601,
+   "input_tokens": 1031,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|9f2f3e372c6f4f08b2c435f72bbf29d7": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 976,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.02,
+    "for": 0.02,
+    "no_position": 0.0,
+    "off_topic": 0.93
+   }
+  },
+  "backyard-chickens|a801af391fe43b7f8db61ba61b821fb5": {
+   "heat": 1,
+   "input_chars": 1406,
+   "input_tokens": 1025,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|af761162e44df06bd3a1faabcb3e71ae": {
+   "heat": 4,
+   "input_chars": 869,
+   "input_tokens": 901,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.14,
+    "no_position": 0.02,
+    "off_topic": 0.82
+   }
+  },
+  "backyard-chickens|b459e44d8c3afa474e16c41249bdf11f": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 1002,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.05,
+    "off_topic": 0.94
+   }
+  },
+  "backyard-chickens|beafc05861f3debf4ba55e4e34400947": {
+   "heat": 2,
+   "input_chars": 1149,
+   "input_tokens": 956,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|d095b516c928c179e97a86f453cc8898": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 1018,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.39,
+   "side_probabilities": {
+    "against": 0.27,
+    "concerns_only": 0.03,
+    "for": 0.29,
+    "no_position": 0.02,
+    "off_topic": 0.39
+   }
+  },
+  "backyard-chickens|dc6265feb3c1c34ab9b4e7648dcc3de2": {
+   "heat": 3,
+   "input_chars": 1450,
+   "input_tokens": 1009,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "backyard-chickens|e2405eb79c41d2f7b896dfad9e95c7a6": {
+   "heat": 3,
+   "input_chars": 1505,
+   "input_tokens": 1007,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.96
+   }
+  },
+  "backyard-chickens|e390486b7fd6ff46db14940050ddece1": {
+   "heat": 4,
+   "input_chars": 1635,
+   "input_tokens": 1061,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.62,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.37,
+    "no_position": 0.01,
+    "off_topic": 0.62
+   }
+  },
+  "backyard-chickens|e6499f2d4bda1b95211ef6c088c316a8": {
+   "heat": 3,
+   "input_chars": 1400,
+   "input_tokens": 1006,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.0,
+    "for": 0.02,
+    "no_position": 0.01,
+    "off_topic": 0.92
+   }
+  },
+  "backyard-chickens|ef915def3b6d5f4adf52eca9a5a7b2f3": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 1022,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.96
+   }
+  },
+  "backyard-chickens|f149506aeb4d2d093b06b9dd25242f40": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 994,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "backyard-chickens|f1ab39e581293787b80fd3cfe7d5a692": {
+   "heat": 4,
+   "input_chars": 1264,
+   "input_tokens": 958,
+   "question_version": "8e07cba2cec4",
+   "side": "concerns_only",
+   "side_confidence": 0.48,
+   "side_probabilities": {
+    "against": 0.28,
+    "concerns_only": 0.48,
+    "for": 0.06,
+    "no_position": 0.03,
+    "off_topic": 0.15
+   }
+  },
+  "backyard-chickens|f36902760f70fd0dd5167b8c31d7e3ca": {
+   "heat": 2,
+   "input_chars": 1018,
+   "input_tokens": 943,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.02,
+    "off_topic": 0.97
+   }
+  },
+  "backyard-chickens|f6d82f239514a17b0b72cf48cac10ddc": {
+   "heat": 4,
+   "input_chars": 1519,
+   "input_tokens": 1059,
+   "question_version": "8e07cba2cec4",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "backyard-chickens|fa4b8b4b1e79e67f42c73e1c4d950769": {
+   "heat": 1,
+   "input_chars": 1410,
+   "input_tokens": 984,
+   "question_version": "8e07cba2cec4",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "battery-storage|04e90a38f237284105b686b4e4ec71fa": {
+   "heat": 3,
+   "input_chars": 1403,
+   "input_tokens": 1014,
+   "question_version": "4cd0b9054486",
+   "side": "for",
+   "side_confidence": 0.85,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.11,
+    "for": 0.85,
+    "no_position": 0.01,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|11f71484e96fe6dcc67fc01e66557357": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1051,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|1b1bcd8832c55c1f281d4df595c2afab": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 1038,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|213153cd681ac495e565e68ed79d33dc": {
+   "heat": 1,
+   "input_chars": 893,
+   "input_tokens": 936,
+   "question_version": "4cd0b9054486",
+   "side": "no_position",
+   "side_confidence": 0.38,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.04,
+    "for": 0.21,
+    "no_position": 0.38,
+    "off_topic": 0.36
+   }
+  },
+  "battery-storage|24ff565a54b4125880675cd3d1b000b2": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 1009,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.06,
+    "no_position": 0.1,
+    "off_topic": 0.84
+   }
+  },
+  "battery-storage|2ce1ac65364c59c92bca77f73aa05b58": {
+   "heat": 1,
+   "input_chars": 1159,
+   "input_tokens": 953,
+   "question_version": "4cd0b9054486",
+   "side": "no_position",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.09,
+    "for": 0.0,
+    "no_position": 0.49,
+    "off_topic": 0.41
+   }
+  },
+  "battery-storage|3401bf64f9304731c247fe0d6fe28907": {
+   "heat": 2,
+   "input_chars": 1541,
+   "input_tokens": 1037,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 0.43,
+   "side_probabilities": {
+    "against": 0.43,
+    "concerns_only": 0.22,
+    "for": 0.01,
+    "no_position": 0.18,
+    "off_topic": 0.16
+   }
+  },
+  "battery-storage|39cfac0ba54182de27899b35189ca013": {
+   "heat": 4,
+   "input_chars": 1337,
+   "input_tokens": 988,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.02,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.94
+   }
+  },
+  "battery-storage|40f45cf8db24963b2d3c541772cbff55": {
+   "heat": 3,
+   "input_chars": 1402,
+   "input_tokens": 1006,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "battery-storage|461f89c0d8354cd6d7ee9fc7293d0f67": {
+   "heat": 2,
+   "input_chars": 995,
+   "input_tokens": 911,
+   "question_version": "4cd0b9054486",
+   "side": "concerns_only",
+   "side_confidence": 0.54,
+   "side_probabilities": {
+    "against": 0.46,
+    "concerns_only": 0.54,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|4c72a7eb527d9c76a3744905aaf0a7c7": {
+   "heat": 3,
+   "input_chars": 1418,
+   "input_tokens": 1028,
+   "question_version": "4cd0b9054486",
+   "side": "for",
+   "side_confidence": 0.7,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.7,
+    "no_position": 0.26,
+    "off_topic": 0.04
+   }
+  },
+  "battery-storage|4f6b06fc4ea3cb78b2e9673bff14bb53": {
+   "heat": 2,
+   "input_chars": 1408,
+   "input_tokens": 1011,
+   "question_version": "4cd0b9054486",
+   "side": "for",
+   "side_confidence": 0.57,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.03,
+    "for": 0.57,
+    "no_position": 0.09,
+    "off_topic": 0.3
+   }
+  },
+  "battery-storage|50dd599d590ee862311469b1a0e6f1e3": {
+   "heat": 4,
+   "input_chars": 1666,
+   "input_tokens": 1085,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|54b370b7d772bbaf5a602bdc9a9c38c5": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 983,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|596af021a7068cb515ab02caa583b044": {
+   "heat": 3,
+   "input_chars": 1175,
+   "input_tokens": 978,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.97,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "battery-storage|5b35eea42f8508f2b15e788c9d095a4e": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 992,
+   "question_version": "4cd0b9054486",
+   "side": "concerns_only",
+   "side_confidence": 0.57,
+   "side_probabilities": {
+    "against": 0.18,
+    "concerns_only": 0.57,
+    "for": 0.01,
+    "no_position": 0.05,
+    "off_topic": 0.19
+   }
+  },
+  "battery-storage|5d99833cc61b10c9b77258e073078b80": {
+   "heat": 4,
+   "input_chars": 953,
+   "input_tokens": 1011,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.97
+   }
+  },
+  "battery-storage|674f76c24481274c945d19be0b4109fa": {
+   "heat": 4,
+   "input_chars": 1313,
+   "input_tokens": 998,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|6e3d938ab6ecc67590a378bb277c7302": {
+   "heat": 4,
+   "input_chars": 994,
+   "input_tokens": 941,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|7aa39e9482c281cbed5739f400d94fe7": {
+   "heat": 2,
+   "input_chars": 1278,
+   "input_tokens": 972,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.95,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.04,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.95
+   }
+  },
+  "battery-storage|7bb0e4ba9705b62b7401cd378750af19": {
+   "heat": 1,
+   "input_chars": 1511,
+   "input_tokens": 1014,
+   "question_version": "4cd0b9054486",
+   "side": "no_position",
+   "side_confidence": 0.78,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.2,
+    "no_position": 0.78,
+    "off_topic": 0.02
+   }
+  },
+  "battery-storage|9c0d0b8206512e437ed5978c2691050e": {
+   "heat": 1,
+   "input_chars": 1408,
+   "input_tokens": 978,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.72,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.12,
+    "no_position": 0.16,
+    "off_topic": 0.72
+   }
+  },
+  "battery-storage|a5e83a615c21f6c7baedfbda666eb31e": {
+   "heat": 1,
+   "input_chars": 1407,
+   "input_tokens": 995,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "battery-storage|a8efae0259bd1a7059c402cb20f2df05": {
+   "heat": 1,
+   "input_chars": 1409,
+   "input_tokens": 986,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.03,
+    "no_position": 0.04,
+    "off_topic": 0.93
+   }
+  },
+  "battery-storage|a8f112660923f5e4fe733ca60513b905": {
+   "heat": 2,
+   "input_chars": 1417,
+   "input_tokens": 1012,
+   "question_version": "4cd0b9054486",
+   "side": "for",
+   "side_confidence": 0.71,
+   "side_probabilities": {
+    "against": 0.07,
+    "concerns_only": 0.18,
+    "for": 0.71,
+    "no_position": 0.04,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|b19744293e8036944cbc78afe5caf787": {
+   "heat": 4,
+   "input_chars": 1408,
+   "input_tokens": 998,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.99,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|bef92bf8410295f98ae96659cbac498c": {
+   "heat": 4,
+   "input_chars": 781,
+   "input_tokens": 875,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.98
+   }
+  },
+  "battery-storage|c89c5c703528738d8962bf15997246c1": {
+   "heat": 4,
+   "input_chars": 1438,
+   "input_tokens": 1058,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 0.83,
+   "side_probabilities": {
+    "against": 0.83,
+    "concerns_only": 0.16,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|cd37175c6aaac5e7082b48d913525822": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 1015,
+   "question_version": "4cd0b9054486",
+   "side": "for",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.12,
+    "for": 0.84,
+    "no_position": 0.01,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|d0a58653b1e2d43eaf27bcdbcc2f996b": {
+   "heat": 4,
+   "input_chars": 1083,
+   "input_tokens": 977,
+   "question_version": "4cd0b9054486",
+   "side": "concerns_only",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.18,
+    "concerns_only": 0.82,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|d3ff21afe966dc3decb72a1844e61704": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 1005,
+   "question_version": "4cd0b9054486",
+   "side": "for",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.82,
+    "no_position": 0.16,
+    "off_topic": 0.01
+   }
+  },
+  "battery-storage|dd9953cb08c3c15602acd379907bec59": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 992,
+   "question_version": "4cd0b9054486",
+   "side": "off_topic",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.91
+   }
+  },
+  "battery-storage|ddbef90ef535982f47ebfc3c176d7364": {
+   "heat": 1,
+   "input_chars": 1665,
+   "input_tokens": 1034,
+   "question_version": "4cd0b9054486",
+   "side": "no_position",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.06,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.91,
+    "off_topic": 0.01
+   }
+  },
+  "battery-storage|ee63b25809ca36d8936d4b154ff3cbb1": {
+   "heat": 2,
+   "input_chars": 1418,
+   "input_tokens": 1012,
+   "question_version": "4cd0b9054486",
+   "side": "for",
+   "side_confidence": 0.66,
+   "side_probabilities": {
+    "against": 0.07,
+    "concerns_only": 0.21,
+    "for": 0.66,
+    "no_position": 0.06,
+    "off_topic": 0.0
+   }
+  },
+  "battery-storage|f649ac0dac13818a090312afbaa9b483": {
+   "heat": 4,
+   "input_chars": 1482,
+   "input_tokens": 1050,
+   "question_version": "4cd0b9054486",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|02a0a525ac384e1b399d0c8205101c31": {
+   "heat": 4,
+   "input_chars": 1167,
+   "input_tokens": 944,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.39,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.09,
+    "for": 0.26,
+    "no_position": 0.25,
+    "off_topic": 0.39
+   }
+  },
+  "bike-lanes|039211a8fbe0a7eb02b11a357cbcc6d3": {
+   "heat": 4,
+   "input_chars": 977,
+   "input_tokens": 916,
+   "question_version": "d59af5e6534f",
+   "side": "against",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.99,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|11f86895be9ea0e22606fede3d1935e6": {
+   "heat": 4,
+   "input_chars": 1355,
+   "input_tokens": 981,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.43,
+   "side_probabilities": {
+    "against": 0.19,
+    "concerns_only": 0.36,
+    "for": 0.02,
+    "no_position": 0.0,
+    "off_topic": 0.43
+   }
+  },
+  "bike-lanes|27894e74da0818b14728574d4a48816e": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 991,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "bike-lanes|28673e14477619cdbe493920c9156752": {
+   "heat": 4,
+   "input_chars": 1409,
+   "input_tokens": 986,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|2a53605cf50957fae800314407b997d5": {
+   "heat": 2,
+   "input_chars": 1122,
+   "input_tokens": 921,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.53,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.13,
+    "for": 0.53,
+    "no_position": 0.19,
+    "off_topic": 0.15
+   }
+  },
+  "bike-lanes|2bd04f7358d4af662c1a0e05fcbc0e30": {
+   "heat": 3,
+   "input_chars": 1048,
+   "input_tokens": 939,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.06,
+    "concerns_only": 0.0,
+    "for": 0.94,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|3560060514118f191ffff5cc0bba0c79": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 977,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|4cfac4e1dd00599e3e9736e2a701827b": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 976,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.06,
+    "concerns_only": 0.02,
+    "for": 0.87,
+    "no_position": 0.0,
+    "off_topic": 0.05
+   }
+  },
+  "bike-lanes|4d66ec69a51977785b298002348642c9": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 1047,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.77,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.23,
+    "off_topic": 0.77
+   }
+  },
+  "bike-lanes|511f8726eb8c2859ae3b9917e1755b12": {
+   "heat": 4,
+   "input_chars": 1465,
+   "input_tokens": 1017,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|62c02cfb544e8e3f7bf7b675df594d89": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 1008,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.71,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.28,
+    "off_topic": 0.71
+   }
+  },
+  "bike-lanes|6a04aa9ff306f46b7b5b0830740727a4": {
+   "heat": 4,
+   "input_chars": 955,
+   "input_tokens": 915,
+   "question_version": "d59af5e6534f",
+   "side": "against",
+   "side_confidence": 0.47,
+   "side_probabilities": {
+    "against": 0.47,
+    "concerns_only": 0.22,
+    "for": 0.25,
+    "no_position": 0.02,
+    "off_topic": 0.04
+   }
+  },
+  "bike-lanes|6ad7af2e58c664ad55b3e7c16a60b6d0": {
+   "heat": 3,
+   "input_chars": 1221,
+   "input_tokens": 956,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|6cf9eb14418fc5708894bb3545a92c7b": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 959,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.87,
+    "no_position": 0.12,
+    "off_topic": 0.01
+   }
+  },
+  "bike-lanes|7055a3a1ae384f854c0d240ddd5d18d7": {
+   "heat": 3,
+   "input_chars": 1620,
+   "input_tokens": 1035,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.24,
+    "no_position": 0.0,
+    "off_topic": 0.74
+   }
+  },
+  "bike-lanes|725323806ca859ed5cd03805103e93b7": {
+   "heat": 4,
+   "input_chars": 656,
+   "input_tokens": 855,
+   "question_version": "d59af5e6534f",
+   "side": "concerns_only",
+   "side_confidence": 0.86,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.86,
+    "for": 0.05,
+    "no_position": 0.0,
+    "off_topic": 0.06
+   }
+  },
+  "bike-lanes|7b0268a95976c0a584e5cad05e404cc7": {
+   "heat": 4,
+   "input_chars": 1083,
+   "input_tokens": 913,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.67,
+   "side_probabilities": {
+    "against": 0.25,
+    "concerns_only": 0.06,
+    "for": 0.67,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "bike-lanes|7f04336bf5eb9cd1f834375c9f5d1a0c": {
+   "heat": 4,
+   "input_chars": 1018,
+   "input_tokens": 930,
+   "question_version": "d59af5e6534f",
+   "side": "against",
+   "side_confidence": 0.79,
+   "side_probabilities": {
+    "against": 0.79,
+    "concerns_only": 0.08,
+    "for": 0.01,
+    "no_position": 0.06,
+    "off_topic": 0.06
+   }
+  },
+  "bike-lanes|81ddc73d69101d4bd39dbbdf4583c24f": {
+   "heat": 3,
+   "input_chars": 1402,
+   "input_tokens": 966,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.97,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|84a38f77dbf1543fcf039714663b1d67": {
+   "heat": 4,
+   "input_chars": 1461,
+   "input_tokens": 992,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.41,
+    "for": 0.49,
+    "no_position": 0.01,
+    "off_topic": 0.05
+   }
+  },
+  "bike-lanes|850680509a07cbe04343c29a3ebce9ba": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 969,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.99,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "bike-lanes|874b7befa4c1a75ecbc9358339c4a82f": {
+   "heat": 4,
+   "input_chars": 979,
+   "input_tokens": 928,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|88d62a6f2dc3dbb0c1e8ce86e81e453d": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 982,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.01,
+    "for": 0.02,
+    "no_position": 0.01,
+    "off_topic": 0.91
+   }
+  },
+  "bike-lanes|8d9acc27e832ba00111cf06b1e0e4247": {
+   "heat": 1,
+   "input_chars": 861,
+   "input_tokens": 884,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.9,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.9,
+    "no_position": 0.01,
+    "off_topic": 0.09
+   }
+  },
+  "bike-lanes|8dff00274dad15687f01e57a2174588f": {
+   "heat": 1,
+   "input_chars": 1365,
+   "input_tokens": 986,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.03,
+    "for": 0.11,
+    "no_position": 0.28,
+    "off_topic": 0.58
+   }
+  },
+  "bike-lanes|97ab98270bc36156a5b7e00a6f3adb92": {
+   "heat": 4,
+   "input_chars": 1401,
+   "input_tokens": 988,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.03,
+    "for": 0.96,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|9c63c26b6f0901fc9457c9befb531d94": {
+   "heat": 4,
+   "input_chars": 1010,
+   "input_tokens": 921,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|9d8c31023262bf7594e24e0082cdb0a5": {
+   "heat": 3,
+   "input_chars": 1122,
+   "input_tokens": 924,
+   "question_version": "d59af5e6534f",
+   "side": "concerns_only",
+   "side_confidence": 0.34,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.34,
+    "for": 0.15,
+    "no_position": 0.17,
+    "off_topic": 0.32
+   }
+  },
+  "bike-lanes|a34e3fd601c3930375d1331f7898fb26": {
+   "heat": 4,
+   "input_chars": 1373,
+   "input_tokens": 957,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.87,
+    "no_position": 0.07,
+    "off_topic": 0.05
+   }
+  },
+  "bike-lanes|ab46942bb64875c97d89bd447408afe3": {
+   "heat": 4,
+   "input_chars": 1112,
+   "input_tokens": 949,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.22,
+    "concerns_only": 0.26,
+    "for": 0.52,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|af42f8092f69793cb6c6512cccbda66e": {
+   "heat": 3,
+   "input_chars": 722,
+   "input_tokens": 852,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.06,
+    "for": 0.93,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "bike-lanes|cc0793b5807f7db7126c8333652a99bd": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 979,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.02,
+    "no_position": 0.01,
+    "off_topic": 0.94
+   }
+  },
+  "bike-lanes|d1c6825c88e8d7b31ac0e43a0364a76a": {
+   "heat": 3,
+   "input_chars": 1387,
+   "input_tokens": 1019,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.01,
+    "for": 0.96,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|d2a918de91ee66e436ba099c179bfd7a": {
+   "heat": 4,
+   "input_chars": 1401,
+   "input_tokens": 967,
+   "question_version": "d59af5e6534f",
+   "side": "concerns_only",
+   "side_confidence": 0.47,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.47,
+    "for": 0.08,
+    "no_position": 0.03,
+    "off_topic": 0.39
+   }
+  },
+  "bike-lanes|d7d0da738530c83b214fd255512e11e9": {
+   "heat": 4,
+   "input_chars": 1412,
+   "input_tokens": 1009,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|dcad345a05168922a419271950dc2f12": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 999,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.91,
+    "no_position": 0.0,
+    "off_topic": 0.09
+   }
+  },
+  "bike-lanes|ddf9cce56252679e0544da61f767dc69": {
+   "heat": 4,
+   "input_chars": 1257,
+   "input_tokens": 975,
+   "question_version": "d59af5e6534f",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "bike-lanes|e3970e5e4329c388ad22eda1c0c6a5eb": {
+   "heat": 2,
+   "input_chars": 1402,
+   "input_tokens": 978,
+   "question_version": "d59af5e6534f",
+   "side": "for",
+   "side_confidence": 0.45,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.12,
+    "for": 0.45,
+    "no_position": 0.05,
+    "off_topic": 0.38
+   }
+  },
+  "bike-lanes|e429ffa8081d171ca778beb73e2a16ed": {
+   "heat": 4,
+   "input_chars": 1338,
+   "input_tokens": 954,
+   "question_version": "d59af5e6534f",
+   "side": "off_topic",
+   "side_confidence": 0.65,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.06,
+    "for": 0.06,
+    "no_position": 0.2,
+    "off_topic": 0.65
+   }
+  },
+  "gas-stations|03748db91e1c01c406c28a31742289d9": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1051,
+   "question_version": "7921e9f64e09",
+   "side": "no_position",
+   "side_confidence": 0.37,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.14,
+    "for": 0.14,
+    "no_position": 0.37,
+    "off_topic": 0.32
+   }
+  },
+  "gas-stations|1e7eea950cca300fb87f7969171a6787": {
+   "heat": 2,
+   "input_chars": 1651,
+   "input_tokens": 1112,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.67,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.26,
+    "for": 0.01,
+    "no_position": 0.06,
+    "off_topic": 0.67
+   }
+  },
+  "gas-stations|2204482ddeb7c3cb41ad2246024f4d8d": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 1074,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.06,
+    "off_topic": 0.94
+   }
+  },
+  "gas-stations|24c652947d8ebb46f3855d6ab19bf420": {
+   "heat": 3,
+   "input_chars": 1163,
+   "input_tokens": 1013,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.03,
+    "no_position": 0.03,
+    "off_topic": 0.91
+   }
+  },
+  "gas-stations|2a2837ec201d369ff0335b99ae6fa98d": {
+   "heat": 1,
+   "input_chars": 1638,
+   "input_tokens": 1077,
+   "question_version": "7921e9f64e09",
+   "side": "no_position",
+   "side_confidence": 0.77,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.21,
+    "no_position": 0.77,
+    "off_topic": 0.02
+   }
+  },
+  "gas-stations|2a90d647b34f66b507a353700dd00df5": {
+   "heat": 2,
+   "input_chars": 1408,
+   "input_tokens": 1067,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.45,
+   "side_probabilities": {
+    "against": 0.18,
+    "concerns_only": 0.28,
+    "for": 0.07,
+    "no_position": 0.02,
+    "off_topic": 0.45
+   }
+  },
+  "gas-stations|2e3dbd315989c993ae080cdad69cce2d": {
+   "heat": 4,
+   "input_chars": 1191,
+   "input_tokens": 1042,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.98,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "gas-stations|366bbf75bf04943e099f010350cff5ad": {
+   "heat": 2,
+   "input_chars": 339,
+   "input_tokens": 841,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.7,
+   "side_probabilities": {
+    "against": 0.7,
+    "concerns_only": 0.09,
+    "for": 0.02,
+    "no_position": 0.07,
+    "off_topic": 0.12
+   }
+  },
+  "gas-stations|38b456ff6725576c0aeda8eb87e33ec3": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 1041,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.98
+   }
+  },
+  "gas-stations|3c2102ccc01741f33e80d0b0f4d24e52": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 1046,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.58,
+    "concerns_only": 0.07,
+    "for": 0.13,
+    "no_position": 0.03,
+    "off_topic": 0.19
+   }
+  },
+  "gas-stations|421171ef5e68efaae0695ef92a19a4da": {
+   "heat": 3,
+   "input_chars": 1410,
+   "input_tokens": 1007,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "gas-stations|4417b63b16eb0c0054645df0d2dfd521": {
+   "heat": 4,
+   "input_chars": 1523,
+   "input_tokens": 1099,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.95,
+   "side_probabilities": {
+    "against": 0.95,
+    "concerns_only": 0.05,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "gas-stations|44712092197dad002522b222a3fca55a": {
+   "heat": 3,
+   "input_chars": 1403,
+   "input_tokens": 1038,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.96
+   }
+  },
+  "gas-stations|4ee784e3e937b51c7ec16e28328deca4": {
+   "heat": 3,
+   "input_chars": 1409,
+   "input_tokens": 998,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "gas-stations|54135462f64e4b84889b8bfc10062da6": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 1050,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.04,
+    "off_topic": 0.96
+   }
+  },
+  "gas-stations|5606270908002f380ba0abd9a5d906a8": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 1093,
+   "question_version": "7921e9f64e09",
+   "side": "for",
+   "side_confidence": 0.55,
+   "side_probabilities": {
+    "against": 0.07,
+    "concerns_only": 0.17,
+    "for": 0.55,
+    "no_position": 0.07,
+    "off_topic": 0.14
+   }
+  },
+  "gas-stations|5dd37461e4417ef8c51c3f822a02aaca": {
+   "heat": 2,
+   "input_chars": 1409,
+   "input_tokens": 1081,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.97
+   }
+  },
+  "gas-stations|639b9976f4f0c0d1628c3c0e31733510": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1077,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.94
+   }
+  },
+  "gas-stations|666e81270c0dfd6938fa77c9f31bc372": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1072,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "gas-stations|6cf4198e9536db805ca4aeeb619f1a5f": {
+   "heat": 2,
+   "input_chars": 1378,
+   "input_tokens": 1070,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.98
+   }
+  },
+  "gas-stations|6d41d9e625028ea48345b292769937b0": {
+   "heat": 4,
+   "input_chars": 1406,
+   "input_tokens": 1092,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "gas-stations|6d8edd64ab511677788a9cbdad4735e7": {
+   "heat": 3,
+   "input_chars": 1426,
+   "input_tokens": 1069,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.84,
+    "concerns_only": 0.05,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.1
+   }
+  },
+  "gas-stations|764bfd7e6c2a7936e6249269bdc7876c": {
+   "heat": 3,
+   "input_chars": 1409,
+   "input_tokens": 1060,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "gas-stations|82a67e160b150c114f988aeb0d8a39ec": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 1029,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.08,
+    "off_topic": 0.92
+   }
+  },
+  "gas-stations|8408faaee22b46ecd67047b98572d991": {
+   "heat": 4,
+   "input_chars": 1555,
+   "input_tokens": 1127,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.97
+   }
+  },
+  "gas-stations|85a662eb330075a8ced4a602c7294b86": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1036,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.92,
+    "concerns_only": 0.05,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.03
+   }
+  },
+  "gas-stations|860474b6e82ccca87a4f1537beef1a7b": {
+   "heat": 4,
+   "input_chars": 1410,
+   "input_tokens": 1068,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "gas-stations|8e65ac2cb588aaceeaae352898a61bf5": {
+   "heat": 3,
+   "input_chars": 1701,
+   "input_tokens": 1144,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.08,
+    "no_position": 0.05,
+    "off_topic": 0.84
+   }
+  },
+  "gas-stations|924398d91716383d214585b5ff4a33a3": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 1057,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.06,
+    "off_topic": 0.94
+   }
+  },
+  "gas-stations|990e9478063569a18770bc0cebf1a6ab": {
+   "heat": 2,
+   "input_chars": 1745,
+   "input_tokens": 1148,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.68,
+   "side_probabilities": {
+    "against": 0.1,
+    "concerns_only": 0.19,
+    "for": 0.01,
+    "no_position": 0.02,
+    "off_topic": 0.68
+   }
+  },
+  "gas-stations|999dacdcfb76aa930b6d92d0b66e46fa": {
+   "heat": 1,
+   "input_chars": 1383,
+   "input_tokens": 1035,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.04,
+    "off_topic": 0.94
+   }
+  },
+  "gas-stations|9c5f49fa21e393a420e04ffd60a8fc08": {
+   "heat": 2,
+   "input_chars": 1641,
+   "input_tokens": 1109,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.54,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.07,
+    "for": 0.09,
+    "no_position": 0.28,
+    "off_topic": 0.54
+   }
+  },
+  "gas-stations|9f1428946f9cd4c43bb173a24a4c7419": {
+   "heat": 3,
+   "input_chars": 1362,
+   "input_tokens": 1055,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.7,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.22,
+    "no_position": 0.05,
+    "off_topic": 0.7
+   }
+  },
+  "gas-stations|a18bd9630dccf0caa657c50f1e5999ab": {
+   "heat": 1,
+   "input_chars": 1400,
+   "input_tokens": 1052,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.03,
+    "off_topic": 0.97
+   }
+  },
+  "gas-stations|a2f223c670efeae4542deea14378d65c": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 1049,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.59,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.32,
+    "for": 0.04,
+    "no_position": 0.01,
+    "off_topic": 0.59
+   }
+  },
+  "gas-stations|ab8e1c7c90e847446d05425a134b2e5a": {
+   "heat": 4,
+   "input_chars": 1333,
+   "input_tokens": 1086,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.95,
+   "side_probabilities": {
+    "against": 0.95,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.03
+   }
+  },
+  "gas-stations|b459e44d8c3afa474e16c41249bdf11f": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 1068,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.9,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.1,
+    "off_topic": 0.9
+   }
+  },
+  "gas-stations|b617e1010fa2b91ed0208bf9665d7155": {
+   "heat": 2,
+   "input_chars": 1403,
+   "input_tokens": 1043,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.98
+   }
+  },
+  "gas-stations|b7debd43a096d30ce5b350bd22ae3229": {
+   "heat": 4,
+   "input_chars": 1065,
+   "input_tokens": 987,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.98,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.02
+   }
+  },
+  "gas-stations|c42dfc96b7277a0c1961388dfb576594": {
+   "heat": 1,
+   "input_chars": 1408,
+   "input_tokens": 1042,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.06,
+    "off_topic": 0.94
+   }
+  },
+  "gas-stations|c95e0e553e1b0cce068c8d69ea0ddbe5": {
+   "heat": 1,
+   "input_chars": 1406,
+   "input_tokens": 1040,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.98
+   }
+  },
+  "gas-stations|ca0ccfc1807a0059657f7cc4cf27b6df": {
+   "heat": 4,
+   "input_chars": 1309,
+   "input_tokens": 1068,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.96,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.04
+   }
+  },
+  "gas-stations|d241bb39981dcbd876c021bffe1a9a62": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 1004,
+   "question_version": "7921e9f64e09",
+   "side": "against",
+   "side_confidence": 0.9,
+   "side_probabilities": {
+    "against": 0.9,
+    "concerns_only": 0.05,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.05
+   }
+  },
+  "gas-stations|e2407149b30cc965deef58a4f54b1411": {
+   "heat": 3,
+   "input_chars": 1403,
+   "input_tokens": 1014,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.35,
+    "concerns_only": 0.07,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.58
+   }
+  },
+  "gas-stations|ec927179182ed9bec5944942772e81f0": {
+   "heat": 3,
+   "input_chars": 1403,
+   "input_tokens": 1084,
+   "question_version": "7921e9f64e09",
+   "side": "for",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.07,
+    "concerns_only": 0.09,
+    "for": 0.81,
+    "no_position": 0.02,
+    "off_topic": 0.01
+   }
+  },
+  "gas-stations|f86a5c92a678d597b013dbf94516f4e0": {
+   "heat": 2,
+   "input_chars": 1414,
+   "input_tokens": 1061,
+   "question_version": "7921e9f64e09",
+   "side": "for",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.06,
+    "concerns_only": 0.01,
+    "for": 0.58,
+    "no_position": 0.04,
+    "off_topic": 0.31
+   }
+  },
+  "gas-stations|faf3e4c6dd1ee8db490a861afd8691e8": {
+   "heat": 3,
+   "input_chars": 1498,
+   "input_tokens": 1083,
+   "question_version": "7921e9f64e09",
+   "side": "concerns_only",
+   "side_confidence": 0.61,
+   "side_probabilities": {
+    "against": 0.21,
+    "concerns_only": 0.61,
+    "for": 0.02,
+    "no_position": 0.08,
+    "off_topic": 0.08
+   }
+  },
+  "gas-stations|fb682c0f7f243ca2f6e3ce0e10c8d881": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 1076,
+   "question_version": "7921e9f64e09",
+   "side": "for",
+   "side_confidence": 0.72,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.72,
+    "no_position": 0.08,
+    "off_topic": 0.17
+   }
+  },
+  "gas-stations|fb8635d63ae0ab34f9c47479d7063781": {
+   "heat": 4,
+   "input_chars": 1410,
+   "input_tokens": 1045,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.97
+   }
+  },
+  "gas-stations|fc6e1fbfc259c8ee2fe0968adaa399c4": {
+   "heat": 2,
+   "input_chars": 1291,
+   "input_tokens": 1143,
+   "question_version": "7921e9f64e09",
+   "side": "off_topic",
+   "side_confidence": 0.34,
+   "side_probabilities": {
+    "against": 0.32,
+    "concerns_only": 0.01,
+    "for": 0.29,
+    "no_position": 0.04,
+    "off_topic": 0.34
+   }
+  },
+  "homeless-encampments|03e11eb432929df5c98231e04c97746e": {
+   "heat": 4,
+   "input_chars": 1400,
+   "input_tokens": 1199,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.93
+   }
+  },
+  "homeless-encampments|0aebf16fc6bc4c9c9f193e52a8d2ae5a": {
+   "heat": 1,
+   "input_chars": 1410,
+   "input_tokens": 1021,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "homeless-encampments|152b1e7ecad92ad7968028b6a3d95b87": {
+   "heat": 4,
+   "input_chars": 940,
+   "input_tokens": 1017,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.62,
+   "side_probabilities": {
+    "against": 0.62,
+    "concerns_only": 0.07,
+    "for": 0.04,
+    "no_position": 0.04,
+    "off_topic": 0.23
+   }
+  },
+  "homeless-encampments|1b00a6c23a5d4c05c7a8c4d8151b7f20": {
+   "heat": 4,
+   "input_chars": 1401,
+   "input_tokens": 1023,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.63,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.15,
+    "for": 0.12,
+    "no_position": 0.09,
+    "off_topic": 0.63
+   }
+  },
+  "homeless-encampments|1da87086082f83b273d66d0981d09639": {
+   "heat": 4,
+   "input_chars": 1250,
+   "input_tokens": 1030,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|20dff8c52617fe6e224c23fea09ec96a": {
+   "heat": 3,
+   "input_chars": 1403,
+   "input_tokens": 1041,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.43,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.29,
+    "for": 0.24,
+    "no_position": 0.03,
+    "off_topic": 0.43
+   }
+  },
+  "homeless-encampments|284c109f91295baf492c784d087bd3c1": {
+   "heat": 3,
+   "input_chars": 1337,
+   "input_tokens": 1036,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.12,
+    "for": 0.04,
+    "no_position": 0.02,
+    "off_topic": 0.81
+   }
+  },
+  "homeless-encampments|2d4f67815a12af687d0e03664eaba0fc": {
+   "heat": 4,
+   "input_chars": 1408,
+   "input_tokens": 1032,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.76,
+   "side_probabilities": {
+    "against": 0.76,
+    "concerns_only": 0.07,
+    "for": 0.02,
+    "no_position": 0.0,
+    "off_topic": 0.15
+   }
+  },
+  "homeless-encampments|2da84b2360c9144b375d7b3f4cc71423": {
+   "heat": 2,
+   "input_chars": 1403,
+   "input_tokens": 1069,
+   "question_version": "f475e5b73573",
+   "side": "concerns_only",
+   "side_confidence": 0.79,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.79,
+    "for": 0.05,
+    "no_position": 0.02,
+    "off_topic": 0.14
+   }
+  },
+  "homeless-encampments|3008db641bf2224a57c22c3bcaa0d300": {
+   "heat": 5,
+   "input_chars": 1517,
+   "input_tokens": 1067,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.7,
+   "side_probabilities": {
+    "against": 0.19,
+    "concerns_only": 0.02,
+    "for": 0.7,
+    "no_position": 0.01,
+    "off_topic": 0.08
+   }
+  },
+  "homeless-encampments|426ea7bf7dba119884c12645f93dd7a0": {
+   "heat": 4,
+   "input_chars": 1735,
+   "input_tokens": 1100,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.3,
+   "side_probabilities": {
+    "against": 0.26,
+    "concerns_only": 0.27,
+    "for": 0.3,
+    "no_position": 0.01,
+    "off_topic": 0.16
+   }
+  },
+  "homeless-encampments|4558859fcbf3717651c7e7ad5965f901": {
+   "heat": 5,
+   "input_chars": 1582,
+   "input_tokens": 1233,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.88,
+    "concerns_only": 0.03,
+    "for": 0.03,
+    "no_position": 0.01,
+    "off_topic": 0.05
+   }
+  },
+  "homeless-encampments|530c454f7f48bc4d75b572dcacdf9c0c": {
+   "heat": 4,
+   "input_chars": 998,
+   "input_tokens": 1065,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.85,
+   "side_probabilities": {
+    "against": 0.85,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.15
+   }
+  },
+  "homeless-encampments|5d7f40760b15ac655cc67c5d2531e65f": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 1037,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.84,
+    "concerns_only": 0.14,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|6066c189a2e095cbb0e30711a1db5df9": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 1036,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.81,
+    "concerns_only": 0.08,
+    "for": 0.02,
+    "no_position": 0.0,
+    "off_topic": 0.09
+   }
+  },
+  "homeless-encampments|6468d125a714db78480a1c8ffc06b7ea": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 1043,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.08,
+    "for": 0.38,
+    "no_position": 0.02,
+    "off_topic": 0.51
+   }
+  },
+  "homeless-encampments|647d4888da97878b5f36d53653d24d64": {
+   "heat": 4,
+   "input_chars": 920,
+   "input_tokens": 941,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|6801aa5cdf6b18271e4559b924d4e59f": {
+   "heat": 3,
+   "input_chars": 1514,
+   "input_tokens": 1060,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.48,
+   "side_probabilities": {
+    "against": 0.15,
+    "concerns_only": 0.26,
+    "for": 0.48,
+    "no_position": 0.09,
+    "off_topic": 0.02
+   }
+  },
+  "homeless-encampments|6ce65372263a8075e5f0c582b8956b90": {
+   "heat": 4,
+   "input_chars": 781,
+   "input_tokens": 921,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.47,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.31,
+    "for": 0.18,
+    "no_position": 0.01,
+    "off_topic": 0.47
+   }
+  },
+  "homeless-encampments|6daebda3b10db466017a0e1d02c57efc": {
+   "heat": 2,
+   "input_chars": 1402,
+   "input_tokens": 1048,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.97,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "homeless-encampments|71acfe33d3e8f9df7d1199c82d867e8c": {
+   "heat": 4,
+   "input_chars": 653,
+   "input_tokens": 968,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.98,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.02
+   }
+  },
+  "homeless-encampments|7800463d4fe2c12e8cd826ca51503202": {
+   "heat": 4,
+   "input_chars": 1716,
+   "input_tokens": 1098,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.18,
+    "for": 0.82,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|78e30ad555f1bf351eb59713282e1cf6": {
+   "heat": 3,
+   "input_chars": 1407,
+   "input_tokens": 1050,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.03,
+    "for": 0.92,
+    "no_position": 0.04,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|79c566a2e6c700553a3fb8351a28f621": {
+   "heat": 4,
+   "input_chars": 870,
+   "input_tokens": 946,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.53,
+   "side_probabilities": {
+    "against": 0.39,
+    "concerns_only": 0.05,
+    "for": 0.01,
+    "no_position": 0.02,
+    "off_topic": 0.53
+   }
+  },
+  "homeless-encampments|7c6046a69eb3383e759bc9d653966a02": {
+   "heat": 2,
+   "input_chars": 1408,
+   "input_tokens": 1042,
+   "question_version": "f475e5b73573",
+   "side": "concerns_only",
+   "side_confidence": 0.78,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.78,
+    "for": 0.1,
+    "no_position": 0.03,
+    "off_topic": 0.07
+   }
+  },
+  "homeless-encampments|7ce5682994b65342a0ddeb9603ee060a": {
+   "heat": 3,
+   "input_chars": 1034,
+   "input_tokens": 1065,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.99,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "homeless-encampments|7f9bcff1f34eafc48dcb57202f50ac81": {
+   "heat": 4,
+   "input_chars": 1099,
+   "input_tokens": 998,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|8023cebef58e49340f34181e78d45760": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 1038,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.13,
+    "for": 0.81,
+    "no_position": 0.03,
+    "off_topic": 0.02
+   }
+  },
+  "homeless-encampments|84de73f87d6f1d9d6b899f3e48b83058": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1019,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.63,
+   "side_probabilities": {
+    "against": 0.63,
+    "concerns_only": 0.26,
+    "for": 0.06,
+    "no_position": 0.01,
+    "off_topic": 0.04
+   }
+  },
+  "homeless-encampments|970f43a75828e58c4dbdf8642b4c2d20": {
+   "heat": 4,
+   "input_chars": 847,
+   "input_tokens": 952,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|9a3657c4f7c0ce911121a2e5eefae684": {
+   "heat": 3,
+   "input_chars": 1402,
+   "input_tokens": 1053,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.08,
+    "no_position": 0.02,
+    "off_topic": 0.88
+   }
+  },
+  "homeless-encampments|a53c3ddf46c60c8731bcf6972750dd9e": {
+   "heat": 5,
+   "input_chars": 1184,
+   "input_tokens": 1033,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.02,
+    "for": 0.12,
+    "no_position": 0.02,
+    "off_topic": 0.81
+   }
+  },
+  "homeless-encampments|a75610f04a94c79b3da0068ca16661ca": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 1040,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.99,
+    "no_position": 0.01,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|a9a270de3967a038b41fcd3eba25b237": {
+   "heat": 4,
+   "input_chars": 1759,
+   "input_tokens": 1124,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.69,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.25,
+    "for": 0.69,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "homeless-encampments|aedb8b2b2465b4f6fd07a70df0df0f1c": {
+   "heat": 3,
+   "input_chars": 1411,
+   "input_tokens": 1025,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.58,
+    "concerns_only": 0.0,
+    "for": 0.08,
+    "no_position": 0.0,
+    "off_topic": 0.34
+   }
+  },
+  "homeless-encampments|b9184b82b32c1e3ffee2ae01576a9c60": {
+   "heat": 3,
+   "input_chars": 1334,
+   "input_tokens": 1016,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.67,
+   "side_probabilities": {
+    "against": 0.09,
+    "concerns_only": 0.01,
+    "for": 0.67,
+    "no_position": 0.04,
+    "off_topic": 0.19
+   }
+  },
+  "homeless-encampments|b94df8a08d035e02c665d297a16cb873": {
+   "heat": 2,
+   "input_chars": 1411,
+   "input_tokens": 1034,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.54,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.02,
+    "for": 0.54,
+    "no_position": 0.24,
+    "off_topic": 0.18
+   }
+  },
+  "homeless-encampments|bc2fc5351f141fa4f398d053c5623ca4": {
+   "heat": 4,
+   "input_chars": 909,
+   "input_tokens": 1028,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|c244afa6aa73d447a82309af20217772": {
+   "heat": 3,
+   "input_chars": 1330,
+   "input_tokens": 1031,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "homeless-encampments|c41bafebff8730415137c00401bf5c18": {
+   "heat": 3,
+   "input_chars": 1408,
+   "input_tokens": 1030,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.03,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.94
+   }
+  },
+  "homeless-encampments|c456998e3db7d472663976a95916d5c8": {
+   "heat": 1,
+   "input_chars": 265,
+   "input_tokens": 816,
+   "question_version": "f475e5b73573",
+   "side": "concerns_only",
+   "side_confidence": 0.36,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.36,
+    "for": 0.35,
+    "no_position": 0.11,
+    "off_topic": 0.16
+   }
+  },
+  "homeless-encampments|c57ce7071641d2a29e85ee72019e9e61": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 1074,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.17,
+    "concerns_only": 0.05,
+    "for": 0.04,
+    "no_position": 0.01,
+    "off_topic": 0.73
+   }
+  },
+  "homeless-encampments|ceec20628863ba93af6d1109e86ed70d": {
+   "heat": 2,
+   "input_chars": 1411,
+   "input_tokens": 1035,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.55,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.08,
+    "for": 0.55,
+    "no_position": 0.28,
+    "off_topic": 0.08
+   }
+  },
+  "homeless-encampments|d6e98d2691aea3dd6f16555f1c7f76de": {
+   "heat": 1,
+   "input_chars": 1528,
+   "input_tokens": 1044,
+   "question_version": "f475e5b73573",
+   "side": "no_position",
+   "side_confidence": 0.67,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.02,
+    "no_position": 0.67,
+    "off_topic": 0.29
+   }
+  },
+  "homeless-encampments|e265e4375d2a2432a602868d11fc7542": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1047,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.76,
+   "side_probabilities": {
+    "against": 0.12,
+    "concerns_only": 0.09,
+    "for": 0.76,
+    "no_position": 0.01,
+    "off_topic": 0.02
+   }
+  },
+  "homeless-encampments|e4ad1fa7e72a7091b0d5b1114b453bdf": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 1036,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.04,
+    "for": 0.87,
+    "no_position": 0.07,
+    "off_topic": 0.01
+   }
+  },
+  "homeless-encampments|eb45607318db335112cc0399e0d6ab77": {
+   "heat": 4,
+   "input_chars": 473,
+   "input_tokens": 901,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.91,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.09
+   }
+  },
+  "homeless-encampments|ed0f64c788e51e1b9d66ba4b5cdf601d": {
+   "heat": 4,
+   "input_chars": 1454,
+   "input_tokens": 1082,
+   "question_version": "f475e5b73573",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "homeless-encampments|edb5ce37c1ffc7158cf151b45f3d88e8": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 1036,
+   "question_version": "f475e5b73573",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.02,
+    "no_position": 0.0,
+    "off_topic": 0.98
+   }
+  },
+  "homeless-encampments|fce83910ceeeada64bef7afa8fd89ba4": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 1051,
+   "question_version": "f475e5b73573",
+   "side": "for",
+   "side_confidence": 0.47,
+   "side_probabilities": {
+    "against": 0.26,
+    "concerns_only": 0.22,
+    "for": 0.47,
+    "no_position": 0.01,
+    "off_topic": 0.04
+   }
+  },
+  "missing-middle-housing|02e7ca9c876401bf258a125ef5b63fb0": {
+   "heat": 1,
+   "input_chars": 1401,
+   "input_tokens": 1077,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "missing-middle-housing|065b1e5df92ea584e8a865fbb5ae8642": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 1086,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.03,
+    "off_topic": 0.96
+   }
+  },
+  "missing-middle-housing|0c6b5cd9271d27d251ff3c7c5f4ed611": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 1061,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.05,
+    "for": 0.84,
+    "no_position": 0.08,
+    "off_topic": 0.01
+   }
+  },
+  "missing-middle-housing|14f479060f34948378f59d782041458f": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 1102,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.42,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.41,
+    "no_position": 0.16,
+    "off_topic": 0.42
+   }
+  },
+  "missing-middle-housing|157b05091ddee83a2cf5142e7097405f": {
+   "heat": 2,
+   "input_chars": 1408,
+   "input_tokens": 1114,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.86,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.86,
+    "no_position": 0.09,
+    "off_topic": 0.05
+   }
+  },
+  "missing-middle-housing|1a50ccf0ab0a73a53e4d2b708cc03981": {
+   "heat": 1,
+   "input_chars": 1558,
+   "input_tokens": 1132,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.02,
+    "for": 0.11,
+    "no_position": 0.12,
+    "off_topic": 0.74
+   }
+  },
+  "missing-middle-housing|2377fa29f93f152f3357092412252702": {
+   "heat": 2,
+   "input_chars": 1685,
+   "input_tokens": 1153,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.61,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.05,
+    "for": 0.61,
+    "no_position": 0.03,
+    "off_topic": 0.27
+   }
+  },
+  "missing-middle-housing|2b35d5f1d3ea84a6906ea4ad8a0de8e1": {
+   "heat": 2,
+   "input_chars": 1410,
+   "input_tokens": 1140,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.03,
+    "for": 0.88,
+    "no_position": 0.02,
+    "off_topic": 0.06
+   }
+  },
+  "missing-middle-housing|2d6a580b3b93c59433614c9c6d8564b6": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 1064,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.47,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.47,
+    "no_position": 0.45,
+    "off_topic": 0.07
+   }
+  },
+  "missing-middle-housing|2e63d8f799c0bde4b57d9005fe7740f4": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 1100,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.65,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.23,
+    "for": 0.02,
+    "no_position": 0.07,
+    "off_topic": 0.65
+   }
+  },
+  "missing-middle-housing|331b4ee36c645346d13d315af3b0c271": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 1120,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.89,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.06,
+    "no_position": 0.04,
+    "off_topic": 0.89
+   }
+  },
+  "missing-middle-housing|33d6dbd3eba10d69527c3ffae9e3e3de": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1093,
+   "question_version": "0d76267e8e1d",
+   "side": "against",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.58,
+    "concerns_only": 0.11,
+    "for": 0.01,
+    "no_position": 0.07,
+    "off_topic": 0.23
+   }
+  },
+  "missing-middle-housing|34489e0c4e95304b0f920dc45fb5a298": {
+   "heat": 4,
+   "input_chars": 816,
+   "input_tokens": 982,
+   "question_version": "0d76267e8e1d",
+   "side": "against",
+   "side_confidence": 0.6,
+   "side_probabilities": {
+    "against": 0.6,
+    "concerns_only": 0.17,
+    "for": 0.09,
+    "no_position": 0.04,
+    "off_topic": 0.1
+   }
+  },
+  "missing-middle-housing|355a4de8575b34458f01802578c1a52c": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 1081,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.7,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.01,
+    "for": 0.23,
+    "no_position": 0.02,
+    "off_topic": 0.7
+   }
+  },
+  "missing-middle-housing|399a253157e043a6a2c6ce139ce90af8": {
+   "heat": 2,
+   "input_chars": 1296,
+   "input_tokens": 1074,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.98
+   }
+  },
+  "missing-middle-housing|3a6ce340d833343d210f984aca0385a7": {
+   "heat": 1,
+   "input_chars": 1406,
+   "input_tokens": 1100,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.62,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.06,
+    "for": 0.62,
+    "no_position": 0.12,
+    "off_topic": 0.18
+   }
+  },
+  "missing-middle-housing|3e17936c9180382b8c181313905982c0": {
+   "heat": 1,
+   "input_chars": 1410,
+   "input_tokens": 1088,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.9,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.06,
+    "off_topic": 0.9
+   }
+  },
+  "missing-middle-housing|3e3fda8feda15331ef7b5abc29280b6e": {
+   "heat": 2,
+   "input_chars": 1410,
+   "input_tokens": 1130,
+   "question_version": "0d76267e8e1d",
+   "side": "concerns_only",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.52,
+    "for": 0.02,
+    "no_position": 0.03,
+    "off_topic": 0.42
+   }
+  },
+  "missing-middle-housing|3ef4283b47c453ef2b96ebd894086e33": {
+   "heat": 2,
+   "input_chars": 1406,
+   "input_tokens": 1113,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.23,
+    "no_position": 0.02,
+    "off_topic": 0.73
+   }
+  },
+  "missing-middle-housing|40e7559004f3efecf9a7bc2b3701dcb1": {
+   "heat": 3,
+   "input_chars": 1402,
+   "input_tokens": 1095,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.72,
+   "side_probabilities": {
+    "against": 0.09,
+    "concerns_only": 0.17,
+    "for": 0.72,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "missing-middle-housing|44b7457a10ba64892207ad3aa5a3afdc": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 1094,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.72,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.1,
+    "for": 0.01,
+    "no_position": 0.16,
+    "off_topic": 0.72
+   }
+  },
+  "missing-middle-housing|4dd854bd7f3c4c940d87be346a45649e": {
+   "heat": 2,
+   "input_chars": 1542,
+   "input_tokens": 1137,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "missing-middle-housing|51c2f27224b0f60c8340c2b44ed699b2": {
+   "heat": 1,
+   "input_chars": 1411,
+   "input_tokens": 1066,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.9,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.03,
+    "off_topic": 0.9
+   }
+  },
+  "missing-middle-housing|63d5b430a90ac48b892ba9b0f5821d30": {
+   "heat": 1,
+   "input_chars": 738,
+   "input_tokens": 976,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "missing-middle-housing|660f2a2b963d29a17abddefab1bf5cec": {
+   "heat": 4,
+   "input_chars": 885,
+   "input_tokens": 988,
+   "question_version": "0d76267e8e1d",
+   "side": "against",
+   "side_confidence": 0.5,
+   "side_probabilities": {
+    "against": 0.5,
+    "concerns_only": 0.02,
+    "for": 0.33,
+    "no_position": 0.0,
+    "off_topic": 0.15
+   }
+  },
+  "missing-middle-housing|6ab084c6ccd6de438be79eeb01d5b4b9": {
+   "heat": 4,
+   "input_chars": 1439,
+   "input_tokens": 1124,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.76,
+   "side_probabilities": {
+    "against": 0.1,
+    "concerns_only": 0.11,
+    "for": 0.76,
+    "no_position": 0.02,
+    "off_topic": 0.01
+   }
+  },
+  "missing-middle-housing|6e5157de972915fd7baa04a39c5c959c": {
+   "heat": 3,
+   "input_chars": 1406,
+   "input_tokens": 1085,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.54,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.01,
+    "for": 0.41,
+    "no_position": 0.01,
+    "off_topic": 0.54
+   }
+  },
+  "missing-middle-housing|731d2f3eaa42c535893b3b3bb544ac70": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 1112,
+   "question_version": "0d76267e8e1d",
+   "side": "concerns_only",
+   "side_confidence": 0.44,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.44,
+    "for": 0.06,
+    "no_position": 0.35,
+    "off_topic": 0.15
+   }
+  },
+  "missing-middle-housing|7685029212f865c98497049e530b3ae9": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1294,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.77,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.77,
+    "no_position": 0.02,
+    "off_topic": 0.21
+   }
+  },
+  "missing-middle-housing|7e8c50916873cb01e8f92f9c10133c0a": {
+   "heat": 2,
+   "input_chars": 1743,
+   "input_tokens": 1175,
+   "question_version": "0d76267e8e1d",
+   "side": "concerns_only",
+   "side_confidence": 0.86,
+   "side_probabilities": {
+    "against": 0.06,
+    "concerns_only": 0.86,
+    "for": 0.03,
+    "no_position": 0.01,
+    "off_topic": 0.04
+   }
+  },
+  "missing-middle-housing|815b67a63cb9842cfe0d2a1df39bd54d": {
+   "heat": 4,
+   "input_chars": 751,
+   "input_tokens": 965,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.82,
+    "no_position": 0.04,
+    "off_topic": 0.14
+   }
+  },
+  "missing-middle-housing|81839f569e6a2238b92793ed8ca538dd": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 1109,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.04,
+    "no_position": 0.02,
+    "off_topic": 0.93
+   }
+  },
+  "missing-middle-housing|81de820cd688cb2c215e651861fcfe9d": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 1108,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.34,
+    "concerns_only": 0.08,
+    "for": 0.03,
+    "no_position": 0.04,
+    "off_topic": 0.51
+   }
+  },
+  "missing-middle-housing|87972f0291051887f94f9810ca16efc5": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1128,
+   "question_version": "0d76267e8e1d",
+   "side": "against",
+   "side_confidence": 0.67,
+   "side_probabilities": {
+    "against": 0.67,
+    "concerns_only": 0.17,
+    "for": 0.09,
+    "no_position": 0.0,
+    "off_topic": 0.07
+   }
+  },
+  "missing-middle-housing|8d014c4e46c575c789e837f517039982": {
+   "heat": 4,
+   "input_chars": 1408,
+   "input_tokens": 1088,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.98
+   }
+  },
+  "missing-middle-housing|8f4205676e97030e8577f3dcda1aa280": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 1095,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.03,
+    "no_position": 0.09,
+    "off_topic": 0.88
+   }
+  },
+  "missing-middle-housing|94a3e72b4ae3233f0af20ba2f4c5ff2a": {
+   "heat": 4,
+   "input_chars": 1632,
+   "input_tokens": 1132,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "missing-middle-housing|a18c8c9255943c44f8fbf319dd1cd6bd": {
+   "heat": 3,
+   "input_chars": 1360,
+   "input_tokens": 1098,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "missing-middle-housing|b61be8f5d16bc73fbd0de6579f3f1605": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 1107,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "missing-middle-housing|bf2d4b7d872a367d4d665347333e24dd": {
+   "heat": 3,
+   "input_chars": 1410,
+   "input_tokens": 1104,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.5,
+   "side_probabilities": {
+    "against": 0.16,
+    "concerns_only": 0.04,
+    "for": 0.27,
+    "no_position": 0.03,
+    "off_topic": 0.5
+   }
+  },
+  "missing-middle-housing|c7438ffbb7fd30b967d6108ee9f491d5": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 1106,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.98
+   }
+  },
+  "missing-middle-housing|cfea94c4086a92ac3360fb1f5485f232": {
+   "heat": 2,
+   "input_chars": 1288,
+   "input_tokens": 1090,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.8,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.8,
+    "no_position": 0.04,
+    "off_topic": 0.14
+   }
+  },
+  "missing-middle-housing|d745c968f4b76740053be50aa5a621c7": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 1099,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.14,
+    "no_position": 0.12,
+    "off_topic": 0.74
+   }
+  },
+  "missing-middle-housing|ec4cd89401cc6d9c1505b552993f3458": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 1257,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.6,
+   "side_probabilities": {
+    "against": 0.31,
+    "concerns_only": 0.0,
+    "for": 0.07,
+    "no_position": 0.02,
+    "off_topic": 0.6
+   }
+  },
+  "missing-middle-housing|ee21777d00021c057d11ceb0a3069ba2": {
+   "heat": 2,
+   "input_chars": 1541,
+   "input_tokens": 1138,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.42,
+   "side_probabilities": {
+    "against": 0.23,
+    "concerns_only": 0.08,
+    "for": 0.26,
+    "no_position": 0.01,
+    "off_topic": 0.42
+   }
+  },
+  "missing-middle-housing|f42f80990c36cf50b30f33f1f01ef908": {
+   "heat": 4,
+   "input_chars": 1446,
+   "input_tokens": 1128,
+   "question_version": "0d76267e8e1d",
+   "side": "concerns_only",
+   "side_confidence": 0.48,
+   "side_probabilities": {
+    "against": 0.11,
+    "concerns_only": 0.48,
+    "for": 0.27,
+    "no_position": 0.03,
+    "off_topic": 0.11
+   }
+  },
+  "missing-middle-housing|f4452d47651a108fe384b62faa67fb5d": {
+   "heat": 3,
+   "input_chars": 1458,
+   "input_tokens": 1118,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.21,
+    "for": 0.51,
+    "no_position": 0.02,
+    "off_topic": 0.25
+   }
+  },
+  "missing-middle-housing|fa8414fb8969928b24a62dcdff8a882a": {
+   "heat": 3,
+   "input_chars": 1407,
+   "input_tokens": 1123,
+   "question_version": "0d76267e8e1d",
+   "side": "for",
+   "side_confidence": 0.46,
+   "side_probabilities": {
+    "against": 0.45,
+    "concerns_only": 0.02,
+    "for": 0.46,
+    "no_position": 0.04,
+    "off_topic": 0.03
+   }
+  },
+  "missing-middle-housing|ff08c24e2bf422cd456c715ed95c8b7b": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 1236,
+   "question_version": "0d76267e8e1d",
+   "side": "off_topic",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.39,
+    "concerns_only": 0.01,
+    "for": 0.08,
+    "no_position": 0.0,
+    "off_topic": 0.52
+   }
+  },
+  "missing-middle-housing|ff5018bf72e0ab6584c791a171291ce9": {
+   "heat": 4,
+   "input_chars": 1390,
+   "input_tokens": 1070,
+   "question_version": "0d76267e8e1d",
+   "side": "against",
+   "side_confidence": 0.5,
+   "side_probabilities": {
+    "against": 0.5,
+    "concerns_only": 0.15,
+    "for": 0.28,
+    "no_position": 0.01,
+    "off_topic": 0.06
+   }
+  },
+  "road-diets|05636705518c8065771363ace7c049a4": {
+   "heat": 4,
+   "input_chars": 910,
+   "input_tokens": 938,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.11,
+    "for": 0.37,
+    "no_position": 0.01,
+    "off_topic": 0.49
+   }
+  },
+  "road-diets|095df5db7c904a0d976f7f28e455b835": {
+   "heat": 1,
+   "input_chars": 1661,
+   "input_tokens": 1095,
+   "question_version": "3112665afa83",
+   "side": "no_position",
+   "side_confidence": 0.54,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.35,
+    "for": 0.09,
+    "no_position": 0.54,
+    "off_topic": 0.01
+   }
+  },
+  "road-diets|0bc90bd0225c4ff84fb8200a2bfd0b1f": {
+   "heat": 1,
+   "input_chars": 1401,
+   "input_tokens": 1054,
+   "question_version": "3112665afa83",
+   "side": "concerns_only",
+   "side_confidence": 0.54,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.54,
+    "for": 0.02,
+    "no_position": 0.32,
+    "off_topic": 0.1
+   }
+  },
+  "road-diets|0e12640900cd53abd0442f3808490f24": {
+   "heat": 2,
+   "input_chars": 1402,
+   "input_tokens": 1060,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.59,
+   "side_probabilities": {
+    "against": 0.13,
+    "concerns_only": 0.23,
+    "for": 0.02,
+    "no_position": 0.03,
+    "off_topic": 0.59
+   }
+  },
+  "road-diets|15006b53667954456e257f48347a1c57": {
+   "heat": 3,
+   "input_chars": 1538,
+   "input_tokens": 1080,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.08,
+    "no_position": 0.05,
+    "off_topic": 0.87
+   }
+  },
+  "road-diets|1fee62903ab67ff37f8ca95543130eaa": {
+   "heat": 1,
+   "input_chars": 1407,
+   "input_tokens": 1045,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.02,
+    "no_position": 0.02,
+    "off_topic": 0.96
+   }
+  },
+  "road-diets|222e171126aa1dbbe51113c5be82adc4": {
+   "heat": 3,
+   "input_chars": 1614,
+   "input_tokens": 1091,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 0.63,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.63,
+    "no_position": 0.01,
+    "off_topic": 0.35
+   }
+  },
+  "road-diets|27894e74da0818b14728574d4a48816e": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 1050,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.97
+   }
+  },
+  "road-diets|2b1d9f8fa653bae6725bd17d229f0153": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 1026,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.03,
+    "off_topic": 0.96
+   }
+  },
+  "road-diets|2d6a580b3b93c59433614c9c6d8564b6": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 1065,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.16,
+    "concerns_only": 0.29,
+    "for": 0.51,
+    "no_position": 0.01,
+    "off_topic": 0.03
+   }
+  },
+  "road-diets|4aa2f3a6f6c67cf5c80f746fc54ca771": {
+   "heat": 1,
+   "input_chars": 1412,
+   "input_tokens": 1054,
+   "question_version": "3112665afa83",
+   "side": "concerns_only",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.52,
+    "for": 0.01,
+    "no_position": 0.19,
+    "off_topic": 0.24
+   }
+  },
+  "road-diets|4d541f75b7caca056b9b3ce7a452de71": {
+   "heat": 1,
+   "input_chars": 456,
+   "input_tokens": 858,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "road-diets|510ea88d9e9729efa5c64ce7be4bbcfe": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 1049,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.09,
+    "concerns_only": 0.05,
+    "for": 0.1,
+    "no_position": 0.02,
+    "off_topic": 0.74
+   }
+  },
+  "road-diets|565d749e6ea67d12a336c9b27e781a94": {
+   "heat": 2,
+   "input_chars": 1406,
+   "input_tokens": 1020,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.08,
+    "no_position": 0.01,
+    "off_topic": 0.91
+   }
+  },
+  "road-diets|595b7f2b74ca84b158b9f3d78d77efdf": {
+   "heat": 1,
+   "input_chars": 1406,
+   "input_tokens": 1041,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "road-diets|5a97ea3961acb88a674727bdf361e4a9": {
+   "heat": 3,
+   "input_chars": 1446,
+   "input_tokens": 1058,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 0.77,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.11,
+    "for": 0.77,
+    "no_position": 0.0,
+    "off_topic": 0.09
+   }
+  },
+  "road-diets|5b7927cfcc7a9155fe324b929c790541": {
+   "heat": 1,
+   "input_chars": 1401,
+   "input_tokens": 1038,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.09,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.88
+   }
+  },
+  "road-diets|6468d125a714db78480a1c8ffc06b7ea": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 1054,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.04,
+    "for": 0.01,
+    "no_position": 0.02,
+    "off_topic": 0.93
+   }
+  },
+  "road-diets|70acb6b7c8387d313d5943c7c46e29fe": {
+   "heat": 1,
+   "input_chars": 1406,
+   "input_tokens": 1014,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.14,
+    "no_position": 0.01,
+    "off_topic": 0.84
+   }
+  },
+  "road-diets|79cd85a4b8101267197dcfcbdae78d3c": {
+   "heat": 3,
+   "input_chars": 1406,
+   "input_tokens": 1060,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "road-diets|81442f5ce655d8e4e80ab251d83423d1": {
+   "heat": 1,
+   "input_chars": 1437,
+   "input_tokens": 1083,
+   "question_version": "3112665afa83",
+   "side": "no_position",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.07,
+    "for": 0.26,
+    "no_position": 0.51,
+    "off_topic": 0.16
+   }
+  },
+  "road-diets|827ad13318943d649874412001816bbe": {
+   "heat": 1,
+   "input_chars": 1400,
+   "input_tokens": 1053,
+   "question_version": "3112665afa83",
+   "side": "concerns_only",
+   "side_confidence": 0.62,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.62,
+    "for": 0.03,
+    "no_position": 0.28,
+    "off_topic": 0.05
+   }
+  },
+  "road-diets|86d61af3420bc798c7a91b8918cce3c5": {
+   "heat": 1,
+   "input_chars": 1726,
+   "input_tokens": 1085,
+   "question_version": "3112665afa83",
+   "side": "concerns_only",
+   "side_confidence": 0.69,
+   "side_probabilities": {
+    "against": 0.08,
+    "concerns_only": 0.69,
+    "for": 0.06,
+    "no_position": 0.15,
+    "off_topic": 0.02
+   }
+  },
+  "road-diets|874b7befa4c1a75ecbc9358339c4a82f": {
+   "heat": 4,
+   "input_chars": 998,
+   "input_tokens": 993,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.99,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "road-diets|8794dca1dbdd3b01628a5bbc4e8349e7": {
+   "heat": 2,
+   "input_chars": 1306,
+   "input_tokens": 1094,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "road-diets|930eb294f12b9c2ceb533b4dc2f5f475": {
+   "heat": 2,
+   "input_chars": 1406,
+   "input_tokens": 1056,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 0.46,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.04,
+    "for": 0.46,
+    "no_position": 0.43,
+    "off_topic": 0.04
+   }
+  },
+  "road-diets|a17caba1e35e2d75bdbda40b4282f692": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 1046,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.71,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.07,
+    "for": 0.22,
+    "no_position": 0.0,
+    "off_topic": 0.71
+   }
+  },
+  "road-diets|a30d0f3529997caf029834c0c4c4b416": {
+   "heat": 2,
+   "input_chars": 1186,
+   "input_tokens": 1023,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "road-diets|b9151d03dd53c16993145f31183471a2": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 1037,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.95,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.03,
+    "no_position": 0.01,
+    "off_topic": 0.95
+   }
+  },
+  "road-diets|c1fc62491446fdd208c12e457c3c6283": {
+   "heat": 3,
+   "input_chars": 1400,
+   "input_tokens": 1043,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 0.71,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.03,
+    "for": 0.71,
+    "no_position": 0.01,
+    "off_topic": 0.22
+   }
+  },
+  "road-diets|c63e23edb5f63c906b8de64057725599": {
+   "heat": 3,
+   "input_chars": 1564,
+   "input_tokens": 1070,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.83,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.12,
+    "no_position": 0.02,
+    "off_topic": 0.83
+   }
+  },
+  "road-diets|c994aa07c58eda1bf196c6da0ea707bc": {
+   "heat": 1,
+   "input_chars": 1456,
+   "input_tokens": 1064,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.95,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.04,
+    "off_topic": 0.95
+   }
+  },
+  "road-diets|cc0793b5807f7db7126c8333652a99bd": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 1038,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.03,
+    "no_position": 0.01,
+    "off_topic": 0.94
+   }
+  },
+  "road-diets|d109500f5d893b109c5d7aa039fc86de": {
+   "heat": 3,
+   "input_chars": 1540,
+   "input_tokens": 1064,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 0.45,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.04,
+    "for": 0.45,
+    "no_position": 0.05,
+    "off_topic": 0.43
+   }
+  },
+  "road-diets|da05f93f87cf88a03bef6dfb53e82a1c": {
+   "heat": 4,
+   "input_chars": 1622,
+   "input_tokens": 1113,
+   "question_version": "3112665afa83",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "road-diets|e90844313381bfc07a717aea8988a7da": {
+   "heat": 3,
+   "input_chars": 1575,
+   "input_tokens": 1121,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.61,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.01,
+    "for": 0.32,
+    "no_position": 0.02,
+    "off_topic": 0.61
+   }
+  },
+  "road-diets|ecab14f97227531810582c2262aaa4c4": {
+   "heat": 1,
+   "input_chars": 714,
+   "input_tokens": 922,
+   "question_version": "3112665afa83",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "road-diets|fde770ed02c2626a7a3d225ab3f59ac8": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 1023,
+   "question_version": "3112665afa83",
+   "side": "against",
+   "side_confidence": 0.45,
+   "side_probabilities": {
+    "against": 0.45,
+    "concerns_only": 0.39,
+    "for": 0.04,
+    "no_position": 0.01,
+    "off_topic": 0.11
+   }
+  },
+  "roundabouts|014cf342c6488fedf5894d795f237273": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 983,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.04,
+    "for": 0.94,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "roundabouts|05412619d38854a16061d43af659e926": {
+   "heat": 3,
+   "input_chars": 1532,
+   "input_tokens": 1035,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "roundabouts|121a66a89af790052f8f6f5d8ab1453e": {
+   "heat": 1,
+   "input_chars": 1408,
+   "input_tokens": 999,
+   "question_version": "d19f8d1791fe",
+   "side": "no_position",
+   "side_confidence": 0.64,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.16,
+    "no_position": 0.64,
+    "off_topic": 0.19
+   }
+  },
+  "roundabouts|1fee62903ab67ff37f8ca95543130eaa": {
+   "heat": 2,
+   "input_chars": 1409,
+   "input_tokens": 975,
+   "question_version": "d19f8d1791fe",
+   "side": "concerns_only",
+   "side_confidence": 0.85,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.85,
+    "for": 0.01,
+    "no_position": 0.06,
+    "off_topic": 0.07
+   }
+  },
+  "roundabouts|38684e5a677eaa9658d4efcccb06ee19": {
+   "heat": 2,
+   "input_chars": 1408,
+   "input_tokens": 963,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "roundabouts|3e17936c9180382b8c181313905982c0": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 986,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 0.83,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.08,
+    "for": 0.83,
+    "no_position": 0.04,
+    "off_topic": 0.04
+   }
+  },
+  "roundabouts|3fe5b36175d41bd1a8fc31aac48d4e59": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 1002,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.06,
+    "for": 0.3,
+    "no_position": 0.08,
+    "off_topic": 0.51
+   }
+  },
+  "roundabouts|467e6fe46af9dd71f352734fadb52cc2": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 977,
+   "question_version": "d19f8d1791fe",
+   "side": "no_position",
+   "side_confidence": 0.62,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.62,
+    "off_topic": 0.36
+   }
+  },
+  "roundabouts|4806ca2e0c0016024f337dfce5e85fc1": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 995,
+   "question_version": "d19f8d1791fe",
+   "side": "against",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.92,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.07
+   }
+  },
+  "roundabouts|4a40620ab996d23ddc6929fba7356dd4": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 1001,
+   "question_version": "d19f8d1791fe",
+   "side": "no_position",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.03,
+    "for": 0.08,
+    "no_position": 0.88,
+    "off_topic": 0.01
+   }
+  },
+  "roundabouts|4dd854bd7f3c4c940d87be346a45649e": {
+   "heat": 4,
+   "input_chars": 1640,
+   "input_tokens": 1074,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "roundabouts|4e33d0c9db3f8857a1a16385d8791e5f": {
+   "heat": 3,
+   "input_chars": 1403,
+   "input_tokens": 989,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "roundabouts|51347d924de11a78dddefb23cf384eb8": {
+   "heat": 2,
+   "input_chars": 1527,
+   "input_tokens": 1063,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 0.63,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.14,
+    "for": 0.63,
+    "no_position": 0.22,
+    "off_topic": 0.01
+   }
+  },
+  "roundabouts|53b4830e7c17945b661406a00849439f": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 981,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.03,
+    "for": 0.0,
+    "no_position": 0.1,
+    "off_topic": 0.87
+   }
+  },
+  "roundabouts|64efaee9c708941a6b583fe031f425f3": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 935,
+   "question_version": "d19f8d1791fe",
+   "side": "concerns_only",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.45,
+    "concerns_only": 0.49,
+    "for": 0.01,
+    "no_position": 0.03,
+    "off_topic": 0.02
+   }
+  },
+  "roundabouts|65581298080a4ec9748373a44e5c5e41": {
+   "heat": 3,
+   "input_chars": 1075,
+   "input_tokens": 920,
+   "question_version": "d19f8d1791fe",
+   "side": "concerns_only",
+   "side_confidence": 0.61,
+   "side_probabilities": {
+    "against": 0.28,
+    "concerns_only": 0.61,
+    "for": 0.03,
+    "no_position": 0.01,
+    "off_topic": 0.07
+   }
+  },
+  "roundabouts|69cc98a988ea4c127ef524337007a6d7": {
+   "heat": 2,
+   "input_chars": 1403,
+   "input_tokens": 1002,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.36,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.35,
+    "for": 0.01,
+    "no_position": 0.28,
+    "off_topic": 0.36
+   }
+  },
+  "roundabouts|6be52be8a629d6f8a1f6b596f8c99d99": {
+   "heat": 2,
+   "input_chars": 1409,
+   "input_tokens": 1002,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "roundabouts|6d41d9e625028ea48345b292769937b0": {
+   "heat": 4,
+   "input_chars": 1005,
+   "input_tokens": 936,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.83,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.15,
+    "off_topic": 0.83
+   }
+  },
+  "roundabouts|79e0ab1265192235a13c291943c3a90b": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 994,
+   "question_version": "d19f8d1791fe",
+   "side": "concerns_only",
+   "side_confidence": 0.53,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.53,
+    "for": 0.02,
+    "no_position": 0.34,
+    "off_topic": 0.11
+   }
+  },
+  "roundabouts|7f74096ac42741b85c1d46f503546e5d": {
+   "heat": 4,
+   "input_chars": 1503,
+   "input_tokens": 1019,
+   "question_version": "d19f8d1791fe",
+   "side": "concerns_only",
+   "side_confidence": 0.41,
+   "side_probabilities": {
+    "against": 0.13,
+    "concerns_only": 0.41,
+    "for": 0.35,
+    "no_position": 0.06,
+    "off_topic": 0.05
+   }
+  },
+  "roundabouts|81515e2f5528e92d560c7b4f37a22caa": {
+   "heat": 4,
+   "input_chars": 1498,
+   "input_tokens": 1056,
+   "question_version": "d19f8d1791fe",
+   "side": "concerns_only",
+   "side_confidence": 0.46,
+   "side_probabilities": {
+    "against": 0.12,
+    "concerns_only": 0.46,
+    "for": 0.06,
+    "no_position": 0.02,
+    "off_topic": 0.34
+   }
+  },
+  "roundabouts|824b4c901f7854c7bf5d1ae0de0f3d36": {
+   "heat": 4,
+   "input_chars": 1406,
+   "input_tokens": 984,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "roundabouts|828f658599acdb53044fd51c09ca1d18": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 958,
+   "question_version": "d19f8d1791fe",
+   "side": "concerns_only",
+   "side_confidence": 0.68,
+   "side_probabilities": {
+    "against": 0.14,
+    "concerns_only": 0.68,
+    "for": 0.03,
+    "no_position": 0.02,
+    "off_topic": 0.13
+   }
+  },
+  "roundabouts|84a38f77dbf1543fcf039714663b1d67": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 972,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 0.77,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.17,
+    "for": 0.77,
+    "no_position": 0.03,
+    "off_topic": 0.01
+   }
+  },
+  "roundabouts|8790fd349f8197017d663897f35dffa1": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 1011,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "roundabouts|918d4edf9a2bca1f497ae2db194a2b2a": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 995,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "roundabouts|977f9a3e5ad51103fb2080fd4f11729f": {
+   "heat": 2,
+   "input_chars": 1402,
+   "input_tokens": 1006,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 0.95,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.02,
+    "for": 0.95,
+    "no_position": 0.03,
+    "off_topic": 0.0
+   }
+  },
+  "roundabouts|b93c60dc534df8874b957a008c43af16": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 986,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.11,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.87
+   }
+  },
+  "roundabouts|c273b9bea7b41445e42c8596bc5b3de5": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 1016,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.55,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.07,
+    "no_position": 0.37,
+    "off_topic": 0.55
+   }
+  },
+  "roundabouts|cb62036e389674ecfe26e2fbd028c0db": {
+   "heat": 2,
+   "input_chars": 1403,
+   "input_tokens": 990,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.78,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.21,
+    "off_topic": 0.78
+   }
+  },
+  "roundabouts|cb8b6774a6dc707bab14c0d25be1ce9e": {
+   "heat": 3,
+   "input_chars": 1406,
+   "input_tokens": 979,
+   "question_version": "d19f8d1791fe",
+   "side": "against",
+   "side_confidence": 0.35,
+   "side_probabilities": {
+    "against": 0.35,
+    "concerns_only": 0.17,
+    "for": 0.04,
+    "no_position": 0.16,
+    "off_topic": 0.28
+   }
+  },
+  "roundabouts|d8015d93ee43a669e0069491cc9c1d62": {
+   "heat": 2,
+   "input_chars": 1409,
+   "input_tokens": 980,
+   "question_version": "d19f8d1791fe",
+   "side": "no_position",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.06,
+    "for": 0.22,
+    "no_position": 0.51,
+    "off_topic": 0.2
+   }
+  },
+  "roundabouts|e429ffa8081d171ca778beb73e2a16ed": {
+   "heat": 4,
+   "input_chars": 1361,
+   "input_tokens": 956,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.06,
+    "concerns_only": 0.03,
+    "for": 0.03,
+    "no_position": 0.07,
+    "off_topic": 0.81
+   }
+  },
+  "roundabouts|e73431fe486ac78cb0388ffc827b6070": {
+   "heat": 3,
+   "input_chars": 1476,
+   "input_tokens": 1013,
+   "question_version": "d19f8d1791fe",
+   "side": "against",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.73,
+    "concerns_only": 0.27,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "roundabouts|f014e2050fcb88ff5d0494e790734d87": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 1023,
+   "question_version": "d19f8d1791fe",
+   "side": "no_position",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.92,
+    "off_topic": 0.07
+   }
+  },
+  "roundabouts|f02a4d50166298d93dd2684bcc8b7bbd": {
+   "heat": 1,
+   "input_chars": 332,
+   "input_tokens": 777,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.04,
+    "for": 0.01,
+    "no_position": 0.36,
+    "off_topic": 0.58
+   }
+  },
+  "roundabouts|f48a515d777c99f71fe185c5ab0b4904": {
+   "heat": 4,
+   "input_chars": 1409,
+   "input_tokens": 1030,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.98,
+    "no_position": 0.01,
+    "off_topic": 0.0
+   }
+  },
+  "roundabouts|f53e7cea105c690293f992e86d3f16da": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 978,
+   "question_version": "d19f8d1791fe",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "roundabouts|f58bdf08faed0ae59c55f5d64c0dc88e": {
+   "heat": 2,
+   "input_chars": 1400,
+   "input_tokens": 1023,
+   "question_version": "d19f8d1791fe",
+   "side": "no_position",
+   "side_confidence": 0.5,
+   "side_probabilities": {
+    "against": 0.06,
+    "concerns_only": 0.02,
+    "for": 0.13,
+    "no_position": 0.5,
+    "off_topic": 0.29
+   }
+  },
+  "roundabouts|fe9744bab03a866bd1aa3d58f541d0c2": {
+   "heat": 4,
+   "input_chars": 943,
+   "input_tokens": 924,
+   "question_version": "d19f8d1791fe",
+   "side": "off_topic",
+   "side_confidence": 0.53,
+   "side_probabilities": {
+    "against": 0.15,
+    "concerns_only": 0.18,
+    "for": 0.0,
+    "no_position": 0.14,
+    "off_topic": 0.53
+   }
+  },
+  "solar-farms|0be86c372ce904951d277603bbc29f91": {
+   "heat": 3,
+   "input_chars": 1322,
+   "input_tokens": 1011,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.06,
+    "off_topic": 0.93
+   }
+  },
+  "solar-farms|14f44a3bc82bdb2af11b8570a99e7ade": {
+   "heat": 1,
+   "input_chars": 1731,
+   "input_tokens": 1133,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.03,
+    "no_position": 0.24,
+    "off_topic": 0.73
+   }
+  },
+  "solar-farms|17a53822501829717df173bd5819bdf9": {
+   "heat": 1,
+   "input_chars": 1409,
+   "input_tokens": 998,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.66,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.08,
+    "no_position": 0.25,
+    "off_topic": 0.66
+   }
+  },
+  "solar-farms|1ddfe33a994574bb224ef33e3dc0cd25": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 1008,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.05,
+    "for": 0.49,
+    "no_position": 0.31,
+    "off_topic": 0.13
+   }
+  },
+  "solar-farms|20d2ff674b53e6b9c7ee9b8d5d639474": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 1031,
+   "question_version": "030a6804e08c",
+   "side": "concerns_only",
+   "side_confidence": 0.35,
+   "side_probabilities": {
+    "against": 0.28,
+    "concerns_only": 0.35,
+    "for": 0.0,
+    "no_position": 0.04,
+    "off_topic": 0.33
+   }
+  },
+  "solar-farms|21d033ef28694c066a01b2c7ac0233c0": {
+   "heat": 1,
+   "input_chars": 1135,
+   "input_tokens": 989,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "solar-farms|2d72c794ee2ac546107590310f1891cd": {
+   "heat": 4,
+   "input_chars": 922,
+   "input_tokens": 1032,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.6,
+   "side_probabilities": {
+    "against": 0.16,
+    "concerns_only": 0.06,
+    "for": 0.1,
+    "no_position": 0.08,
+    "off_topic": 0.6
+   }
+  },
+  "solar-farms|2f3a113456c82e609939386a3b39d719": {
+   "heat": 2,
+   "input_chars": 873,
+   "input_tokens": 931,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.96
+   }
+  },
+  "solar-farms|2ffc0bb35bce539e3fb83cb64d6d9c97": {
+   "heat": 5,
+   "input_chars": 1422,
+   "input_tokens": 1045,
+   "question_version": "030a6804e08c",
+   "side": "against",
+   "side_confidence": 0.56,
+   "side_probabilities": {
+    "against": 0.56,
+    "concerns_only": 0.43,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "solar-farms|3401bf64f9304731c247fe0d6fe28907": {
+   "heat": 2,
+   "input_chars": 1400,
+   "input_tokens": 1015,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.22,
+    "for": 0.11,
+    "no_position": 0.17,
+    "off_topic": 0.49
+   }
+  },
+  "solar-farms|3f78d3d2733673364b817d216f917d3f": {
+   "heat": 1,
+   "input_chars": 1416,
+   "input_tokens": 1027,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.5,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.31,
+    "no_position": 0.19,
+    "off_topic": 0.5
+   }
+  },
+  "solar-farms|423b4a88f4c6aacdb59377bd7382ed62": {
+   "heat": 3,
+   "input_chars": 1408,
+   "input_tokens": 1049,
+   "question_version": "030a6804e08c",
+   "side": "against",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.49,
+    "concerns_only": 0.06,
+    "for": 0.16,
+    "no_position": 0.14,
+    "off_topic": 0.15
+   }
+  },
+  "solar-farms|478e32e9ea733fd162f45322a0bb8b69": {
+   "heat": 3,
+   "input_chars": 1054,
+   "input_tokens": 959,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.92,
+    "no_position": 0.07,
+    "off_topic": 0.01
+   }
+  },
+  "solar-farms|4c72a7eb527d9c76a3744905aaf0a7c7": {
+   "heat": 1,
+   "input_chars": 1408,
+   "input_tokens": 1034,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.02,
+    "for": 0.04,
+    "no_position": 0.06,
+    "off_topic": 0.88
+   }
+  },
+  "solar-farms|5e5c195c737ac7073c481e64931c8963": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 1006,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.79,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.21,
+    "off_topic": 0.79
+   }
+  },
+  "solar-farms|68a9884518c6e0d91fe2b3543ba64327": {
+   "heat": 1,
+   "input_chars": 1400,
+   "input_tokens": 1026,
+   "question_version": "030a6804e08c",
+   "side": "concerns_only",
+   "side_confidence": 0.38,
+   "side_probabilities": {
+    "against": 0.14,
+    "concerns_only": 0.38,
+    "for": 0.01,
+    "no_position": 0.25,
+    "off_topic": 0.22
+   }
+  },
+  "solar-farms|6cdd2c729e68e21b02f4a102199b5b19": {
+   "heat": 1,
+   "input_chars": 1226,
+   "input_tokens": 969,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.79,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.21,
+    "off_topic": 0.79
+   }
+  },
+  "solar-farms|6daebda3b10db466017a0e1d02c57efc": {
+   "heat": 1,
+   "input_chars": 1408,
+   "input_tokens": 1033,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.08,
+    "no_position": 0.04,
+    "off_topic": 0.88
+   }
+  },
+  "solar-farms|6f770c523f5782e41c191ba363fed2c1": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1042,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.59,
+   "side_probabilities": {
+    "against": 0.1,
+    "concerns_only": 0.28,
+    "for": 0.59,
+    "no_position": 0.01,
+    "off_topic": 0.02
+   }
+  },
+  "solar-farms|7199d6f27d1f46a12b81b57ed7d7fe43": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 1012,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.85,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.05,
+    "for": 0.07,
+    "no_position": 0.02,
+    "off_topic": 0.85
+   }
+  },
+  "solar-farms|7bb0e4ba9705b62b7401cd378750af19": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 956,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.56,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.56,
+    "no_position": 0.08,
+    "off_topic": 0.34
+   }
+  },
+  "solar-farms|80e8364c43b24255f958c161e6f38d02": {
+   "heat": 3,
+   "input_chars": 1681,
+   "input_tokens": 1028,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.69,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.29,
+    "no_position": 0.02,
+    "off_topic": 0.69
+   }
+  },
+  "solar-farms|850680509a07cbe04343c29a3ebce9ba": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 995,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.68,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.3,
+    "no_position": 0.02,
+    "off_topic": 0.68
+   }
+  },
+  "solar-farms|8d211a7bd1d48b84b4b2d940cb676350": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 1007,
+   "question_version": "030a6804e08c",
+   "side": "no_position",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.48,
+    "no_position": 0.51,
+    "off_topic": 0.01
+   }
+  },
+  "solar-farms|8eececc9526da2d54c148635d21285c1": {
+   "heat": 4,
+   "input_chars": 1420,
+   "input_tokens": 1045,
+   "question_version": "030a6804e08c",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "solar-farms|8f921ab7506cfe99e2b153bd61086bf8": {
+   "heat": 3,
+   "input_chars": 1253,
+   "input_tokens": 1026,
+   "question_version": "030a6804e08c",
+   "side": "against",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.97,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "solar-farms|97666b4c8db2dd53de8d73cdacd9d8af": {
+   "heat": 2,
+   "input_chars": 1530,
+   "input_tokens": 1053,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.09,
+    "no_position": 0.09,
+    "off_topic": 0.82
+   }
+  },
+  "solar-farms|9bb8993fa227f0d481f8e1e9143f2d62": {
+   "heat": 2,
+   "input_chars": 1010,
+   "input_tokens": 962,
+   "question_version": "030a6804e08c",
+   "side": "against",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.91,
+    "concerns_only": 0.07,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.02
+   }
+  },
+  "solar-farms|9c0d0b8206512e437ed5978c2691050e": {
+   "heat": 1,
+   "input_chars": 1408,
+   "input_tokens": 988,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "solar-farms|9dce0fedc9ea46d75af5a4895ff826fa": {
+   "heat": 1,
+   "input_chars": 1412,
+   "input_tokens": 1032,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.02,
+    "no_position": 0.02,
+    "off_topic": 0.96
+   }
+  },
+  "solar-farms|a8f112660923f5e4fe733ca60513b905": {
+   "heat": 2,
+   "input_chars": 1185,
+   "input_tokens": 991,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.03,
+    "for": 0.04,
+    "no_position": 0.01,
+    "off_topic": 0.87
+   }
+  },
+  "solar-farms|b973f8e2746027225c1e3fd1bb4c3e74": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 1001,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.68,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.21,
+    "for": 0.68,
+    "no_position": 0.05,
+    "off_topic": 0.01
+   }
+  },
+  "solar-farms|be3a16a9a8ad1a49fcd2fc5f0cc46bac": {
+   "heat": 1,
+   "input_chars": 941,
+   "input_tokens": 929,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.99
+   }
+  },
+  "solar-farms|c623c8a702918c8885d64eb0a4d158bd": {
+   "heat": 1,
+   "input_chars": 1414,
+   "input_tokens": 990,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "solar-farms|cc1feb519e311da4701e99de6710f7fe": {
+   "heat": 4,
+   "input_chars": 1060,
+   "input_tokens": 965,
+   "question_version": "030a6804e08c",
+   "side": "concerns_only",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.97,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "solar-farms|d23342493471ebf1c777d35855c2d32d": {
+   "heat": 4,
+   "input_chars": 1524,
+   "input_tokens": 1029,
+   "question_version": "030a6804e08c",
+   "side": "against",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.94,
+    "concerns_only": 0.04,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "solar-farms|dc62b67e97b38c1737f2f2e1706e3fe9": {
+   "heat": 4,
+   "input_chars": 1401,
+   "input_tokens": 1063,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.51,
+   "side_probabilities": {
+    "against": 0.42,
+    "concerns_only": 0.03,
+    "for": 0.51,
+    "no_position": 0.02,
+    "off_topic": 0.02
+   }
+  },
+  "solar-farms|e288b929105230769d6a8e7f4e4bc7d0": {
+   "heat": 1,
+   "input_chars": 927,
+   "input_tokens": 922,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.72,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.02,
+    "for": 0.03,
+    "no_position": 0.23,
+    "off_topic": 0.72
+   }
+  },
+  "solar-farms|e2e6151ae5d17696989af1562569ede2": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 1018,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.15,
+    "concerns_only": 0.02,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.82
+   }
+  },
+  "solar-farms|ea60f813a6898fe16b50c51918e36db2": {
+   "heat": 2,
+   "input_chars": 749,
+   "input_tokens": 890,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.6,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.31,
+    "for": 0.0,
+    "no_position": 0.06,
+    "off_topic": 0.6
+   }
+  },
+  "solar-farms|ee63b25809ca36d8936d4b154ff3cbb1": {
+   "heat": 1,
+   "input_chars": 1187,
+   "input_tokens": 992,
+   "question_version": "030a6804e08c",
+   "side": "off_topic",
+   "side_confidence": 0.89,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.02,
+    "for": 0.03,
+    "no_position": 0.01,
+    "off_topic": 0.89
+   }
+  },
+  "solar-farms|f43f6fa504ea2f37bf5a7c88795abf16": {
+   "heat": 4,
+   "input_chars": 1473,
+   "input_tokens": 1082,
+   "question_version": "030a6804e08c",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "solar-farms|f8f8814afa0347bf6ac2385b6ea926fa": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 1013,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.8,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.0,
+    "for": 0.8,
+    "no_position": 0.03,
+    "off_topic": 0.15
+   }
+  },
+  "solar-farms|fdb348772983ad7ad5493dab4f507fd1": {
+   "heat": 3,
+   "input_chars": 1054,
+   "input_tokens": 940,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.58,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.58,
+    "no_position": 0.03,
+    "off_topic": 0.39
+   }
+  },
+  "solar-farms|fe8d7cba70ca9e3451daef5c3e4aac01": {
+   "heat": 2,
+   "input_chars": 1193,
+   "input_tokens": 999,
+   "question_version": "030a6804e08c",
+   "side": "for",
+   "side_confidence": 0.89,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.02,
+    "for": 0.89,
+    "no_position": 0.08,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|0af07f3a74e56eab95970aaef1ce27fb": {
+   "heat": 4,
+   "input_chars": 1409,
+   "input_tokens": 988,
+   "question_version": "5c790ba201c9",
+   "side": "no_position",
+   "side_confidence": 0.57,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.05,
+    "for": 0.31,
+    "no_position": 0.57,
+    "off_topic": 0.07
+   }
+  },
+  "speed-bumps|1a2214deac6f2d3fb24e14a6439037ba": {
+   "heat": 4,
+   "input_chars": 1410,
+   "input_tokens": 981,
+   "question_version": "5c790ba201c9",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "speed-bumps|1a7d5791e7b077c6485eef6984699a31": {
+   "heat": 2,
+   "input_chars": 1401,
+   "input_tokens": 995,
+   "question_version": "5c790ba201c9",
+   "side": "concerns_only",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.1,
+    "concerns_only": 0.74,
+    "for": 0.01,
+    "no_position": 0.04,
+    "off_topic": 0.11
+   }
+  },
+  "speed-bumps|263a6c860a6cc70fe9200baf57918757": {
+   "heat": 4,
+   "input_chars": 1504,
+   "input_tokens": 1034,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.99,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|31c05aaf98e8c0b404f66b8bb29ecad3": {
+   "heat": 1,
+   "input_chars": 1407,
+   "input_tokens": 1013,
+   "question_version": "5c790ba201c9",
+   "side": "off_topic",
+   "side_confidence": 0.41,
+   "side_probabilities": {
+    "against": 0.13,
+    "concerns_only": 0.07,
+    "for": 0.05,
+    "no_position": 0.34,
+    "off_topic": 0.41
+   }
+  },
+  "speed-bumps|337d95e006572ce10b31d1dc8c948043": {
+   "heat": 4,
+   "input_chars": 1444,
+   "input_tokens": 1015,
+   "question_version": "5c790ba201c9",
+   "side": "against",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.93,
+    "concerns_only": 0.01,
+    "for": 0.05,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|38c1d7eb3ded5c65747172742822388e": {
+   "heat": 3,
+   "input_chars": 1406,
+   "input_tokens": 956,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|391fcef189baa1b7bd5820aead994f1e": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 1016,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.03,
+    "for": 0.96,
+    "no_position": 0.01,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|39825fbb540d687059b19e5526543f74": {
+   "heat": 1,
+   "input_chars": 651,
+   "input_tokens": 833,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.04,
+    "for": 0.91,
+    "no_position": 0.03,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|3cfaf8e43993f41fb143572fc4c8aaa3": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 1020,
+   "question_version": "5c790ba201c9",
+   "side": "no_position",
+   "side_confidence": 0.77,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.04,
+    "no_position": 0.77,
+    "off_topic": 0.17
+   }
+  },
+  "speed-bumps|43f71c9737dcd9a0b2433491eadc72db": {
+   "heat": 2,
+   "input_chars": 1644,
+   "input_tokens": 1038,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.57,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.12,
+    "for": 0.57,
+    "no_position": 0.27,
+    "off_topic": 0.02
+   }
+  },
+  "speed-bumps|4f69c492ce1ad4e11f14232069cb03f7": {
+   "heat": 4,
+   "input_chars": 1230,
+   "input_tokens": 1000,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.96,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.96,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|618e2e5919190020d7f40bba9ca07e47": {
+   "heat": 1,
+   "input_chars": 1777,
+   "input_tokens": 1083,
+   "question_version": "5c790ba201c9",
+   "side": "concerns_only",
+   "side_confidence": 0.53,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.53,
+    "for": 0.23,
+    "no_position": 0.21,
+    "off_topic": 0.02
+   }
+  },
+  "speed-bumps|6e11c2f472ec38972fc8c7e9b770fe3d": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1004,
+   "question_version": "5c790ba201c9",
+   "side": "against",
+   "side_confidence": 0.92,
+   "side_probabilities": {
+    "against": 0.92,
+    "concerns_only": 0.03,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.04
+   }
+  },
+  "speed-bumps|6f64acc9609cb833fb07b6c6817917b7": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 980,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.98,
+    "no_position": 0.01,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|702e89c924a95de8cc72a22c8216fae6": {
+   "heat": 3,
+   "input_chars": 1432,
+   "input_tokens": 1023,
+   "question_version": "5c790ba201c9",
+   "side": "against",
+   "side_confidence": 0.55,
+   "side_probabilities": {
+    "against": 0.55,
+    "concerns_only": 0.07,
+    "for": 0.09,
+    "no_position": 0.22,
+    "off_topic": 0.07
+   }
+  },
+  "speed-bumps|709d2dcf5ffd7ae7b7158d7908989da2": {
+   "heat": 5,
+   "input_chars": 1406,
+   "input_tokens": 1000,
+   "question_version": "5c790ba201c9",
+   "side": "off_topic",
+   "side_confidence": 0.57,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.02,
+    "no_position": 0.41,
+    "off_topic": 0.57
+   }
+  },
+  "speed-bumps|74632ec935cee6f5c2eb8e4aadf730fe": {
+   "heat": 4,
+   "input_chars": 1409,
+   "input_tokens": 1039,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|7a286ced5e24ed9c5b95aaba0afdf3a7": {
+   "heat": 4,
+   "input_chars": 1125,
+   "input_tokens": 936,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|7a7afec1535b6c8cad05584b5c8997d8": {
+   "heat": 4,
+   "input_chars": 1125,
+   "input_tokens": 961,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.99,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|7c6046a69eb3383e759bc9d653966a02": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 996,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.5,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.12,
+    "for": 0.5,
+    "no_position": 0.36,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|7e32943d30f028cd6b64505461e5416a": {
+   "heat": 1,
+   "input_chars": 1512,
+   "input_tokens": 1001,
+   "question_version": "5c790ba201c9",
+   "side": "concerns_only",
+   "side_confidence": 0.4,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.4,
+    "for": 0.21,
+    "no_position": 0.26,
+    "off_topic": 0.11
+   }
+  },
+  "speed-bumps|8c08b1649d7c3248bcc3c0ffd075f5ad": {
+   "heat": 3,
+   "input_chars": 1407,
+   "input_tokens": 1014,
+   "question_version": "5c790ba201c9",
+   "side": "no_position",
+   "side_confidence": 0.45,
+   "side_probabilities": {
+    "against": 0.03,
+    "concerns_only": 0.04,
+    "for": 0.45,
+    "no_position": 0.45,
+    "off_topic": 0.03
+   }
+  },
+  "speed-bumps|8fcd9b09dbff396547c6eb14a8235da2": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 1039,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.03,
+    "for": 0.88,
+    "no_position": 0.03,
+    "off_topic": 0.02
+   }
+  },
+  "speed-bumps|990d83b245bb8d14fc2b62bc1eb6d552": {
+   "heat": 2,
+   "input_chars": 1402,
+   "input_tokens": 986,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|9a994f3e9decadfd21f97018923a8ac7": {
+   "heat": 1,
+   "input_chars": 1601,
+   "input_tokens": 1053,
+   "question_version": "5c790ba201c9",
+   "side": "concerns_only",
+   "side_confidence": 0.82,
+   "side_probabilities": {
+    "against": 0.12,
+    "concerns_only": 0.82,
+    "for": 0.0,
+    "no_position": 0.05,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|9d46bc2e668670dc08d86aa10dcd32d3": {
+   "heat": 3,
+   "input_chars": 1409,
+   "input_tokens": 993,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.38,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.12,
+    "for": 0.38,
+    "no_position": 0.15,
+    "off_topic": 0.33
+   }
+  },
+  "speed-bumps|9e5ee079ae310d10632240677e49409a": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 970,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.03,
+    "for": 0.52,
+    "no_position": 0.37,
+    "off_topic": 0.07
+   }
+  },
+  "speed-bumps|aaebec9d6f6eb2bd2b0cdd9491db082f": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 992,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.88,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.88,
+    "no_position": 0.12,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|ad5255352fdd0e3d6677f6134bae8a2a": {
+   "heat": 4,
+   "input_chars": 1439,
+   "input_tokens": 996,
+   "question_version": "5c790ba201c9",
+   "side": "against",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.94,
+    "concerns_only": 0.01,
+    "for": 0.04,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|adf72015330223d9a5685e18abeaeaf0": {
+   "heat": 4,
+   "input_chars": 1459,
+   "input_tokens": 1034,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.21,
+    "for": 0.74,
+    "no_position": 0.05,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|b944e30c73bf989f0b8cf2dfc82e2af5": {
+   "heat": 4,
+   "input_chars": 1408,
+   "input_tokens": 1012,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.83,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.05,
+    "for": 0.83,
+    "no_position": 0.11,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|c01908a30e3dab7a1dedd345d1eb9178": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 968,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.61,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.03,
+    "for": 0.61,
+    "no_position": 0.32,
+    "off_topic": 0.03
+   }
+  },
+  "speed-bumps|c111fb5cd6347ce49e640ba7bacb6fe6": {
+   "heat": 1,
+   "input_chars": 271,
+   "input_tokens": 763,
+   "question_version": "5c790ba201c9",
+   "side": "no_position",
+   "side_confidence": 0.78,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.2,
+    "for": 0.02,
+    "no_position": 0.78,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|c15e9997202453a2dd2c981a71f43b7e": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 1011,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.04,
+    "for": 0.91,
+    "no_position": 0.01,
+    "off_topic": 0.03
+   }
+  },
+  "speed-bumps|ce41e5d9dfdf2ca40e81cbee7a234ad7": {
+   "heat": 2,
+   "input_chars": 1344,
+   "input_tokens": 993,
+   "question_version": "5c790ba201c9",
+   "side": "no_position",
+   "side_confidence": 0.62,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.11,
+    "for": 0.26,
+    "no_position": 0.62,
+    "off_topic": 0.01
+   }
+  },
+  "speed-bumps|d3ff21afe966dc3decb72a1844e61704": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 993,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.54,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.07,
+    "for": 0.54,
+    "no_position": 0.33,
+    "off_topic": 0.04
+   }
+  },
+  "speed-bumps|e14f885b97d1ca3350ff888a1b579f81": {
+   "heat": 2,
+   "input_chars": 1407,
+   "input_tokens": 1004,
+   "question_version": "5c790ba201c9",
+   "side": "no_position",
+   "side_confidence": 0.64,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.21,
+    "for": 0.03,
+    "no_position": 0.64,
+    "off_topic": 0.12
+   }
+  },
+  "speed-bumps|e5690d2305638c70a74949a5fb403d45": {
+   "heat": 1,
+   "input_chars": 1763,
+   "input_tokens": 1089,
+   "question_version": "5c790ba201c9",
+   "side": "no_position",
+   "side_confidence": 0.78,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.03,
+    "for": 0.14,
+    "no_position": 0.78,
+    "off_topic": 0.05
+   }
+  },
+  "speed-bumps|e5e2377f44778f935ad6039ee22f3bef": {
+   "heat": 1,
+   "input_chars": 1405,
+   "input_tokens": 982,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.87,
+    "no_position": 0.11,
+    "off_topic": 0.02
+   }
+  },
+  "speed-bumps|ec157661fef703f87e7bf7a02399046c": {
+   "heat": 1,
+   "input_chars": 207,
+   "input_tokens": 752,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.78,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.04,
+    "for": 0.78,
+    "no_position": 0.14,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|eedcefc803a384bf8f533c24873c750a": {
+   "heat": 3,
+   "input_chars": 1406,
+   "input_tokens": 941,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-bumps|fe4d2f40d931403b3a6f26a8d67208b3": {
+   "heat": 4,
+   "input_chars": 1409,
+   "input_tokens": 984,
+   "question_version": "5c790ba201c9",
+   "side": "for",
+   "side_confidence": 0.4,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.29,
+    "for": 0.4,
+    "no_position": 0.23,
+    "off_topic": 0.07
+   }
+  },
+  "speed-cameras|012ced86fa0c832b9dd2d36c640e9b03": {
+   "heat": 1,
+   "input_chars": 1363,
+   "input_tokens": 973,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.54,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.03,
+    "for": 0.0,
+    "no_position": 0.42,
+    "off_topic": 0.54
+   }
+  },
+  "speed-cameras|0491c98c21906fd37acfb22600f7bbd6": {
+   "heat": 1,
+   "input_chars": 1468,
+   "input_tokens": 1016,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.83,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.14,
+    "off_topic": 0.83
+   }
+  },
+  "speed-cameras|0bca778eb7bf50f2a4abf8e5383e61ba": {
+   "heat": 4,
+   "input_chars": 1403,
+   "input_tokens": 1003,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.48,
+   "side_probabilities": {
+    "against": 0.46,
+    "concerns_only": 0.04,
+    "for": 0.0,
+    "no_position": 0.02,
+    "off_topic": 0.48
+   }
+  },
+  "speed-cameras|136a872b444bf2867f9670b824996737": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 963,
+   "question_version": "8ae8d3b0f77a",
+   "side": "no_position",
+   "side_confidence": 0.62,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.06,
+    "no_position": 0.62,
+    "off_topic": 0.31
+   }
+  },
+  "speed-cameras|197d7699f203ff9e7d4763bae3e0e57a": {
+   "heat": 3,
+   "input_chars": 1405,
+   "input_tokens": 993,
+   "question_version": "8ae8d3b0f77a",
+   "side": "no_position",
+   "side_confidence": 0.66,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.23,
+    "for": 0.0,
+    "no_position": 0.66,
+    "off_topic": 0.07
+   }
+  },
+  "speed-cameras|1a9adda582756ffb2800dfc2fad04bf6": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 973,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "speed-cameras|38749268ad8eaf347ba2b32652d9fb53": {
+   "heat": 1,
+   "input_chars": 1403,
+   "input_tokens": 999,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.74,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.23,
+    "off_topic": 0.74
+   }
+  },
+  "speed-cameras|3c2f576ccb3236d8a62e44c1be889048": {
+   "heat": 1,
+   "input_chars": 1404,
+   "input_tokens": 977,
+   "question_version": "8ae8d3b0f77a",
+   "side": "against",
+   "side_confidence": 0.61,
+   "side_probabilities": {
+    "against": 0.61,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.15,
+    "off_topic": 0.23
+   }
+  },
+  "speed-cameras|3ca66b20fe34d3b98c77d7ab956f8dc4": {
+   "heat": 4,
+   "input_chars": 1595,
+   "input_tokens": 1034,
+   "question_version": "8ae8d3b0f77a",
+   "side": "against",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.97,
+    "concerns_only": 0.02,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "speed-cameras|41ab14f2ad999145c0d79c8d30afd4aa": {
+   "heat": 1,
+   "input_chars": 1669,
+   "input_tokens": 1095,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.89,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.05,
+    "for": 0.02,
+    "no_position": 0.04,
+    "off_topic": 0.89
+   }
+  },
+  "speed-cameras|429ef52c4daf2fb963a5f515708caf97": {
+   "heat": 2,
+   "input_chars": 1319,
+   "input_tokens": 1006,
+   "question_version": "8ae8d3b0f77a",
+   "side": "concerns_only",
+   "side_confidence": 0.5,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.5,
+    "for": 0.08,
+    "no_position": 0.4,
+    "off_topic": 0.02
+   }
+  },
+  "speed-cameras|4cdaacccde833f70cbf5a5dbc5ef04c0": {
+   "heat": 4,
+   "input_chars": 1688,
+   "input_tokens": 1059,
+   "question_version": "8ae8d3b0f77a",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-cameras|54721374532050c3bbe741a2c5c4aa97": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 1009,
+   "question_version": "8ae8d3b0f77a",
+   "side": "against",
+   "side_confidence": 0.49,
+   "side_probabilities": {
+    "against": 0.49,
+    "concerns_only": 0.16,
+    "for": 0.02,
+    "no_position": 0.02,
+    "off_topic": 0.31
+   }
+  },
+  "speed-cameras|5c3d224da3b803460541ddc63fe6b30e": {
+   "heat": 2,
+   "input_chars": 1339,
+   "input_tokens": 1013,
+   "question_version": "8ae8d3b0f77a",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-cameras|6c2fbe179059b0804bf6f701eb92d276": {
+   "heat": 1,
+   "input_chars": 1402,
+   "input_tokens": 1004,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.72,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.27,
+    "no_position": 0.01,
+    "off_topic": 0.72
+   }
+  },
+  "speed-cameras|756c9ce8c349a030089337944e8dd1af": {
+   "heat": 1,
+   "input_chars": 1408,
+   "input_tokens": 976,
+   "question_version": "8ae8d3b0f77a",
+   "side": "no_position",
+   "side_confidence": 0.64,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.03,
+    "for": 0.0,
+    "no_position": 0.64,
+    "off_topic": 0.28
+   }
+  },
+  "speed-cameras|79ead42e6938581ccc7dae82042fd176": {
+   "heat": 4,
+   "input_chars": 954,
+   "input_tokens": 960,
+   "question_version": "8ae8d3b0f77a",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-cameras|7b05c9a38e41e54bdf1b4624396b75ab": {
+   "heat": 4,
+   "input_chars": 1025,
+   "input_tokens": 953,
+   "question_version": "8ae8d3b0f77a",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-cameras|8dec117d8e239c0618bd077c22f857f4": {
+   "heat": 3,
+   "input_chars": 1408,
+   "input_tokens": 991,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.78,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.05,
+    "no_position": 0.15,
+    "off_topic": 0.78
+   }
+  },
+  "speed-cameras|916caa0070fd2d72f3562b690b339827": {
+   "heat": 2,
+   "input_chars": 859,
+   "input_tokens": 890,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.42,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.28,
+    "for": 0.08,
+    "no_position": 0.21,
+    "off_topic": 0.42
+   }
+  },
+  "speed-cameras|ab09478854d94d610edee9eb8239c8f6": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 1000,
+   "question_version": "8ae8d3b0f77a",
+   "side": "concerns_only",
+   "side_confidence": 0.68,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.68,
+    "for": 0.29,
+    "no_position": 0.03,
+    "off_topic": 0.0
+   }
+  },
+  "speed-cameras|ab80f3289b5d0ee9f4f1398278f332ec": {
+   "heat": 1,
+   "input_chars": 1401,
+   "input_tokens": 982,
+   "question_version": "8ae8d3b0f77a",
+   "side": "no_position",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.73,
+    "off_topic": 0.21
+   }
+  },
+  "speed-cameras|c58ba9e7338996e617e0c1dfc6047fa6": {
+   "heat": 2,
+   "input_chars": 1404,
+   "input_tokens": 976,
+   "question_version": "8ae8d3b0f77a",
+   "side": "no_position",
+   "side_confidence": 0.63,
+   "side_probabilities": {
+    "against": 0.13,
+    "concerns_only": 0.04,
+    "for": 0.02,
+    "no_position": 0.63,
+    "off_topic": 0.18
+   }
+  },
+  "speed-cameras|d08af45d97ff7ee988133b00aa4f520d": {
+   "heat": 2,
+   "input_chars": 1410,
+   "input_tokens": 997,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.35,
+    "no_position": 0.13,
+    "off_topic": 0.52
+   }
+  },
+  "speed-cameras|d33029df9138876fef6a8488592ed11f": {
+   "heat": 4,
+   "input_chars": 1406,
+   "input_tokens": 992,
+   "question_version": "8ae8d3b0f77a",
+   "side": "for",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.02,
+    "for": 0.87,
+    "no_position": 0.09,
+    "off_topic": 0.01
+   }
+  },
+  "speed-cameras|d4dffd77ff35c9a0c22f2b39260c45ed": {
+   "heat": 1,
+   "input_chars": 1423,
+   "input_tokens": 1012,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.76,
+   "side_probabilities": {
+    "against": 0.2,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.02,
+    "off_topic": 0.76
+   }
+  },
+  "speed-cameras|d7d0da738530c83b214fd255512e11e9": {
+   "heat": 4,
+   "input_chars": 1405,
+   "input_tokens": 1020,
+   "question_version": "8ae8d3b0f77a",
+   "side": "for",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.98,
+    "no_position": 0.02,
+    "off_topic": 0.0
+   }
+  },
+  "speed-cameras|dc725be68f9721d0a84fc670e70739db": {
+   "heat": 4,
+   "input_chars": 945,
+   "input_tokens": 1050,
+   "question_version": "8ae8d3b0f77a",
+   "side": "for",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 1.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "speed-cameras|e804e981c1bbad7f455a026e85f1a28f": {
+   "heat": 1,
+   "input_chars": 1407,
+   "input_tokens": 1030,
+   "question_version": "8ae8d3b0f77a",
+   "side": "off_topic",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.07,
+    "no_position": 0.19,
+    "off_topic": 0.73
+   }
+  },
+  "speed-cameras|fbaeeda7ada4ccea64162b3ddb02d966": {
+   "heat": 4,
+   "input_chars": 1321,
+   "input_tokens": 1008,
+   "question_version": "8ae8d3b0f77a",
+   "side": "for",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.97,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "speed-cameras|fe028d54c0809cdf47b2d98e53bd4022": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 984,
+   "question_version": "8ae8d3b0f77a",
+   "side": "no_position",
+   "side_confidence": 0.61,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.61,
+    "off_topic": 0.39
+   }
+  },
+  "zoning-regulations|026579c406341043706d06e1d767ecc1": {
+   "heat": 4,
+   "input_chars": 1407,
+   "input_tokens": 1053,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.01,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "zoning-regulations|053b9db24a49c40bc3173724e99419ff": {
+   "heat": 4,
+   "input_chars": 1402,
+   "input_tokens": 1049,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.91,
+   "side_probabilities": {
+    "against": 0.06,
+    "concerns_only": 0.01,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.91
+   }
+  },
+  "zoning-regulations|06ebec2eb86bf995a7f7e9f1663cc218": {
+   "heat": 4,
+   "input_chars": 1454,
+   "input_tokens": 1057,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.79,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.16,
+    "no_position": 0.03,
+    "off_topic": 0.79
+   }
+  },
+  "zoning-regulations|07b7b5fff489dc78118d524d04c36546": {
+   "heat": 5,
+   "input_chars": 1401,
+   "input_tokens": 1038,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.81,
+    "concerns_only": 0.06,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.13
+   }
+  },
+  "zoning-regulations|08279e9182faa64eae9b4ea02108db30": {
+   "heat": 2,
+   "input_chars": 869,
+   "input_tokens": 954,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.68,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.01,
+    "for": 0.2,
+    "no_position": 0.09,
+    "off_topic": 0.68
+   }
+  },
+  "zoning-regulations|0c6b5cd9271d27d251ff3c7c5f4ed611": {
+   "heat": 1,
+   "input_chars": 1718,
+   "input_tokens": 1077,
+   "question_version": "240068ce2036",
+   "side": "for",
+   "side_confidence": 0.84,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.03,
+    "for": 0.84,
+    "no_position": 0.07,
+    "off_topic": 0.04
+   }
+  },
+  "zoning-regulations|328b91ea274ea0106372535b52af798a": {
+   "heat": 1,
+   "input_chars": 881,
+   "input_tokens": 951,
+   "question_version": "240068ce2036",
+   "side": "for",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.0,
+    "for": 0.93,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "zoning-regulations|33d6dbd3eba10d69527c3ffae9e3e3de": {
+   "heat": 4,
+   "input_chars": 1404,
+   "input_tokens": 1045,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "zoning-regulations|399eb081bdb5a677c86660e433e80103": {
+   "heat": 3,
+   "input_chars": 1480,
+   "input_tokens": 1056,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.87,
+   "side_probabilities": {
+    "against": 0.87,
+    "concerns_only": 0.1,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.03
+   }
+  },
+  "zoning-regulations|3e1fbfefc87b85a466ae63cb37aa6b0e": {
+   "heat": 5,
+   "input_chars": 1420,
+   "input_tokens": 1075,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "zoning-regulations|44a5abb5b1b94a2e2afd7c7bde96a44b": {
+   "heat": 1,
+   "input_chars": 1368,
+   "input_tokens": 1041,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.66,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.03,
+    "no_position": 0.31,
+    "off_topic": 0.66
+   }
+  },
+  "zoning-regulations|4b73a2bdeedc8ce5eb346974674a3912": {
+   "heat": 5,
+   "input_chars": 1405,
+   "input_tokens": 1051,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.97,
+   "side_probabilities": {
+    "against": 0.97,
+    "concerns_only": 0.0,
+    "for": 0.02,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "zoning-regulations|51296c971df62dbd2ee0a65c322f3a09": {
+   "heat": 3,
+   "input_chars": 1404,
+   "input_tokens": 1039,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "zoning-regulations|5134b365d5ae82b42ddd9894484a9f93": {
+   "heat": 3,
+   "input_chars": 1037,
+   "input_tokens": 980,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "zoning-regulations|538027d784b6783b666d6c3b2a699478": {
+   "heat": 4,
+   "input_chars": 761,
+   "input_tokens": 905,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "zoning-regulations|54cd0e29cbd5dbf8250d3e3a6c10f9d6": {
+   "heat": 2,
+   "input_chars": 1405,
+   "input_tokens": 1076,
+   "question_version": "240068ce2036",
+   "side": "for",
+   "side_confidence": 0.79,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.79,
+    "no_position": 0.08,
+    "off_topic": 0.11
+   }
+  },
+  "zoning-regulations|63e579499d00620a61c55eddfa2c7ac1": {
+   "heat": 4,
+   "input_chars": 1118,
+   "input_tokens": 1108,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.94,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.01,
+    "off_topic": 0.94
+   }
+  },
+  "zoning-regulations|67d2a13c038ef6fa0c7bbf74c91cb06d": {
+   "heat": 3,
+   "input_chars": 1546,
+   "input_tokens": 1078,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.72,
+   "side_probabilities": {
+    "against": 0.72,
+    "concerns_only": 0.21,
+    "for": 0.07,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "zoning-regulations|6916524dedb164ca3cdcb9f802582e91": {
+   "heat": 4,
+   "input_chars": 942,
+   "input_tokens": 939,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "zoning-regulations|6a1d7b77e04bd91ede6d7b5856436fc3": {
+   "heat": 4,
+   "input_chars": 1224,
+   "input_tokens": 1126,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 1.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  },
+  "zoning-regulations|6ab084c6ccd6de438be79eeb01d5b4b9": {
+   "heat": 4,
+   "input_chars": 1439,
+   "input_tokens": 1076,
+   "question_version": "240068ce2036",
+   "side": "for",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.2,
+    "concerns_only": 0.06,
+    "for": 0.73,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "zoning-regulations|6b60dec65cadfad00f3af9fe85913be0": {
+   "heat": 2,
+   "input_chars": 1406,
+   "input_tokens": 1060,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.52,
+   "side_probabilities": {
+    "against": 0.05,
+    "concerns_only": 0.02,
+    "for": 0.17,
+    "no_position": 0.24,
+    "off_topic": 0.52
+   }
+  },
+  "zoning-regulations|6c37d4285b558cd77f62afca1d6eb88d": {
+   "heat": 4,
+   "input_chars": 1312,
+   "input_tokens": 1037,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.6,
+   "side_probabilities": {
+    "against": 0.6,
+    "concerns_only": 0.05,
+    "for": 0.27,
+    "no_position": 0.0,
+    "off_topic": 0.08
+   }
+  },
+  "zoning-regulations|81839f569e6a2238b92793ed8ca538dd": {
+   "heat": 2,
+   "input_chars": 1444,
+   "input_tokens": 1070,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.45,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.03,
+    "for": 0.43,
+    "no_position": 0.05,
+    "off_topic": 0.45
+   }
+  },
+  "zoning-regulations|8212407db92cd402167cfb4bad2c56ad": {
+   "heat": 3,
+   "input_chars": 957,
+   "input_tokens": 958,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.98,
+   "side_probabilities": {
+    "against": 0.98,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.01
+   }
+  },
+  "zoning-regulations|95ad7cbf52a0fe1347ca953e6b1ed2bf": {
+   "heat": 2,
+   "input_chars": 907,
+   "input_tokens": 956,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.18,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.01,
+    "off_topic": 0.81
+   }
+  },
+  "zoning-regulations|b421a8c71a639a492e72be9ff1259750": {
+   "heat": 3,
+   "input_chars": 864,
+   "input_tokens": 978,
+   "question_version": "240068ce2036",
+   "side": "for",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.99,
+    "no_position": 0.0,
+    "off_topic": 0.01
+   }
+  },
+  "zoning-regulations|b4be5ee777044cf2726ce6d276c8bc8d": {
+   "heat": 4,
+   "input_chars": 1534,
+   "input_tokens": 1068,
+   "question_version": "240068ce2036",
+   "side": "concerns_only",
+   "side_confidence": 0.73,
+   "side_probabilities": {
+    "against": 0.13,
+    "concerns_only": 0.73,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.13
+   }
+  },
+  "zoning-regulations|b4d9b0c8fc4bb611cca63e855042aa4b": {
+   "heat": 1,
+   "input_chars": 891,
+   "input_tokens": 920,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.9,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.08,
+    "no_position": 0.02,
+    "off_topic": 0.9
+   }
+  },
+  "zoning-regulations|c6ae724e2e74a422b1d22f2f7cebe846": {
+   "heat": 2,
+   "input_chars": 1408,
+   "input_tokens": 1028,
+   "question_version": "240068ce2036",
+   "side": "for",
+   "side_confidence": 0.81,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.06,
+    "for": 0.81,
+    "no_position": 0.07,
+    "off_topic": 0.05
+   }
+  },
+  "zoning-regulations|dbce91e13a0ac231338843967c60daa7": {
+   "heat": 3,
+   "input_chars": 1401,
+   "input_tokens": 1065,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.69,
+   "side_probabilities": {
+    "against": 0.02,
+    "concerns_only": 0.15,
+    "for": 0.01,
+    "no_position": 0.13,
+    "off_topic": 0.69
+   }
+  },
+  "zoning-regulations|e21b70098f607033adafd29616973bd2": {
+   "heat": 4,
+   "input_chars": 853,
+   "input_tokens": 924,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.6,
+   "side_probabilities": {
+    "against": 0.6,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.4
+   }
+  },
+  "zoning-regulations|f351837d688a5e9600e104a69bf66128": {
+   "heat": 2,
+   "input_chars": 1409,
+   "input_tokens": 1066,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.99,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.99
+   }
+  },
+  "zoning-regulations|f67d7a67fde03af80d28575f62ec069b": {
+   "heat": 2,
+   "input_chars": 1441,
+   "input_tokens": 1063,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.63,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.01,
+    "for": 0.12,
+    "no_position": 0.23,
+    "off_topic": 0.63
+   }
+  },
+  "zoning-regulations|f9e25a439ba43c7de17b500add145f5c": {
+   "heat": 1,
+   "input_chars": 840,
+   "input_tokens": 951,
+   "question_version": "240068ce2036",
+   "side": "no_position",
+   "side_confidence": 0.42,
+   "side_probabilities": {
+    "against": 0.01,
+    "concerns_only": 0.0,
+    "for": 0.28,
+    "no_position": 0.42,
+    "off_topic": 0.29
+   }
+  },
+  "zoning-regulations|fce9ce4e5d8a3faa63c4ec4f95afe187": {
+   "heat": 4,
+   "input_chars": 1353,
+   "input_tokens": 1026,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 0.75,
+   "side_probabilities": {
+    "against": 0.1,
+    "concerns_only": 0.01,
+    "for": 0.07,
+    "no_position": 0.07,
+    "off_topic": 0.75
+   }
+  },
+  "zoning-regulations|fdca38d47b86e8c44f59900e331836a7": {
+   "heat": 4,
+   "input_chars": 1242,
+   "input_tokens": 1014,
+   "question_version": "240068ce2036",
+   "side": "off_topic",
+   "side_confidence": 1.0,
+   "side_probabilities": {
+    "against": 0.0,
+    "concerns_only": 0.0,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 1.0
+   }
+  },
+  "zoning-regulations|fe20c640c435869d83b2b9ebb6fd533f": {
+   "heat": 4,
+   "input_chars": 707,
+   "input_tokens": 917,
+   "question_version": "240068ce2036",
+   "side": "concerns_only",
+   "side_confidence": 0.83,
+   "side_probabilities": {
+    "against": 0.04,
+    "concerns_only": 0.83,
+    "for": 0.0,
+    "no_position": 0.0,
+    "off_topic": 0.13
+   }
+  },
+  "zoning-regulations|ff08c24e2bf422cd456c715ed95c8b7b": {
+   "heat": 4,
+   "input_chars": 1445,
+   "input_tokens": 1201,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.93,
+   "side_probabilities": {
+    "against": 0.93,
+    "concerns_only": 0.0,
+    "for": 0.01,
+    "no_position": 0.0,
+    "off_topic": 0.06
+   }
+  },
+  "zoning-regulations|ff5018bf72e0ab6584c791a171291ce9": {
+   "heat": 4,
+   "input_chars": 1400,
+   "input_tokens": 1024,
+   "question_version": "240068ce2036",
+   "side": "against",
+   "side_confidence": 0.53,
+   "side_probabilities": {
+    "against": 0.53,
+    "concerns_only": 0.17,
+    "for": 0.3,
+    "no_position": 0.0,
+    "off_topic": 0.0
+   }
+  }
+ }
+}

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from llm.typesafe import speaker_stance as ss
 from llm.typesafe import speaker_stance_gold as gold
 from llm.typesafe import topic_lean as tl
@@ -395,3 +394,48 @@ def test_combined_rounds_count_each_item_once(tmp_path: Path) -> None:
         f"bike-lanes|{'c' * 32}": {"side": "against", "side_confidence": 0.9}}}))
     res = gold.combined([g1, g2], [r, tmp_path / "missing.json"])
     assert res["bike-lanes"]["items"] == 2 and res["bike-lanes"]["clear"] == 2 and res["bike-lanes"]["swaps"] == 0
+
+
+ROUND2_ALL_ROUNDS_EXPECTED = {
+    "artificial-turf": {"items": 33, "clear": 5, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 0.857, "passes": False},
+    "backyard-chickens": {"items": 42, "clear": 3, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 1.0, "passes": False},
+    "battery-storage": {"items": 35, "clear": 13, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 1.0, "passes": True},
+    "bike-lanes": {"items": 90, "clear": 17, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 0.735, "passes": False},
+    "gas-stations": {"items": 50, "clear": 5, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 0.889, "passes": False},
+    "homeless-encampments": {"items": 50, "clear": 8, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 0.684, "passes": False},
+    "missing-middle-housing": {"items": 50, "clear": 9, "clear_accuracy": 0.889, "swaps": 0, "sided_precision": 0.714, "passes": False},
+    "road-diets": {"items": 38, "clear": 4, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 1.0, "passes": False},
+    "roundabouts": {"items": 41, "clear": 4, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 0.75, "passes": False},
+    "solar-farms": {"items": 45, "clear": 7, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 0.778, "passes": False},
+    "speed-bumps": {"items": 43, "clear": 10, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 0.789, "passes": False},
+    "speed-cameras": {"items": 31, "clear": 7, "clear_accuracy": 1.0, "swaps": 0, "sided_precision": 1.0, "passes": False},
+    "zoning-regulations": {"items": 90, "clear": 12, "clear_accuracy": 0.917, "swaps": 1, "sided_precision": 0.7, "passes": False},
+}
+
+
+def test_committed_round2_gold_run_numbers() -> None:
+    """#1476: the committed round-2 predictions carry no speech and reproduce the gate numbers."""
+    doc = json.loads(gold.ROUND2_RESULTS_FILE.read_text(encoding="utf-8"))
+    preds = doc["predictions"]
+    assert len(preds) == 538
+    allowed_pred_keys = {"heat", "input_chars", "input_tokens", "question_version", "side", "side_confidence", "side_probabilities"}
+    for val in preds.values():
+        assert set(val) <= allowed_pred_keys
+
+    r2 = gold.agreement(gold.load_gold(gold.ROUND2_GOLD_FILE), preds, min_confidence=ss.MIN_SIDE_CONFIDENCE)
+    assert r2["battery-storage"]["passes"] is True
+    assert r2["bike-lanes"]["passes"] is True
+
+    combined = gold.combined([gold.GOLD_FILE, gold.ROUND2_GOLD_FILE], [gold.RESULTS_FILE, gold.ROUND2_RESULTS_FILE])
+    got = {
+        t: {
+            "items": combined[t]["items"],
+            "clear": combined[t]["clear"],
+            "clear_accuracy": combined[t]["clear_accuracy"],
+            "swaps": combined[t]["swaps"],
+            "sided_precision": combined[t]["sided_precision"],
+            "passes": combined[t]["passes"],
+        }
+        for t in ROUND2_ALL_ROUNDS_EXPECTED
+    }
+    assert got == ROUND2_ALL_ROUNDS_EXPECTED

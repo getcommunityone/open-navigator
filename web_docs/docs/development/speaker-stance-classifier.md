@@ -185,6 +185,31 @@ P >= 0.8). With #1401 reconciling `dbt_project/seeds/curated_topics.csv` (`10000
 `100901`), `battery-storage` now flows into `gold.meeting_speaker_topic_side` (106 rows), `public.meeting_speaker_topic_side`
 (55 rows: 15 for, 31 against), and `topic_place_ranking` (9 places, 1 ranked, leaning against).
 
+### Round-2 gold scoring and gate results (#1476)
+
+`gold/speaker_stance_gold_round2_results.json` holds all 538 round-2 predictions (547,144 input tokens, ~$0.023 at
+$0.042/1M). Total `2026-11-28` Jev usage (`python -m llm.usage.report --since 2026-11-28`): 18,769 calls, 21,171,205
+input tokens, **$0.8892**.
+
+For the 11 new coverage topics, the gate runs on round 2; for held `bike-lanes` and `zoning-regulations`, the gate runs
+on rounds 1 + 2 combined (`report --all-rounds`). Only **battery-storage** passed and was released (#1486 / #1401):
+
+| topic | gate scope | items | clear | clear acc | swaps | served-side precision @0.8 | passes | status |
+|---|---|---|---|---|---|---|---|---|
+| battery-storage | round 2 | 35 | 13 | 1.0 | 0 | 1.0 | yes | released (#1486 / #1401) |
+| bike-lanes | rounds 1 + 2 | 90 (40 + 50) | 17 (11 + 6) | 1.0 | 0 | 0.735 (0.85 round 2) | no | held (#1402) |
+| speed-bumps | round 2 | 43 | 10 | 1.0 | 0 | 0.789 | no | held |
+| missing-middle-housing | round 2 | 50 | 9 | 0.889 | 0 | 0.714 | no | held |
+| homeless-encampments | round 2 | 50 | 8 | 1.0 | 0 | 0.684 | no | held |
+| zoning-regulations | rounds 1 + 2 | 90 (40 + 50) | 12 (7 + 5) | 0.917 | 1 | 0.7 (0.615 round 2) | no | held (#1402) |
+| solar-farms | round 2 | 45 | 7 | 1.0 | 0 | 0.778 | no | held (under 8 clear, #1477) |
+| speed-cameras | round 2 | 31 | 7 | 1.0 | 0 | 1.0 | no | held (under 8 clear, #1477) |
+| artificial-turf | round 2 | 33 | 5 | 1.0 | 0 | 0.857 | no | held (under 8 clear, #1477) |
+| gas-stations | round 2 | 50 | 5 | 1.0 | 0 | 0.889 | no | held (under 8 clear, #1477) |
+| road-diets | round 2 | 38 | 4 | 1.0 | 0 | 1.0 | no | held (under 8 clear, #1477) |
+| roundabouts | round 2 | 41 | 4 | 1.0 | 0 | 0.75 | no | held (under 8 clear, #1477) |
+| backyard-chickens | round 2 | 42 | 3 | 1.0 | 0 | 1.0 | no | held (under 8 clear, #1477) |
+
 
 ## Positions in plain words
 
