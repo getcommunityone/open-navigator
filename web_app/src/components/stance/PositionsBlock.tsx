@@ -10,6 +10,7 @@ import CommentMetricsBlock from './CommentMetricsBlock'
 import { DrillValue, KpiDrillSheet, figureDrill, isDrillable } from './KpiDrill'
 import FitDisplay from './FitDisplay'
 import PositionsSummary from './PositionsSummary'
+import UnitMatrixChart from './UnitMatrixChart'
 import { specDisplay } from '../../utils/displayFit'
 
 interface Props {
@@ -119,10 +120,25 @@ export default function PositionsBlock({ data, status, scope, labelledBy, quotes
         </p>
       ))}
       {spec && (
-        // The shared rule picks the form from the count (#1289): dots only for about 20–200 speakers.
+        // The shared rule picks the form from the count (#1289): 6-400 individual speakers render as an interactive UnitMatrix (#1400).
         <figure className="stance-voices-fig" aria-label={spec.title}>
-          <FitDisplay spec={spec} scopeLabel={storyScopeLabel(scope)} units={<Dots spec={spec} />} />
-          {specDisplay(spec).display.kind === 'units' && <figcaption className="stance-note">{spec.dotMeans}</figcaption>}
+          {!spec.countsOnly && spec.drawn >= 6 && spec.drawn <= 400 ? (
+            <>
+              <UnitMatrixChart
+                spec={spec}
+                chartKey="positions"
+                placeGrain={scope.stateCode ? 'town' : 'state'}
+                idBase="positions-matrix"
+                scopeLabel={storyScopeLabel(scope)}
+              />
+              <figcaption className="stance-note">{spec.dotMeans.replace(/\bdots?\b/g, (w) => (w === 'dot' ? 'square' : 'squares'))}</figcaption>
+            </>
+          ) : (
+            <>
+              <FitDisplay spec={spec} scopeLabel={storyScopeLabel(scope)} units={<Dots spec={spec} />} />
+              {specDisplay(spec).display.kind === 'units' && <figcaption className="stance-note">{spec.dotMeans}</figcaption>}
+            </>
+          )}
         </figure>
       )}
       <p className="stance-note stance-voices-caption">{positionsCaption(data, scope, captionComments)}</p>

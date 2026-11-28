@@ -112,10 +112,153 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq, .sc-pop, .sc-ride, .sc-fade, .sc-pt, .sc-ms-pop, .sc-end { transition: none !important; }
+  .sc-sq, .sc-row, .sc-bar, .sc-ms rect.sc-ms-sq, .sc-pop, .sc-ride, .sc-fade, .sc-pt, .sc-ms-pop, .sc-end, .wf-cell { transition: none !important; }
   .sc-line.is-drawing { animation: none; }
   .sc-line--thin { animation: none; }
-  .sc-matrix:not(.is-revealed) .sc-sq { opacity: 1; }
+  .sc-matrix:not(.is-revealed) .sc-sq, .wf-svg:not(.is-revealed) .wf-cell { opacity: 1; transform: none; }
+}
+
+/* Cross-page & cross-screen particle flight stage (#1400) */
+.box-flight-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 90;
+}
+[data-box-flight-hide='1'] [data-box] {
+  opacity: 0 !important;
+  transition: none !important;
+}
+
+/* 10x10 Box Waffle Chart (#1400, vizjb12 §4.8A) */
+.wf-wrap {
+  margin: 12px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper-raised);
+}
+.wf-main {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(150px, 210px);
+  gap: 14px;
+  align-items: center;
+}
+@media (max-width: 480px) {
+  .wf-main { grid-template-columns: 1fr; }
+}
+.wf-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wf-stat-num {
+  font-size: clamp(28px, 4vw, 38px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.wf-stat-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 4px;
+}
+.wf-stat-sub {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.wf-svg {
+  width: 100%;
+  max-width: 210px;
+  height: auto;
+  display: block;
+}
+.wf-cell {
+  transform-box: fill-box;
+  transform-origin: center;
+  cursor: pointer;
+  transition: opacity 220ms var(--ease-out), fill 180ms var(--ease-std), transform 240ms var(--ease-out);
+}
+.wf-svg:not(.is-revealed) .wf-cell {
+  opacity: 0;
+  transform: scale(0.5);
+}
+.wf-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.wf-leg-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease-std), background 140ms var(--ease-std), color 140ms var(--ease-std);
+}
+.wf-leg-btn:hover,
+.wf-leg-btn.is-active {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.wf-leg-btn.is-pinned {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.wf-leg-btn:focus-visible {
+  outline: 2px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+.wf-leg-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+.wf-leg-n {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.8;
+}
+.sc-label-btn {
+  cursor: pointer;
+  transition: opacity 150ms var(--ease-std);
+}
+.sc-label-btn:hover {
+  fill: var(--violet-ink);
+}
+.sc-label-btn:focus-visible {
+  outline: 2px solid var(--violet-ink);
+  outline-offset: 2px;
+}
+.oc-box-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 6px 0 2px;
+}
+.oc-box-sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--violet);
+  display: block;
+}
+.oc-box-sq.is-empty {
+  background: var(--neutral-data);
+  opacity: 0.5;
 }
 
 /* Topic policy charts (#1274): LegislationMap (lm-), PositionBreakdown (pb-), LocalActionsTracker (la-). */

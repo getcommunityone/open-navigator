@@ -73,6 +73,7 @@ export default function OutcomesChain({ topic, stateCode, city, scopeLabel, subj
   }
   const d = q.data
   const steps = chainSteps(d, subject, actionWords)
+  const refCount = Math.max(1, d.steps.meetings.count)
   return (
     <div className="sc-block oc">
       {title}
@@ -80,12 +81,20 @@ export default function OutcomesChain({ topic, stateCode, city, scopeLabel, subj
         {steps.map((s) => {
           const ex = d.steps[s.id].examples
           const screen = stepScreen(s.id, dataCenterStory)
+          const boxCount = s.available && s.count > 0 ? Math.max(1, Math.min(24, Math.round((s.count / refCount) * 24))) : 0
           return (
             <li key={s.id} className={`oc-step${s.count ? '' : ' is-empty'}`}>
               <div className="oc-head">
                 <span className="oc-label">{s.label}</span>
                 <span className="oc-num">{s.available ? fmt(s.count) : '—'}</span>
               </div>
+              {boxCount > 0 && (
+                <div className="oc-box-strip" aria-hidden="true">
+                  {Array.from({ length: boxCount }, (_, bi) => (
+                    <span key={bi} className="oc-box-sq" data-box="" data-group={s.id} />
+                  ))}
+                </div>
+              )}
               <p className="oc-line">{s.available ? s.line : 'Not available yet.'}</p>
               {ex.length > 0 && (
                 <ul className="oc-examples">

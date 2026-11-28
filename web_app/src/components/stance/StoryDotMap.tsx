@@ -230,14 +230,18 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
           const code = codeOf(d.id)
           const mine = !scopeStateCode || code === scopeStateCode
           const n = code ? counts.get(code)?.meetings : undefined
+          const s = (n ? r : r * 0.55) * 1.85
           return (
-            <circle
+            <rect
               key={i}
+              data-box=""
               data-state={code ?? undefined}
               data-active={hover === d.id ? '' : undefined}
-              cx={d.x}
-              cy={d.y}
-              r={n ? r : r * 0.55}
+              x={d.x - s / 2}
+              y={d.y - s / 2}
+              width={s}
+              height={s}
+              rx={s * 0.14}
               fill={colorFor(n)}
               opacity={(hover && hover !== d.id) || (!hover && !mine) ? 0.3 : 1}
               style={{ cursor: code ? 'pointer' : 'default' }}
