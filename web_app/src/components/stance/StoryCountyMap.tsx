@@ -403,20 +403,20 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   const caption = `${subjectCap} meetings by county · ${stateName}`
   // The key (#1409): every colour and shape drawn, from the same constants the dots use.
   const legend: LegendItem[] = [
-    ...(scopeCity ? [{ key: 'focus', label: `${scopeCity}’s county (others faded)`, color: '#0f172a', shape: 'hatch' as const }] : []),
+    ...(scopeCity ? [{ key: 'focus', label: `${scopeCity}’s county`, color: '#0f172a', shape: 'hatch' as const }] : []),
     ...(stances.size > 0
       ? LEGEND_STANCES.map((k) => ({ key: k, label: positions ? (k === 'neutral' ? positions.split : positions[k]) : LEGEND_LABEL[k], color: BOX_COLORS[k] }))
       : []),
     ...(leanCounties > 0 ? [{ key: 'lean', label: PUBLIC_AGAINST_LABEL, color: PUBLIC_AGAINST_COLOR }] : []),
     {
       key: 'meetings',
-      label: stances.size > 0 || leanCounties > 0 ? 'Meetings, no stance on record (darker = more meetings)' : `Meetings where ${subjectWords} came up (darker = more meetings)`,
+      label: stances.size > 0 || leanCounties > 0 ? 'Meetings, no stance on record (darker = more)' : `Meetings on ${subjectWords} (darker = more)`,
       color: MEETING_GREYS[2],
       shape: 'ramp',
       ramp: MEETING_GREYS,
     },
-    ...(rings.length > 0 ? [{ key: 'ring', label: 'Ring: a city, town or school district on record', color: HOUSE_THEME.ramp[5] ?? '#0f766e', shape: 'ring' as const }] : []),
-    { key: 'empty', label: 'No meetings on record', color: HOUSE_THEME.neutral },
+    ...(rings.length > 0 ? [{ key: 'ring', label: 'Ring: town on record', color: HOUSE_THEME.ramp[5] ?? '#0f766e', shape: 'ring' as const }] : []),
+    { key: 'empty', label: 'None on record', color: HOUSE_THEME.neutral },
   ]
 
   return (

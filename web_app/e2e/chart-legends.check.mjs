@@ -14,6 +14,7 @@ const arg = (name, dflt) => {
 }
 const base = arg('base', 'http://localhost:5173')
 const shots = arg('shots', '')
+const only = arg('only', '')
 let failures = 0
 const ok = (cond, msg) => {
   console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${msg}`)
@@ -46,6 +47,7 @@ const VIEWPORTS = [
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--disable-gpu', '--disable-software-rasterizer'] })
 for (const [vname, vopts] of VIEWPORTS) {
   for (const [name, path] of PAGES) {
+    if (only && !name.includes(only)) continue
     console.log(`\n${name} @ ${vname}`)
     const ctx = await browser.newContext({ ...vopts, reducedMotion: 'reduce' })
     const page = await ctx.newPage()
@@ -83,7 +85,7 @@ for (const [vname, vopts] of VIEWPORTS) {
       }
     })
     let r = await probe()
-    for (let k = 0; k < 3 && r.total === 0; k++) {
+    for (let k = 0; k < 6 && r.total === 0; k++) {
       await page.waitForTimeout(3000)
       r = await probe()
     }

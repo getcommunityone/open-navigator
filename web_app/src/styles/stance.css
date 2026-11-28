@@ -3743,8 +3743,14 @@ html.stance-snap .stance-intro {
   .stance-panel--glance .stance-map-key {
     flex: none;
     margin-top: 2px;
-    max-height: 3.6em;
-    overflow: hidden;
+  }
+  .stance-panel--glance .chart-frame-caption,
+  .stance-panel--glance [data-chart-why] {
+    display: none;
+  }
+  .stance-panel--glance .stance-map-key ul {
+    font-size: 10px;
+    gap: 1px 8px;
   }
   .stance-panel--glance .stance-map-head {
     flex: none;
@@ -3780,7 +3786,7 @@ html.stance-snap .stance-intro {
   }
   /* The map is as tall as the column less its title row, and as wide as that and the state's shape allow, centred. */
   .stance-panel--glance .stance-map-fit {
-    --map-h: calc(100cqh - 34px - 3.6em);
+    --map-h: calc(100cqh - 84px);
     width: min(100%, calc(var(--map-h) * var(--map-ar, 1)));
     height: var(--map-h);
   }
