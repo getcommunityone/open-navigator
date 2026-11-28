@@ -180,10 +180,10 @@ ties. Then rebuild `meeting_speaker_topic_side` and `topic_place_ranking`, and r
 in a follow-up PR with their gold numbers.
 
 battery-storage (100111) is released from `HELD` (#1486, `RELEASED` in `speaker_stance.py`). Its 146 readings are in
-bronze and the staging view reads them (current version: 41 against, 29 for, 15 concerns only, 21 no position, 40 off
-topic; 31 against and 15 for at P >= 0.8). `meeting_speaker_topic_side` cannot take them yet: its FK to
-`civicsearch_topic` fails because the curated seed table holds no ids 100101-100111 (#1401 owns the seed), so
-`topic_place_ranking` has no battery-storage rows until that seed lands.
+bronze (current version: 41 against, 29 for, 15 concerns only, 21 no position, 40 off topic; 31 against and 15 for at
+P >= 0.8). With #1401 reconciling `dbt_project/seeds/curated_topics.csv` (`100001–100020`, `100101–100111`,
+`100901`), `battery-storage` now flows into `gold.meeting_speaker_topic_side` (106 rows), `public.meeting_speaker_topic_side`
+(55 rows: 15 for, 31 against), and `topic_place_ranking` (9 places, 1 ranked, leaning against).
 
 
 ## Positions in plain words
