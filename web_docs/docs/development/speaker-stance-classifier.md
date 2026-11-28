@@ -179,6 +179,12 @@ cleanly on 401, 402 or 403. Within a topic, the hottest and most contested meeti
 ties. Then rebuild `meeting_speaker_topic_side` and `topic_place_ranking`, and release the passing topics from `HELD`
 in a follow-up PR with their gold numbers.
 
+battery-storage (100111) is released from `HELD` (#1486, `RELEASED` in `speaker_stance.py`). Its 146 readings are in
+bronze and the staging view reads them (current version: 41 against, 29 for, 15 concerns only, 21 no position, 40 off
+topic; 31 against and 15 for at P >= 0.8). `meeting_speaker_topic_side` cannot take them yet: its FK to
+`civicsearch_topic` fails because the curated seed table holds no ids 100101-100111 (#1401 owns the seed), so
+`topic_place_ranking` has no battery-storage rows until that seed lands.
+
 
 ## Positions in plain words
 
