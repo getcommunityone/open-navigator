@@ -5,7 +5,7 @@ title: "feat(stories): unified vizjb12 box charts and cross-page particle flight
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: 4da50a4b5d8ba1b9801615907add5eac57e35f10
+head_sha: 802be587d9f3740b44a196b55346582654502ac5
 verdict: approve
 ---
 
@@ -18,6 +18,7 @@ Automated review (#648) for PR #1404 on `feat/1400-cross-page-box-particles`. He
 
 ## Scope of Change
 
+- `pull_requests/pr-1404-review.md`
 - `web_app/e2e/map-taps.check.mjs`
 - `web_app/src/App.tsx`
 - `web_app/src/components/home/HomeDataStories.tsx`
@@ -51,7 +52,7 @@ Automated review (#648) for PR #1404 on `feat/1400-cross-page-box-particles`. He
 
 ## CI Status
 
-See the PR checks on `4da50a4b5d8b`.
+See the PR checks on `802be587d9f3`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
