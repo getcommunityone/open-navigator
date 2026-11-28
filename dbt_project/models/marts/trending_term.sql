@@ -26,8 +26,9 @@
                              government holds more than var trending_max_jurisdiction_share (40%) of year_b's meetings
                              (so one place, or one long meeting series, can't carry a term), and the scope recorded at
                              least 20 meetings in each year. Only eligible rows get ranks.
-    rank_rising / rank_hot / rank_volume  1 = top, within the scope; rising needs rise_score > 0, hot needs
-                             hot_score >= 1.96.
+    rank_rising / rank_hot / rank_volume  1 = top, within the scope, over eligible rows that aren't a fragment of a
+                             longer eligible term said in at least var trending_fragment_share (85%) as many meetings;
+                             rising needs rise_score > 0, hot needs hot_score >= 1.96.
     is_served                within the top var trending_served_per_sort (100) of any of the three ranks: what
                              public.trending_term publishes.
 */
@@ -42,7 +43,9 @@
 {%- set max_jur = var('trending_max_jurisdiction_share', 0.4) %}
 
 with jy as (
-    select * from {{ ref('int_trending_term__jurisdiction_year') }}
+    select j.*
+    from {{ ref('int_trending_term__jurisdiction_year') }} as j
+    inner join {{ ref('int_trending_term__candidate') }} as c on c.term_key = j.term_key and c.drop_reason is null
 ),
 
 scoped as (
@@ -101,19 +104,39 @@ base as (
     left join {{ ref('int_trending_term__hot') }} as h on h.term_key = c.term_key
 ),
 
+-- A fragment of a longer eligible term that is said in nearly the same meetings ("term rental" inside "short term
+-- rental", "automated license" inside "automated license plate") isn't ranked: the longer phrase stands for it.
+fragment as (
+    select distinct t.scope_code, t.term_key
+    from base as u
+    inner join {{ ref('int_trending_term__candidate') }} as uc on uc.term_key = u.term_key and uc.n_words >= 2
+    cross join lateral (
+        select array_to_string((string_to_array(uc.term, ' '))[a:b], ' ') as sub
+        from generate_series(1, uc.n_words) as a, generate_series(1, uc.n_words) as b
+        where b >= a and (b - a + 1) < uc.n_words
+    ) as sp
+    inner join {{ ref('int_trending_term__candidate') }} as tc on tc.term = sp.sub and tc.drop_reason is null
+    inner join base as t on t.term_key = tc.term_key and t.scope_code = u.scope_code and t.eligible
+    where u.eligible and u.meetings_b >= {{ var('trending_fragment_share', 0.85) }} * t.meetings_b
+),
+
 ranked as (
     select
         b.*,
-        case when b.eligible and b.rise_score > 0 then
-            row_number() over (partition by b.scope_code, (b.eligible and b.rise_score > 0)
+        case when b.rankable and b.rise_score > 0 then
+            row_number() over (partition by b.scope_code, (b.rankable and b.rise_score > 0)
                                order by b.rise_score desc, b.meetings_b desc, b.term_key) end as rank_rising,
-        case when b.eligible and b.hot_score >= 1.96 then
-            row_number() over (partition by b.scope_code, (b.eligible and b.hot_score >= 1.96)
+        case when b.rankable and b.hot_score >= 1.96 then
+            row_number() over (partition by b.scope_code, (b.rankable and b.hot_score >= 1.96)
                                order by b.hot_score desc, b.meetings_b desc, b.term_key) end as rank_hot,
-        case when b.eligible then
-            row_number() over (partition by b.scope_code, b.eligible
+        case when b.rankable then
+            row_number() over (partition by b.scope_code, b.rankable
                                order by b.meetings_b desc, b.term_key) end as rank_volume
-    from base as b
+    from (
+        select b0.*, (b0.eligible and f.term_key is null) as rankable
+        from base as b0
+        left join fragment as f on f.scope_code = b0.scope_code and f.term_key = b0.term_key
+    ) as b
 )
 
 select
