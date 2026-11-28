@@ -5,7 +5,7 @@ title: "fix(stories): one visual per screen and phone fit sizing"
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: 29d2dc3167137d98fd46ca5c2c9d2ecf0ba27c5a
+head_sha: 7527277197809fad38975f1eddf8691920c3838d
 verdict: approve
 ---
 
@@ -18,6 +18,7 @@ Automated review (#648) for PR #1429 on `fix/1422-one-visual-fit`. Heuristic rub
 
 ## Scope of Change
 
+- `pull_requests/pr-1429-review.md`
 - `web_app/e2e/box-coverage.check.mjs`
 - `web_app/src/components/stance/ChartPanel.tsx`
 - `web_app/src/components/stance/FitDisplay.tsx`
@@ -26,7 +27,7 @@ Automated review (#648) for PR #1429 on `fix/1422-one-visual-fit`. Heuristic rub
 
 ## CI Status
 
-See the PR checks on `29d2dc316713`.
+See the PR checks on `752727719780`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
