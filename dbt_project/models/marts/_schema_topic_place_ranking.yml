@@ -1,0 +1,790 @@
+version: 2
+models:
+- name: topic_place_ranking
+  description: 'One row per place x topic x window (#1437): where a place''s public speakers stood on a topic, from their
+    own classifier sides (meeting_speaker_topic_side). Each speaker counts once on their majority side; ranked only with
+    >= 10 sided speakers across >= 2 meetings in 24 months; the score is shrunk toward the topic''s national rate with 10
+    pseudo-speakers; ranked within Census size bands. Officials (roster-confirmed only) are kept apart. No names. Decision
+    record: web_docs/docs/development/topic-place-rankings.md.'
+  config:
+    contract:
+      enforced: true
+  constraints:
+  - type: primary_key
+    columns:
+    - jurisdiction_id
+    - topic_id
+    - window_months
+  - type: foreign_key
+    columns:
+    - jurisdiction_id
+    to: ref('jurisdictions')
+    to_columns:
+    - jurisdiction_id
+  - type: foreign_key
+    columns:
+    - topic_id
+    to: ref('civicsearch_topic')
+    to_columns:
+    - topic_id
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - jurisdiction_id
+      - topic_id
+      - window_months
+  columns:
+  - name: jurisdiction_id
+    data_type: text
+    description: The place (FK to jurisdictions). Part of the primary key.
+    constraints:
+    - type: not_null
+  - name: topic_id
+    data_type: int
+    description: The topic (FK to civicsearch_topic). Part of the primary key.
+    constraints:
+    - type: not_null
+  - name: window_months
+    data_type: int
+    description: The window length in months (var ranking_window_months). Part of the primary key.
+    constraints:
+    - type: not_null
+  - name: jurisdiction_name
+    data_type: text
+    description: The place name.
+  - name: state_code
+    data_type: text
+    description: Two-letter state code.
+  - name: state
+    data_type: text
+    description: Full state name.
+  - name: population
+    data_type: bigint
+    description: Census ACS total population (jurisdictions.population); NULL where none.
+  - name: size_band
+    data_type: text
+    description: large (>= 250k) | mid (50k-250k) | small (< 50k) | unknown (no population).
+    constraints:
+    - type: not_null
+    tests:
+    - accepted_values:
+        values:
+        - large
+        - mid
+        - small
+        - unknown
+  - name: speakers_for
+    data_type: int
+    description: Distinct public speakers whose majority side was for.
+    constraints:
+    - type: not_null
+  - name: speakers_against
+    data_type: int
+    description: Distinct public speakers whose majority side was against.
+    constraints:
+    - type: not_null
+  - name: speakers_split
+    data_type: int
+    description: Distinct public speakers evenly split; they take no side.
+    constraints:
+    - type: not_null
+  - name: meetings
+    data_type: int
+    description: Distinct meetings with a counted resident reading in the window.
+    constraints:
+    - type: not_null
+  - name: first_meeting_date
+    data_type: date
+    description: Earliest such meeting.
+  - name: last_meeting_date
+    data_type: date
+    description: Latest such meeting.
+  - name: against_share
+    data_type: numeric(5, 4)
+    description: speakers_against / (speakers_for + speakers_against).
+  - name: national_against_share
+    data_type: numeric(5, 4)
+    description: The topic's against share over every place's sided speakers in the window (the shrinkage target).
+  - name: shrunk_against_share
+    data_type: numeric(5, 4)
+    description: (against + prior_weight * national) / (for + against + prior_weight).
+  - name: prior_weight
+    data_type: int
+    description: Pseudo-speakers at the national rate (var ranking_prior_weight).
+    constraints:
+    - type: not_null
+  - name: is_ranked
+    data_type: boolean
+    description: At least ranking_min_speakers sided speakers across ranking_min_meetings meetings in the window.
+    constraints:
+    - type: not_null
+  - name: band_rank
+    data_type: int
+    description: 1 = most against among ranked places in the same size band; NULL when unranked.
+  - name: band_ranked_count
+    data_type: int
+    description: Ranked places in the band; NULL when unranked.
+  - name: officials_for
+    data_type: int
+    description: Roster-confirmed officials whose majority side was for (never in the resident counts).
+  - name: officials_against
+    data_type: int
+    description: Roster-confirmed officials whose majority side was against.
+  - name: officials_side
+    data_type: text
+    description: for | against | split; NULL when no roster-confirmed official took a side.
+  - name: window_end_date
+    data_type: date
+    description: The window end (var ranking_as_of, or the run date).
+  - name: built_at
+    data_type: timestamp
+    description: When the row was built.
+unit_tests:
+- name: topic_place_ranking_counts_once_shrinks_and_bands
+  description: Each speaker counts once on their majority side (a split speaker takes no side); only for/against inside
+    the window count; officials apart; the 10-speaker / 2-meeting minimum; shrinkage toward the national rate (7 of 19 against);
+    size bands.
+  model: topic_place_ranking
+  overrides:
+    vars:
+      ranking_as_of: '2026-11-27'
+      ranking_window_months: 24
+      ranking_min_speakers: 10
+      ranking_min_meetings: 2
+      ranking_prior_weight: 10
+  given:
+  - input: ref('meeting_speaker_topic_side')
+    rows:
+    - meeting_speaker_id: ann-v1
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: ann-v2
+      topic_id: 1
+      video_id: v2
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: ann-v3
+      topic_id: 1
+      video_id: v3
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: bob-v1
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: for
+    - meeting_speaker_id: bob-v2
+      topic_id: 1
+      video_id: v2
+      meeting_date: '2026-06-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: u-a0
+      topic_id: 1
+      video_id: v2
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: u-a1
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: u-a2
+      topic_id: 1
+      video_id: v2
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: u-a3
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: u-a4
+      topic_id: 1
+      video_id: v2
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: u-a5
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: u-f0
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: for
+    - meeting_speaker_id: u-f1
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: for
+    - meeting_speaker_id: u-f2
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: for
+    - meeting_speaker_id: ns
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: not_sure
+    - meeting_speaker_id: co
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: concerns_only
+    - meeting_speaker_id: minor
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: for
+    - meeting_speaker_id: old
+      topic_id: 1
+      video_id: v0
+      meeting_date: '2020-01-01'
+      jurisdiction_id: J1
+      side: against
+    - meeting_speaker_id: carl
+      topic_id: 1
+      video_id: v1
+      meeting_date: '2026-05-01'
+      jurisdiction_id: J1
+      side: for
+    - meeting_speaker_id: j2-0
+      topic_id: 1
+      video_id: v4
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: j2-1
+      topic_id: 1
+      video_id: v4
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: j2-2
+      topic_id: 1
+      video_id: v4
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: j2-3
+      topic_id: 1
+      video_id: v4
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: j2-4
+      topic_id: 1
+      video_id: v4
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: j2-5
+      topic_id: 1
+      video_id: v5
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: j2-6
+      topic_id: 1
+      video_id: v5
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: j2-7
+      topic_id: 1
+      video_id: v5
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: j2-8
+      topic_id: 1
+      video_id: v5
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J2
+      side: for
+    - meeting_speaker_id: sd
+      topic_id: 1
+      video_id: v6
+      meeting_date: '2026-07-01'
+      jurisdiction_id: J3
+      side: against
+  - input: ref('meeting_speaker_position')
+    format: sql
+    rows: 'select ''ann-v1''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date,
+      null::text::text as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text
+      as state, null::integer::integer as speaker_number, ''Ann B.''::text as speaker_label, true::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''ann-v2''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Ann B.''::text as speaker_label, true::boolean as speaker_named, null::text::text
+      as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''ann-v3''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Ann B.''::text as speaker_label, true::boolean as speaker_named, null::text::text
+      as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''bob-v1''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Bob C.''::text as speaker_label, true::boolean as speaker_named, null::text::text
+      as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''bob-v2''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Bob C.''::text as speaker_label, true::boolean as speaker_named, null::text::text
+      as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-a0''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-a0''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-a1''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-a1''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-a2''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-a2''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-a3''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-a3''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-a4''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-a4''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-a5''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-a5''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-f0''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-f0''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-f1''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-f1''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''u-f2''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker u-f2''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''ns''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker ns''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''co''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker co''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''minor''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker minor''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, true::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''old''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Dan E.''::text as speaker_label, true::boolean as speaker_named, null::text::text
+      as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''carl''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Carl F., Mayor''::text as speaker_label, true::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''official_roster_match''::text
+      as attribution_method, null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier,
+      null::text::text as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text
+      as attribution_version, null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-0''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-0''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-1''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-1''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-2''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-2''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-3''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-3''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-4''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-4''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-5''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-5''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-6''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-6''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-7''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-7''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''j2-8''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker j2-8''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at
+
+      union all
+
+      select ''sd''::text as meeting_speaker_id, null::text::text as video_id, null::date::date as meeting_date, null::text::text
+      as jurisdiction_id, null::text::text as jurisdiction_name, null::text::text as state_code, null::text::text as state,
+      null::integer::integer as speaker_number, ''Speaker sd''::text as speaker_label, false::boolean as speaker_named,
+      null::text::text as speaker_role, null::boolean::boolean as is_public_comment, false::boolean as possible_minor, null::integer::integer
+      as turn_count, null::integer::integer as segment_count, null::integer::integer as word_count, null::numeric(12,3)::numeric(12,3)
+      as first_start_seconds, null::text::text as stance_shape, null::text::text as shape_cue_text, null::text[]::text[]
+      as cue_texts, null::integer::integer as heat, null::text::text as heat_method, null::numeric(3,2)::numeric(3,2) as
+      heat_confidence, null::text::text as heat_version, null::text::text as possible_name, ''chair_call''::text as attribution_method,
+      null::numeric(3,2)::numeric(3,2) as attribution_confidence, null::text::text as attribution_tier, null::text::text
+      as attribution_evidence, null::numeric(12,3)::numeric(12,3) as attribution_evidence_seconds, null::text::text as attribution_version,
+      null::timestamp::timestamp as attributed_at'
+  - input: ref('jurisdictions')
+    rows:
+    - jurisdiction_id: J1
+      name: Bigtown
+      state_code: AL
+      state_name: Alabama
+      population: 300000
+      jurisdiction_type: city
+    - jurisdiction_id: J2
+      name: Smallville
+      state_code: AL
+      state_name: Alabama
+      population: 1000
+      jurisdiction_type: town
+    - jurisdiction_id: J3
+      name: Bigtown Schools
+      state_code: AL
+      state_name: Alabama
+      population: 300000
+      jurisdiction_type: school_district
+  expect:
+    rows:
+    - jurisdiction_id: J1
+      topic_id: 1
+      size_band: large
+      speakers_for: 3
+      speakers_against: 7
+      speakers_split: 1
+      meetings: 3
+      against_share: 0.7
+      national_against_share: 0.3684
+      shrunk_against_share: 0.5342
+      is_ranked: true
+      band_rank: 1
+      band_ranked_count: 1
+      officials_for: 1
+      officials_against: 0
+      officials_side: for
+    - jurisdiction_id: J2
+      topic_id: 1
+      size_band: small
+      speakers_for: 9
+      speakers_against: 0
+      speakers_split: 0
+      meetings: 2
+      against_share: 0.0
+      national_against_share: 0.3684
+      shrunk_against_share: 0.1939
+      is_ranked: false
+      band_rank: null
+      band_ranked_count: null
+      officials_for: 0
+      officials_against: 0
+      officials_side: null

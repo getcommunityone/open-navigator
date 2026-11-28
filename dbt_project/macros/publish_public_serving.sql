@@ -195,6 +195,7 @@
     'meeting_comment':                     "_s.state_code in {{states}}",
     'meeting_speaker_position':            "_s.state_code in {{states}}",
     'meeting_speaker_topic_side':          "_s.state_code in {{states}}",
+    'topic_place_ranking':                 "_s.state_code in {{states}}",
     'data_center_comment':                 "_s.state_code in {{states}}",
     'data_center_comment_place':
         "_s.data_center_comment_id in (select data_center_comment_id from gold.data_center_comment "
@@ -302,7 +303,8 @@
     'recorded_meeting_year',
     'topic_meeting_year',
     'segmented_meeting', 'meeting_speaker_position', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
-    'meeting_passage_speaker', 'meeting_speaker_topic_side'
+    'meeting_passage_speaker', 'meeting_speaker_topic_side',
+    'topic_place_ranking'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a

@@ -363,6 +363,7 @@ from api.routes import short_term_rentals as short_term_rentals_routes
 from api.routes import topic_companies as topic_companies_routes
 from api.routes import topic_timeline as topic_timeline_routes
 from api.routes import topic_yoy as topic_yoy_routes
+from api.routes import rankings as rankings_routes
 from api.routes import topic_policy as topic_policy_routes
 from api.routes import topic_upcoming as topic_upcoming_routes
 from api.routes import topic_organizations as topic_organizations_routes
@@ -428,6 +429,8 @@ app.include_router(topic_companies_routes.router)
 app.include_router(topic_timeline_routes.router)
 # Every main topic, last year vs this year (#1343); prefix /api/topics baked in.
 app.include_router(topic_yoy_routes.router)
+# Where places stand on a topic (#1437); prefix /api/rankings baked in.
+app.include_router(rankings_routes.router)
 # State bills, local actions and public positions on a topic (#1274); prefix /api/topics baked in.
 app.include_router(topic_policy_routes.router)
 app.include_router(topic_upcoming_routes.router)
