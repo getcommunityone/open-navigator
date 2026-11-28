@@ -94,6 +94,25 @@ models:
 seeds:
   open_navigator_dbt:
     +schema: seeds
+    governing_body_pattern:
+      # #1442: meeting title -> governing body patterns, tried by priority (Python twin: ingestion.governance.body_titles).
+      +column_types:
+        pattern_id: text
+        priority: integer
+        applies_to: text
+        pattern: text
+        body_key: text
+        body_name: text
+        body_type: text
+        name_from_title: boolean
+    governing_body_title_example:
+      # #1442: real titles and the body each must map to (pytest and assert_governing_body_title_examples).
+      +column_types:
+        title: text
+        jurisdiction_name: text
+        jurisdiction_type: text
+        expected_body_key: text
+        expected_body_name: text
     topic_organization_rule:
       # #1345: how each curated topic is tied to nonprofits (NTEE code, name or mission keyword regex).
       +column_types:
