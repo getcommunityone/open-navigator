@@ -1,5 +1,7 @@
 // @ts-nocheck — Census utility functions and react-router types are loose; this file
 // follows the same convention as CensusMapPage.tsx.
+import ChartFrame, { type LegendItem } from '../components/chart/ChartFrame'
+import { colorFromT } from '../utils/censusMapTransforms'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -368,6 +370,12 @@ export default function CensusDrilldownMapPage() {
     return manifest?.vintage ? [manifest.vintage] : []
   }, [manifest])
   const displayVintage = vintageParam || manifest?.vintage || vintages[vintages.length - 1] || '2024'
+  // Title and key (#1409): what the map shows and the colour ramp it is drawn with (the same colorFromT as the shading).
+  const censusFrameTitle = `${metricLabel}: ${view === 'nation' ? 'every state' : view === 'zip' ? 'ZIP codes' : view === 'place' ? 'places' : 'counties'} · ${vintageParam ?? manifest?.vintage ?? ''}`.trim()
+  const censusFrameLegend: LegendItem[] = [
+    { key: 'ramp', label: `Lower to higher ${metricLabel}`, color: colorFromT(0.5) ?? '#94a3b8', shape: 'ramp', ramp: [0, 0.25, 0.5, 0.75, 1].map((t) => colorFromT(t) ?? '#e2e8f0') },
+    { key: 'none', label: 'No data', color: 'rgba(248,250,252,0.40)' },
+  ]
   const yearHelp = `${CENSUS_MAP_UI_HELP.year}\n\n${metricFullHelp}`
 
   /**
@@ -1558,6 +1566,7 @@ export default function CensusDrilldownMapPage() {
                 ) : null}
               </div>
             ) : (
+              <ChartFrame title={censusFrameTitle} caption={`${metricLabel}, ${view === 'nation' ? 'by state' : view === 'zip' ? 'by ZIP code' : view === 'place' ? 'by place' : 'by county'}`} legend={censusFrameLegend}>
               <CensusDrilldownStage
                 view={view as DrilldownView}
                 statesTopo={statesTopo as never}
@@ -1603,6 +1612,7 @@ export default function CensusDrilldownMapPage() {
                 tapPreviewId={tapPreview?.info.id ?? null}
                 compact={phone}
               />
+              </ChartFrame>
             )}
           </div>
 
