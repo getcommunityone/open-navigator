@@ -108,6 +108,9 @@ doc as (
     order by d.video_id, d.content_length desc nulls last
 )
 
+-- First locate the first keyword mention (cheap regex scan) and run ts_headline on a 3,000-char
+-- window around it; only fall back to ts_headline over the full transcript when that window
+-- returns no <mark> highlight (#1495).
 select
     md5(l.topic_id::text || '|' || l.video_id)::text as topic_transcript_link_id,
     l.topic_id::integer                              as topic_id,
@@ -123,8 +126,14 @@ select
     d.video_url::text                                as video_url,
     l.n_phrase_hits::integer                         as n_keyword_hits,
     case
-        when h.full_hl like '%<mark>%' then h.full_hl
         when h.window_hl like '%<mark>%' then h.window_hl
+        else (
+            select nullif(trim(f.hl), '')
+            from (
+                select ts_headline('english', d.content, to_tsquery('english', q.tsq), {{ hl_opts }}) as hl
+            ) f
+            where f.hl like '%<mark>%'
+        )
     end::text                                        as evidence_passage
 from link l
 join doc d
@@ -132,15 +141,15 @@ join doc d
 join topic_query q
     on q.topic_id = l.topic_id
 cross join lateral (
-    select
-        nullif(trim(ts_headline('english', d.content, to_tsquery('english', q.tsq), {{ hl_opts }})), '') as full_hl,
-        -- Fallback for very long transcripts, where ts_headline over the whole
-        -- text can come back without a highlight: re-cut it from a 3,000-char
-        -- window around the first regex mention.
-        nullif(trim(ts_headline(
+    select regexp_instr(d.content, q.kw_regex, 1, 1, 0, 'i') as pos
+) p
+cross join lateral (
+    select case
+        when p.pos > 0 then nullif(trim(ts_headline(
             'english',
-            substr(d.content, greatest(1, regexp_instr(d.content, q.kw_regex, 1, 1, 0, 'i') - 1500), 3000),
+            substr(d.content, greatest(1, p.pos - 1500), 3000),
             to_tsquery('english', q.tsq),
             {{ hl_opts }}
-        )), '') as window_hl
+        )), '')
+    end as window_hl
 ) h
