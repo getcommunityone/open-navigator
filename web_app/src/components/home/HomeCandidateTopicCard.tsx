@@ -114,7 +114,12 @@ export default function HomeCandidateTopicCard({ topic, yoy, onPlaceApply, topic
   )
 
   return (
-    <div className="home-story-card" data-hero-topic={topic.slug} data-hero-kind="meetings">
+    <div
+      className="home-story-card"
+      data-hero-topic={topic.slug}
+      data-hero-kind="meetings"
+      data-scope-level={city ? 'city' : stateCode ? 'state' : 'national'}
+    >
       <div className="home-story-text">
         <p className="font-mono-x home-story-eyebrow">Meetings · {topic.name}</p>
         <h1 id="home-story-dc" className="font-display home-story-headline">

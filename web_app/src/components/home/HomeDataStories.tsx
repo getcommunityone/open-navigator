@@ -14,7 +14,7 @@ import { storyTopicOptions } from '../../utils/storyNav'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
 import HomeCandidateTopicCard from './HomeCandidateTopicCard'
 import { useHotTopics } from '../../hooks/useHotTopics'
-import type { HotPill } from '../../utils/hotTopics'
+import { parsePillSort, sortHotPills, type HotPill, type PillSort } from '../../utils/hotTopics'
 import { prefetchHeroTopic } from '../../utils/heroPrefetch'
 import { captureDomBoxes, captureDomBoxesChunked, type ParticleBox } from '../../utils/boxFlight'
 import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
@@ -112,6 +112,19 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   // Which story the card shows (#1025): Data centers by default; Browse topics switches it, carried as ?story= so a
   // refresh, a deep link or Back keeps it (CLAUDE.md, scope via the URL).
   const [sp, setSp] = useSearchParams()
+  // How the topic pills are ordered (#1498): URL so refresh / deep-link keep the user's sort.
+  const pillSort = parsePillSort(sp.get('pillSort'))
+  const setPillSort = (next: PillSort) => {
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev)
+        if (next === 'hot') n.delete('pillSort')
+        else n.set('pillSort', next)
+        return n
+      },
+      { replace: true, preventScrollReset: true },
+    )
+  }
   // The map's hover card goes in the text column, under Start (#1277), never over the map.
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   const mapWrapRef = useRef<HTMLDivElement | null>(null)
@@ -127,12 +140,28 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   // A deep-linked topic we cannot place yet: hold the hero (no data-centers flash) until the catalog and yoy have answered.
   const resolving = Boolean(askedStory && askedStory !== 'data-centers' && !topicDef && !candidate && (topicStories.pending || hot.pending))
   const story = topicDef || candidate ? askedStory : 'data-centers'
-  // The row: the hot pills, plus the shown topic when it is not among them (a deep link), so it always reads as active.
+  // The row: the hot pills (sorted per ?pillSort=), plus the shown topic when it is not among them (a deep link).
   const pills = useMemo<HotPill[]>(() => {
-    if (!candidate || hot.pills.some((p) => p.id === story)) return hot.pills
-    const one: HotPill = { id: candidate.slug, title: candidate.name, topicId: candidate.topic_id, live: false, rise: null, heat: null, heatRated: 0, score: 0, meetings: candidate.meetings_b }
-    return [one, ...hot.pills]
-  }, [hot.pills, candidate, story])
+    const base =
+      !candidate || hot.pills.some((p) => p.id === story)
+        ? hot.pills
+        : [
+            {
+              id: candidate.slug,
+              title: candidate.name,
+              topicId: candidate.topic_id,
+              live: false,
+              rise: null,
+              heat: null,
+              heatRated: 0,
+              score: 0,
+              meetings: candidate.meetings_b,
+            } satisfies HotPill,
+            ...hot.pills,
+          ]
+    return sortHotPills(base, pillSort)
+  }, [hot.pills, candidate, story, pillSort])
+  const scopeLevel = scope.city ? 'city' : scope.stateCode ? 'state' : 'national'
   const [pendingId, setPendingId] = useState<string | null>(null)
   const switchSeq = useRef(0)
   const qc = useQueryClient()
@@ -340,16 +369,27 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   return (
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
-        <HomeTopicBar pills={pills} selected={story} pendingId={pendingId} onSelect={selectStory} onPrefetch={(id) => void prefetch(id)} query={q} panelId="home-story-panel" scopeLabel={hot.yoy ? (hot.yoy.scope.city ? `${hot.yoy.scope.city}, ${hot.yoy.scope.state}` : (hot.yoy.scope.state ?? 'National')) : label} />
+        <HomeTopicBar
+          pills={pills}
+          selected={story}
+          pendingId={pendingId}
+          onSelect={selectStory}
+          onPrefetch={(id) => void prefetch(id)}
+          query={q}
+          panelId="home-story-panel"
+          scopeLabel={hot.yoy ? (hot.yoy.scope.city ? `${hot.yoy.scope.city}, ${hot.yoy.scope.state}` : (hot.yoy.scope.state ?? 'National')) : label}
+          sort={pillSort}
+          onSortChange={setPillSort}
+        />
         <div id="home-story-panel" role="tabpanel" aria-labelledby={`home-tab-${story}`}>
         {resolving ? (
-          <div className="home-story-card" aria-busy="true" style={{ minHeight: 320 }} />
+          <div className="home-story-card" data-scope-level={scopeLevel} aria-busy="true" style={{ minHeight: 320 }} />
         ) : candidate && hot.yoy ? (
           <HomeCandidateTopicCard key={candidate.slug} topic={candidate} yoy={hot.yoy} onPlaceApply={applyPlace} topicControl={topicControl} />
         ) : topicDef ? (
           <HomeTopicStoryCard def={topicDef} scope={asked} query={q} onPlaceApply={applyPlace} topicControl={topicControl} />
         ) : (
-        <div className="home-story-card" key="data-centers">
+        <div className="home-story-card" data-scope-level={scopeLevel} key="data-centers">
           <div className="home-story-text">
             <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
             {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}

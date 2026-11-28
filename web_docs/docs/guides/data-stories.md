@@ -940,7 +940,8 @@ The home hero's pill row lists every topic that is hot or trending for the page'
 - **Rising** (▲): the top 8 topics the API marks `comparable` whose share of recorded meetings grew by at least 25% on last year (minimum meeting counts are the endpoint's own).
 - **Heated** (🔥): the top 6 topics with a `heat_mean` of 3 or more; the API only returns it with at least `min_heat_rated` (20) classifier-rated public speakers.
 - **Order**: rise score (change capped at +300%) plus heat score ((mean − 1) / 4), highest first; ties go to live stories, then to more meetings this year. The row is recomputed for each `?state=&city=`. **Compare all** stays last.
-- Phones scroll one row with a fade; desktops wrap to two rows with **More** / **Fewer**.
+- **Sort control** ([#1498](https://github.com/getcommunityone/open-navigator/issues/1498)): a **Sort** dropdown above the pills switches `?pillSort=heat` (hottest first) or `?pillSort=trending` (biggest rises first); omit it for the default combined **hot** order. Changing the sort reorders the pills in place. Phones also get clear prev/next chevrons when more pills sit off-screen (not only a gradient fade). Desktops wrap to two rows with **More** / **Fewer**.
+- **State hero layout** (#1498): at state scope the card stretches so the Start CTA sits at the foot of a taller state map (Alabama and other tall states no longer leave a dead empty band under the lede).
 
 A pill for a topic without a story swaps the hero to its meeting view (`HomeCandidateTopicCard`): the headline comes from the yoy counts for the place, the map is the topic's own meetings (county map at state scope, state map nationally), and the one action opens its meetings in Browse topics. Where nothing was recorded the headline says so. Every topic carries `?topic=<slug>`.
 

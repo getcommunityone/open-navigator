@@ -1,17 +1,64 @@
-/* The home topic switcher (#1350): a compact, sideways-scrolling chip row above the hero headline. */
+/* The home topic switcher (#1350, #1498): sort control + chip row with clear page chevrons. */
 .home-tbar {
   position: relative;
-  margin: 0 0 6px;
+  margin: 0 0 10px;
   min-height: 44px;
+}
+.home-tbar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 6px;
+}
+.home-tbar-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #57534e;
+}
+.home-tbar-sort-label {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11.5px;
+}
+.home-tbar-sort select {
+  min-height: 34px;
+  padding: 0 28px 0 10px;
+  border-radius: 999px;
+  border: 1px solid #d6d3d1;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2344403c' stroke-width='2.4'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;
+  appearance: none;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1c1917;
+  cursor: pointer;
+}
+.home-tbar-sort select:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 2px;
+}
+.home-tbar-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .home-tbar-scroll {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
-  padding: 3px 28px 3px 2px;
+  padding: 3px 8px 3px 2px;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 .home-tbar-scroll::-webkit-scrollbar {
   display: none;
@@ -25,6 +72,34 @@
   flex: none;
   align-items: center;
   gap: 8px;
+}
+.home-tbar-page {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #d6d3d1;
+  background: #fff;
+  color: #1c1917;
+  box-shadow: 0 2px 6px rgba(28, 25, 23, 0.12);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 120ms, background 120ms, border-color 120ms, color 120ms;
+}
+.home-tbar-page:hover:not(:disabled) {
+  background: #f0fdfa;
+  border-color: #0f766e;
+  color: #0f766e;
+}
+.home-tbar-page:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+.home-tbar-page:disabled {
+  opacity: 0.28;
+  cursor: default;
 }
 .home-tbar-chip {
   flex: none;
@@ -62,24 +137,29 @@
   outline: 3px solid #0f766e;
   outline-offset: 2px;
 }
-/* The fade on the right edge says "more this way"; it goes once the row is scrolled to its end. */
-.home-tbar::after {
+/* Soft edge fade behind the next chevron; chevrons are the clear page cue (#1498). */
+.home-tbar-row::after {
   content: '';
   position: absolute;
   top: 0;
-  right: 0;
+  right: 40px;
   bottom: 0;
-  width: 32px;
+  width: 28px;
   pointer-events: none;
-  background: linear-gradient(to right, rgba(250, 250, 249, 0), #fafaf9);
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), #fff);
+  opacity: 1;
   transition: opacity 120ms;
 }
-.home-tbar[data-at-end]::after {
+.home-tbar[data-at-end] .home-tbar-row::after {
   opacity: 0;
 }
 @media (prefers-reduced-motion: reduce) {
-  .home-tbar::after {
+  .home-tbar-row::after,
+  .home-tbar-page {
     transition: none;
+  }
+  .home-tbar-scroll {
+    scroll-behavior: auto;
   }
 }
 
@@ -123,9 +203,12 @@
   border-style: solid;
   color: #44403c;
 }
-/* Desktop: the pills wrap to at most two rows; More opens the rest. Phones keep the one scrolling row above. */
+/* Desktop: the pills wrap to at most two rows; More opens the rest. Page chevrons hide when not scrolling. */
 @media (min-width: 768px) {
-  .home-tbar::after {
+  .home-tbar-row::after {
+    display: none;
+  }
+  .home-tbar-page {
     display: none;
   }
   .home-tbar-scroll {
@@ -147,14 +230,10 @@
     max-height: none;
     overflow: visible;
   }
-  .home-tbar-tail {
-    align-self: flex-end;
-    padding-bottom: 0;
-  }
 }
 @media (max-width: 767px) {
-  .home-tbar-tail {
-    padding-right: 4px;
+  .home-tbar-tail-top {
+    margin-left: auto;
   }
 }
 @media (prefers-reduced-motion: reduce) {

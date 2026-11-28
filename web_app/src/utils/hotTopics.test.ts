@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { YoyResponse, YoyTopic } from '../api/topicsYoy'
-import { buildHotPills, pillBadgeText, topicHeated, topicRise } from './hotTopics'
+import { buildHotPills, parsePillSort, pillBadgeText, sortHotPills, topicHeated, topicRise } from './hotTopics'
 
 const topic = (o: Partial<YoyTopic> & { slug: string }): YoyTopic => ({
   topic_id: 1, name: o.slug, source: 'civicsearch', has_story: false, year_a: '2025', year_b: '2026',
@@ -70,5 +70,25 @@ describe('pillBadgeText', () => {
     expect(pillBadgeText({ rise: null, heat: null, heatRated: 0 })).toBe('')
     expect(pillBadgeText({ rise: 0.62, heat: 3.7, heatRated: 1100 })).toContain('up 62%')
     expect(pillBadgeText({ rise: 0.62, heat: 3.7, heatRated: 1100 })).toContain('3.7 of 5 (1,100 rated)')
+  })
+})
+
+describe('parsePillSort / sortHotPills (#1498)', () => {
+  it('reads heat and trending from the URL, else hot', () => {
+    expect(parsePillSort('heat')).toBe('heat')
+    expect(parsePillSort('trending')).toBe('trending')
+    expect(parsePillSort('')).toBe('hot')
+    expect(parsePillSort('nope')).toBe('hot')
+  })
+  it('reorders by heat or by rise without inventing scores', () => {
+    const base = buildHotPills(live, yoy([
+      topic({ slug: 'data-centers', topic_id: 7, share_a: 0.04, share_b: 0.08, heat_mean: 3.2, heat_rated: 40, has_story: true }),
+      topic({ slug: 'guns', topic_id: 8, share_a: 0.09, share_b: 0.057 }),
+      topic({ slug: 'building-setbacks', topic_id: 9, share_a: 0.01, share_b: 0.04 }),
+      topic({ slug: 'immigration', topic_id: 10, heat_mean: 4.5, heat_rated: 91 }),
+    ]))
+    expect(sortHotPills(base, 'hot').map((x) => x.id)).toEqual(base.map((x) => x.id))
+    expect(sortHotPills(base, 'heat').map((x) => x.id)[0]).toBe('immigration')
+    expect(sortHotPills(base, 'trending').map((x) => x.id)[0]).toBe('building-setbacks')
   })
 })

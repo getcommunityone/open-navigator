@@ -66,6 +66,11 @@ html { scroll-behavior: smooth; }
 .v9 .v9-find-town:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
 .v9 .v9-find-town strong { color: #115e59; }
 .v9 .home-story-card { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.2fr); gap: 28px; align-items: start; }
+/* Tall state maps (e.g. Alabama, #1498): give the map more width, stretch the text column so Start sits at the map foot. */
+.v9 .home-story-card[data-scope-level="state"] { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr); align-items: stretch; gap: 20px 32px; }
+.v9 .home-story-card[data-scope-level="state"] .home-story-text { display: flex; flex-direction: column; min-height: 100%; }
+.v9 .home-story-card[data-scope-level="state"] .home-story-actions { margin-top: auto; }
+.v9 .home-story-card[data-scope-level="state"] .home-story-map .stance-map-svg { max-height: min(68vh, 640px); }
 .v9 .home-story-eyebrow { margin: 0; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; font-weight: 600; }
 /* Sized so a three-line title, the subhead and both buttons fit one laptop screen (#1176). */
 .v9 .home-story-headline { font-size: clamp(28px, 3.2vw, 46px); font-weight: 800; line-height: 1.08; letter-spacing: -0.015em; margin: 6px 0 10px; color: #1c1917; }
