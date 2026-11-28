@@ -1,54 +1,68 @@
 ---
 pr: 1494
+issue: 1476
 branch: chore/1476-round2-gold-results
 title: "chore(stance): commit round-2 gold results and gate outcomes"
 author: jcbowyer
 reviewed_at: 2026-11-28
-reviewer: github-actions
-head_sha: f1d6ffe53ffee1eb462ac35d19a9241d7346ef40
+reviewer: coordinator
 verdict: approve
 ---
 
 # PR Review: chore(stance): commit round-2 gold results and gate outcomes
 
+Reviewed against `.claude/review-rubric.md`.
+
 ## Summary
 
-Automated review (#648) for PR #1494 on `chore/1476-round2-gold-results`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Commits the 538 round-2 Jev gold predictions (`packages/llm/src/llm/typesafe/gold/speaker_stance_gold_round2_results.json`), records the round-2 and `--all-rounds` gate outcomes plus `2026-11-28` Jev usage in `web_docs/docs/development/speaker-stance-classifier.md`, and pins the numbers in `packages/llm/tests/test_speaker_stance.py`. Only `battery-storage` passed (already released and serving), so no additional paid classifier run was executed.
 
 ## Scope of Change
 
-- `packages/llm/src/llm/typesafe/gold/speaker_stance_gold_round2_results.json`
-- `packages/llm/tests/test_speaker_stance.py`
-- `web_docs/docs/development/speaker-stance-classifier.md`
-
-## CI Status
-
-See the PR checks on `f1d6ffe53ffe`.
+- Files changed: 3 (+8148 / -1, mostly the committed `speaker_stance_gold_round2_results.json` predictions file)
+- Areas touched: `packages/llm`, `web_docs`
+- Commits: `f1d6ffe5` (`chore(stance): commit round-2 gold results and gate outcomes (#1476)`)
+- Range reviewed: `main..HEAD`
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
+- Secrets: clean.
+- Fabricated data: clean (every metric comes directly from `speaker_stance_gold report` / `report --all-rounds` and `llm.usage.report`).
+- Personal data: clean (`speaker_stance_gold_round2_results.json` verified to contain only `{heat, input_chars, input_tokens, question_version, side, side_confidence, side_probabilities}` keyed by topic + MD5 speaker ID; zero speech text or names).
+- Destructive data changes: clean.
 
 ## Strengths
 
-- Automated scans found no secret/credential patterns in added lines.
+- Keeps the remaining 12 held topics held (`#1477` / `#1402`) rather than running an unvalidated paid batch.
+- Enforces the zero-speech schema and exact gate numbers in `test_committed_round2_gold_run_numbers()`.
 
 ## Findings
 
 ### 🔴 Blocking (Critical)
-
 None.
 
-### 🟡 Should fix (Important)
+### 🟡 Should fix (Important, non-blocking)
+None.
 
-None from automated heuristics.
+### 🔵 Nits / suggestions (Minor)
+None.
 
-### 🔵 Nit (Minor)
+## Repo-Rule Compliance
 
-None from automated heuristics.
+| Rule | Pass? | Notes |
+|---|---|---|
+| Issue first, four parts, branch/PR naming | Yes | #1476, `chore/1476-round2-gold-results`, `Closes #1476` |
+| Conventional Commits | Yes | `chore(stance): ...` |
+| No fabricated data / zero speech in gold | Yes | Asserted in `test_committed_round2_gold_run_numbers()` |
+| Docs with the change | Yes | `speaker-stance-classifier.md` |
+| Tests | Yes | `packages/llm/tests/test_speaker_stance.py` |
+
+## Test Coverage
+
+- `.venv/bin/ruff check packages/llm/tests/test_speaker_stance.py`: passed.
+- `PYTHONPATH=packages/llm/src .venv/bin/pytest packages/llm/tests/test_speaker_stance.py`: 21 passed.
+- `cd web_docs && npm run build`: succeeded.
 
 ## Verdict
 
-**approve**
+approve.
