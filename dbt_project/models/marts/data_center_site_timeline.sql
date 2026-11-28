@@ -7,11 +7,18 @@
       appear_year     the year of the site's earliest date on record:
                         announced     the US Data Center Registry's announced_date, at the precision it gives
                                       (day, month or year; appear_precision says which);
-                        first_report  Epoch AI's first dated timeline row (satellite or permit evidence of work
-                                      on the site), always a full date.
+                        epoch_first_report  Epoch AI's first dated timeline row (satellite or permit evidence of
+                                      work on the site), always a full date.
                       For an Epoch site that the registry also lists (data_center_site_source,
-                      match_basis = 'epoch_same_name'), the earlier of the two. Null when the site has
-                      neither: the page counts it as "no date on record", it is never placed at a guess.
+                      match_basis = 'epoch_same_name'), the earlier of the two.
+                        listed_by     (#1428) only when the site has neither: the earliest date a source had it on
+                                      record, the earlier of first_seen_on (the first load of its source that listed
+                                      it) and status_as_of (the registry's record_updated date / Epoch's status row).
+                                      It is an UPPER BOUND: the site existed by then, it may be much older. It is
+                                      never an opening or announced date, and appear_precision says 'listed_by'.
+                        none          no date at all: appear_year is null and the page shows the site only at the
+                                      "today" frame, never at a guessed year.
+      listed_on       the listed-by date above, for every site that has one (also for dated sites, as context).
       operating_year  Epoch only: the year of the first timeline row with a building operational (or, when
                       that count is blank, IT power above zero), the rule data_center_site uses for
                       'operating'. A year after today is Epoch's projection (operating_is_expected).
@@ -26,7 +33,8 @@
 */
 
 with sites as (
-    select data_center_site_id, source, site_name, state_code, state, latitude, longitude
+    select data_center_site_id, source, site_name, state_code, state, latitude, longitude,
+           least(first_seen_on, status_as_of) as listed_on
     from {{ ref('data_center_site') }}
 ),
 
@@ -59,6 +67,7 @@ dated as (
         s.data_center_site_id,
         s.state_code,
         s.state,
+        s.listed_on,
         coalesce(s.latitude, r.latitude)                  as latitude,
         coalesce(s.longitude, r.longitude)                as longitude,
         r.announced_year,
@@ -69,6 +78,18 @@ dated as (
     from sites as s
     left join registry as r on r.data_center_site_id = s.data_center_site_id
     left join epoch_timeline as e on e.data_center_site_id = s.data_center_site_id
+),
+
+based as (
+    select
+        *,
+        (case
+            when announced_year is not null and (first_report_year is null or announced_year <= first_report_year) then 'announced'
+            when first_report_year is not null then 'epoch_first_report'
+            when listed_on is not null then 'listed_by'
+            else 'none'
+        end) as appear_basis
+    from dated
 )
 
 select
@@ -77,19 +98,19 @@ select
     state::text                                                                 as state,
     latitude::double precision                                                  as latitude,
     longitude::double precision                                                 as longitude,
-    (case
-        when announced_year is not null and first_report_year is not null then least(announced_year, first_report_year)
-        else coalesce(announced_year, first_report_year)
+    (case appear_basis
+        when 'announced' then announced_year
+        when 'epoch_first_report' then first_report_year
+        when 'listed_by' then extract(year from listed_on)::int
     end)::int                                                                   as appear_year,
-    (case
-        when announced_year is not null and (first_report_year is null or announced_year <= first_report_year) then 'announced'
-        when first_report_year is not null then 'first_report'
-    end)::text                                                                  as appear_basis,
-    (case
-        when announced_year is not null and (first_report_year is null or announced_year <= first_report_year) then announced_precision
-        when first_report_year is not null then 'day'
+    appear_basis::text                                                          as appear_basis,
+    (case appear_basis
+        when 'announced' then announced_precision
+        when 'epoch_first_report' then 'day'
+        when 'listed_by' then 'listed_by'
     end)::text                                                                  as appear_precision,
+    listed_on::date                                                             as listed_on,
     first_report_year::int                                                      as first_report_year,
     operating_year::int                                                         as operating_year,
     coalesce(operating_is_expected, false)::boolean                             as operating_is_expected
-from dated
+from based

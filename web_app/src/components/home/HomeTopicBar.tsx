@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { tabKeyTarget } from '../../utils/homeTopic'
 import '../../styles/home-topic-bar.css'
@@ -18,6 +18,12 @@ interface Props {
   query: string
   /** The hero it controls. */
   panelId: string
+}
+
+/** The story a topic chip links to, with the place kept: `/stories/<slug>?state=…` (#1430). */
+export function topicChipHref(slug: string, query: string): string {
+  const q = query.replace(/^\?/, '')
+  return `/stories/${encodeURIComponent(slug)}${q ? `?${q}` : ''}`
 }
 
 /**
@@ -71,19 +77,25 @@ export default function HomeTopicBar({ topics, selected, onSelect, query, panelI
           {topics.map((t, i) => {
             const on = t.id === selected
             return (
-              <button
+              // A tab that is also a real link to the story (#1430): crawlers follow the href; a plain click switches the
+              // hero in place, a modified click opens the story in a new tab.
+              <a
                 key={t.id}
-                type="button"
+                href={topicChipHref(t.id, query)}
                 role="tab"
                 id={`home-tab-${t.id}`}
                 aria-selected={on}
                 aria-controls={panelId}
                 tabIndex={i === idx ? 0 : -1}
                 className={'home-tbar-chip' + (on ? ' is-on' : '')}
-                onClick={() => onSelect(t.id)}
+                onClick={(e: MouseEvent<HTMLAnchorElement>) => {
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                  e.preventDefault()
+                  onSelect(t.id)
+                }}
               >
                 {t.title}
-              </button>
+              </a>
             )
           })}
         </div>

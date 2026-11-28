@@ -192,6 +192,23 @@ https://www.census.gov/programs-surveys/apes.html
 
 ---
 
+### 5d. HUD Open Data: CDBG Activity
+
+**Publisher:** U.S. Department of Housing and Urban Development
+**Data Type:** CDBG activities by grantee (no addresses loaded)
+**License:** U.S. Government data, public access
+**Source:** [HUD Open Data](https://hudgis-hud.opendata.arcgis.com/)
+**Coverage:** United States, activities since 1996
+**Last updated:** 27 Nov 2026
+
+**Attribution (Recommended):**
+```
+Data source: U.S. Department of Housing and Urban Development, HUD Open Data
+https://hudgis-hud.opendata.arcgis.com/
+```
+
+---
+
 ## Google Services
 
 ### 8. Google BigQuery IRS 990 Public Dataset

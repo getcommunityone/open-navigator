@@ -436,6 +436,12 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Search and discovery',
+      collapsed: false,
+      items: ['operations/seo-sitelinks'],
+    },
+    {
+      type: 'category',
       label: 'Related cost pages',
       collapsed: false,
       items: [
