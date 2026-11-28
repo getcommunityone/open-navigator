@@ -330,3 +330,10 @@
   .la-meetings li { grid-template-columns: auto 1fr; }
   .la-where, .la-what { grid-column: 2; }
 }
+
+/* #1406: the trend is stacked box columns (one data-box per box); the box key and the real peak read above the chart. */
+.sc-bx { transform-box: fill-box; transform-origin: center bottom; }
+.sc-col:focus-visible { outline: 2px solid var(--violet-ink); outline-offset: 2px; }
+.sc-peak { margin: 4px 0 2px; font-size: 14px; color: var(--ink); }
+.sc-boxkey { margin: 2px 0 6px; font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+.sc-boxkey-sq { width: 9px; height: 9px; background: var(--violet); border-radius: 1.5px; display: inline-block; }

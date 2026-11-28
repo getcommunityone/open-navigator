@@ -241,3 +241,50 @@ export const pctLabel = (share: number) => `${(Math.round(share * 1000) / 10).to
 export function timelinePads(w: number, hasMilestones: boolean): { padL: number; padR: number } {
   return { padL: 44, padR: hasMilestones ? (w < 420 ? 84 : 112) : w < 420 ? 64 : 58 }
 }
+
+/** Most boxes in one stacked year column (#1406): keeps the whole chart a few hundred marks at most. */
+export const MAX_BOX_ROWS = 12
+
+/**
+ * What one box stands for: the smallest of 1, 2, 5, 10, 20, 50... that keeps the tallest column within `maxRows` boxes.
+ * Counts of 12 or fewer stay 1 box = 1, so a small chart is every record.
+ */
+export function boxUnit(max: number, maxRows = MAX_BOX_ROWS): number {
+  if (!(max > 0)) return 1
+  for (let p = 1; ; p *= 10) {
+    for (const m of [1, 2, 5]) {
+      const u = m * p
+      if (Math.ceil(max / u) <= maxRows) return u
+    }
+  }
+}
+
+export interface ColumnBox {
+  /** 0 is the bottom box. */
+  index: number
+  /** Portion of a full box this one fills (1 except for a partial top box), so the stack's height is the value exactly. */
+  fill: number
+}
+
+/** The boxes of one column: whole boxes of `unit` and a proportional partial box on top. Sums back to `value / unit`. */
+export function columnBoxes(value: number, unit: number): ColumnBox[] {
+  if (!(value > 0) || !(unit > 0)) return []
+  const whole = Math.floor(value / unit + 1e-9)
+  const out: ColumnBox[] = []
+  for (let i = 0; i < whole; i++) out.push({ index: i, fill: 1 })
+  const rest = value / unit - whole
+  if (rest > 1e-6) out.push({ index: whole, fill: rest })
+  return out
+}
+
+/** The year with the largest value, as a real sentence from the full yearly counts; null when tied or only one year. */
+export function peakStatement(years: TimelineYear[], subject: string): string | null {
+  const dated = years.filter((y) => Number.isFinite(Number(y.year)) && y.meetings > 0)
+  if (dated.length < 2) return null
+  const sorted = [...dated].sort((a, b) => b.meetings - a.meetings)
+  if (sorted[0]!.meetings === sorted[1]!.meetings) return null
+  const top = sorted[0]!
+  const total = dated.reduce((a, y) => a + y.meetings, 0)
+  const pct = Math.round((top.meetings / total) * 1000) / 10
+  return `${top.year} has the most: ${top.meetings.toLocaleString('en-US')} ${top.meetings === 1 ? 'meeting' : 'meetings'} that discussed ${subject}, ${pct}% of all ${total.toLocaleString('en-US')}.`
+}

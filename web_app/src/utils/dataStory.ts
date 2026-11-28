@@ -679,10 +679,8 @@ function meetingsText(res: DataCenterMeetingMentionsResponse, scope: StoryScope)
     const a = years[0]!
     const z = years[years.length - 1]!
     lead = `By year of the meeting: ${plural(a.count, 'passage')} in ${a.key}, ${plural(z.count, 'passage')} in ${z.key}. `
-  } else if (years.length >= 1) {
-    const top = [...years].sort((a, b) => b.count - a.count || b.key.localeCompare(a.key))[0]!
-    lead = `Among the ${items.length >= DOT_CAP || (passages > items.length) ? `most recent ${fmt(items.length)} passages` : `${fmt(items.length)} passages`}, ${top.key} has the most (${fmt(top.count)}). `
   }
+  // A capped list (most recent 500) cannot say which year has the most: the chart states the peak from the full yearly counts.
   return { headline, context: `${lead}What is on the agenda?`, empty: false, failed: false }
 }
 
