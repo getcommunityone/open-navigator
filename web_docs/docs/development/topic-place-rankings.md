@@ -84,7 +84,28 @@ only those places: a place we have no meetings for has no dot at all, and that s
 
 ## National results (2026-11-28 build)
 
-RESULTS_TABLE
+The 13 validated topics, over the 24 months to 2026-11-28. Speakers are distinct people per place: a person who
+spoke in two places counts in each. "Lean" counts only ranked places. "Median" is the median shrunk against-share of
+ranked places. No place has a roster-confirmed officials' side yet.
+
+| topic | places | ranked | lean against | lean for | speakers for | speakers against | national against | median |
+|---|---|---|---|---|---|---|---|---|
+| data-centers | 118 | 23 | 23 | 0 | 125 | 1,015 | 0.890 | 0.913 |
+| surveillance-cameras | 94 | 10 | 10 | 0 | 65 | 421 | 0.866 | 0.868 |
+| affordable-housing | 98 | 8 | 0 | 8 | 335 | 22 | 0.062 | 0.042 |
+| short-term-rentals | 62 | 6 | 0 | 6 | 160 | 105 | 0.396 | 0.315 |
+| homelessness-and-shelters | 76 | 5 | 0 | 5 | 271 | 9 | 0.032 | 0.014 |
+| license-plate-readers | 62 | 4 | 4 | 0 | 37 | 234 | 0.864 | 0.864 |
+| police-staffing | 24 | 3 | 3 | 0 | 4 | 110 | 0.965 | 0.991 |
+| guns | 15 | 2 | 0 | 2 | 52 | 8 | 0.133 | 0.098 |
+| immigration-and-sanctuary | 38 | 1 | 0 | 1 | 70 | 10 | 0.125 | 0.063 |
+| alcohol-licensing | 36 | 1 | 0 | 1 | 47 | 23 | 0.329 | 0.262 |
+| pickleball | 34 | 1 | 1 | 0 | 65 | 38 | 0.369 | 0.604 |
+| water-fluoridation | 11 | 1 | 0 | 1 | 34 | 19 | 0.359 | 0.226 |
+| renewable-energy | 28 | 0 | 0 | 0 | 30 | 33 | 0.524 | - |
+
+696 place-topic rows in all, 65 of them ranked (large 29, mid 20, small 15, unknown 1). Most places with readings sit
+below the evidence minimum, so the page shows them as light dots.
 
 ## Tests
 
