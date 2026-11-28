@@ -117,6 +117,14 @@
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
+  /* FLIP rearrange (#1498): transform is driven in JS; will-change only while flying. */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-tbar-chip {
+    transition: none !important;
+  }
 }
 .home-tbar-chip:hover {
   background: #f0fdfa;

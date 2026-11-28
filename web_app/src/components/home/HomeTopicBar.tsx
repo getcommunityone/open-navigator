@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { tabKeyTarget } from '../../utils/homeTopic'
 import { pillBadgeText, type HotPill, type PillSort } from '../../utils/hotTopics'
+import { captureFlipFirst, playFlipLast } from '../../utils/pillFlip'
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 import '../../styles/home-topic-bar.css'
 
 /** The story a topic chip links to, with the place kept: `/stories/<slug>?state=...` (#1430). */
@@ -73,6 +75,21 @@ export default function HomeTopicBar({
   const [overflow, setOverflow] = useState(false)
   const active = pendingId ?? selected
   const idx = Math.max(0, pills.findIndex((t) => t.id === active))
+  const reduced = usePrefersReducedMotion()
+  // FLIP: snapshot before React commits a new order (#1498 / vizjb12 motion).
+  const flipFirst = useRef(captureFlipFirst(null, ''))
+  const pillOrder = pills.map((p) => p.id).join('|')
+  const prevOrder = useRef(pillOrder)
+  if (pillOrder !== prevOrder.current) {
+    flipFirst.current = captureFlipFirst(listRef.current, '[data-flip-key]')
+    prevOrder.current = pillOrder
+  }
+  useLayoutEffect(() => {
+    const first = flipFirst.current
+    flipFirst.current = captureFlipFirst(null, '')
+    if (first.size === 0) return
+    return playFlipLast(listRef.current, '[data-flip-key]', first, { reduced })
+  }, [pillOrder, reduced])
 
   // Keep the active pill in view inside the row (never scrolls the page).
   useEffect(() => {
@@ -191,6 +208,7 @@ export default function HomeTopicBar({
                   role="tab"
                   id={`home-tab-${t.id}`}
                   data-topic={t.id}
+                  data-flip-key={t.id}
                   data-live={t.live || undefined}
                   aria-selected={on}
                   aria-controls={panelId}
