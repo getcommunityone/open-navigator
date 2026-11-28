@@ -188,6 +188,8 @@ pre-run estimate per meeting (`meeting_heat_scores`), four parts each scaled 0-1
 - `meeting_speaker_position.heat`: the AI meeting analysis's rating is kept where it exists; otherwise the classifier's
   heat (mean over the speaker's topics), `heat_method = 'classifier'`, its mean margin as confidence, version
   `jev:<question_version>`.
+- `/api/topics/yoy` returns `heat_rated` / `heat_mean` per topic in scope (mean only with >= 20 rated speakers), behind
+  the **Most heated** sort on Browse all topics (#1407). Only served (confident-side) rows count.
 - `/api/topics/{topic}/caption-facts` returns `classifier_speakers` (for, against, concerns only, no position,
   meetings), a separate source labelled "speakers' own words, classifier", never added to the hand-counted speakers.
   The data-center Positions summary shows it as its own line.

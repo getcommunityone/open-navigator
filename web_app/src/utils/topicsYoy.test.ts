@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   changeLabel,
   filterTopics,
+  heatColumnLabel,
   parseTopicFilter,
   parseYoySort,
   relChange,
@@ -112,5 +113,23 @@ describe('Browse all topics (#1343, #1361)', () => {
     expect(scopeQuery('GA', 'Atlanta')).toBe('?state=GA&city=Atlanta')
     expect(scopeQuery('GA', null)).toBe('?state=GA')
     expect(scopeQuery(null, 'Atlanta')).toBe('')
+  })
+})
+
+// #1407: Most heated ranks by the classifier's mean heat; under the minimum a topic says "too few rated", never a number.
+describe('most heated sort (#1407)', () => {
+  const t = (slug: string, heat_mean: number | null, change = 0.1) =>
+    ({ topic_id: slug.length, slug, name: slug, source: 'curated', has_story: true, year_a: '2025', year_b: '2026',
+       meetings_a: 10, meetings_b: Math.round(10 * (1 + change)), recorded_a: 100, recorded_b: 100,
+       share_a: 0.1, share_b: 0.1 * (1 + change), comparable: true, heat_rated: heat_mean == null ? 3 : 30, heat_mean })
+  it('parses the sort and orders by heat, unrated last by change', () => {
+    expect(parseYoySort('heat')).toBe('heat')
+    const { rows } = splitTopics([t('calm', 1.8), t('unrated', null, 2), t('hot', 3.6), t('unrated-low', null, 0.5)], 'share', 'heat')
+    expect(rows.map((r) => r.topic.slug)).toEqual(['hot', 'calm', 'unrated', 'unrated-low'])
+  })
+  it('labels heat with a flame or too few rated', () => {
+    expect(heatColumnLabel({ heat_mean: 3.56, heat_rated: 25 })).toBe('\u{1F525} 3.6')
+    expect(heatColumnLabel({ heat_mean: null, heat_rated: 4 })).toBe('too few rated')
+    expect(heatColumnLabel({ heat_rated: 0 })).toBe('too few rated')
   })
 })
