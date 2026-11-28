@@ -102,6 +102,10 @@ seeds:
         pattern: text
         side: text
         label: text
+    aspep_function_code:
+      +column_types:
+        function_code: text
+        function_name: text
     cap_topic:
       +column_types:
         code: varchar

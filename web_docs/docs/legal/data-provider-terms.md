@@ -175,6 +175,23 @@ https://www.usaspending.gov/
 
 ---
 
+### 5c. Census Annual Survey of Public Employment & Payroll (ASPEP)
+
+**Publisher:** U.S. Census Bureau
+**Data Type:** Employees and March payroll by government and function (aggregate; no per-person pay)
+**License:** Public Domain (U.S. Government Work)
+**Source:** [ASPEP datasets](https://www2.census.gov/programs-surveys/apes/datasets/) and [program page](https://www.census.gov/programs-surveys/apes.html)
+**Coverage:** State and local governments, survey years 2019 to 2024 (non-census years are samples)
+**Last updated:** 27 Nov 2026
+
+**Attribution (Recommended):**
+```
+Data source: U.S. Census Bureau, Annual Survey of Public Employment & Payroll
+https://www.census.gov/programs-surveys/apes.html
+```
+
+---
+
 ## Google Services
 
 ### 8. Google BigQuery IRS 990 Public Dataset

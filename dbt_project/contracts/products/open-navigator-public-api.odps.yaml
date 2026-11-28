@@ -125,6 +125,16 @@ outputPorts:
   contractId: open-navigator-public-jurisdiction_federal_funding
   type: table
   description: Federal assistance dollars per matched jurisdiction x fiscal year x Assistance Listing Number, summed from federal_award (matched awards only).
+- name: jurisdiction_public_payroll
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_public_payroll
+  type: table
+  description: Employees and March payroll per matched government, survey year and function from the Census Annual Survey of Public Employment and Payroll.
+- name: jurisdiction_public_payroll_latest
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_public_payroll_latest
+  type: table
+  description: 'Served slice of jurisdiction_public_payroll: the latest ASPEP survey year only, trimmed columns, rows with full-time employees.'
 - name: jurisdiction_property_tax_rate
   version: 1.0.0
   contractId: open-navigator-public-jurisdiction_property_tax_rate

@@ -121,3 +121,19 @@ async def test_unknown_metric_and_jurisdiction(fake_pool):
     with pytest.raises(HTTPException) as e2:
         await benchmark.benchmark("federal_cdbg", jurisdiction_id="ZZ", peers="auto", n=5, fiscal_year=None)
     assert e2.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_rate_metric_has_no_per_capita_but_ranks_on_value(fake_pool):
+    res = await benchmark.benchmark("avg_pay_all_functions", jurisdiction_id="T", peers="P1", n=5, fiscal_year=None)
+    assert res.jurisdiction.per_capita is None and res.peers[0].per_capita is None
+    assert res.rank_per_capita is None
+    assert res.rank_value == {"rank": 1, "of": 2}
+    assert res.peer_median_value == 450_000.0
+
+
+def test_payroll_metrics_read_the_served_slice_and_are_aggregate_only():
+    for key in ("payroll_total", "payroll_police", "avg_pay_all_functions"):
+        spec = benchmark.METRICS[key]
+        assert "jurisdiction_public_payroll_latest" in spec.values_sql
+        assert "Census" in spec.source

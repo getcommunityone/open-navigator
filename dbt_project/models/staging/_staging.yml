@@ -1519,6 +1519,24 @@ sources:
             description: "Current total obligation of the award in dollars."
           - name: period_start
             description: "Award period start (real DATE)."
+      - name: bronze_aspep_unit
+        description: |
+          Census ASPEP individual units (one row per government x survey year), fixed-width
+          text parsed by `python -m ingestion.census.load_aspep` (#1395). Public domain.
+        columns:
+          - name: unit_id
+            description: "14-character legacy individual unit id (state, type, county, unit, supplement, sub)."
+          - name: survey_year
+            description: "ASPEP survey year (integer)."
+      - name: bronze_aspep_employment
+        description: |
+          Census ASPEP employees and March payroll by government x functional category.
+          Aggregate only: there is no per-person pay in this source (#1395).
+        columns:
+          - name: item_code
+            description: "Functional category code (see seed aspep_function_code)."
+          - name: full_time_payroll
+            description: "Full-time March payroll, 31-day monthly equivalent, dollars (text as landed)."
       - name: bronze_grants_gov_opportunity
         description: |
           Grants.gov federal grant opportunities — one row per prospective

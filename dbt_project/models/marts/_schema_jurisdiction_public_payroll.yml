@@ -1,0 +1,78 @@
+version: 2
+
+# #1395: Census ASPEP aggregate public payroll. PK (jurisdiction_id, year, function_code);
+# FK jurisdiction_id -> jurisdictions. No per-person pay (see the decision page).
+
+models:
+  - name: jurisdiction_public_payroll
+    description: >
+      Employees and March payroll per matched government, survey year and function from
+      the Census Annual Survey of Public Employment and Payroll. Aggregate only: no
+      per-person or department-head salary. avg_monthly_pay is payroll / full-time
+      employees (monthly, March), NULL when employees are zero or missing.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      constraints:
+        - type: primary_key
+          columns: [jurisdiction_id, year, function_code]
+    columns:
+      - name: jurisdiction_id
+        description: "FK to jurisdictions."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
+      - {name: year, description: "ASPEP survey year (integer; a string on the JSON wire).", data_type: integer, constraints: [{type: not_null}]}
+      - {name: function_code, description: "ASPEP functional category code (000 = all functions).", data_type: text, constraints: [{type: not_null}]}
+      - {name: function_name, description: "Functional category name.", data_type: text}
+      - {name: state_code, description: "2-letter state.", data_type: text}
+      - {name: state, description: "Full state name.", data_type: text}
+      - {name: full_time_employees, description: "Full-time employees (count).", data_type: integer}
+      - {name: full_time_payroll_dollars, description: "Full-time March payroll, dollars (31-day monthly equivalent).", data_type: numeric}
+      - {name: avg_monthly_pay, description: "Full-time payroll divided by full-time employees, dollars per month.", data_type: numeric}
+      - {name: part_time_employees, description: "Part-time employees (count).", data_type: integer}
+      - {name: match_confidence, description: "0.99 FIPS or state, 0.95 unique name, 0.60 ambiguous name.", data_type: numeric}
+      - {name: source_updated_at, description: "When the Census file was loaded.", data_type: timestamp}
+
+  - name: jurisdiction_public_payroll_latest
+    description: >
+      Served slice of jurisdiction_public_payroll: the latest ASPEP survey year only, trimmed
+      columns, rows with full-time employees. Feeds /api/benchmark payroll metrics. Aggregate only.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      constraints:
+        - type: primary_key
+          columns: [jurisdiction_id, function_code]
+    columns:
+      - name: jurisdiction_id
+        description: "FK to jurisdictions."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
+      - {name: year, description: "Latest ASPEP survey year (integer; a string on the JSON wire).", data_type: integer, constraints: [{type: not_null}]}
+      - {name: function_code, description: "ASPEP functional category code (000 = all).", data_type: text, constraints: [{type: not_null}]}
+      - {name: state_code, description: "2-letter state.", data_type: text}
+      - {name: state, description: "Full state name.", data_type: text}
+      - {name: full_time_employees, description: "Full-time employees (count).", data_type: integer}
+      - {name: full_time_payroll_dollars, description: "Full-time March payroll, dollars per month.", data_type: numeric}
+      - {name: avg_monthly_pay, description: "Payroll divided by employees, dollars per month.", data_type: numeric}
+      - {name: source_updated_at, description: "When the Census file was loaded.", data_type: timestamp}

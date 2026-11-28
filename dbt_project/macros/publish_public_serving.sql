@@ -163,6 +163,8 @@
     'jurisdiction_finance':                "_s.state_code in {{states}}",
     'federal_award':                       "_s.state_code in {{states}}",
     'jurisdiction_federal_funding':        "_s.state_code in {{states}}",
+    'jurisdiction_public_payroll':         "_s.state_code in {{states}}",
+    'jurisdiction_public_payroll_latest':  "_s.state_code in {{states}}",
     'jurisdiction_finance_category':
         "_s.jurisdiction_finance_id in (select jurisdiction_finance_id "
         "from gold.jurisdiction_finance where state_code in {{states}})",
@@ -250,6 +252,7 @@
     'jurisdiction_county_crosswalk',
     'jurisdiction_document', 'jurisdiction_finance', 'jurisdiction_finance_category',
     'federal_award', 'jurisdiction_federal_funding',
+    'jurisdiction_public_payroll', 'jurisdiction_public_payroll_latest',
     'jurisdiction_property_tax_rate', 'state_sales_tax_rate',
     'opportunity_atlas_mobility', 'opportunity_atlas_mobility_national',
     'jurisdiction_mapping_analysis',
