@@ -34,7 +34,7 @@ export default function StoryNextButton({ label, ariaLabel, onClick, href, quiet
     'data-testid': 'story-next',
   }
   return href ? (
-    <Link to={href} {...common}>
+    <Link to={href} onClick={onClick} {...common}>
       {body}
     </Link>
   ) : (

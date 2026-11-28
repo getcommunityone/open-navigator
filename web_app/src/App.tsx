@@ -1,6 +1,6 @@
 import { lazy, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
+import { Route, Routes, Navigate, useParams, useLocation } from 'react-router-dom'
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
 import SkipLink from './components/SkipLink'
@@ -66,6 +66,7 @@ import { storyRoute } from './utils/topicStories'
 import { STORIES } from './utils/dataStory'
 import { useTopicStories } from './hooks/useTopicStories'
 import { useDocumentTitle } from './utils/useDocumentTitle'
+import { BoxFlightProvider } from './components/stance/BoxFlightProvider'
 
 // Loaded only when its route is visited (#856): its fonts and chart code stay out of the main bundle, and a
 // failure to load it cannot blank the rest of the site.
@@ -194,6 +195,7 @@ function App() {
       <SkipLink />
       <ScrollToTop />
       <RouteChangeTracer />
+      <BoxFlightProvider>
       <Routes>
       {/* v9 prototype homepage (single-column; has its own header) */}
       <Route path="/" element={<HomeV9 />} />
@@ -333,6 +335,7 @@ function App() {
       {/* 404 Page - Catch all unmatched routes */}
       <Route path="*" element={<NotFound />} />
       </Routes>
+      </BoxFlightProvider>
     </>
   )
 }

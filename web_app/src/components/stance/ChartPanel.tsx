@@ -34,8 +34,8 @@ interface Props {
   topic?: string
 }
 
-/** Record charts drawn as a unit matrix (#1140): one square per listed record, regrouped by real fields. */
-const MATRIX_CHARTS = new Set(['meeting-mentions', 'agenda-items', 'decisions', 'job-claims'])
+/** Record charts drawn as a unit matrix (#1140, #1400): one square per listed record, regrouped by real fields. */
+const MATRIX_CHARTS = new Set(['meeting-mentions', 'agenda-items', 'decisions', 'job-claims', 'sites', 'projects', 'community-events', 'positions'])
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 
@@ -175,7 +175,7 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
   const scope = scopeLabel ?? stateName ?? 'National'
   const hasLinks = Boolean(spec?.groups.some((g) => g.dots.some((d) => d.url)))
   const hasVideos = Boolean(spec?.groups.some((g) => g.dots.some((d) => d.video)))
-  const matrix = Boolean(spec && MATRIX_CHARTS.has(chartKey) && !view && spec.perDot === 1)
+  const matrix = Boolean(spec && !spec.countsOnly && MATRIX_CHARTS.has(chartKey) && !view && spec.drawn >= 6 && spec.drawn <= 400)
   /** The caption names the mark drawn: a square in the unit matrix, a dot otherwise. */
   const mark = (t: string) => (matrix ? t.replace(/\bdots?\b/g, (w) => (w === 'dot' ? 'square' : 'squares')) : t)
 
@@ -240,16 +240,14 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
           )}
           {emptyExtra}
         </div>
+      ) : matrix ? (
+        <UnitMatrixChart spec={spec} chartKey={chartKey} placeGrain={stateCode ? 'town' : 'state'} idBase={`stance-${round}`} scopeLabel={scope} />
       ) : chartForm ? (
-        matrix ? (
-          <UnitMatrixChart spec={spec} chartKey={chartKey} placeGrain={stateCode ? 'town' : 'state'} idBase={`stance-${round}`} scopeLabel={scope} />
-        ) : (
-          <Dots spec={spec} />
-        )
+        <Dots spec={spec} />
       ) : (
         <FitDisplay spec={spec} scopeLabel={scope} units={null} barsExtra={table} />
       )}
-      {spec && chartForm && (
+      {spec && (chartForm || matrix) && (
         <figcaption className="folio-fig">
           <b>FIG. {fig}</b> — {`${spec.title}, ${scope}.`}
           {mark(` ${spec.dotMeans} ${hasVideos ? 'Hover or focus a dot to preview the meeting; select it to play the recording from the quoted moment.' : hasLinks ? 'Select a dot to open it.' : 'Hover or focus a dot for details.'}`)}
@@ -259,7 +257,7 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
           {stateName == null && ' National figures, because no state is chosen.'} {about}
         </figcaption>
       )}
-      {spec && !chartForm && (
+      {spec && !chartForm && !matrix && (
         <p className="stance-note stance-fit-source">
           Source: {spec.source}.{spec.note && ` ${spec.note}`}
           {chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'} {about}

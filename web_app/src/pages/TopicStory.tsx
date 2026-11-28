@@ -39,6 +39,8 @@ import DumbbellChart from '../components/stance/DumbbellChart'
 import PlaceControl from '../components/stance/PlaceControl'
 import ProgressPips from '../components/stance/ProgressPips'
 import StoryClose from '../components/stance/StoryClose'
+import { useBoxFlight } from '../components/stance/BoxFlightProvider'
+import { useStoryBoxTransition } from '../components/stance/useStoryBoxTransition'
 import ScopeBar from '../components/stance/ScopeBar'
 import ScopeNote from '../components/stance/ScopeNote'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
@@ -323,6 +325,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
     dialogOpen: placeOpen,
     reduced,
   })
+  const boxFlight = useBoxFlight()
+  useStoryBoxTransition(rootRef, active, reduced)
   useIdleNudge({ rootRef, screen: `[data-panel="${active}"]`, resetKey: active, entranceMs: NUDGE_ENTRANCE_MS })
 
   // --- the title --------------------------------------------------------------------------------------------------------
@@ -769,7 +773,12 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 // Every live story, the same list as the Data Center Story's (#1224); choosing one opens it on its Overview,
                 // keeping the place.
                 options: storyTopicOptions(live, def.slug, topicWord),
-                onChange: (v) => navigate(storyStartHref(v, scopeQ)),
+                onChange: (v) => {
+                  if (rootRef.current) {
+                    boxFlight.launch({ source: rootRef.current, targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]' })
+                  }
+                  navigate(storyStartHref(v, scopeQ))
+                },
               },
             ]}
           />
@@ -826,7 +835,13 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       {active < n - 1 ? (
         <StoryNextButton label="Next" ariaLabel={`Next: ${screens[active + 1]?.eyebrow ?? ''}`.replace(/: $/, '')} onClick={() => goTo(Math.min(activeRef.current + 1, n - 1))} />
       ) : (
-        <StoryNextButton label="Done" ariaLabel="Done: close the story" href={homeHref} quiet />
+        <StoryNextButton
+          label="Done"
+          ariaLabel="Done: close the story"
+          href={homeHref}
+          onClick={() => rootRef.current && boxFlight.launch({ source: rootRef.current, targetSelector: '.home-story-map' })}
+          quiet
+        />
       )}
       {/* Phones: the bottom bar keeps Back and the progress dots; Next is the fixed button above, at its right end. */}
       {!wide && (
