@@ -2,7 +2,7 @@
     materialized='table',
     tags=['intermediate', 'trending_terms'],
     indexes=[{'columns': ['term_key']}, {'columns': ['state_code']}],
-    pre_hook=["set local work_mem = '64MB'", "set local statement_timeout = '30min'"]
+    pre_hook=["set local work_mem = '64MB'", "set local statement_timeout = '60min'"]
 ) }}
 
 /*

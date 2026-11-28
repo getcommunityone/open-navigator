@@ -22,8 +22,10 @@
     hot_score                national log-odds z-score from int_trending_term__hot (heat is too sparse per state, so a
                              state's "most heated" list ranks its own eligible terms by the national score).
     eligible                 meetings_b >= var trending_min_meetings_b (national 15, state var trending_state_min_meetings_b 5)
-                             and n_jurisdictions >= var trending_min_jurisdictions (national 5, state 3), and the scope
-                             recorded at least 20 meetings in each year. Only eligible rows get ranks.
+                             and n_jurisdictions >= var trending_min_jurisdictions (national 5, state 3), no one
+                             government holds more than var trending_max_jurisdiction_share (40%) of year_b's meetings
+                             (so one place, or one long meeting series, can't carry a term), and the scope recorded at
+                             least 20 meetings in each year. Only eligible rows get ranks.
     rank_rising / rank_hot / rank_volume  1 = top, within the scope; rising needs rise_score > 0, hot needs
                              hot_score >= 1.96.
     is_served                within the top var trending_served_per_sort (100) of any of the three ranks: what
@@ -37,6 +39,7 @@
 {%- set st_b = var('trending_state_min_meetings_b', 5) %}
 {%- set st_j = var('trending_state_min_jurisdictions', 3) %}
 {%- set per_sort = var('trending_served_per_sort', 100) %}
+{%- set max_jur = var('trending_max_jurisdiction_share', 0.4) %}
 
 with jy as (
     select * from {{ ref('int_trending_term__jurisdiction_year') }}
@@ -55,6 +58,7 @@ counts as (
         coalesce(sum(meetings) filter (where meeting_year = {{ ya }}), 0)               as meetings_a,
         coalesce(sum(meetings) filter (where meeting_year = {{ yb }}), 0)               as meetings_b,
         count(distinct jurisdiction_key) filter (where meeting_year = {{ yb }})         as n_jurisdictions,
+        coalesce(max(meetings) filter (where meeting_year = {{ yb }}), 0)               as top_jurisdiction_b,
         max(latest_meeting_date)                                                        as latest_meeting_date
     from scoped
     group by scope_code, term_key
@@ -90,6 +94,7 @@ base as (
         (case when c.scope_code = 'US'
               then c.meetings_b >= {{ nat_b }} and c.n_jurisdictions >= {{ nat_j }}
               else c.meetings_b >= {{ st_b }} and c.n_jurisdictions >= {{ st_j }} end
+         and c.top_jurisdiction_b <= {{ max_jur }} * c.meetings_b
          and r.recorded_a >= 20 and r.recorded_b >= 20) as eligible
     from counts as c
     inner join recorded as r on r.scope_code = c.scope_code
@@ -145,5 +150,5 @@ select
     (coalesce(r.rank_rising, 1e9) <= {{ per_sort }} or coalesce(r.rank_hot, 1e9) <= {{ per_sort }}
      or coalesce(r.rank_volume, 1e9) <= {{ per_sort }})::boolean                  as is_served
 from ranked as r
-inner join {{ ref('int_trending_term__candidate') }} as c on c.term_key = r.term_key
+inner join {{ ref('int_trending_term__candidate') }} as c on c.term_key = r.term_key and c.drop_reason is null
 left join states as st on st.state_code = r.scope_code

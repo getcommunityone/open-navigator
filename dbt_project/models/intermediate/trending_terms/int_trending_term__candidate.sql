@@ -28,6 +28,8 @@
                         (int_trending_term__official_name); a word on trending_term_common_word ("bill", "park") is
                         not treated as a name. Counted after the other filters, so the number dropped for privacy
                         is the number of otherwise-eligible candidates.
+      place_name        the name of a place with var trending_place_min_population (20,000) people or more (a city, or
+                        a county without "County"): it rises when we start recording that place, not with talk.
     is_sensitive marks terms naming a health condition, religion, immigration status, sexual orientation, disability,
     race/ethnicity, criminal history or finances (trending_term_sensitive): aggregate counts only, never tied to a
     speaker (the evidence mart drops the speaker for them).
@@ -91,6 +93,15 @@ name_word as (
     where l.word not in (select term from common_word)
 ),
 
+-- Names of places with 20,000+ people (a city "Ann Arbor", a county "DeKalb County" -> "dekalb"): a place name rising
+-- mostly says which places we started recording, not what people talk about.
+place_name as (
+    select distinct lower(btrim(regexp_replace(name,
+        '\s+(county|city|town|township|village|borough|parish|municipality|cdp)$', '', 'i'))) as term
+    from {{ ref('jurisdictions') }}
+    where population >= {{ var('trending_place_min_population', 20000) }} and name is not null
+),
+
 -- Phrases with a given-name word followed by a surname word, anywhere in the phrase.
 name_pair as (
     select distinct wd.tsq
@@ -115,6 +126,7 @@ flags as (
                    or (array_length(wd.w, 1) = 3
                        and o.name_key in (wd.w[1] || ' ' || wd.w[2], wd.w[2] || ' ' || wd.w[3]))) as official_name,
         (sn1.word is not null)                                                          as single_name,
+        exists (select 1 from place_name pl where pl.term = t.term)                     as place_name,
         (np.tsq is not null)                                                            as name_pair,
         (select min(sv.category) from {{ ref('trending_term_sensitive') }} sv
          where (' ' || t.term || ' ') like ('% ' || sv.term || ' %'))                   as sensitive_category
@@ -144,6 +156,7 @@ select
         when f.sample_meetings > {{ max_share }} * ss.n then 'too_common'
         when (f.single_name or f.name_pair) and not f.public_figure
              and not (f.official_name and f.n_words >= 2) then 'person_name'
+        when f.place_name then 'place_name'
      end)::text                                                            as drop_reason
 from flags as f
 cross join sample_size as ss

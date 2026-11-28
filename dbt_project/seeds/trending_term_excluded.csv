@@ -333,3 +333,10 @@ across the street,phrase,generic
 long term,phrase,generic
 long time,phrase,generic
 united states,phrase,generic
+tem,word,procedural
+pro tem,phrase,procedural
+lieu,word,generic
+waive,word,procedural
+resident of,phrase,procedural
+sighs,word,caption_noise
+gasps,word,caption_noise

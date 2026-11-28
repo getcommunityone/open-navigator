@@ -238,6 +238,8 @@ vars:
   trending_state_min_meetings_b: 5
   trending_state_min_jurisdictions: 3
   trending_served_per_sort: 100
+  trending_max_jurisdiction_share: 0.4
+  trending_place_min_population: 20000
   trending_hot_min_heat: 4
   trending_hot_prior: 500
   trending_hot_min_speakers: 5
