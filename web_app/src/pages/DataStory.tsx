@@ -160,8 +160,8 @@ export default function DataStory() {
       }),
     [allScreens, data, status, scope, question, overviewCaption, captionQ.data],
   )
-  // A chart screen with nothing on record drops out (#1002); so does Over time once it knows no site has a date (#1348).
-  const timelineEmpty = timelineQ.isSuccess && timelineQ.data.available && (timelineQ.data.dated ?? 0) === 0
+  // A chart screen with nothing on record drops out (#1002); so does Over time once it knows no site is on record (#1348, #1428).
+  const timelineEmpty = timelineQ.isSuccess && timelineQ.data.available && (timelineQ.data.total ?? 0) === 0
   const keep = allScreens.map((s, i) => (s.kind === 'timeline' ? !timelineEmpty : s.kind !== 'chart' || !allTexts[i]!.empty))
   const keepKey = keep.join()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -548,7 +548,7 @@ export default function DataStory() {
                         ? 'Data center sites over time could not be loaded right now.'
                         : timelineHeadline(timelineQ.data, sitesLabel)
                   }
-                  context={`Each site appears in the year of its earliest date on record. Epoch AI sites move to operating as Epoch dates them; registry sites keep their status today.${scope.city && scope.stateName ? ` Sites are placed by state, so this shows ${scope.stateName}.` : ''}`}
+                  context={`Each site appears in the year of its start date; a site with no start date (a square) appears when a source first listed it, and may be older. Epoch AI sites move to operating as Epoch dates them; registry sites keep their status today.${scope.city && scope.stateName ? ` Sites are placed by state, so this shows ${scope.stateName}.` : ''}`}
                   nextLabel={common.nextLabel}
                   onNext={common.onNext}
                   onPrev={common.onPrev}
