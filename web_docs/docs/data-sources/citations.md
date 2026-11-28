@@ -1174,6 +1174,9 @@ Municipalities and school boards often publish **official agendas, packets, and 
 **In this section:**
 - [U.S. Census Bureau](#us-census-bureau)
 - [Census of Governments (U.S. Census Bureau)](#census-of-governments-us-census-bureau)
+- [Annual Survey of State and Local Government Finances (Census Bureau, via Tax Policy Center)](#annual-survey-of-state-and-local-government-finances-census-bureau-via-tax-policy-center)
+- [USAspending.gov](#usaspendinggov)
+- [Grants.gov](#grantsgov)
 - [State Symbols USA (reference)](#state-symbols-usa-reference)
 - [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf)
 - [Open States / Plural Policy](#open-states--plural-policy-)
@@ -1197,6 +1200,40 @@ Municipalities and school boards often publish **official agendas, packets, and 
 - **2025 total:** 91,438 local governments ([Government Organization Summary, 2022-2025](https://www.census.gov/library/publications/2026/econ/govtorg2225.html))
 - **2022 breakdown:** 90,837 local governments: 3,031 counties, 19,491 municipalities, 16,214 townships, 12,546 independent school districts and 39,555 special districts ([Census of Governments 2022 webinar slides](https://www.fdlp.gov/sites/default/files/training/20231212-wn-census-govts-slides.pdf))
 - **Note:** About 40% of local governments are special districts (water, fire, transit and similar). Open Navigator does not include special districts.
+
+### Annual Survey of State and Local Government Finances (Census Bureau, via Tax Policy Center)
+
+**Organization:** U.S. Census Bureau, republished by the Urban-Brookings Tax Policy Center (State and Local Finance Initiative)
+**What we use:** Revenue, taxes and expenditure by function for each state and local government (`jurisdiction_finance`, `jurisdiction_finance_category`). It is the baseline for "where your tax money goes" and for the per-capita peer benchmarks.
+
+- **Source:** https://www.census.gov/programs-surveys/gov-finances.html
+- **Republication:** https://www.taxpolicycenter.org/
+- **License / terms:** Census data is public domain (U.S. Government). Credit the Census Bureau and the Tax Policy Center.
+- **Refresh cadence:** Annual, with about a two-year lag. We hold the latest fiscal year per government.
+- **Date accessed:** Loaded before 2026; re-confirmed 27 Nov 2026.
+- **On screen:** the "Where your tax money goes" card shows "Source: U.S. Census Bureau, Annual Survey of State & Local Government Finances / Census of Governments (via the Tax Policy Center)" from the API's `source` field.
+
+### USAspending.gov
+
+**Organization:** U.S. Department of the Treasury, Bureau of the Fiscal Service
+**What we use:** Federal assistance awards (grants, cooperative agreements and formula or block grants, award types 02 to 05) to local-government recipients, fiscal year 2019 onward. They fill `federal_award` and `jurisdiction_federal_funding` and feed the `federal_total`, `federal_cdbg` and `federal_opioid` peer benchmarks ([decision](../development/usaspending-federal-awards-decision.md)).
+
+- **Source:** https://www.usaspending.gov/ . API: https://api.usaspending.gov/docs/endpoints
+- **License / terms:** Public domain (U.S. Government work). No key. We identify as `open-navigator`, keep requests slow and stop on HTTP 403 or 429.
+- **Refresh cadence:** USAspending updates daily from agency submissions, which lag the award by weeks to months. We re-run the loader on demand. Each row carries `source_updated_at`.
+- **Date accessed:** 27 Nov 2026.
+- **On screen:** benchmark figures show "Source: USAspending.gov (U.S. Treasury), assistance awards to local governments, public domain" from the API's `source` field, with `data_as_of`.
+- **Caveat:** recipients are linked to jurisdictions by name, state and kind, with a `match_confidence`. Totals are for awards we matched, so a missing jurisdiction means "not matched", not "received nothing".
+
+### Grants.gov
+
+**Organization:** U.S. Department of Health and Human Services (Grants.gov, the federal grant opportunity portal)
+**What we use:** Open and forecast federal funding opportunities (`grant_opportunity`). Used to benchmark what is open to apply for, next to the awards in USAspending.
+
+- **Source:** https://www.grants.gov/ . API guide: https://www.grants.gov/api/api-guide
+- **License / terms:** Public domain (U.S. Government). The Search2 API needs no key.
+- **Refresh cadence:** Refreshed on demand with `make grants-refresh`.
+- **Date accessed:** Loaded before 2026; re-confirmed 27 Nov 2026.
 
 ---
 

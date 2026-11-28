@@ -1,0 +1,94 @@
+version: 2
+
+# #1393: USAspending federal awards to local governments.
+#   federal_award PK award_id; FK jurisdiction_id -> jurisdictions (nullable; unmatched
+#   recipients stay NULL, never mis-joined).
+#   jurisdiction_federal_funding PK (jurisdiction_id, fiscal_year, assistance_listing_number);
+#   FK jurisdiction_id -> jurisdictions.
+
+models:
+  - name: federal_award
+    description: >
+      One row per USAspending assistance award (types 02-05) to a local-government
+      recipient, FY2019+. jurisdiction_id/match_confidence come from a conservative
+      name + state + kind match (0.95 unique, 0.60 ambiguous). Source: USAspending.gov.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: award_id
+        description: "PK: USAspending generated_unique_award_id."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique, not_null]
+      - {name: award_number, description: "Award ID (FAIN/URI).", data_type: text}
+      - {name: recipient_name, description: "Recipient name as reported.", data_type: text}
+      - {name: recipient_uei, description: "Unique Entity ID.", data_type: text}
+      - {name: recipient_type, description: "USAspending recipient type filter used at load.", data_type: text}
+      - {name: assistance_listing_number, description: "First Assistance Listing Number (CFDA), e.g. 14.218.", data_type: text}
+      - {name: assistance_listing_title, description: "Program title.", data_type: text}
+      - {name: awarding_agency, description: "Awarding agency.", data_type: text}
+      - {name: funding_agency, description: "Funding agency.", data_type: text}
+      - {name: total_obligation, description: "Current total obligation in dollars (award total, not one transaction).", data_type: numeric}
+      - {name: total_outlays, description: "Total outlays in dollars; NULL when not reported.", data_type: numeric}
+      - {name: period_start, description: "Award period start.", data_type: date}
+      - {name: period_end, description: "Award period end.", data_type: date}
+      - {name: state_code, description: "2-letter state of the recipient (falls back to place of performance).", data_type: text}
+      - {name: state, description: "Full state name.", data_type: text}
+      - {name: pop_state_code, description: "Place-of-performance state code.", data_type: text}
+      - {name: pop_state, description: "Place-of-performance state name.", data_type: text}
+      - {name: pop_county, description: "Place-of-performance county.", data_type: text}
+      - {name: pop_city, description: "Place-of-performance city.", data_type: text}
+      - {name: description, description: "Award description as reported.", data_type: text}
+      - name: jurisdiction_id
+        description: "FK -> jurisdictions.jurisdiction_id. NULL when the recipient is not a matched city or county."
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
+      - {name: match_confidence, description: "0.95 unique name match, 0.60 ambiguous (most populous picked); NULL if unmatched.", data_type: numeric}
+      - {name: fiscal_year, description: "Federal fiscal year (Oct-Sep) of the award period start. Integer in SQL, string on the wire.", data_type: integer}
+      - {name: source_updated_at, description: "USAspending last-modified time for the award.", data_type: timestamp}
+      - {name: ingested_at, description: "When the bronze row was loaded.", data_type: timestamp}
+
+  - name: jurisdiction_federal_funding
+    description: >
+      Federal assistance dollars per matched jurisdiction x fiscal year x Assistance
+      Listing Number, summed from federal_award (matched awards only).
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+      constraints:
+        - type: primary_key
+          columns: [jurisdiction_id, fiscal_year, assistance_listing_number]
+    columns:
+      - name: jurisdiction_id
+        description: "FK -> jurisdictions.jurisdiction_id."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
+      - {name: fiscal_year, description: "Federal fiscal year (integer).", data_type: integer, constraints: [{type: not_null}]}
+      - {name: assistance_listing_number, description: "Assistance Listing Number.", data_type: text, constraints: [{type: not_null}]}
+      - {name: assistance_listing_title, description: "Program title.", data_type: text}
+      - {name: state_code, description: "2-letter state.", data_type: text}
+      - {name: state, description: "Full state name.", data_type: text}
+      - {name: award_count, description: "Awards summed.", data_type: integer}
+      - {name: total_obligation, description: "Sum of award total obligations, dollars.", data_type: numeric}
+      - {name: total_outlays, description: "Sum of outlays, dollars (NULL if none reported).", data_type: numeric}
+      - {name: min_match_confidence, description: "Lowest match_confidence among the summed awards.", data_type: numeric}
+      - {name: source_updated_at, description: "Latest USAspending modification time among the awards.", data_type: timestamp}
