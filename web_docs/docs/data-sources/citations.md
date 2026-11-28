@@ -1196,6 +1196,7 @@ Municipalities and school boards often publish **official agendas, packets, and 
 - [Census of Governments (U.S. Census Bureau)](#census-of-governments-us-census-bureau)
 - [Annual Survey of State and Local Government Finances (Census Bureau, via Tax Policy Center)](#annual-survey-of-state-and-local-government-finances-census-bureau-via-tax-policy-center)
 - [USAspending.gov](#usaspendinggov)
+- [Michigan opioid settlement spending](#michigan-opioid-settlement-spending-mdhhs)
 - [HUD CDBG activity](#hud-open-data-community-development-block-grant-activity)
 - [Census ASPEP public payroll](#census-annual-survey-of-public-employment--payroll-aspep)
 - [Grants.gov](#grantsgov)
@@ -1259,6 +1260,16 @@ Municipalities and school boards often publish **official agendas, packets, and 
 - **On screen:** benchmark figures show "Source: U.S. Census Bureau, Annual Survey of Public Employment & Payroll (ASPEP), latest survey year, public domain".
 - **Caveat:** aggregate only. ASPEP has no department-head or per-person salary. Years not ending in 2 or 7 are samples.
 
+### Michigan Opioid Settlement spending (MDHHS)
+
+**Organization:** Michigan Department of Health and Human Services
+**What we use:** The state's published opioid settlement spending dashboard workbook (FY22 to FY24, as of 30 Jun 2024): program, recipient organization, spend plan and expenditures per line. It fills `opioid_settlement_spending` and the `opioid_settlement_spending` peer benchmark ([decision](../development/opioid-settlement-decision.md)).
+
+- **Source:** https://www.michigan.gov/opioids/opioidsettlements/settlement-spending/prior-years-spending
+- **License / terms:** State of Michigan public record published for transparency. The page states no licence; we cite MDHHS and link to the page.
+- **Refresh cadence:** the state updates the workbook periodically; we re-run the loader on demand. Rows carry `reported_as_of` and `source_updated_at`.
+- **Date accessed:** 27 Nov 2026.
+- **Caveat:** state-agency lines only, not payments to cities or counties. A pilot for one state; other states are listed in the decision page.
 ### HUD Open Data: Community Development Block Grant Activity
 
 **Organization:** U.S. Department of Housing and Urban Development (HUD)

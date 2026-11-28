@@ -1,0 +1,47 @@
+version: 2
+
+# #1396: opioid settlement spending pilot (Michigan). PK opioid_line_id; FK jurisdiction_id
+# -> jurisdictions (the state jurisdiction; nullable).
+
+models:
+  - name: opioid_settlement_spending
+    description: >
+      One row per spend-plan line of a state's opioid settlement funds (pilot: Michigan,
+      MDHHS dashboard workbook FY22 to FY24, as of 2024-06-30). State-agency lines, not
+      payments to individual cities or counties. expenditure_dollars is NULL until reported.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    columns:
+      - name: opioid_line_id
+        description: "PK: state code and source row."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique, not_null]
+      - name: jurisdiction_id
+        description: "FK to jurisdictions (the state)."
+        data_type: text
+        constraints:
+          - type: foreign_key
+            to: ref('jurisdictions')
+            to_columns: [jurisdiction_id]
+        data_tests:
+          - relationships:
+              arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
+      - {name: state_code, description: "2-letter state.", data_type: text}
+      - {name: state, description: "Full state name.", data_type: text}
+      - {name: fiscal_year, description: "State fiscal year (integer; a string on the JSON wire).", data_type: integer}
+      - {name: status, description: "Allocated or Contracted.", data_type: text}
+      - {name: pillar, description: "Spending pillar (Treatment, Prevention, ...).", data_type: text}
+      - {name: strategy, description: "Strategy within the pillar.", data_type: text}
+      - {name: program, description: "Program name.", data_type: text}
+      - {name: recipient, description: "Vendor or recipient organization as the state lists it.", data_type: text}
+      - {name: appropriation, description: "Appropriation code as published.", data_type: text}
+      - {name: spend_plan_dollars, description: "Current spend plan, dollars.", data_type: numeric}
+      - {name: expenditure_dollars, description: "Expenditures reported, dollars; NULL if not reported.", data_type: numeric}
+      - {name: remaining_plan_dollars, description: "Remaining spend plan, dollars.", data_type: numeric}
+      - {name: reported_as_of, description: "Date the state's data is as of.", data_type: date}
+      - {name: source_url, description: "State page the file is published on.", data_type: text}
+      - {name: source_updated_at, description: "When we loaded the file.", data_type: timestamp}

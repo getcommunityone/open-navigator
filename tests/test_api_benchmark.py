@@ -139,6 +139,11 @@ def test_payroll_metrics_read_the_served_slice_and_are_aggregate_only():
         assert "Census" in spec.source
 
 
+def test_opioid_metric_is_null_without_a_source_not_zero():
+    spec = benchmark.METRICS["opioid_settlement_spending"]
+    assert "FROM opioid_settlement_spending" in spec.values_sql
+    assert "HAVING sum(expenditure_dollars) IS NOT NULL" in spec.values_sql  # unreported stays null
+    assert "Michigan" in spec.source
 def test_cdbg_metrics_read_their_marts():
     assert "FROM cdbg_allocation" in benchmark.METRICS["cdbg_allocation"].values_sql
     share = benchmark.METRICS["cdbg_public_services_share"]
