@@ -2091,6 +2091,27 @@ sources:
           - name: platform
           - name: portal
           - name: status
+      - name: bronze_legistar_office_record
+        description: >
+          #1443: current Legistar office records (who holds a seat on which body, with title and dates), one row per
+          (portal, office_record_id). Written by `python -m scrapers.platforms.legistar_people --apply` through the
+          polite client; the current set replaces the last one per portal. No email is stored.
+        columns:
+          - name: portal
+          - name: office_record_id
+          - name: full_name
+          - name: body_name
+          - name: title
+      - name: bronze_legistar_body
+        description: "#1443: Legistar bodies per portal, one row per (portal, body_id)."
+        columns:
+          - name: portal
+          - name: body_id
+      - name: bronze_legistar_people_portal
+        description: "#1443: status of the last Legistar people read per portal (ok, blocked, robots_disallowed, not_configured, error)."
+        columns:
+          - name: portal
+          - name: status
       - name: bronze_events_analysis_ai
         config:
           # Freshness (context-engineering.md, principle 5): `dbt source freshness`

@@ -40,6 +40,12 @@ not_meeting as (
     where k.is_public_meeting = false
 ),
 
+is_meeting as (
+    select k.video_id
+    from {{ ref('meeting_video_kind') }} as k
+    where k.is_public_meeting = true
+),
+
 youtube as (
     select
         'youtube'::text                                     as source,
@@ -53,7 +59,13 @@ youtube as (
         y.video_url::text                                   as video_url,
         y.title::text                                       as text_1,
         'title'::text                                       as text_1_kind,
-        em.body_name::text                                  as text_2,
+        -- The AI body name only for a video that is a meeting by its title or the meeting-kind screen: on an
+        -- interview or a ceremony the model still guesses a body ("City Council"), which would be wrong.
+        case
+            when y.title ~* '(meeting|session|hearing|agenda|minutes|council|commission|board|committee|workshop|selectmen|aldermen|supervisors|trustees)'
+              or y.video_id in (select video_id from is_meeting)
+                then em.body_name
+        end::text                                           as text_2,
         'body_name'::text                                   as text_2_kind
     from {{ ref('event_youtube_with_jurisdiction') }} as y
     left join event_meeting_one as em on em.video_id = y.video_id

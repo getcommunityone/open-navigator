@@ -13,8 +13,9 @@
     governing_body (#1442): the bodies that govern a place, one row per jurisdiction x body.
 
     From meetings (int_meeting_body__matched: YouTube titles and the AI body name, Legistar/Granicus body fields,
-    scraped agenda/minutes body names) and from official rosters (person_government: a place with a mayor or
-    council members has a governing body even before we hold any of its meetings).
+    scraped agenda/minutes body names) and from rosters (int_body_member__candidate, #1443: officials data,
+    Legistar office records, OpenStates chambers), so a place with a mayor or council members has a governing body
+    even before we hold any of its meetings.
 
     body_name: the multi-word name most meetings use for the body (ties: the longer name), else a default for the
     body type.
@@ -68,16 +69,18 @@ type_vote as (
     order by m.jurisdiction_id, m.body_key, count(*) desc, m.body_type
 ),
 
--- A place whose officials include a mayor or council members has a governing body, meetings or not.
+-- Bodies known from a roster (officials data, Legistar office records, OpenStates chambers; #1443), meetings or not.
 roster_body as (
-    select distinct
-        p.jurisdiction_id,
-        case when j.jurisdiction_type = 'school_district' then 'school_board' else 'governing_body' end as body_key
-    from {{ ref('person_government') }} as p
-    join jur as j on j.jurisdiction_id = p.jurisdiction_id
-    where p.jurisdiction_id is not null
-      and coalesce(p.is_current, true)
-      and p.title ~* '(mayor|council|alder|commission|selectm|select board|trustee|supervisor|board member)'
+    select
+        c.jurisdiction_id,
+        c.body_key,
+        max(c.body_name) as body_name,
+        max(c.body_type) as body_type,
+        string_agg(distinct case when c.source in ('officials', 'council_roster') then 'roster' else c.source end, ','
+                   order by case when c.source in ('officials', 'council_roster') then 'roster' else c.source end) as sources
+    from {{ ref('int_body_member__candidate') }} as c
+    join jur as j on j.jurisdiction_id = c.jurisdiction_id
+    group by c.jurisdiction_id, c.body_key
 ),
 
 body as (
@@ -94,6 +97,7 @@ select
     b.body_key::text                                                         as body_key,
     coalesce(
         nv.body_name,
+        r.body_name,
         case
             when b.body_key = 'school_board' then 'Board of Education'
             when b.body_key = 'governing_body' and j.jurisdiction_type = 'county' then 'County Commission'
@@ -104,18 +108,19 @@ select
     )::text                                                                  as body_name,
     coalesce(
         tv.body_type,
+        r.body_type,
         case
             when b.body_key = 'school_board' then 'school_board'
             when j.jurisdiction_type = 'county' then 'county_commission'
             else 'council'
         end
     )::text                                                                  as body_type,
-    (b.body_key = 'governing_body'
+    (b.body_key in ('governing_body', 'legislature_upper', 'legislature_lower')
         or (b.body_key = 'school_board' and j.jurisdiction_type = 'school_district'))::boolean as is_primary,
     coalesce(s.meeting_count, 0)::integer                                    as meeting_count,
     s.first_meeting_date::date                                               as first_meeting_date,
     s.last_meeting_date::date                                                as last_meeting_date,
-    concat_ws(',', s.sources, case when r.body_key is not null then 'roster' end)::text as sources
+    concat_ws(',', s.sources, r.sources)::text                               as sources
 from body as b
 join jur as j on j.jurisdiction_id = b.jurisdiction_id
 left join meeting_body_stats as s on s.jurisdiction_id = b.jurisdiction_id and s.body_key = b.body_key
