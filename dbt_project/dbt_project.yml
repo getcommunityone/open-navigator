@@ -232,6 +232,7 @@ vars:
   trending_sample_min_meetings: 6
   trending_sample_min_jurisdictions: 3
   trending_max_doc_share: 0.35
+  trending_name_ratio: 0.25
   trending_min_meetings_b: 15
   trending_min_jurisdictions: 5
   trending_state_min_meetings_b: 5

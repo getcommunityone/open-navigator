@@ -18,6 +18,8 @@ models:
     columns:
       - name: name_key
         data_tests: [unique, not_null]
+  - name: int_trending_term__sample_term
+    description: "One row per (surface term, n_words) said in public-comment turns of the fixed meeting sample, with sampled meetings and governments."
   - name: int_trending_term__candidate
     description: "One row per candidate term key from sampled public-comment turns, with drop_reason (null = kept) and the sensitive flag."
     columns:
