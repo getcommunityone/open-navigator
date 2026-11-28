@@ -96,6 +96,20 @@ METRICS: dict[str, Metric] = {
         _FUNDING_BY_ALN.format(extra="AND assistance_listing_number IN ('14.218', '14.228')"),
         "Community Development Block Grants: Entitlement (14.218) and State / Non-entitlement (14.228).",
     ),
+    "opioid_settlement_spending": Metric(
+        "opioid_settlement_spending", "Opioid settlement funds reported spent by the state", "dollars",
+        "Michigan Department of Health and Human Services, Opioid Settlement spending dashboard (pilot), public record",
+        """
+        SELECT jurisdiction_id, sum(expenditure_dollars) AS value, max(source_updated_at) AS as_of
+        FROM opioid_settlement_spending
+        WHERE jurisdiction_id = ANY($1::text[])
+          AND ($2::int IS NULL OR fiscal_year = $2::int)
+        GROUP BY jurisdiction_id
+        HAVING sum(expenditure_dollars) IS NOT NULL
+        """,
+        "Pilot: state-agency lines for Michigan, FY22 to FY24 as of 30 Jun 2024. Only a state with a loaded source has "
+        "a value; every other jurisdiction is null, not zero. Spending not yet reported is left out.",
+    ),
     "federal_opioid": Metric(
         "federal_opioid", "Federal opioid-related awards", "dollars", _USASPENDING + "; award text",
         """

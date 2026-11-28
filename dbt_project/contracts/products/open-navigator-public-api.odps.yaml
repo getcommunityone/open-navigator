@@ -135,6 +135,11 @@ outputPorts:
   contractId: open-navigator-public-cdbg_activity_summary
   type: table
   description: Completed CDBG activities, FY2019 onward, matched to a jurisdiction, summed per fiscal year and HUD activity group.
+- name: opioid_settlement_spending
+  version: 1.0.0
+  contractId: open-navigator-public-opioid_settlement_spending
+  type: table
+  description: 'One row per spend-plan line of a state''s opioid settlement funds (pilot: Michigan, MDHHS dashboard workbook FY22 to FY24, as of 2024-06-30).'
 - name: jurisdiction_public_payroll
   version: 1.0.0
   contractId: open-navigator-public-jurisdiction_public_payroll
