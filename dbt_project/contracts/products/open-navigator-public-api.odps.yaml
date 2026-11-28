@@ -590,3 +590,8 @@ outputPorts:
   contractId: open-navigator-public-meeting_speaker_topic_side
   type: table
   description: 'One row per meeting x public speaker x topic (#1391): the side the speaker''s own words took on the topic, read by a classifier (TypeSafe Jev, llm.typesafe.speaker_stance) from the passages of their turn text that name the topic, at the topic''s current question version.'
+- name: topic_place_ranking
+  version: 1.0.0
+  contractId: open-navigator-public-topic_place_ranking
+  type: table
+  description: 'One row per place x topic x window (#1437): where a place''s public speakers stood on a topic, from their own classifier sides (meeting_speaker_topic_side).'
