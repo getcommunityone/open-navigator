@@ -219,7 +219,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const frameTitle = insight.kind === 'none' || insight.kind === 'volume' ? captionText : insight.title
   const legend: LegendItem[] = [
     { key: 'box', label: `1 box = ${unitText}; the top box of a year is partial`, color: 'var(--violet)' },
-    ...(thinDrawn.size > 0 || hollowShare ? [{ key: 'thin', label: 'Hollow or dashed: few meetings recorded, not comparable', color: 'var(--violet)', shape: 'ring' as const }] : []),
+    ...(thinDrawn.size > 0 || hollowShare ? [{ key: 'thin', label: 'Hollow box: few meetings recorded, not comparable', color: 'var(--violet)', shape: 'ring' as const }] : []),
     ...(ms.length > 0 ? [{ key: 'ms', label: 'Square on the track: a milestone (selected one in red)', color: 'var(--ink)', shape: 'square' as const }] : []),
   ]
 
