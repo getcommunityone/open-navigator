@@ -333,6 +333,7 @@ from api.routes import policy_questions as policy_questions_routes
 from api.routes import documents as documents_routes
 from api.routes import jurisdiction_documents as jurisdiction_documents_routes
 from api.routes import jurisdiction_meeting_documents as jurisdiction_meeting_documents_routes
+from api.routes import governing_bodies as governing_bodies_routes
 from api.routes import event_bills as event_bills_routes
 from api.routes import meetings as meetings_routes
 from api.routes import meeting_comparison as meeting_comparison_routes
@@ -392,6 +393,7 @@ app.include_router(decisions_routes.router, prefix="/api")
 app.include_router(policy_questions_routes.router, prefix="/api")
 app.include_router(jurisdiction_documents_routes.router, prefix="/api")
 app.include_router(jurisdiction_meeting_documents_routes.router, prefix="/api")
+app.include_router(governing_bodies_routes.router, prefix="/api")
 app.include_router(documents_routes.router, prefix="/api")
 app.include_router(event_bills_routes.router, prefix="/api")
 app.include_router(meetings_routes.router, prefix="/api")
