@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from llm.typesafe import speaker_stance as ss
 from llm.typesafe import speaker_stance_gold as gold
 from llm.typesafe import topic_lean as tl
@@ -37,6 +38,18 @@ PINNED_QUESTION_VERSIONS: dict[str, str] = {
     "surveillance-cameras": "eab4d415a535",
     "public-transit": "5546e557c76b",
     "alcohol-licensing": "e6393db1e018",
+    # #1436 coverage topics (new; held until their gold check passes)
+    "missing-middle-housing": "0d76267e8e1d",
+    "road-diets": "3112665afa83",
+    "backyard-chickens": "8e07cba2cec4",
+    "speed-cameras": "8ae8d3b0f77a",
+    "speed-bumps": "5c790ba201c9",
+    "roundabouts": "d19f8d1791fe",
+    "gas-stations": "7921e9f64e09",
+    "artificial-turf": "9a71a0753f17",
+    "homeless-encampments": "f475e5b73573",
+    "solar-farms": "030a6804e08c",
+    "battery-storage": "4cd0b9054486",
 }
 
 # The meeting-level topics' stored hashes (test_topic_lean.STORED_QUESTION_VERSIONS) must never move because of this work.
@@ -60,14 +73,29 @@ def test_meeting_topic_hashes_unchanged() -> None:
 
 
 def test_topics_ids_and_priority() -> None:
-    assert len(ss.TOPICS) == 19
-    assert len({t.topic_id for t in ss.TOPICS.values()}) == 19
+    assert len(ss.TOPICS) == 30
+    assert len({t.topic_id for t in ss.TOPICS.values()}) == 30
     assert ss.PRIORITY[0] == "data-centers"
     assert set(ss.PRIORITY) == set(ss.TOPICS)
     for slug, t in ss.TOPICS.items():
         assert t.slug == slug
-        # curated topics (>= 100000) use their seed keywords; reframed CivicSearch topics carry their own phrases
-        assert (t.keywords is None) == (t.topic_id >= 100000), slug
+        # the 19 original topics: curated (>= 100000) use their seed keywords, reframed CivicSearch topics carry their
+        # own phrases; the coverage topics (#1436) all carry their own whole-word phrases
+        if slug in ss.NEW_TOPICS:
+            assert t.keywords and t.topic_id > 100100, slug
+        else:
+            assert (t.keywords is None) == (t.topic_id >= 100000), slug
+
+
+def test_coverage_topics_are_held_until_validated() -> None:
+    assert set(ss.NEW_TOPICS) <= ss.HELD
+    assert not set(ss.NEW_TOPICS) & {t.slug for t in ss.resolve_topics("all")}
+    # renewable energy stays as it was; solar farms and battery storage are separate questions beside it
+    assert ss.TOPICS["renewable-energy"].topic_id == 90
+    pat = ss.strict_pattern(ss.TOPICS["speed-bumps"].keywords)
+    assert pat.search("we need speed humps on Elm") and not pat.search("a bump in the road")
+    turf = ss.strict_pattern(ss.TOPICS["roundabouts"].keywords)
+    assert not turf.search("the Rotary club met") and turf.search("a new roundabout at Main")
 
 
 def test_questions_ask_side_and_heat_ladder() -> None:
@@ -335,3 +363,33 @@ def test_meeting_heat_orders_hottest_meetings_first_within_a_topic() -> None:
     heat = ss.meeting_heat_scores(rows, set(), [100005])
     jobs, _ = ss.build_jobs(speakers, topics, pats, set(), heat=heat)
     assert [j.meeting_speaker_id for j in jobs] == ["b", "c", "a"]
+
+
+def test_round2_gold_is_flagged_ai_helper_and_carries_no_speech() -> None:
+    """#1436: the coverage topics' gold set (plus more held bike-lanes / zoning items) holds keys, labels and hashes
+    only, and says its labels were made by an AI helper, not a person."""
+    doc = json.loads(gold.ROUND2_GOLD_FILE.read_text(encoding="utf-8"))
+    assert "AI helper" in doc["labelled_by"]
+    items = doc["items"]
+    assert {it["topic"] for it in items} == set(ss.NEW_TOPICS) | {"bike-lanes", "zoning-regulations"}
+    assert len({(it["topic"], it["meeting_speaker_id"]) for it in items}) == len(items)
+    for it in items:
+        assert set(it) <= {"topic", "meeting_speaker_id", "state_sha256", "label", "clear", "note"}
+        assert it["label"] in ss.SIDES
+        assert not it["clear"] or it["label"] in gold.SIDED
+        assert re.fullmatch(r"[0-9a-f]{32}", it["meeting_speaker_id"]) and re.fullmatch(r"[0-9a-f]{64}", it["state_sha256"])
+        assert len(it["note"].split()) <= 14
+
+
+def test_combined_rounds_count_each_item_once(tmp_path: Path) -> None:
+    item = {"topic": "bike-lanes", "meeting_speaker_id": "a" * 32, "state_sha256": "b" * 64, "label": "for",
+            "clear": True, "note": "asks for lanes"}
+    g1, g2 = tmp_path / "g1.json", tmp_path / "g2.json"
+    g1.write_text(json.dumps({"items": [item]}))
+    g2.write_text(json.dumps({"items": [item, {**item, "meeting_speaker_id": "c" * 32, "label": "against"}]}))
+    r = tmp_path / "r.json"
+    r.write_text(json.dumps({"predictions": {
+        f"bike-lanes|{'a' * 32}": {"side": "for", "side_confidence": 0.95},
+        f"bike-lanes|{'c' * 32}": {"side": "against", "side_confidence": 0.9}}}))
+    res = gold.combined([g1, g2], [r, tmp_path / "missing.json"])
+    assert res["bike-lanes"]["items"] == 2 and res["bike-lanes"]["clear"] == 2 and res["bike-lanes"]["swaps"] == 0

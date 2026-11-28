@@ -1,0 +1,4310 @@
+{
+ "issue": 1436,
+ "labelled_by": "AI helper (Claude), not a person: each label made from the exact passage sent (speaker_stance.build_state, speaker_state/1), blind to any Jev output. Not owner-reviewed; flagged as AI-helper labels in the decision page.",
+ "items": [
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "51c2f27224b0f60c8340c2b44ed699b2",
+   "state_sha256": "323d80761342fef1a790ae6a635b254230e263ab307c21768307fc3a8c612d46",
+   "label": "off_topic",
+   "clear": false,
+   "note": "code argument over special exception; duplex only listed"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "331b4ee36c645346d13d315af3b0c271",
+   "state_sha256": "14ab4802931430440d5c84f2ecee5f8d212d3d6f4ff7578f6b3ed1b08e56653d",
+   "label": "off_topic",
+   "clear": false,
+   "note": "staff presentation of large gated multiplex complex"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "3a6ce340d833343d210f984aca0385a7",
+   "state_sha256": "88da09d9a084d5154791f9b544641cd0dd0785cc0b32dfba4ec4d0636c96e967",
+   "label": "off_topic",
+   "clear": false,
+   "note": "applicant duplex in commercial district, not single-family lot"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "f42f80990c36cf50b30f33f1f01ef908",
+   "state_sha256": "50bbb96e82a67d34726a84b1994c8952a2749686ed45a5d63da92247ffa5c2e1",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "builder says zone code duplex rules too rigid"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "2377fa29f93f152f3357092412252702",
+   "state_sha256": "633e932141b2ce0586b8548ac80a764e6d5816b29207fdb704777efbe6300fcb",
+   "label": "off_topic",
+   "clear": false,
+   "note": "official on single owner duplex addition variance"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "2e63d8f799c0bde4b57d9005fe7740f4",
+   "state_sha256": "03a01331a90fbcc0d5494a7bf91662e2eacae7b79de5186c125c99fd026bf9dc",
+   "label": "no_position",
+   "clear": false,
+   "note": "staff summary of mixed rezoning before speaker begins"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "3e17936c9180382b8c181313905982c0",
+   "state_sha256": "706e3696cc9ddc2ba883dc30c0a36aa76acec224803128587908867bc49c462b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "staff on single-family parcel map"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "02e7ca9c876401bf258a125ef5b63fb0",
+   "state_sha256": "9400e659c89d9334712cad9b67be6727e7399f6366b0ed71839cba5bf22a0526",
+   "label": "off_topic",
+   "clear": false,
+   "note": "trash service question; triplex passing mention"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "660f2a2b963d29a17abddefab1bf5cec",
+   "state_sha256": "1b9e61728ee908dd3e8681995d4941194541dd0b982505436a554171357cbfae",
+   "label": "off_topic",
+   "clear": false,
+   "note": "opposes large 350-unit rezoning, not single-family lot rule"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "7685029212f865c98497049e530b3ae9",
+   "state_sha256": "4820df0911f639526545c0279c3c31eea2bd875f5248ec5d4c4dbd382eabdb5e",
+   "label": "for",
+   "clear": true,
+   "note": "asks for missing middle zoning and smaller lot minimums"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "2d6a580b3b93c59433614c9c6d8564b6",
+   "state_sha256": "33791dec0dc5b8b7e64a4098cad243138f4c9ac945b0ca56e9c5660cbbe25a5f",
+   "label": "no_position",
+   "clear": false,
+   "note": "staff lists state strategies including ADU rules"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "ee21777d00021c057d11ceb0a3069ba2",
+   "state_sha256": "281c3985579c6798af34514d44bc81610938da44820a84f68049bd1dc625781e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "official on short-term rental enforcement; ADU passing"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "3e3fda8feda15331ef7b5abc29280b6e",
+   "state_sha256": "74989aa9e9235144f818e69fe0fdec59ed72c1a526dc5efa91b539fc992748fa",
+   "label": "off_topic",
+   "clear": false,
+   "note": "water shutoff question; granny flat example"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "81de820cd688cb2c215e651861fcfe9d",
+   "state_sha256": "eb110ed1aa641ea88d21f87c5951899394cdac1425659486510f61006655fd89",
+   "label": "off_topic",
+   "clear": false,
+   "note": "objects to building on public lot; duplex passing"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "c7438ffbb7fd30b967d6108ee9f491d5",
+   "state_sha256": "454eee8fcb87886d0a6e7c7bb3605e95ab8ee8aadeecba5012ed8c7d251d965e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "short-term rental testimony; duplex passing"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "731d2f3eaa42c535893b3b3bb544ac70",
+   "state_sha256": "22b491dbd5b8508cdb0104e828b82447d9e082f2342f4a8f6715f1f67d16d866",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "asks about ADU program outreach and translation"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "14f479060f34948378f59d782041458f",
+   "state_sha256": "1c733b349961cbdd5eed710f86430ce9159ebada5207b2b3481bfff20a6ca3ce",
+   "label": "no_position",
+   "clear": false,
+   "note": "staff describes zoning rewrite consultants"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "065b1e5df92ea584e8a865fbb5ae8642",
+   "state_sha256": "6b085723766bd6f704692f44200a04c5df13b865b355216d9d6a8e9d4d43f13d",
+   "label": "off_topic",
+   "clear": false,
+   "note": "rental monitoring vendor demo"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "8f4205676e97030e8577f3dcda1aa280",
+   "state_sha256": "aa84bf72e9150fe9fa44cc3bb99e4203abcd2e4b833081a30a9d84a9759599ae",
+   "label": "off_topic",
+   "clear": false,
+   "note": "tax increment agreements; duplexes passing"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "4dd854bd7f3c4c940d87be346a45649e",
+   "state_sha256": "e5edc6a68169a9e65c18e9bd71f7da74cb91a25298d068baea0b46d34a169e94",
+   "label": "off_topic",
+   "clear": false,
+   "note": "eviction rules; duplex exemption passing"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "6ab084c6ccd6de438be79eeb01d5b4b9",
+   "state_sha256": "a51b1006aa7be198eeca437b9acb3f03ad97ece91013154347c3effe1f990322",
+   "label": "against",
+   "clear": false,
+   "note": "opposes council middle housing amendments, wants state minimum"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "a18c8c9255943c44f8fbf319dd1cd6bd",
+   "state_sha256": "3b82c84ceec7b8886c79d17a08897a17c30d5d145263d655331e3eeae2b83baf",
+   "label": "for",
+   "clear": true,
+   "note": "group supports zoning to allow ADUs"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "33d6dbd3eba10d69527c3ffae9e3e3de",
+   "state_sha256": "9adc274032e1fe6b30ed18bdfd6c19de48522f70a3bbb043039289772fe90253",
+   "label": "against",
+   "clear": true,
+   "note": "opposes rezoning allowing four homes per lot nearby"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "cfea94c4086a92ac3360fb1f5485f232",
+   "state_sha256": "82f9fa36f185f0f753ced8643fe7b1c3d11cb7d9e1c093cf71150121c79c866e",
+   "label": "for",
+   "clear": false,
+   "note": "applicant explains plan to build duplexes on lot"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "8d014c4e46c575c789e837f517039982",
+   "state_sha256": "db2410f91d425718a56b92029efac85c2488ff0dcf9ad6465daa35aeeb381a18",
+   "label": "off_topic",
+   "clear": false,
+   "note": "maintenance district fees; duplex rate passing"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "63d5b430a90ac48b892ba9b0f5821d30",
+   "state_sha256": "2b19353de4266af3a0d93b2f4544572f7d7164e1bb1355dbf31ff7e881cec2cb",
+   "label": "off_topic",
+   "clear": false,
+   "note": "staff on rural lot split"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "157b05091ddee83a2cf5142e7097405f",
+   "state_sha256": "f3680195455c98a03db70da60f7c5e91b546e6b842a3dfedbdfb36d21d778613",
+   "label": "no_position",
+   "clear": false,
+   "note": "staff describes ADU route used for a project"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "399a253157e043a6a2c6ce139ce90af8",
+   "state_sha256": "1997d11e997a7a4f0a0b1da180f6cd3290677ecabf912e8fab39f9ded5b2f9e2",
+   "label": "off_topic",
+   "clear": false,
+   "note": "duplex owner objects to parking removal"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "1a50ccf0ab0a73a53e4d2b708cc03981",
+   "state_sha256": "280112a4d916acdb827f2779730d1534e688a0fb3fea55d6f276b956f92542dc",
+   "label": "for",
+   "clear": false,
+   "note": "applicant rep presents rezoning for duplex/triplex/townhomes"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "d745c968f4b76740053be50aa5a621c7",
+   "state_sha256": "7d0a8b423494bfeb8d1d219d67b5f3d00f9d8b6524f97eec72721019bf4d7a52",
+   "label": "off_topic",
+   "clear": false,
+   "note": "committee applicant bio; ADU passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "7ce5682994b65342a0ddeb9603ee060a",
+   "state_sha256": "350abe70be8505be42ef6056117b8813c6281690c41c9fcfd14f8005f93ff80b",
+   "label": "against",
+   "clear": true,
+   "note": "says sweeps will not help; wants care budget"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "20dff8c52617fe6e224c23fea09ec96a",
+   "state_sha256": "825f5b7d9c414af80c646f3b581d2b75ab28131ef2364546c8a6cd2cd13942d8",
+   "label": "for",
+   "clear": false,
+   "note": "official wants freeway camp areas kept clear"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "8023cebef58e49340f34181e78d45760",
+   "state_sha256": "3dc584459c12cd69d2de924c39c717bbf86d7a1ab0c7da4f91b3b2ab4d73d4e7",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "describes camp cleanups and ideas to discourage camps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "2da84b2360c9144b375d7b3f4cc71423",
+   "state_sha256": "90edbf8c8540f33f05d403798445dc14e54fa303029cbc4e939577559bbb1872",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "official asks about rules on RV camping lots"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "b94df8a08d035e02c665d297a16cb873",
+   "state_sha256": "dbf7657d55bdabf25e0ffeb476d64e656a4b817c29a2ca563c488470acd47ddd",
+   "label": "no_position",
+   "clear": false,
+   "note": "official praises city handling compared to elsewhere"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "78e30ad555f1bf351eb59713282e1cf6",
+   "state_sha256": "513d27b3c436cf303b3dd33acd6b87d8fc3010969168769941963bd977f1c30e",
+   "label": "no_position",
+   "clear": false,
+   "note": "staff reports moving camps and outreach"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "6468d125a714db78480a1c8ffc06b7ea",
+   "state_sha256": "f947c0d0670d94dd6a78585526b8bf3ac39d889aca1040f8fd16bb74f9b4c9ed",
+   "label": "off_topic",
+   "clear": false,
+   "note": "stormwater code presentation; camps passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "aedb8b2b2465b4f6fd07a70df0df0f1c",
+   "state_sha256": "1d60c5763a6902d62459b3e0d0177d771d64ae85cd263361d02a0572e6cfcd11",
+   "label": "against",
+   "clear": false,
+   "note": "attorney urges approval of sanctioned tent city"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "6daebda3b10db466017a0e1d02c57efc",
+   "state_sha256": "f2386546e988c81894c37ebd8d24aeacd53d4e9b7fbc8978937fee1d7409a5e5",
+   "label": "for",
+   "clear": false,
+   "note": "official backs enforcement measure citing street camp"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "e4ad1fa7e72a7091b0d5b1114b453bdf",
+   "state_sha256": "a0720eb9868e8998199d52ad3534b32c8d799673feaadfed0b849d5a7d80a5c7",
+   "label": "for",
+   "clear": false,
+   "note": "official recounts sweeps as accomplishments"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "152b1e7ecad92ad7968028b6a3d95b87",
+   "state_sha256": "1480182163355fea3bfde1473231e19cb2052e0c46f0b8c3e90b94dd287035da",
+   "label": "against",
+   "clear": false,
+   "note": "camps forced to move; asks support for camps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "71acfe33d3e8f9df7d1199c82d867e8c",
+   "state_sha256": "4c90217713e896fe512de480263950fa602c2e399f5d99ca6704dc42e24690ef",
+   "label": "against",
+   "clear": true,
+   "note": "calls sweeps cruel and wasteful; wants shelter instead"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "a9a270de3967a038b41fcd3eba25b237",
+   "state_sha256": "9513ecd83f88c333c29c0fb87b57b3036f7f11690068b7132a7b471286716028",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "describes fire risk of camps; no ask"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "1da87086082f83b273d66d0981d09639",
+   "state_sha256": "74a3af370915fd230fc8d922a955f67191482f8c306952dac70f5fbe47d0bec7",
+   "label": "for",
+   "clear": true,
+   "note": "asks council to keep moving the camp"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "fce83910ceeeada64bef7afa8fd89ba4",
+   "state_sha256": "080a039e0df29a77f00ac7f4f1cad99451010c74143aa74108b0bc258ee5f527",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "official wants park contractors to address camps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "426ea7bf7dba119884c12645f93dd7a0",
+   "state_sha256": "fd16b21e54fbcf1a372fea0d496511f33b58e9a39ddb681feadf9e1c8dfb381a",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "asks postponing camp-site rezoning until criteria set"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "0aebf16fc6bc4c9c9f193e52a8d2ae5a",
+   "state_sha256": "7dd7259150e6fb75f992d619763f476faf5d404480a52c93bea163d24ac05330",
+   "label": "off_topic",
+   "clear": false,
+   "note": "equipment maintenance; sweeps means inspections"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "5d7f40760b15ac655cc67c5d2531e65f",
+   "state_sha256": "f664327611cc60e9b1f23f2f37518b130cc7e700247cef92d48b39fd2bec1e85",
+   "label": "against",
+   "clear": false,
+   "note": "official criticizes clearing camp without housing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "e265e4375d2a2432a602868d11fc7542",
+   "state_sha256": "4d8b6652bbf6f9cf0547091b7e179cb4a8d05feae115d92921c64bf303720b41",
+   "label": "for",
+   "clear": false,
+   "note": "official wants camp relocated for residents"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "970f43a75828e58c4dbdf8642b4c2d20",
+   "state_sha256": "df5c24f9309db843a9c9c6b7509cf9e57503bea63cdda7be6d86e0832eb9b205",
+   "label": "against",
+   "clear": true,
+   "note": "asks to stop sweeps and arrests"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "4558859fcbf3717651c7e7ad5965f901",
+   "state_sha256": "444fd44feb49412b3d5a667dc66235fee20c99ab9b4481a5722aff18f7b74309",
+   "label": "against",
+   "clear": false,
+   "note": "opposes grant conditions funding camp enforcement"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "6066c189a2e095cbb0e30711a1db5df9",
+   "state_sha256": "80c30951b55befc54d32d7490cf37417337c8b30e77624619c655123a8854f98",
+   "label": "off_topic",
+   "clear": false,
+   "note": "data center opposition; camps passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "79c566a2e6c700553a3fb8351a28f621",
+   "state_sha256": "21e490b98ecd091a3885ede639da069641be1a91fb930c918112570b0d46f59b",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "asks sanitation services at camps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "647d4888da97878b5f36d53653d24d64",
+   "state_sha256": "359735fee3453e66de35637d96d6b44d811ab87d4a05f1ca3f8c352dd07296a5",
+   "label": "against",
+   "clear": false,
+   "note": "opposes ordinance likened to camping ban"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "c244afa6aa73d447a82309af20217772",
+   "state_sha256": "176ead9c483b04f9163aed3400c574bf4297b931efc5aa3e81c1384c0b211615",
+   "label": "off_topic",
+   "clear": false,
+   "note": "plastic bag ordinance; litter sweeps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "edb5ce37c1ffc7158cf151b45f3d88e8",
+   "state_sha256": "ab1e8d6c282ea554812f1523de63181cea19e6208d74ac8562fa80cc09a17e88",
+   "label": "off_topic",
+   "clear": false,
+   "note": "code compliance sweeps, not camps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "d6e98d2691aea3dd6f16555f1c7f76de",
+   "state_sha256": "37b2088db5925efe0e500dc09bc939c1d03f4dae3c4c384f72e9137629a4a935",
+   "label": "no_position",
+   "clear": false,
+   "note": "staff reports city encampment team"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "a75610f04a94c79b3da0068ca16661ca",
+   "state_sha256": "d3bd314004927ce10d3023a27977067acbd1928c4da35319e12cc51985c85c2b",
+   "label": "for",
+   "clear": true,
+   "note": "thanks for camp removal; asks to prevent return"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "c456998e3db7d472663976a95916d5c8",
+   "state_sha256": "6e42375bb470ff6d37e5bbf8027d75257fc7bcbfca2dd46a33cd4566bb5d9b30",
+   "label": "for",
+   "clear": false,
+   "note": "asks owner fence site to keep camp out"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "a53c3ddf46c60c8731bcf6972750dd9e",
+   "state_sha256": "d1a067408e52c0773312f00c9c1c13c66e5e51f4fea5f67e13ea37153e903e25",
+   "label": "off_topic",
+   "clear": false,
+   "note": "budget criticism; tent city joke"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "7e8c50916873cb01e8f92f9c10133c0a",
+   "state_sha256": "87592918733523a4a811ddd34ac8dc61f085e6fa53a78880ed6038501fab2892",
+   "label": "off_topic",
+   "clear": false,
+   "note": "official on rental rules; duplex permit passing"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "ff08c24e2bf422cd456c715ed95c8b7b",
+   "state_sha256": "559d6d11ba5acc61b7d9815d16c9cdecf73fb7c5de0c3da3b4cdc822d00f43df",
+   "label": "against",
+   "clear": false,
+   "note": "asks deny special use permit; prefers single-family"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "ff5018bf72e0ab6584c791a171291ce9",
+   "state_sha256": "20fa13618e116000f1d01f482c0529ea7af6fc7783246a4d46c5a6198e096db8",
+   "label": "against",
+   "clear": true,
+   "note": "asks to limit middle housing to state minimum"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "81839f569e6a2238b92793ed8ca538dd",
+   "state_sha256": "8085fa6ce6566e8240a200210f1a79b4af81019a34aea3a7ab2846c3425d32a6",
+   "label": "off_topic",
+   "clear": false,
+   "note": "single-family housing incentives; duplex passing"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "0c6b5cd9271d27d251ff3c7c5f4ed611",
+   "state_sha256": "eff4ac9a383e8f085d89b1c6c1e1bb3347500e74ca338cad2d8033310e466fc1",
+   "label": "no_position",
+   "clear": false,
+   "note": "staff presents ADU guest quarters permit"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "b61be8f5d16bc73fbd0de6579f3f1605",
+   "state_sha256": "7a8807cb6a66d0c8000da7c14a852a5acbfcd109722a95be254da479d969d2bc",
+   "label": "off_topic",
+   "clear": false,
+   "note": "sports complex; fourplex of fields"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "3ef4283b47c453ef2b96ebd894086e33",
+   "state_sha256": "b0903c42bab6c3f66d4689d49970eb9b54fe42968ddaeac95844952b10a346da",
+   "label": "no_position",
+   "clear": false,
+   "note": "facilitator on apartment project unit mix"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "815b67a63cb9842cfe0d2a1df39bd54d",
+   "state_sha256": "8726b4aeb967823a2076965993f110a22e5ccf6efd5197c67efaed55c48e728d",
+   "label": "for",
+   "clear": true,
+   "note": "thanks council for passing ADU ordinance"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "34489e0c4e95304b0f920dc45fb5a298",
+   "state_sha256": "21c85fc76aa681dc6f60b53a70b8bead3a75e1ea6f2beb17b5965626b2e53bc1",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "questions density change near own street"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "40e7559004f3efecf9a7bc2b3701dcb1",
+   "state_sha256": "03a7d49b8fc8b56ac7633f7f207628e773634e6752c408ee9e54e29955b62c44",
+   "label": "for",
+   "clear": true,
+   "note": "defends ADUs as needed opportunity"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "44b7457a10ba64892207ad3aa5a3afdc",
+   "state_sha256": "81d26f5201d066849f5c5efcd754c996113e6af7974c001674ba5f47d48790ea",
+   "label": "off_topic",
+   "clear": false,
+   "note": "transport plan question; duplex design review"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "355a4de8575b34458f01802578c1a52c",
+   "state_sha256": "ff7319aefb134d1eefd91ffe169fc1968a29b5c917839343d295861f03518f6d",
+   "label": "off_topic",
+   "clear": false,
+   "note": "wants parcel for economic development"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "bf2d4b7d872a367d4d665347333e24dd",
+   "state_sha256": "90846bffd50dba102bb3c0c64325a53f725b4af6a0db56d2949892f8d6d158f8",
+   "label": "off_topic",
+   "clear": false,
+   "note": "commercial zoning near own duplexes"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "ec4cd89401cc6d9c1505b552993f3458",
+   "state_sha256": "afbcae1ea2a11c24bda537fcae236c175fe2ae40096eda6ca375135c02f2ffe7",
+   "label": "against",
+   "clear": true,
+   "note": "asks deny townhouse planned development"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "2b35d5f1d3ea84a6906ea4ad8a0de8e1",
+   "state_sha256": "54b7661161c211d81a709d5ad1025b9b71ab6a4bd79bac87d1c6601c84569e72",
+   "label": "for",
+   "clear": false,
+   "note": "applicant discusses own ADU design approval"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "f4452d47651a108fe384b62faa67fb5d",
+   "state_sha256": "edf40a9828bf768249ff2c283a2003b931d86a9ba9cf3c1c08cececc8e7233b6",
+   "label": "off_topic",
+   "clear": false,
+   "note": "short-term rental testimony; ADU questions"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "fa8414fb8969928b24a62dcdff8a882a",
+   "state_sha256": "fa2480f07b12522075815ede15dd67032bacb32844d3cd12c2095acb41f4ad37",
+   "label": "against",
+   "clear": false,
+   "note": "official favors opting out of accessory unit rule"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "94a3e72b4ae3233f0af20ba2f4c5ff2a",
+   "state_sha256": "3a93c788489fefd10508da63535a40af0b19999b811e9663c09087678b058adf",
+   "label": "for",
+   "clear": true,
+   "note": "urges adopting middle housing and ADU incentives"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "87972f0291051887f94f9810ca16efc5",
+   "state_sha256": "4e77b95ef8e3efcbb6323f979311df9cbb275e0c6f9369f6fae587cad2f79d1f",
+   "label": "against",
+   "clear": true,
+   "note": "asks deny duplex/townhome zoning, keep lower zone"
+  },
+  {
+   "topic": "missing-middle-housing",
+   "meeting_speaker_id": "6e5157de972915fd7baa04a39c5c959c",
+   "state_sha256": "328c35dce3ad09998b667c3133d0555bc34d62f7ee756a972c735fec808f97d8",
+   "label": "off_topic",
+   "clear": false,
+   "note": "opposes historic home demolition"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "284c109f91295baf492c784d087bd3c1",
+   "state_sha256": "849c4f4771851e33f2fc88203d62d34362a93953ca359abd2d91455bec79cdba",
+   "label": "off_topic",
+   "clear": false,
+   "note": "police funding support; camp passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "7800463d4fe2c12e8cd826ca51503202",
+   "state_sha256": "bd71aa950ff840d68c55ba3377f823d7821ad3338b7e3a16de6d6340bf0f9b82",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "safety concerns about overpass camp; no explicit ask"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "9a3657c4f7c0ce911121a2e5eefae684",
+   "state_sha256": "37f0f0c02d3cf45e6ff5b376655e65e799dc166395d13e059712ff98ae031d09",
+   "label": "off_topic",
+   "clear": false,
+   "note": "development project; past camps passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "ceec20628863ba93af6d1109e86ed70d",
+   "state_sha256": "11e8a0ef30f6ed76c9cc56cdccd9655621a06c96faf4d8e62ae4b4d649284d98",
+   "label": "no_position",
+   "clear": false,
+   "note": "official reports on camp notice legislation"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "b9184b82b32c1e3ffee2ae01576a9c60",
+   "state_sha256": "706cbda790550519749bc90b6dfa89eef0c427a63f80eac8ea487ab72c54baaf",
+   "label": "for",
+   "clear": false,
+   "note": "backs budget crediting no-encampment zones"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "eb45607318db335112cc0399e0d6ab77",
+   "state_sha256": "d44992934c1b4363aaed0eee0b97525f77d0e78e257c2fd308be6c87f75d4933",
+   "label": "off_topic",
+   "clear": false,
+   "note": "asks shelter funding"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "530c454f7f48bc4d75b572dcacdf9c0c",
+   "state_sha256": "cc44b7627e333c63a4dcd6ec3244d1c131c1f9e1ebef54a2affd96b6a1d32839",
+   "label": "off_topic",
+   "clear": false,
+   "note": "supports shelter expansion bill"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "c57ce7071641d2a29e85ee72019e9e61",
+   "state_sha256": "ffd3e581250c7addf85bca7eb4be7d1fd4b6dd771fc372f9be7b7a6911bcdf81",
+   "label": "off_topic",
+   "clear": false,
+   "note": "shelter reopening; tent city passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "7c6046a69eb3383e759bc9d653966a02",
+   "state_sha256": "2bab768b9a83439f7014d89dbfd781356300b77ee00367a22cccbc2901dfd159",
+   "label": "off_topic",
+   "clear": false,
+   "note": "creek access discussion; camps passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "2d4f67815a12af687d0e03664eaba0fc",
+   "state_sha256": "d206b33f42515db7c3973b09bea40444aebc26b89b2692ee335ebf26b48d5cd8",
+   "label": "off_topic",
+   "clear": false,
+   "note": "data center opposition; camps passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "6801aa5cdf6b18271e4559b924d4e59f",
+   "state_sha256": "609197f5a76a55835be3a3df5e3e0250c8750e4c0e62e489cfa11318f86d0c09",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "notes illegal camps persist; suggests nuisance approach"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "3008db641bf2224a57c22c3bcaa0d300",
+   "state_sha256": "0fd66897ed5884fcef6146cc568ea8cfe5337fcc9193af2e234e6f5972dda421",
+   "label": "for",
+   "clear": false,
+   "note": "opposes establishing sanctioned camps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "ed0f64c788e51e1b9d66ba4b5cdf601d",
+   "state_sha256": "923c0653c67de4da341c5c9a411b16f53d96b0ed62f0f64e9f92c11076da9cb4",
+   "label": "against",
+   "clear": true,
+   "note": "condemns sweep votes; wants sweeps stopped"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "1b00a6c23a5d4c05c7a8c4d8151b7f20",
+   "state_sha256": "41d3691086be519d75aa01ff36ddb77a8e1ca2f209f1d4ac3b2c7bce060dfd22",
+   "label": "off_topic",
+   "clear": false,
+   "note": "downtown policing and smoking rules"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "7f9bcff1f34eafc48dcb57202f50ac81",
+   "state_sha256": "ff234206bd45cab9c24e648d448839640458bac16ab22a73375417dfd135d631",
+   "label": "for",
+   "clear": true,
+   "note": "supports enforcement ordinance against illegal camps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "bc2fc5351f141fa4f398d053c5623ca4",
+   "state_sha256": "54c29d1a29a321eabe6f901e37dcbf7e6b0722690ec1a61de6987c75332da141",
+   "label": "against",
+   "clear": true,
+   "note": "asks to stop funding sweeps"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "84de73f87d6f1d9d6b899f3e48b83058",
+   "state_sha256": "be8b58d45ed89f427637bd815ae0d57f4a09f40afa7e2de34dbe309ce9d2599d",
+   "label": "against",
+   "clear": false,
+   "note": "says moving camps just shifts problem"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "6ce65372263a8075e5f0c582b8956b90",
+   "state_sha256": "b7391faaa2624ceafc10a51af51c3ac865d63cbb3767d779aac8356c362f6d8c",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "describes camp impacts; backs budget broadly"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "c41bafebff8730415137c00401bf5c18",
+   "state_sha256": "a14464759e69d056005b8fb8bacb0e34364870427d0e3e4e6bce69ea0d3db3ef",
+   "label": "off_topic",
+   "clear": false,
+   "note": "ADU testimony; camps passing"
+  },
+  {
+   "topic": "homeless-encampments",
+   "meeting_speaker_id": "03e11eb432929df5c98231e04c97746e",
+   "state_sha256": "68c907a431ea1283d423436c42f63ccd7466d9c65216e7bf1f03ef3457332e9e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "eviction notice policy"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "fbaeeda7ada4ccea64162b3ddb02d966",
+   "state_sha256": "d4966cfb2fcfe484e88dc4c08069a21ae4b9b560d08875e3693d7663d46bd40f",
+   "label": "for",
+   "clear": false,
+   "note": "Official floats pursuing red-light cameras for enforcement and revenue"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "38749268ad8eaf347ba2b32652d9fb53",
+   "state_sha256": "8ebbbb3dabdcb227b2509e5a8915a3b52a20fb5ce3d4e1dbe00023cf302db8a6",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Staff mentions former camera program funds for plate readers"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "756c9ce8c349a030089337944e8dd1af",
+   "state_sha256": "ac5095838da3301b7803859d81cf0531ee2f75a341e0688d2f680285b0fa0127",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Budget revenue line mentions camera fines in passing"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "136a872b444bf2867f9670b824996737",
+   "state_sha256": "27cee2754662a63d0a9a53c23e2568b81be8ab6d1b48f04d29e276b8dd19331e",
+   "label": "no_position",
+   "clear": false,
+   "note": "Meeting report notes speed camera project status update"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "3c2f576ccb3236d8a62e44c1be889048",
+   "state_sha256": "212697f28118f0ea46d43a5c27283de684f4ff01489d4c6673d85fc93d231a13",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Vendor says plate readers are not red-light cameras"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "dc725be68f9721d0a84fc670e70739db",
+   "state_sha256": "cfb1fdc396550c89f008429f6b94ea6c76d9a40281dbd0d724b6707c57fe5f19",
+   "label": "for",
+   "clear": true,
+   "note": "Asks council to prioritize deploying new red-light cameras"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "79ead42e6938581ccc7dae82042fd176",
+   "state_sha256": "978aa5d40705f2adcc7ddd5de4640a57b6ec929f902abb4ff4799f40c8bc9eb5",
+   "label": "for",
+   "clear": true,
+   "note": "Asks council to prioritize deploying new red-light cameras"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "1a9adda582756ffb2800dfc2fad04bf6",
+   "state_sha256": "625220987fbe2cf6bbd622ed3d53fd76fcd4c5865d0f213fe4c52d5c3396eff2",
+   "label": "off_topic",
+   "clear": false,
+   "note": "About plate reader surveillance, not ticketing cameras"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "c58ba9e7338996e617e0c1dfc6047fa6",
+   "state_sha256": "71fe85297c088314d728b2276469a71924442c2064b4ad97ebdfe8ecdc47d4a7",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Speed camera appears only in legislative priority list"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "3ca66b20fe34d3b98c77d7ab956f8dc4",
+   "state_sha256": "0b075fee419e9f2ea79c5eafb5599898d06843e76928fae61ed35bc3ce905d99",
+   "label": "against",
+   "clear": true,
+   "note": "Calls red-light cameras a money grab, prefers crime cameras"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "d33029df9138876fef6a8488592ed11f",
+   "state_sha256": "b3ab4b2c36caf5c9898eac29363b48ba35fc562672cf9b96824e748b83ef6bbb",
+   "label": "for",
+   "clear": false,
+   "note": "Suggests exploring school-zone and red-light cameras as revenue"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "d4dffd77ff35c9a0c22f2b39260c45ed",
+   "state_sha256": "4771e90851403841588766a30cb98123e6a19b4b2480541040a218053dfdffed",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Clarifies investigative camera is not a ticketing camera"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "8dec117d8e239c0618bd077c22f857f4",
+   "state_sha256": "9fec097d287cfb264cc6fc52872b8de7ef6290461891b1ecae1c23912b30d33b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Drone debate uses red-light cameras as comparison only"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "197d7699f203ff9e7d4763bae3e0e57a",
+   "state_sha256": "a103003abd396d273a79d35f82f17344af2e8d61a8e9c8b259d1eb30dd6f0ddf",
+   "label": "no_position",
+   "clear": false,
+   "note": "Asks whether traffic cameras are allowed; answer given"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "429ef52c4daf2fb963a5f515708caf97",
+   "state_sha256": "5f171f87209d68d42b11d5e12034444ebb2d94fe794087e0825c6583021bce3a",
+   "label": "no_position",
+   "clear": false,
+   "note": "Thanks staff for camera clarification, no stance"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "54721374532050c3bbe741a2c5c4aa97",
+   "state_sha256": "faefba8f4874582c6eda17fb1d11ead60e5bf214d7d640b949f3e95db9d867d5",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Plate reader discussion contrasting with red-light cameras"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "e804e981c1bbad7f455a026e85f1a28f",
+   "state_sha256": "e7e5395ced57d4c9bcfbcdeab4172ebb7fa6c584d5e612acb7e5a47b0371593c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Vendor pitch mentions viewing camera feeds in passing"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "6c2fbe179059b0804bf6f701eb92d276",
+   "state_sha256": "d87342f5c9606bd854f0dca96ab07bafcd233d624118301c73fbdcf51b63e51d",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Asks for noise-enforcement camera, not speed or red-light"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "916caa0070fd2d72f3562b690b339827",
+   "state_sha256": "95a34253a09f02f9261ed3530e24c21280a9ae68bf5e15dfa4e47f3b7f711b4a",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Radar speed sign used for data, not ticketing"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "7b05c9a38e41e54bdf1b4624396b75ab",
+   "state_sha256": "d0ded005c45bfa9cc93d7a5d8876f18b7aca2a864f7b82a8c35c5c61cc4314ba",
+   "label": "against",
+   "clear": true,
+   "note": "Asks to shut down red-light camera program before start"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "012ced86fa0c832b9dd2d36c640e9b03",
+   "state_sha256": "7d9890d297b26b8458f323808a7051ff50d8158f247fd40989c325dc0dd7665c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Clarifies grant unrelated to red-light cameras"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "41ab14f2ad999145c0d79c8d30afd4aa",
+   "state_sha256": "d3942d2e9852704b8e6f1d3cd929f86c7929f171a8aaf082d6b6aeda13de6d0d",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Automated parking enforcement, not speed or red-light"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "ab80f3289b5d0ee9f4f1398278f332ec",
+   "state_sha256": "e177f1426d15cbc5b8732cd09c2b952e732c6b55751cf37c07c1eba9c7ca4f4b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Mentions cameras were removed while discussing parking hearings"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "0491c98c21906fd37acfb22600f7bbd6",
+   "state_sha256": "ecabbef6d0a0dbb8267a4a8a1d673ba546ceec6f84965dbb135f0ba8b4c66bf2",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Plate reader presentation contrasting with enforcement cameras"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "fe028d54c0809cdf47b2d98e53bd4022",
+   "state_sha256": "953ea2d81c85d9e20e23fa48eb0090d67112aeba7a54fe663276303e6c1fa14b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Court duties list mentions camera cases in passing"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "5c3d224da3b803460541ddc63fe6b30e",
+   "state_sha256": "8325fa7faa104552ea255a0870a29c280815ea1c054a45c862d379c9a9838a1c",
+   "label": "for",
+   "clear": true,
+   "note": "Supports camera enforcement ordinance, suggests penalty tweak"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "0bca778eb7bf50f2a4abf8e5383e61ba",
+   "state_sha256": "2edbc74b761219ad66e4b429853fc7c1a4bcae501547e7fcab4e883023d433e2",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Surveillance creep complaint; cameras mentioned as history"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "4cdaacccde833f70cbf5a5dbc5ef04c0",
+   "state_sha256": "16fa2e06d87690614115035bdce1bdebadc0c425a592f4b55ac1f431ba787fa6",
+   "label": "for",
+   "clear": true,
+   "note": "Urges board to fund red-light cameras to stop violators"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "d7d0da738530c83b214fd255512e11e9",
+   "state_sha256": "c5620d21b1673ca5e2848c78ed71c0e44d39650b25994eb8561536ad265433f8",
+   "label": "for",
+   "clear": true,
+   "note": "Thanks council for speed cameras and urges more enforcement"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "ab09478854d94d610edee9eb8239c8f6",
+   "state_sha256": "728db4e5de7a9a4e6bb5bf984f06ec672e731407132806796c311a0a57448a0a",
+   "label": "for",
+   "clear": false,
+   "note": "Asks legal to study implementing red-light and speed cameras"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "64efaee9c708941a6b583fe031f425f3",
+   "state_sha256": "e391c151ecb6de1b2c96b044b2ae16e1131e050badfbbd7dc2e94385926a5770",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Notes roundabout unapproved by state while opposing development"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "467e6fe46af9dd71f352734fadb52cc2",
+   "state_sha256": "bb12d74aec4e12b4e67191e0aee85e7969acf4b01fea7f3dfbc86a87b52f7f96",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Park plan presentation mentions nearby roundabout construction"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "3fe5b36175d41bd1a8fc31aac48d4e59",
+   "state_sha256": "1beeb405461b3c5fc483df8722df8f0ef2857d249db19b43ac08e4ee77c531d7",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Asks for warning sign; roundabout only an aside"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "3e17936c9180382b8c181313905982c0",
+   "state_sha256": "ddc24b383d73b805abe31245ed292ed0cce78d34d97401c43cc8812442fc3d54",
+   "label": "for",
+   "clear": false,
+   "note": "Partner agency encourages moving forward with roundabout option"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "d8015d93ee43a669e0069491cc9c1d62",
+   "state_sha256": "a08ccaa329c496bffabe1512bc9e95c53c02087772253f8c265055f8daa08875",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Staff report lists roundabouts among evaluated options"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "4806ca2e0c0016024f337dfce5e85fc1",
+   "state_sha256": "d176e288162aaa86058a3dea592b9468fa31c6ff85f7c5591f9df68dcd1bcc00",
+   "label": "against",
+   "clear": true,
+   "note": "Says roundabouts are not needed, spend money elsewhere"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "05412619d38854a16061d43af659e926",
+   "state_sha256": "6b6ca4f29dde644c506001b239faae9e7dfe2856b68b1724ef5193eba6a16bc1",
+   "label": "for",
+   "clear": true,
+   "note": "Commissioner praises planned roundabouts as safest design"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "7f74096ac42741b85c1d46f503546e5d",
+   "state_sha256": "46c13d9ef4baa6fffdd227b05ac645c27f29d175aa184ceb9d7d5a25ef4d258a",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hypothetical future roundabout used to argue about setbacks"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "cb62036e389674ecfe26e2fbd028c0db",
+   "state_sha256": "bef42198bca8803d300e475fcb798ab55394642f7bbb2b2f76619f5ee357607b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Roundabout used only as location reference"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "8790fd349f8197017d663897f35dffa1",
+   "state_sha256": "d047121a6c1c6e81f98799e500c34db5ae39528ccc490a14c3e8b71f69260b06",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Caption error; word not about traffic circles"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "4a40620ab996d23ddc6929fba7356dd4",
+   "state_sha256": "6c02096ea86c5a8edd6eeaf17799ee75ab103f4a213710d2fcd188f697af0e1d",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff budget update on roundabout construction funding"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "f014e2050fcb88ff5d0494e790734d87",
+   "state_sha256": "e880f443612b2b3ee3dd72c5cbde6eb9dd0746ca6f43ff38bc4fafc92e04e626",
+   "label": "no_position",
+   "clear": false,
+   "note": "Agency update says roundabout design nearly complete"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "81515e2f5528e92d560c7b4f37a22caa",
+   "state_sha256": "43fb33059cd5222fe964a3d2c80394a141eeed0caec8ae50d6bb82847e2b1649",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Crossing guard and speeding concern; roundabout is landmark"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "6be52be8a629d6f8a1f6b596f8c99d99",
+   "state_sha256": "4f63c12b5e22f48fae1f4b3b928e6fc95ffb56403dda5ce1154742191ae477f4",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Figure of speech, not a traffic circle"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "79e0ab1265192235a13c291943c3a90b",
+   "state_sha256": "5cc3771f4d041e41934ec82840fdd90c5728d24c656c96bcb136bf295d303727",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hypothetical list of study options includes roundabouts"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "014cf342c6488fedf5894d795f237273",
+   "state_sha256": "1a977c80076bbb6ef6b3be635652fceb3b715810eec1eff613f6b7673b1ce48b",
+   "label": "for",
+   "clear": false,
+   "note": "Hopes a roundabout is considered for safety at intersection"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "828f658599acdb53044fd51c09ca1d18",
+   "state_sha256": "8dde9c9db52ebbe681f6103a44be402af0de58c109c415aaf5888873c4305b65",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Opposes housing project; existing roundabout cited as constraint"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "4dd854bd7f3c4c940d87be346a45649e",
+   "state_sha256": "f6339b79cfed18ec35cdaabbb19b8713989d51c27d288bbf563b341ca4db10c9",
+   "label": "for",
+   "clear": true,
+   "note": "Advocates more roundabouts for safety and efficiency"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "121a66a89af790052f8f6f5d8ab1453e",
+   "state_sha256": "43a36af1f714cb678bc11b98876dab6487aec25872140021f98e650f82075b23",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Repaving near existing roundabouts, no new roundabout"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "4e33d0c9db3f8857a1a16385d8791e5f",
+   "state_sha256": "8e0bb6f2d2787893e110d9dc6c4a36b2d3d2467a6dde46e3755b580f040cbb79",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Figure of speech, not a traffic circle"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "b93c60dc534df8874b957a008c43af16",
+   "state_sha256": "b6058a966fb6fc6bd19f67e0f9b184a4a1eb83511e9f31ab6f7238670956b280",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Figure of speech, not a traffic circle"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "38684e5a677eaa9658d4efcccb06ee19",
+   "state_sha256": "eef29c2c16e34c43b2d94675a0c3b31eac573a7c8c1e31336feb012476e397a3",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Figure of speech, not a traffic circle"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "e73431fe486ac78cb0388ffc827b6070",
+   "state_sha256": "fb00a36ecb4370ac1451ab12391ff1de692b6c38fef0e19c07b2932f74f49d48",
+   "label": "against",
+   "clear": false,
+   "note": "Dislikes roundabouts as unsafe for cyclists, asks about danger"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "69cc98a988ea4c127ef524337007a6d7",
+   "state_sha256": "1f0d2f4aeb7e50a7391f872564b277b3f0548227d9bd146c9710eb1e7ec29e26",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Questions traffic analysis of proposed roundabout mitigations"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "65581298080a4ec9748373a44e5c5e41",
+   "state_sha256": "e4a22931dba67cb7e824a7a176329c32082e41460d09e644f77c4697f0711e00",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Existing roundabout mentioned while discussing sidewalks"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "f48a515d777c99f71fe185c5ab0b4904",
+   "state_sha256": "852c5fb5d3c9782286e6cf5b46da9d3f8632da76ec731f5f05a24f39c3a46cf2",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Notes stalled intersection project with roundabouts, opposes density"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "977f9a3e5ad51103fb2080fd4f11729f",
+   "state_sha256": "de16f6cf9cd1ad28b683e1d24ebceaf271d09b0f1ea256d31c491d072303b58d",
+   "label": "off_topic",
+   "clear": false,
+   "note": "One-way loop idea likened to a roundabout"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "6d41d9e625028ea48345b292769937b0",
+   "state_sha256": "1a02795016fa2bc975d738959f5bd2e40ce0815408acf589eb3d391e9522e9b5",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Road work complaint mentions roundabout in passing"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "f02a4d50166298d93dd2684bcc8b7bbd",
+   "state_sha256": "ebe8688a9706f624ef3599427a180209534a1784364084a073791247cc90c8c3",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Roundabout is a location reference for parking signs"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "1fee62903ab67ff37f8ca95543130eaa",
+   "state_sha256": "38361329600ddf017d9b9679dcede59565f706152cfa40ce21643070043c00d9",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Staff reports cracks on existing roundabout"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "a18bd9630dccf0caa657c50f1e5999ab",
+   "state_sha256": "f4afe447d1ba6cc79cd8111e6e566433ad58745976fdf986e2e7f431076b25b2",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Restaurant history mentions former gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "2204482ddeb7c3cb41ad2246024f4d8d",
+   "state_sha256": "f6734db4290ee9982e8412b2abc5eed2bad1369d0ca561a5e22f83e4a04d8266",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Local history uses gas station as landmark"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "1e7eea950cca300fb87f7969171a6787",
+   "state_sha256": "ec048fbdf7e14d78d641bd6541f97fcc6d07471c658255f7494f469f8403e943",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Tax records discussion, not a new station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "c42dfc96b7277a0c1961388dfb576594",
+   "state_sha256": "3112a7af8a252a6995e1666a99203534ad36f212aabf0f5d6c5e98d5618ec6e1",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Recruitment advertising at gas stations"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "a2f223c670efeae4542deea14378d65c",
+   "state_sha256": "867ed55cbbc9ccee1558631d3ee7e9688b38d22da2c1eb0d43239c1cf6f7898e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Sidewalk discussion; truck stop is a landmark"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "54135462f64e4b84889b8bfc10062da6",
+   "state_sha256": "1d855932e21800af78f24754902e0dfe92a6d224e54f624d26f105dcf97a6258",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Charity story mentions a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "924398d91716383d214585b5ff4a33a3",
+   "state_sha256": "e2d0cf6d675aaf88b2fcb75ca551cbb06a36db5425c359c20fc1b6bf84b70d0c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Anecdote set at a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "b459e44d8c3afa474e16c41249bdf11f",
+   "state_sha256": "c5a12ff0f1d25e878deeef9561076e44e55cd8e895d02127492ac9b885d0ed0b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Anecdote set at a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "e2407149b30cc965deef58a4f54b1411",
+   "state_sha256": "83dd7e34de1f1faca8d80fc848f7ef13f64ea719857f4ee2c56fee47ebe70312",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Truck stops listed among industrial uses in zoning"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "fb682c0f7f243ca2f6e3ce0e10c8d881",
+   "state_sha256": "3851dfa20212ea7ada5dc95b2f802d46aec6d1a8bf662cda5e0e342c949774f9",
+   "label": "off_topic",
+   "clear": false,
+   "note": "General commercial growth talk lists gas station as use"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "c95e0e553e1b0cce068c8d69ea0ddbe5",
+   "state_sha256": "bcbe75d02c0e5a96cc1ac48cc14a64cca4cf05b031ce493b8ed86d0d405f4070",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Vehicle rules anecdote mentions a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "2a90d647b34f66b507a353700dd00df5",
+   "state_sha256": "b756b2032b8418e3189e76945675579298d0642c544fad8878acf2d87664cf6c",
+   "label": "for",
+   "clear": false,
+   "note": "Council member worries about competition but won't vote no"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "860474b6e82ccca87a4f1537beef1a7b",
+   "state_sha256": "2faf4c3651bbf0a527cc63e055a6cb9928c8f3f3ea7c6d9315a7a6bc8403b49e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Dog complaint set at a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "2a2837ec201d369ff0335b99ae6fa98d",
+   "state_sha256": "f1ed64b3d730acf80446c4078fd6b6f256e694802b791287caecf66bc86b7f65",
+   "label": "for",
+   "clear": false,
+   "note": "Developer presents site plan including a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "b7debd43a096d30ce5b350bd22ae3229",
+   "state_sha256": "5ce61be42482431ecb8d875d6fdcf677dc7843b4065522c55e3a1985dbbddaf0",
+   "label": "against",
+   "clear": true,
+   "note": "Asks commissioners not to allow another convenience store with pumps"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "5606270908002f380ba0abd9a5d906a8",
+   "state_sha256": "9e6a4bbc56cbffd0bf9b0a502119f60bc120970992f7deac273c5247184a4082",
+   "label": "for",
+   "clear": false,
+   "note": "Applicant presents development with truck fueling access"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "9c5f49fa21e393a420e04ffd60a8fc08",
+   "state_sha256": "671864a9b6758ef365be23fa3f37a3ff3d84c670f1c0329fc82a39cabb45bf18",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hypothetical about recruiting a truck stop"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "3c2102ccc01741f33e80d0b0f4d24e52",
+   "state_sha256": "f52dc4f665ae15dad5e15adfb517f898ebc2eb46337e0a975d2ff17be295de66",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Alcohol sales request; gas station mentioned in passing"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "5dd37461e4417ef8c51c3f822a02aaca",
+   "state_sha256": "e5dd97a88009024c45de4e01bcbc34e857a0706a6dc2a0572c5fce80f8164240",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Fuel prices mentioned in budget discussion"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "4ee784e3e937b51c7ec16e28328deca4",
+   "state_sha256": "496960a447c47514f22bf48dc5b3c26ce29ebb7a8d4d5c7cc37743a07061a8c4",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Short-term rental comment lists gas stations"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "85a662eb330075a8ced4a602c7294b86",
+   "state_sha256": "c2a4e9324544066251b784683b0051844fd30ceb32910679ef5400723fc25902",
+   "label": "against",
+   "clear": false,
+   "note": "Opposes open rezoning partly to avoid a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "ab8e1c7c90e847446d05425a134b2e5a",
+   "state_sha256": "2eb10b847ec8226e135ce5f23a53e7ac174034efc2fbee7bb2101d5b72ba56b1",
+   "label": "against",
+   "clear": true,
+   "note": "Says neighbors do not want the truck stop"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "9f1428946f9cd4c43bb173a24a4c7419",
+   "state_sha256": "473303def061594de020429ef018f97d4ab98e901046808eceed6d57bd8929f6",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Lounge permit; gas station provides parking"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "f86a5c92a678d597b013dbf94516f4e0",
+   "state_sha256": "abedabb2831067346ec5d67993086f673d1157ea5e5e0ac4b86725e2a8eb8945",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Franchise discussion uses gas stations as analogy"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "6d41d9e625028ea48345b292769937b0",
+   "state_sha256": "959c56d714e256571d8c299d806db38703139893f4ae0e471f9deb6de3015993",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Pothole complaint; gas station sign mentioned"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "366bbf75bf04943e099f010350cff5ad",
+   "state_sha256": "27e1340815131ef2a9cb79bfcb784a8a733bcdb217e70414ba689f39991d2204",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Lists uses not allowed in light industrial"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "999dacdcfb76aa930b6d92d0b66e46fa",
+   "state_sha256": "bfcbb79b59ec8a85831e22f54644eb5db21e6d713298bf022858e576d3d6ca82",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Former gas station sites being remediated"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "82a67e160b150c114f988aeb0d8a39ec",
+   "state_sha256": "fa9c514da4be98f970e73b28e8ee689dd3d5515e31f3a1bffe7c2ef02130b84e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Staff notes existing gas station near rezoning"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "6d8edd64ab511677788a9cbdad4735e7",
+   "state_sha256": "748b916a6bf539fed351d997664968b80dfd83d1c9255d6542b293e06cff4fd9",
+   "label": "against",
+   "clear": true,
+   "note": "Says area has enough gas stations, opposes this use"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "ec927179182ed9bec5944942772e81f0",
+   "state_sha256": "a3caca6f89acf87ca26401888f2089b6221ba8af01974f162bf7475de7c2194a",
+   "label": "for",
+   "clear": true,
+   "note": "Applicant argues fuel station is needed on that side"
+  },
+  {
+   "topic": "speed-cameras",
+   "meeting_speaker_id": "d08af45d97ff7ee988133b00aa4f520d",
+   "state_sha256": "fb113eb7e99f551b445dc0928eed22dc52ca6414352b9b79a3f4b0ff7ce3a619",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Security cameras compared to red-light cameras"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "824b4c901f7854c7bf5d1ae0de0f3d36",
+   "state_sha256": "a740da25ad6b42eb9840daa50ca1ea86c27b1ea5d48c47a1dfa5f1d5a61d589e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Figure of speech, not a traffic circle"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "c273b9bea7b41445e42c8596bc5b3de5",
+   "state_sha256": "9d16dbfd7b3ce836b5336d0988dbd68ff980f8940abfc42100138384f9a95a64",
+   "label": "off_topic",
+   "clear": false,
+   "note": "ATV route description passes a roundabout"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "cb8b6774a6dc707bab14c0d25be1ce9e",
+   "state_sha256": "4f6390529a118657f06d0adca82e7600d1abad2d6b5841ff307ee1277702e35f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Stoplight concerns; traffic circle mentioned in passing"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "f58bdf08faed0ae59c55f5d64c0dc88e",
+   "state_sha256": "31df9ffb5d1b786a3e39d80f3d805407b4197fd990eabde9cbcbee59195111fb",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Business owner mentions past roundabout closures"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "918d4edf9a2bca1f497ae2db194a2b2a",
+   "state_sha256": "bb95d17dd8cfad556c6a826d9d006af40f216fba4e5ff0124c8aa186586e4369",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Figure of speech, not a traffic circle"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "fe9744bab03a866bd1aa3d58f541d0c2",
+   "state_sha256": "2104656b1275ce39fcc1487354d6739fb6e44c3d8699782c697ce2fc402ce102",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Trash cart complaint mentions roundabout beautification"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "84a38f77dbf1543fcf039714663b1d67",
+   "state_sha256": "606ee7f3695fd9e4d787f3d6b4500b3c3073ea867f51cd42e9d8a2554eafd797",
+   "label": "for",
+   "clear": false,
+   "note": "Wants developer committed to fund roundabouts as mitigation"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "e429ffa8081d171ca778beb73e2a16ed",
+   "state_sha256": "1a8a5b094057a1e35ba3bc79c3ae5aca9516e8f2278b85e65e04103d0c39687c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Existing roundabouts mentioned in traffic objection"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "51347d924de11a78dddefb23cf384eb8",
+   "state_sha256": "786b3513aa87490e650e113e34a73746fde074c2b537d222dbbd6c9b8cbf7a18",
+   "label": "no_position",
+   "clear": false,
+   "note": "Discussion notes proposed roundabout may calm traffic"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "f53e7cea105c690293f992e86d3f16da",
+   "state_sha256": "5481e1ff565e9aceaabbdf3a315183d2e59a56f1654c1e9eb418ed5649972a72",
+   "label": "for",
+   "clear": true,
+   "note": "Calls the proposed roundabout a great idea"
+  },
+  {
+   "topic": "roundabouts",
+   "meeting_speaker_id": "53b4830e7c17945b661406a00849439f",
+   "state_sha256": "ebf3f1a9fe2533a2e9cae63e8f42ba9b53b498bacee15a4be88ccc1e066b0e33",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Committee restructuring; roundabouts mentioned as example"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "24c652947d8ebb46f3855d6ab19bf420",
+   "state_sha256": "f8529752c9a97c84d144a210d346bb14a7d6da74dd19d8b07ada53fdede6a6fd",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Closed gas station mentioned in gun club comment"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "d241bb39981dcbd876c021bffe1a9a62",
+   "state_sha256": "e8483559d2c77604167ad8d8e07af569d81724c03484d01c878601267b16357a",
+   "label": "off_topic",
+   "clear": false,
+   "note": "About a natural gas substation, not fuel station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "8e65ac2cb588aaceeaae352898a61bf5",
+   "state_sha256": "143de2ec03a37c98f489b16a77ebb400b9daf9b2ae1b59e4225cd49e7f1cd275",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Personal history working at a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "421171ef5e68efaae0695ef92a19a4da",
+   "state_sha256": "2addfbb79d19c3ea3474d7a90ed028e0f6307eceb3fea98226a4653ff2adf192",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Gas stations listed as public accommodations"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "38b456ff6725576c0aeda8eb87e33ec3",
+   "state_sha256": "758e729d74ffdc09c75797a4097e1468dec970d79fab4e3c59057401781dcb07",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Says gas stations remain open during emergency"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "b617e1010fa2b91ed0208bf9665d7155",
+   "state_sha256": "2482f2b66cac842f6f697cb8e1a46bd39a48531365044c16bf99fd124ff4b351",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Stormwater fee example uses a gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "764bfd7e6c2a7936e6249269bdc7876c",
+   "state_sha256": "b209a0300357d35d19084c56dae6b7d875d0e1a2c971e016c1e631186832f54f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hunting economy comment mentions gas station snacks"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "03748db91e1c01c406c28a31742289d9",
+   "state_sha256": "28fb7881d775f2198835bf72860c0ee6889583ed0ae7cd1868cef695d446b405",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff update that gas station permit awaits pickup"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "8408faaee22b46ecd67047b98572d991",
+   "state_sha256": "032768305ce53905ef9d4e9d935e8d3dcfa4ba5c259ad4c3728ddfc4bc61f80f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Data center complaint mentions old gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "fb8635d63ae0ab34f9c47479d7063781",
+   "state_sha256": "938e733f2cc1d29f5334c25dfea511372ce1768b95960db6adf34c58985efbc0",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Liquor store objection mentions gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "990e9478063569a18770bc0cebf1a6ab",
+   "state_sha256": "13ecaf680b1f423dd6b0ddc0b99ec4b6995005798bb4161f0e6d406cbfd1a0be",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Smoke shop debate mentions gas stations selling vapes"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "639b9976f4f0c0d1628c3c0e31733510",
+   "state_sha256": "13d64dc907ebd909e06be369421a11ebc70579ab8f61c3066d3a7b740d0c4375",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Data center comment says too many gas stations"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "6cf4198e9536db805ca4aeeb619f1a5f",
+   "state_sha256": "44cb0d79276bd77e5b84979a7c47fc6267bc58876f5ed35199d6e22877943ddc",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Bike lane request uses gas station as landmark"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "44712092197dad002522b222a3fca55a",
+   "state_sha256": "764f8514cdc32bff5344740645e70a563a8e47168284ead339d1acbf4ad6c520",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Dispensary comment uses truck stop as analogy"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "2e3dbd315989c993ae080cdad69cce2d",
+   "state_sha256": "b65c12d38126c5a3af9897eac00bf0d7f6a0f38445d79775deb31366d402749b",
+   "label": "against",
+   "clear": false,
+   "note": "Opposes commercial plan, does not want gas station nearby"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "4417b63b16eb0c0054645df0d2dfd521",
+   "state_sha256": "51d92cb66ea6310c95fee71e52345c8433b02ac41081af1016bdcb198c49167e",
+   "label": "against",
+   "clear": true,
+   "note": "Opposes gas station near pipeline and schools"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "ca0ccfc1807a0059657f7cc4cf27b6df",
+   "state_sha256": "b733749d82406229d611291b48203ab3a671126aa5e8454b65b864965f4ee7f5",
+   "label": "against",
+   "clear": false,
+   "note": "Opposes commercial reuse, says no need for gas station"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "666e81270c0dfd6938fa77c9f31bc372",
+   "state_sha256": "3da87b1d06f1067ca0bf358d48379025256c68deefc58715dd8ffb1e1c4c247f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Retiree pay request mentions buying gas"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "faf3e4c6dd1ee8db490a861afd8691e8",
+   "state_sha256": "83293e83a5a9e1e164db4f9006eed34891ab2aa21e61250919b704bd9fa589de",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Asks whether gas station is allowed under current zoning"
+  },
+  {
+   "topic": "gas-stations",
+   "meeting_speaker_id": "fc6e1fbfc259c8ee2fe0968adaa399c4",
+   "state_sha256": "b3b577cb6d072abaa8e55e694fee3dc4c10aa63d938c2c58d8e621c872622f06",
+   "label": "for",
+   "clear": false,
+   "note": "Urges no on code amendments limiting gas stations"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "565d749e6ea67d12a336c9b27e781a94",
+   "state_sha256": "95f60debd21d01f5e1f0774af2905f2c4f7f58ac09f8d174b33cfebf70d333ea",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Complete streets mentioned for wildlife; no lane removal"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "81442f5ce655d8e4e80ab251d83423d1",
+   "state_sha256": "f7e0bc2a3e88db0aae877b9b464620e858f2f7062bcbe935ea5c24f29b6def20",
+   "label": "no_position",
+   "clear": false,
+   "note": "Official discussion of possible road diet and streetcar idea"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "b9151d03dd53c16993145f31183471a2",
+   "state_sha256": "a466b0e32ab966ab20716147b1e65d239bed8ae4aeeea84855519abd61540c33",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Stoplight request and staff project list; no road diet"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "0e12640900cd53abd0442f3808490f24",
+   "state_sha256": "54f3b1af7b3f67f88f9d3368050ef2ca446887d8cc0e1dccbdbf031def5e2605",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hypothetical complete street used in setback argument"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "a30d0f3529997caf029834c0c4c4b416",
+   "state_sha256": "dc71f07611ac7419e19fd51348373c355c689b08727515215eff83d117e3c099",
+   "label": "for",
+   "clear": true,
+   "note": "Explicitly supports the proposed road diet"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "2d6a580b3b93c59433614c9c6d8564b6",
+   "state_sha256": "c67a36f3d2d79f43d5f6d3178656c79615d0d685cbdbecb4e7a80179ea50a467",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff and council weigh lane counts; no stance"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "c994aa07c58eda1bf196c6da0ea707bc",
+   "state_sha256": "e26cd5dd2c1a159462e976eb2fc8ab1e880e43893f22a9feb8a3152a7ebf55de",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Minutes corrections; complete streets only named"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "79cd85a4b8101267197dcfcbdae78d3c",
+   "state_sha256": "382022b90694cde0bc4c32e93008ab68f8f7713ee3a596332f86311a40c5937c",
+   "label": "for",
+   "clear": true,
+   "note": "States road diet is good and wants more of them"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "6468d125a714db78480a1c8ffc06b7ea",
+   "state_sha256": "1e7ace6534a7e2e76e4216da2667f03bb3ec409167df2f2322d6e51bf67ca981",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Streetscape budget update; no lane removal"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "05636705518c8065771363ace7c049a4",
+   "state_sha256": "30c2a1ce2a8e331f4c20a3c9de17558d9f21efca4760831d0251c0223a267a45",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Density complaint; complete street passing mention"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "4aa2f3a6f6c67cf5c80f746fc54ca771",
+   "state_sha256": "ed36bedfc461ea9c8d29774911be598b7a2895e55a97c6057c843de790d27f09",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff update on turn signal after past road diet"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "2b1d9f8fa653bae6725bd17d229f0153",
+   "state_sha256": "ae80927ecacf0227f259f6975b6cbb8566c8e10cb73d7c29ee8d50de4d3f0f46",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Staff policy overview; complete streets only named"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "095df5db7c904a0d976f7f28e455b835",
+   "state_sha256": "c699835dbc9cd0f43bfa107d02ebe17c73201185b3e4a78d3802e53bfb19ab13",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff cost presentation on possible road diets"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "0bc90bd0225c4ff84fb8200a2bfd0b1f",
+   "state_sha256": "84e07386e632d677605fce6f414ae6d8e85c5527fd3c4af1597fab97880ffab0",
+   "label": "no_position",
+   "clear": false,
+   "note": "Asks for schedule update on road diet"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "15006b53667954456e257f48347a1c57",
+   "state_sha256": "7901e80e73ee6f0d8d78908f7ca701892f0f6cb19ccfd4725cc2f9f46efbe179",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Farewell remarks; complete streets passing mention"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "930eb294f12b9c2ceb533b4dc2f5f475",
+   "state_sha256": "1aeb5ca22d354108b249985e5157b6a940c0c47f6a3a1a29d1910dbc68861c53",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff reports public discussion of road diet"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "5b7927cfcc7a9155fe324b929c790541",
+   "state_sha256": "e4b84654153501d18a49738fa2fac5d04841dc91b5517dfa9e5467938b7f665c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Staff on drainage and bulb-outs; no lane removal"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "c63e23edb5f63c906b8de64057725599",
+   "state_sha256": "409743677dfd7952a9ad697aaaf22e8b62e7a5ad353f79ed14091990a6fb4a4e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Supports stop signs and one-way; not a lane reduction"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "827ad13318943d649874412001816bbe",
+   "state_sha256": "1465ada9d66dc1ecbb086721927ca7fa053c8ba46cae81d08c3d911eae976c0a",
+   "label": "no_position",
+   "clear": false,
+   "note": "Asks for schedule update on road diet"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "fde770ed02c2626a7a3d225ab3f59ac8",
+   "state_sha256": "070173ac556eb3f0b4211f345d9bac2738efa4d21e2f71ef6cdd4963e8339b2a",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Asks to slow street project; nature of change unclear"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "70acb6b7c8387d313d5943c7c46e29fe",
+   "state_sha256": "17d4be49422e0dd3610f9843e2227f4653242479391ced500d51038f7e14cdb8",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Consultant trail plan; bike lanes, no lane removal"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "5a97ea3961acb88a674727bdf361e4a9",
+   "state_sha256": "741c7b0274dce3eb8ac3a06c523e7497a8ba1b8464eb4fe525b7b6fbeff4a304",
+   "label": "for",
+   "clear": false,
+   "note": "Backs complete street project; lane removal not explicit"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "c1fc62491446fdd208c12e457c3c6283",
+   "state_sha256": "ab1aa59f1b84ba693c33c86d2ada97997320a6f8c06a486f57ad947a6a1bea9f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Turn signal discussion; complete streets passing mention"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "595b7f2b74ca84b158b9f3d78d77efdf",
+   "state_sha256": "43b080581d3a2e883526f88a3d9be68cecd63c0cdebf5eda804ec3701b4f84a4",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Candidate biography; committee named only"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "da05f93f87cf88a03bef6dfb53e82a1c",
+   "state_sha256": "68a2f62973778c1eb706ec9cfc3f895bb967072ad011f2676bf05a1363c514d0",
+   "label": "for",
+   "clear": true,
+   "note": "Asks to prioritize road diet narrowing boulevard to one lane"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "86d61af3420bc798c7a91b8918cce3c5",
+   "state_sha256": "b1bc83c98a297de68ef0e136d8fd2329973813e3af0e93cceb0934613321730f",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff describes required lane reduction and escrow"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "1fee62903ab67ff37f8ca95543130eaa",
+   "state_sha256": "d8aee970f8bf3e5a021d9abbe2a90f682ab667bc488f45e74c3469643910875a",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Staff comp plan edits; complete streets passing"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "4d541f75b7caca056b9b3ce7a452de71",
+   "state_sha256": "eefa527687f9b225e200ffa81a42ada9d2827af8888af50e4169706b2b1faa52",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Committee membership rules; no road diet"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "ecab14f97227531810582c2262aaa4c4",
+   "state_sha256": "32f5cbe23412706f20a51cc0e9ebb528c8436838c9774b1ea6ae133df9d6f93b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Parking utility presentation by staff"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "510ea88d9e9729efa5c64ce7be4bbcfe",
+   "state_sha256": "9231d616a36d516366fe95d108234f88c645fbc1333673ab3a6c221e7ab38538",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Streetcar parking; explicitly not a road diet"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "0892c95623d4453e224563296c1431dd",
+   "state_sha256": "a1688ea886dffc852335480174053167cc4ca684f225d4db53990da2faec647b",
+   "label": "for",
+   "clear": true,
+   "note": "States support for the chicken ordinance"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "6caed00ab61142bfc2a121f9a15bdf1b",
+   "state_sha256": "67d29e0835ca95cf77de748f2eb32b2d80b4d8877fae6ecb133b37170be0b652",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Coops mentioned as substandard housing"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "b459e44d8c3afa474e16c41249bdf11f",
+   "state_sha256": "90497841c1a0e181e7d66b0b85e21bdba8bf1231f55844e5318042bed8dd8b31",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hens is a caption error for hands"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "e6499f2d4bda1b95211ef6c088c316a8",
+   "state_sha256": "ba0b4509eab73ea73c757458d61b233ab8f95cd0c92880fa6e3d96d2f1bf26bf",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Idiom about chickens coming home to roost"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "8c982a5dec52d32edf3f4a6b2351f300",
+   "state_sha256": "8d95273642d133e479a71bc2ca372374dfe90e9c8e6c68eab9ba437646f9b391",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hens is a group name; event planning"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "964c3314f567fd325788df18ffa9c018",
+   "state_sha256": "e3ca5c8eefb6741de825eda50e3d574fd5ad128a9e46984932fa4dc1914a22b9",
+   "label": "for",
+   "clear": false,
+   "note": "Wants rooster kept for school flock, not a home"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "ef915def3b6d5f4adf52eca9a5a7b2f3",
+   "state_sha256": "6cdbc2224b27b74eab6afbad4910a4a09b02fdf26efaebb00d2a012afb07f91e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Residential zoning question; no chickens"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "79d8a103df42d290076c83016d2f3cba",
+   "state_sha256": "960a863b4f95316c5920520e17c4486a0d7b1f71159c6d75a39a5695c075e30c",
+   "label": "for",
+   "clear": false,
+   "note": "Favors county animal ordinance; rural acreage context"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "22d0aca9508ca03556056db6ccd06d49",
+   "state_sha256": "eb573ae088cf8b33cd064a4d59fd58b26250fcaff6142776433d5c42e92e219b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Chickens likely a caption error for chicanes"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "f1ab39e581293787b80fd3cfe7d5a692",
+   "state_sha256": "b86a0a99b947d513c23d77c6935424e5e570da127cb451cb60e7a354c8848762",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Garbled complaint about chicken counts and violations"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "4dfd7c764900e093a67beb87c7d46a5d",
+   "state_sha256": "56c0f11dcd91b6cb75cd673f830e4a1b7eea5ea4b2ef09f954d087a3c04e39db",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Coop is a caption error; facility reopening"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "f6d82f239514a17b0b72cf48cac10ddc",
+   "state_sha256": "d3934884f3ccc48442438b49f70f8639f46b980dd8f27bcdf1deb470bc720c4d",
+   "label": "for",
+   "clear": true,
+   "note": "Asks council to bring back allowing chickens"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "44ab5ad2d929af1337b3f1324b316a36",
+   "state_sha256": "3b20a29c4b75e4740c62d48fa5426dbe40dfca7e02fdb188e95e99753cb6955e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Owns chickens but complains about trucks"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "860474b6e82ccca87a4f1537beef1a7b",
+   "state_sha256": "e0d38680fcad00cb1870d1307c5cd3deb5f408d1a9be243e092157d4e35faa09",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Chicken rules used as comparison for dog issue"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "9503c2542b715ed25f5003360bac858d",
+   "state_sha256": "3f9a11d142c00d250a1e2b17324f78e6ad8c99213b9e36f01adc2278175770df",
+   "label": "no_position",
+   "clear": false,
+   "note": "Officials note upcoming chicken regulation discussion"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "fa4b8b4b1e79e67f42c73e1c4d950769",
+   "state_sha256": "78b39b1fd379152e7ab36758642b71f258fc81e1a0ca55498ad4998e4a34d085",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Chicken restaurant plat approval"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "beafc05861f3debf4ba55e4e34400947",
+   "state_sha256": "a63ad5d3474529c0cfc423b20a4d4da798579a7aa972af28a8f30241ab6f8a45",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Co-op caption error; facility rental"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "e2405eb79c41d2f7b896dfad9e95c7a6",
+   "state_sha256": "1476f326757230f15e2d24234923465a949ca0e19950c3404b80691145d2f380",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Chicken shacks as housing conditions"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "2330d1a19819ddc58472ddb45dbf5ab6",
+   "state_sha256": "21b89a00db427de25b8374cdb945efa7eae278f875f136cde3ea2487e587a3d9",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Rooster passing mention in shooting noise complaint"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "270bc3461711b3786c61e63df721de2d",
+   "state_sha256": "d7be7c2bd4af9c17e8c65b72535614c92f8ebcbd516c5869786aa077b8185a74",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Fox guarding chickens idiom"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "3619dd5fb668620c1e863af77a33efae",
+   "state_sha256": "636b043409a889bafb3f7c61c247a6a35000e0611be9cb8ed04999f1104f9d69",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Food waste to animal feed"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "f149506aeb4d2d093b06b9dd25242f40",
+   "state_sha256": "1389a89d628ff3bdfc0452ed660e45e03baf74cf7332e062a64c5b678ac73fff",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Old coop buildings in capital plan"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "20fb2a1f7b2a09f1525be62b23a531bd",
+   "state_sha256": "365ab2b1c9e5517397518271ef211e15646d16bdb427240bb8ff3fbf4277e696",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Raising chickens mentioned in unrelated remarks"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "85442b62d61d82ec899a55b60e3d5a52",
+   "state_sha256": "6a15438595fb89e6f2c1ece7941000d9b9e51f8d4c809f787a6342a1570c8b3c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Opposes development; poultry passing mention"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "5f0764cf4b4d0b65305db611082a7f24",
+   "state_sha256": "399a48ff60730a08fa51bcc019a801c9a06a8f8ddee7b1560dc54f4a296efc79",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Commercial poultry composting concern"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "79c9c65d5e078e15b67ad20445251b79",
+   "state_sha256": "515df4ef8a4003cd99818e78078785cc96a07b8ea0dcd8513c3263ae48e14c3a",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Co-op building in site application"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "468f62811062245a1817c18dc55fbf1d",
+   "state_sha256": "3d8ccfe28d3de4de7ce1d64d31150ceee6248c3992b369c9692591442cd1fa50",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Award ceremony; no chickens rule"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "dc6265feb3c1c34ab9b4e7648dcc3de2",
+   "state_sha256": "8285c4bd8d5aa1ff95fd637303c2698240f3952b571bdc44ce5578e6fdb38ee8",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Nickname caption; unrelated story"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "805763fa6cc3b9ae8efdf8cf8a2fe299",
+   "state_sha256": "394454b040e3e1c3a38d71d367c976e3405ecd306e31345ba4658012e47e01ac",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Personal background mentions past chickens"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "1de31fae53908c6fb529b35fe0067175",
+   "state_sha256": "591d6c37642d1358c68c0faba66426a5cadbde3a6aa1398153b1e085bbfcfa1f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Poetry caption error; art installation"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "fe4d2f40d931403b3a6f26a8d67208b3",
+   "state_sha256": "446366c888723876b5706f638964465ef684a8030ac1dd472aaf0b014372f5f7",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Traffic mitigation ask; notes bumps fail to slow drivers"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "c15e9997202453a2dd2c981a71f43b7e",
+   "state_sha256": "685ba7fb6619ca333257f12e5554d261238b423f1230f3fe2234195a6014d7cc",
+   "label": "for",
+   "clear": true,
+   "note": "Official says they support temporary speed table"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "e5690d2305638c70a74949a5fb403d45",
+   "state_sha256": "760737e14c2c2b35dd7ef10b8e1e452361d447136f4fae9ad91fd7c8edb7a91d",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff report on speed cushion data"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "7e32943d30f028cd6b64505461e5416a",
+   "state_sha256": "c86c8e159f6324d5f3b21c2a57f286e5ca79cecd87d841c92d1abe60f63d9747",
+   "label": "no_position",
+   "clear": false,
+   "note": "Committee report mentions speed bump request"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "e5e2377f44778f935ad6039ee22f3bef",
+   "state_sha256": "cd187372320574ec7db7ff88f3fa6f52141a6522c8a15066252c39fa7dcaad9a",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff project list includes speed tables"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "9d46bc2e668670dc08d86aa10dcd32d3",
+   "state_sha256": "79ef1fb0c75ea74ae1e1e005b37c6bc68c9f7a5df072b260503416ee625b83aa",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Traffic from expansion; bumps passing mention"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "43f71c9737dcd9a0b2433491eadc72db",
+   "state_sha256": "b4f0776c60ecf03ff61e2a72a6c020deffe79cc9ceb382ea0bbd1435b7497a6c",
+   "label": "no_position",
+   "clear": false,
+   "note": "Officials discuss speed bumps on state roads"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "702e89c924a95de8cc72a22c8216fae6",
+   "state_sha256": "f60d7fcf11b0629e9e1abe548384da4cd2dc5a0a86ddf4f65463e682d6e64f74",
+   "label": "no_position",
+   "clear": false,
+   "note": "Official remarks on residents wanting speed bumps"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "1a7d5791e7b077c6485eef6984699a31",
+   "state_sha256": "59dae0d8c3dac18cf5745228a5296944d39ae75e762bd654ce4ca0ae678c7268",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Donation program debate; speed bump as example"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "990d83b245bb8d14fc2b62bc1eb6d552",
+   "state_sha256": "0034d5053bda33a708e39d7f78267d3490012b44c6936d3ea3df04f549197ecd",
+   "label": "for",
+   "clear": true,
+   "note": "Asks for speed bumps on main street approach"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "8c08b1649d7c3248bcc3c0ffd075f5ad",
+   "state_sha256": "5cf3680fadfe9e00f56600ad406e17cf547657a2989c1894f1a39c143a92df03",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Range discussion; speed bump anecdote"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "618e2e5919190020d7f40bba9ca07e47",
+   "state_sha256": "4c5e617dcc515f8e09a8b446a80e653e7eaff5690c3882008bf7c558dad9d0d3",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff says road design will not use bumps"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "aaebec9d6f6eb2bd2b0cdd9491db082f",
+   "state_sha256": "28fdd7c46fe991d265720fcaa4386735626cfee4772a580bb0d58f361d6a826b",
+   "label": "for",
+   "clear": false,
+   "note": "Official praises speed bumps near school; garbled"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "391fcef189baa1b7bd5820aead994f1e",
+   "state_sha256": "0fc736d7b0c74b31cc1f2826efcbb151b06eb458a5e4f2d581daf0231aa64007",
+   "label": "for",
+   "clear": true,
+   "note": "Parent asks for painted speed bump near school"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "9a994f3e9decadfd21f97018923a8ac7",
+   "state_sha256": "44bb586efe81fbf53e6f5c251031be50c8ae5f8a975fdadecd642d42027454bb",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Official wary bumps spread citywide; no decision"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "9e5ee079ae310d10632240677e49409a",
+   "state_sha256": "33d872fc88e191b83c008b6fc85e58e9be996dad0ab3810aa04b0b79b45b1678",
+   "label": "no_position",
+   "clear": false,
+   "note": "Applicant relays neighbor concerns including bumps"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "8fcd9b09dbff396547c6eb14a8235da2",
+   "state_sha256": "817a57dffd6d734d44aa404ec60630d5c4b617c4832e4b2b1dfc6b912fab51b5",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Thanks for road work; joking bump mention"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "709d2dcf5ffd7ae7b7158d7908989da2",
+   "state_sha256": "7ad02203dccbd4ccabfe96fe698a498d8ccd9c08bf1f758cc02ba6c4302a21eb",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Unrelated dispute; meeting topic passing mention"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "4f69c492ce1ad4e11f14232069cb03f7",
+   "state_sha256": "dee49a47c66bc2f317c32d1159f57c2b67b918b9c9a70fdbc13f1025cbd751e7",
+   "label": "for",
+   "clear": true,
+   "note": "Asks for center line and speed bumps"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "ad5255352fdd0e3d6677f6134bae8a2a",
+   "state_sha256": "6e5e7326e136ccc58a0cf285ccdcccd38f59cc084bcfa68b7f7c2fad2c1a46ce",
+   "label": "against",
+   "clear": false,
+   "note": "Opposes street project; calls speed bumps wasteful"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "6e11c2f472ec38972fc8c7e9b770fe3d",
+   "state_sha256": "a11695b1b2446d7808aeaac80bc48cb5f1a4de8f3af0804798b1276e6a7220e0",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Doubts a speed bump would help; prefers bollard"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "31c05aaf98e8c0b404f66b8bb29ecad3",
+   "state_sha256": "a765eaaebd73fb7d94b4aa76905431a4abe94c1460f9ab285c9faf62df611428",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff traffic calming study update"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "6f64acc9609cb833fb07b6c6817917b7",
+   "state_sha256": "70c7b329f7618fc8f780b56ca151a248f05effac68abaf494bc1bcb8f43bd746",
+   "label": "for",
+   "clear": true,
+   "note": "Asks for speed bumps if road developed"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "7c6046a69eb3383e759bc9d653966a02",
+   "state_sha256": "20495e1c59214ec5a55607eac14bc47773e3c24bca3555f32b7e2107e9186d15",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff describes raised crossing design"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "ec157661fef703f87e7bf7a02399046c",
+   "state_sha256": "060798a976c681b7e5aba238e01beb8b30a35e467cfee7395f73305ede24c0ce",
+   "label": "no_position",
+   "clear": false,
+   "note": "Applicant open to offering one speed bump"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "e14f885b97d1ca3350ff888a1b579f81",
+   "state_sha256": "2c6e86fe8b26495c4be00584cbe8ddaca7574b3f479f1555e99352d6501afb41",
+   "label": "no_position",
+   "clear": false,
+   "note": "Reports speeding; notes bumps nearby without asking"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "3cfaf8e43993f41fb143572fc4c8aaa3",
+   "state_sha256": "50fb5dbdb7a60d8ced8ce87321c4e43fd4b0a366faf2e2de7f898b91e51444ae",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Evacuation traffic; bumps passing mention"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "ce41e5d9dfdf2ca40e81cbee7a234ad7",
+   "state_sha256": "1d87d69f173e36f89126cd78a59f83f61d02dd0f2b7c705c490201d96ec14749",
+   "label": "no_position",
+   "clear": false,
+   "note": "Official relays residents' speed bump request"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "38c1d7eb3ded5c65747172742822388e",
+   "state_sha256": "f7a1fd9c3aa113fdbe3310f6effe70c009921a5bafa4ba354fabf34615fa6b9d",
+   "label": "for",
+   "clear": true,
+   "note": "Suggests adding speed bumps or raised crossings"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "c111fb5cd6347ce49e640ba7bacb6fe6",
+   "state_sha256": "7fa73baaba30dd838bd822c63fc1943a03665f91444e60c2010e2b901b97ad42",
+   "label": "no_position",
+   "clear": false,
+   "note": "Question and answer on hump markings"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "8794dca1dbdd3b01628a5bbc4e8349e7",
+   "state_sha256": "b22750dd5a20e4b2b7e0d008d01f13ce9681457c5fd19d4bd93147ac6c10ebfe",
+   "label": "for",
+   "clear": false,
+   "note": "Supports project tied to street narrowing"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "d109500f5d893b109c5d7aa039fc86de",
+   "state_sha256": "e51d3c7860f0c09620ba6a228c2a84b6b87f6730030f626a401efe97712b879d",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Caltrans path design; no lane removal debate"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "874b7befa4c1a75ecbc9358339c4a82f",
+   "state_sha256": "62ce0e0843556884ba88e17399088881e611e815e3d49bda7d77fc20aeae52d6",
+   "label": "for",
+   "clear": true,
+   "note": "Asks for new road diets and bike lanes"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "27894e74da0818b14728574d4a48816e",
+   "state_sha256": "f4fdd63e1b337a5bce4249332a5d22556fa067dd0abe5cab3e2766768522a7b4",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Construction detour harm to business"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "a17caba1e35e2d75bdbda40b4282f692",
+   "state_sha256": "a2576132569576b0d353b73727f188f80776692a09033fc37bcf922c70a4667e",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Urges traffic calming on highway; lane change unstated"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "cc0793b5807f7db7126c8333652a99bd",
+   "state_sha256": "e769a635d07be55498fdd0ac82e4eb97d8ebf0d379e52f13222246d9771d9c50",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Rezoning opposition; complete streets passing"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "222e171126aa1dbbe51113c5be82adc4",
+   "state_sha256": "ad4ee91fba40136c04cc72cff826ba3b78800af92f431266ca8939b892366a5b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Protected bike lanes and paving; no lane removal"
+  },
+  {
+   "topic": "road-diets",
+   "meeting_speaker_id": "e90844313381bfc07a717aea8988a7da",
+   "state_sha256": "ce425ed12e45918cd272c167eaed7a1725c457d3c4fd1cf228131e4b4bab2517",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Sidewalk infill budget amendment"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "5a95f590e2167a833918447c621a9c4a",
+   "state_sha256": "f19fc718db1a5f7d9eaa9d6d0d32846c53daf8c5f5b17507d751587aff1152c0",
+   "label": "for",
+   "clear": true,
+   "note": "States being for backyard chickens"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "af761162e44df06bd3a1faabcb3e71ae",
+   "state_sha256": "1ee7d9ad72c9c0af068726e0f255a1cf502758799fa50ccd665244da99795a3c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Poultry is a caption error for paltry"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "a801af391fe43b7f8db61ba61b821fb5",
+   "state_sha256": "6d8d74cd110fba03f0f1a369587f18142349561e4274fb519479fef2e806dcba",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Service club presentation"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "0e5ad265ea1b8b019888b1029fdce208",
+   "state_sha256": "7d6b45eb291e8cdef21dd04d2a65b5154cb3949d354ff2dab50ceace7de3617c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Chickens idiom in data center remarks"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "e390486b7fd6ff46db14940050ddece1",
+   "state_sha256": "8f05814dba78e851e78fe0ce4effb8800286a11c4828a06c70d4569b2d465477",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Own hens cited against data center"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "9f2f3e372c6f4f08b2c435f72bbf29d7",
+   "state_sha256": "a928bb45ee97abec026fb8b3f6a49da2863f47149343672f51f4f267afb7050c",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Animal stress cited against retreat center"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "9da389896f2fe5062c5f2ac64b48b137",
+   "state_sha256": "857fd2e9902ea0c2001eb55e14ce5b8241c0936002480afbc3681786e3c8edfe",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Name caption; cannabis hearing"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "f36902760f70fd0dd5167b8c31d7e3ca",
+   "state_sha256": "6979dbcdb61ca0b4ed7bcdd9ddd7c5981ae17fe6d1a352ba1696d784dc3fa353",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Chicken coop mentioned in tax assessment comment"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "8d50f9bc932f2c00ca1190a6200112ce",
+   "state_sha256": "1f56a00941b1405765801badf4bb0473d0d794a58bac6d0a2383daf5ddcf4bbf",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Idiom about age; rental complaint"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "5ad4f306f0631e6e497233b485fb80ec",
+   "state_sha256": "3bd05e6799585de46145826c4f675a231da9d3d0b769534512db959b39d05602",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Chickens passing mention in gun remarks"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "d095b516c928c179e97a86f453cc8898",
+   "state_sha256": "5369081ec83eea7adc83fa4e342444d5574c18046b8edd8da1a228630cb5f8f7",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hobby chickens mentioned opposing vacation home"
+  },
+  {
+   "topic": "backyard-chickens",
+   "meeting_speaker_id": "9296a6352a67b3bb1df2c82d17f04ae7",
+   "state_sha256": "4131d74b0f83df4194f98335db9e278cce7ca5c454fe9aa78982288f0133f47b",
+   "label": "against",
+   "clear": false,
+   "note": "Complains of neighbor's rooster and hens; wants enforcement"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "adf72015330223d9a5685e18abeaeaf0",
+   "state_sha256": "0df6850de2e859ffe03c5cb4a6be0ae600f409fdbac5644c5a0e45abd1c089b5",
+   "label": "for",
+   "clear": false,
+   "note": "Complains street still lacks promised speed bump"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "d3ff21afe966dc3decb72a1844e61704",
+   "state_sha256": "fc86254d34abfc7e0f471ce1f217b2a9b13912e25ac3e36ce501a1c30487b0ff",
+   "label": "off_topic",
+   "clear": false,
+   "note": "One-way update; humps passing mention"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "c01908a30e3dab7a1dedd345d1eb9178",
+   "state_sha256": "683ea48feefe1d40578696b70358ab9c33819dc34a2837aca5c19a60d1222c12",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff reads conditions including speed bumps"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "39825fbb540d687059b19e5526543f74",
+   "state_sha256": "1d9f02ed4a7ff5060a970adb4834a1b7d809e15ccd6851c6a2bb8276766e88af",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff explains street eligibility for tables"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "7a7afec1535b6c8cad05584b5c8997d8",
+   "state_sha256": "87b6bbd190bfd109313e4858031b32b2a22de040e497c481503abdda54d3ad97",
+   "label": "for",
+   "clear": true,
+   "note": "Asks for a speed hump on the street"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "b944e30c73bf989f0b8cf2dfc82e2af5",
+   "state_sha256": "3999db344b354b151ae86ef53cc18f947316e9e5a59206ac82c95f01904d796e",
+   "label": "for",
+   "clear": false,
+   "note": "Tentatively suggests speed bumps; main ask is rentals"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "7a286ced5e24ed9c5b95aaba0afdf3a7",
+   "state_sha256": "497bc3121598da2e8ec2d72f85fb3b23af17e7c262ea8bc0a93c05ef13e2c717",
+   "label": "for",
+   "clear": true,
+   "note": "Asks for speed humps on the block"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "0af07f3a74e56eab95970aaef1ce27fb",
+   "state_sha256": "53c8607893cc1c4ac8bf3ee4b5aa12903f6efb16781547049ba65351852fd105",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Opposes duplex; humps mentioned as existing"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "eedcefc803a384bf8f533c24873c750a",
+   "state_sha256": "b4f1a64a3b6f75e63d8279aa49842c8aafe70765635ee956fe0a3e2d0ba1f959",
+   "label": "for",
+   "clear": true,
+   "note": "Advocates speed bumps on residential streets"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "1a2214deac6f2d3fb24e14a6439037ba",
+   "state_sha256": "3e331a06d97f9a745a245376e15abd50e2c2d0b522b51cdcf0755145f7c87618",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Speed bumps used as metaphor"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "74632ec935cee6f5c2eb8e4aadf730fe",
+   "state_sha256": "d5f205ea1d73ac9f3ed2a804ccac0145f5a86728a78e012d563ee785a986f999",
+   "label": "for",
+   "clear": true,
+   "note": "Asks to keep funding for street speed bumps"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "337d95e006572ce10b31d1dc8c948043",
+   "state_sha256": "cfdb6ca1479dfd7c8134914161961dde1df4558e9ce58f020aba2f329e0a45d0",
+   "label": "against",
+   "clear": false,
+   "note": "Opposes street project; calls speed bumps wasteful"
+  },
+  {
+   "topic": "speed-bumps",
+   "meeting_speaker_id": "263a6c860a6cc70fe9200baf57918757",
+   "state_sha256": "094686a54c0a114eadcb242a224ef959de3c87e7704a17481e255627443e8ab6",
+   "label": "for",
+   "clear": false,
+   "note": "Complains street lacks speed bumps after incident"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "2204482ddeb7c3cb41ad2246024f4d8d",
+   "state_sha256": "68f38e91cdd54ea6018b66dc50025a65c9b8731e1b6113b2ccefc9a553ff7c10",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Turf field mentioned only in a local history anecdote"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "9425a688d5e010b3f8eb0609f8e970bf",
+   "state_sha256": "0a08df296018db38c7cd41c9dedeb74e11aaea06e2dc4eececcd3d30d5548d68",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Past turf project cited only as a cost comparison"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "a4cdca487821dfc9bf0a60104829160c",
+   "state_sha256": "4e5baebbc91a0dfae4b25300a1587b6ed15e9cab7ac0752eb9d04b57550f6f53",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Notes ignored objections to turf field; proposes letters, no direct ask"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "b94df8a08d035e02c665d297a16cb873",
+   "state_sha256": "2e5b6de28ed9b9c396a4bab65b99ff10215ef45c9de7b432b116ba5902aa0085",
+   "label": "for",
+   "clear": true,
+   "note": "Praises turf field funding request for maintenance savings and play"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "49439b7d40fac2abecba72df8a9ff87f",
+   "state_sha256": "96aa93d9d148357d9ca69f0057b38f96a1649e6bb5b836502c2b8e05efde25d9",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Past turf cited as example in a funding allocation dispute"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "6468d125a714db78480a1c8ffc06b7ea",
+   "state_sha256": "2e9589c43fddf6e2da7153e85a9091d982beec5a49a8e8389bfe0ed73fc01797",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Turf named in a list of code topics"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "b99bebc0c548a2d2c57175eefe25486b",
+   "state_sha256": "d2d025968659624b175cf3bfe9240c6c414cd5cdaa4ad15f7a2675dd65fe591e",
+   "label": "for",
+   "clear": true,
+   "note": "Recommends adding artificial turf alternate to new fields"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "742d17bcfbfdbd60f509739c5315d3de",
+   "state_sha256": "9afcc66aaa30f7fb36e834a45733c29a3820fbafc68723102e47111fc70d0ea4",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Worries about affording turf fields amid other spending"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "aaf6b125c352e1e21c48e9ff48b9869c",
+   "state_sha256": "678333cdf350f811ec263a7c38bb969caec90bc339c439b36f476f8104b6eced",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Park maintenance complaint; turf fields mentioned in passing"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "7282c5779f58425bd46bf01088d2ba1f",
+   "state_sha256": "682fa6e58b4cd4f90f94abeb0234cffc6bdceabbf1f98ed2f7512ff77433a2c6",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Astroturf in a temporary parklet event, not a playing field"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "12d78debdacc8ac272d82c68b9aeb8b4",
+   "state_sha256": "689deed669ca61cfb0f6862e3a8b96a8e7408b245d08ad64df066be4b0c259f6",
+   "label": "no_position",
+   "clear": false,
+   "note": "Brief mention of seeking grants for turf fields"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "67d2b3a88f9480b9060f27d9d85e255c",
+   "state_sha256": "042a9a4210bc1cee0624fbe241788f8535eb287909b426ebab54862f2213af91",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Campus event schedule mentions a turf field location"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "2470d65066a38a3b016ab9ea797c9f99",
+   "state_sha256": "f44d6e3421dcc40de58f56998b8830877fc091b62b4b19a5ba3de8504453a672",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Natural turf farm and chemical fumes, not synthetic field"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "3e18773ce895d44fb3fb7820d837ae49",
+   "state_sha256": "ff1cea00fa09e57b5cd0ba09665bd8e274fb695cbdd32c251c19954b44de597a",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff capital plan mentions synthetic field replacement"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "72e55331f9aada9922a9674825fd0d8d",
+   "state_sha256": "67b61602842367f8ed16b48ca7747089b4eb4a97a51d7d72e8e2c0123cea8ccd",
+   "label": "for",
+   "clear": true,
+   "note": "Describes planned artificial turf fields as positive youth investment"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "c6cff38cc92080d3c61b297c4b4d18be",
+   "state_sha256": "89853b291ba4c1af097111e698c1e9a2e2ad9546052cd9a8cfd07034fba4ee08",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Golf facility pitch; turf mentioned figuratively"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "be8a944095c5fb08bebf5d262cb386f3",
+   "state_sha256": "e955afacc2d43614a3f43842bc23b22e28ea495d194e08b092419c1018e30163",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Turf fields cited only to describe park busyness"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "7c6046a69eb3383e759bc9d653966a02",
+   "state_sha256": "eb14bf9a6efaad6e67394d01047bed74250f04996f3cf9a2241b01b37b8cbc75",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Landscaping maintenance comparison mentions astroturf"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "45cd995c2556b237e89daaca470f4ca7",
+   "state_sha256": "717148a00f030847f41be2882c2cf565ae22f2e56c8976f0ea62113ea70e1410",
+   "label": "for",
+   "clear": true,
+   "note": "States personal preference for artificial turf fields"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "244b9ce9eaa3ac74d9c2689978fb36f1",
+   "state_sha256": "955fa99a47d5db0ef9e9ad2a632e4f1f89d835186e334b26699544f770c833e9",
+   "label": "for",
+   "clear": false,
+   "note": "Describes benefits of past turf field for recreation"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "75471f9c703c819cdde0d683982efbcd",
+   "state_sha256": "b1ee3a6b4ccb739ba35ae0d16efd7850a437c398ba88b17714072a496bda41cd",
+   "label": "no_position",
+   "clear": false,
+   "note": "Factual discussion of turf lifespan and maintenance"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "fff965863d505b90a7d994c2c950b39b",
+   "state_sha256": "a1067266757578cb8db389ae40fa27d03a529fa101740d75d5156376f6b873e5",
+   "label": "for",
+   "clear": true,
+   "note": "Says the city needs additional turf fields"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "75f7c99dce5d36129a8a5d1b7f57e3e0",
+   "state_sha256": "448052afe56a267b059c9a65af73d8ee6127ee15a4a17cd228227d7f9a2e3efd",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Volunteer work installing turf at animal shelter"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "f8c08701207ac7fcb6f5db3fd06a0aec",
+   "state_sha256": "e377b3c22fe23188d73b099c7db3bdf59210358ba15b892b321ceecf016aa00f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Sewer project report references existing turf field"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "964a29569e3a8393e6aaf73f189adad3",
+   "state_sha256": "dd301640d2a6e0088413c4a75f075eab69d7e48960dacd64dabfe509084b90b3",
+   "label": "for",
+   "clear": false,
+   "note": "Student values existing turf field; no explicit ask"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "f37a05c9146bd73b9d92d3c489a19741",
+   "state_sha256": "758babffed2c62d239bef1ce9d9557b8b4fe46f632838afd92839ad0575e26e8",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Development water concerns; turf mentioned in passing"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "3ad2a3163661003ff498177bad87b64a",
+   "state_sha256": "eff820ea66141d3b3954ced64e6f829cff20c93ee3c36dbd21cfb57c322f2c32",
+   "label": "no_position",
+   "clear": false,
+   "note": "Design presentation proposing synthetic turf field"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "31385d042b89974781a81a562fcb191a",
+   "state_sha256": "ef06acddfebfef10252cbeab417c3fae0480592b1aa2e8c2d4d9575a4de0a944",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Facility rental fees example uses turf field"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "8d41a5d23967acf9c8575c7dafbc90ed",
+   "state_sha256": "d6bdee97041169a38b769215f500a1fc8d82d392dfe53af71253f02cf3abed92",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Raises cost; urges partnering with school fields instead"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "a4a96d1804e8aa22e3719708760461db",
+   "state_sha256": "aeb3da9961829b3a0fe470e05ae489660e20ab74055bf60c5257ecdcc0754850",
+   "label": "no_position",
+   "clear": false,
+   "note": "Budget mechanics for turf purchase"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "4c72a7eb527d9c76a3744905aaf0a7c7",
+   "state_sha256": "a05c5f6e67f0fe7454841b9d14828ef85f12fae2cd3d7da52386b6949a67d069",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Utility talk on rooftop solar and storage"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "68a9884518c6e0d91fe2b3543ba64327",
+   "state_sha256": "c7dd7673db7ae9a0fad1845a942173020f17ecbd1b33763f6f28e80d0185a4f1",
+   "label": "no_position",
+   "clear": false,
+   "note": "Notes a ground-mounted solar application and moratorium history"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "17a53822501829717df173bd5819bdf9",
+   "state_sha256": "9192ecb53a466f93e85b60cc5f1fdc668498fb273e53961f5d355331d6e2be0e",
+   "label": "no_position",
+   "clear": false,
+   "note": "Report exploring solar on closed landfill with utility"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "9c0d0b8206512e437ed5978c2691050e",
+   "state_sha256": "34bc428445a0e9da811aad494fd3338b6eb150da02d2c8624f5db03a2e19c211",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Solar at a water facility in a funding report"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "6daebda3b10db466017a0e1d02c57efc",
+   "state_sha256": "44f83cf46146dc910749dc280830f816056507fd2d82b5a40b6aa209ac36b136",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Praise for solar on a public building"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "0be86c372ce904951d277603bbc29f91",
+   "state_sha256": "9b3f7941449b2dd9ef6d5a48539cfdca927d7308cac6cf11836156e468e24f4a",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Donated rooftop solar array on municipal building"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "97666b4c8db2dd53de8d73cdacd9d8af",
+   "state_sha256": "ac63b2f862562393cc008ef327579f66d1b93384fae01f135de36d826084b524",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Solar canopies at community facilities"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "3401bf64f9304731c247fe0d6fe28907",
+   "state_sha256": "117168779195d7dbfd66214f1fa9de8246fd0abb19ac58be7c49fba1816dc071",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Facility solar project savings, not a solar farm"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "c623c8a702918c8885d64eb0a4d158bd",
+   "state_sha256": "2061eae0ff7ea769eb9884c4c6718361a4245813431268d7669ffeaff2e7171e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Building permit exemptions for home solar"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "9dce0fedc9ea46d75af5a4895ff826fa",
+   "state_sha256": "6cde5b08948342b6becda92b0ccb77ae7394520d2671a4cf93bd15cc86243d14",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Utility code revision mentions community solar program"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "7199d6f27d1f46a12b81b57ed7d7fe43",
+   "state_sha256": "fc75b44c2318be3a8c0e7219b835fcf540ba902660abc00306e2c54a61bdf66a",
+   "label": "off_topic",
+   "clear": false,
+   "note": "State legislative report on solar financing"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "21d033ef28694c066a01b2c7ac0233c0",
+   "state_sha256": "0773c7635574e41d2680c98f59a5b90738df08410718e7c1e8f603ff43811ae9",
+   "label": "for",
+   "clear": true,
+   "note": "Supports the rezoning for the solar project"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "fe8d7cba70ca9e3451daef5c3e4aac01",
+   "state_sha256": "bb73979f6cd71a7e13bea5605474276b9b72c5f9fdec3901ac7de38da4a8748f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Applicant for other project mentions solar farm easement"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "ea60f813a6898fe16b50c51918e36db2",
+   "state_sha256": "4afe98f418467687705ad33c9b8c39d13ef690b5664aecbb8ac969143928494e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Hypothetical solar farm question in funeral home case"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "6cdd2c729e68e21b02f4a102199b5b19",
+   "state_sha256": "3baa79fbe9b20993b8872ced9a1267784c634c8737bc808225b6faba5a683afe",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Staff locates a storage project near existing solar farm"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "5e5c195c737ac7073c481e64931c8963",
+   "state_sha256": "2eda6dad8303a7c1b19d1c3d752f83c27b10385f7b95a38413db27557b501dc6",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Earth Day event announcement mentions community solar talk"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "1ddfe33a994574bb224ef33e3dc0cd25",
+   "state_sha256": "11028544a0937f7ba316cd6f7c6c8fd1b1850da75fa26ff6cce432fad83a2626",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Utility update loosely mentions solar investment options"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "7bb0e4ba9705b62b7401cd378750af19",
+   "state_sha256": "b83f93a704f84e8aa95be9968bd4381b41204ecf39345bf4a9b432e1fd86999f",
+   "label": "for",
+   "clear": true,
+   "note": "Task force backs proposed solar farm on retired landfill"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "2ffc0bb35bce539e3fb83cb64d6d9c97",
+   "state_sha256": "2e5f0375bce850478c7d9bb3711138b19d445e80d0e5dcb1e01b72e8d9270705",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Says existing solar farms damaged county roads and taxes"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "423b4a88f4c6aacdb59377bd7382ed62",
+   "state_sha256": "12c67a715478d6d12fcb7d672bbf122a823f763b7740e2c095c84cf1335a2d10",
+   "label": "against",
+   "clear": false,
+   "note": "Objects to opening public lands for solar projects"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "3f78d3d2733673364b817d216f917d3f",
+   "state_sha256": "9091c4f1a75263a866c28af2fbb98a4ba812a714ef1b88938f717da7fe72620d",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Solar project powering a district facility"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "8f921ab7506cfe99e2b153bd61086bf8",
+   "state_sha256": "91b81673d6d3596d51ee026c06d5a3d6674347b65a7c0b82bca3377759e4898e",
+   "label": "against",
+   "clear": true,
+   "note": "Says solar facility is industrial; asks to stick to agricultural plan"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "e2e6151ae5d17696989af1562569ede2",
+   "state_sha256": "e46cda8b979a32443140c967067d3245768022837b4986c34198b1dd81512b87",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Data center opposition; community solar passing mention"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "8d211a7bd1d48b84b4b2d940cb676350",
+   "state_sha256": "17c5687bdbc2fc513c9bd764d37cd2ceace798e2a82966e2654abceae8931d8b",
+   "label": "no_position",
+   "clear": false,
+   "note": "Report on landfill solar farm bidding progress"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "dc62b67e97b38c1737f2f2e1706e3fe9",
+   "state_sha256": "cd16a517a4df3ffd82260bf902174f224923071ea433b39d12b6b4fe9b1e1bc2",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Data center moratorium discussion referencing past solar farm"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "14f44a3bc82bdb2af11b8570a99e7ade",
+   "state_sha256": "914a213dccdd3a7541ac86cb042188aff32ed35e8e63f4df8ce24913e774b8e7",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff update on solar array at wastewater plant"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "2f3a113456c82e609939386a3b39d719",
+   "state_sha256": "1e3ca5f1b05f3649d585e541b8cb011c04d7bf115663f1b4df27328d11ca06a2",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Solar rights and tree shading provision"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "cc1feb519e311da4701e99de6710f7fe",
+   "state_sha256": "b751084b633dae8ec5c1db3bf8a11592be4e15aaa79df98fba6d24f8cb83590a",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Fire safety concerns about solar plants"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "be3a16a9a8ad1a49fcd2fc5f0cc46bac",
+   "state_sha256": "9756d353b06cf9bf73110d6a75096c5f349c7fe45eab134647e51d6ede1026f4",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Rooftop library solar in climate report"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "b973f8e2746027225c1e3fd1bb4c3e74",
+   "state_sha256": "17cffdb1c7fe06068fa426094b38a52729fb8815195287f9aac0e371a9709d4e",
+   "label": "for",
+   "clear": false,
+   "note": "Rebuts farmland concerns and describes solar projects favorably"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "4c72a7eb527d9c76a3744905aaf0a7c7",
+   "state_sha256": "7d19a281072d3dfdcb38c71b7d9336126bce0ce7a3d35403a9cf3da7e62c7045",
+   "label": "no_position",
+   "clear": false,
+   "note": "Utility describes substation batteries it installed"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "674f76c24481274c945d19be0b4109fa",
+   "state_sha256": "86fdac9d4cd30d6d6f4c76ffa628099cbb58aa52b8da88c15062127432b867e7",
+   "label": "against",
+   "clear": true,
+   "note": "Opposes proposed battery site near neighborhood"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "dd9953cb08c3c15602acd379907bec59",
+   "state_sha256": "e5b32a2009860690021845c2f2ea7240a3db5898ebd29a079ad2cf7b933d6086",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Data center moratorium; battery facilities passing mention"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "ddbef90ef535982f47ebfc3c176d7364",
+   "state_sha256": "5f54db4c19c534d1016b89d31819fbb435ed387f8a01fb7b0030b85e43a1145f",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff presentation on battery storage moratorium"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "4f6b06fc4ea3cb78b2e9673bff14bb53",
+   "state_sha256": "6e30d7d44cc34afa763f002f7c80cd452ce4f742157af73e2ab9e813d08dd2d6",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Battery backup at a police building"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "9c0d0b8206512e437ed5978c2691050e",
+   "state_sha256": "10e592357efe3dd55114e8e3e1ae57cf73690f17792cdf3c6a41795df5808177",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Battery unit at a water facility in funding report"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "3401bf64f9304731c247fe0d6fe28907",
+   "state_sha256": "b6932a30147fb004d288b3eb6e947f607dba6b00fc7296a6005f28aa9b084d82",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Small solar project without batteries"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "5b35eea42f8508f2b15e788c9d095a4e",
+   "state_sha256": "2f8f6cc589dc2551ad2e946893b83c554aaf4f4ca5eaf55859fafddc56b1502e",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Health department dispute; battery facilities passing mention"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "24ff565a54b4125880675cd3d1b000b2",
+   "state_sha256": "e476b238d3cbeb413d56daccafd8bdfad2f83dcc6a763b9f1338bb6cc848520b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Portable and building batteries in utility program"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "c89c5c703528738d8962bf15997246c1",
+   "state_sha256": "d4dd845e4e446a4c67cb79a0f9f7eadfdb9169842dd2d60c8ccb23e2ca64aaac",
+   "label": "against",
+   "clear": true,
+   "note": "Opposes proposed battery site location; seeks strict noise rules"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "d3ff21afe966dc3decb72a1844e61704",
+   "state_sha256": "89b3593aac3d23e65eb4bcbe4836deebb8e30a9b74df33927ef0d094beab9f7d",
+   "label": "for",
+   "clear": true,
+   "note": "Welcomes prospective battery storage project for city revenue"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "1b1bcd8832c55c1f281d4df595c2afab",
+   "state_sha256": "fe7cf6f3182cd6f0a6ddd233347365f89a6ab9e018b816e7d31842955e1b2fff",
+   "label": "against",
+   "clear": true,
+   "note": "Supports the moratorium on battery installations"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "40f45cf8db24963b2d3c541772cbff55",
+   "state_sha256": "637b05a5bba23ffe6ca9eeabcd8c878ade4e00e5453022729ab8664f84a2e032",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Word refers to a person, not battery storage"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "bef92bf8410295f98ae96659cbac498c",
+   "state_sha256": "6405aed8a9723838195bd1d701876c5faf60459a988549133d3901178f8f47d8",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Sales tax opposition, unrelated"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "39cfac0ba54182de27899b35189ca013",
+   "state_sha256": "12778964380a56d923973b039b897581f97b6ec4b072b94a3715abfd88a104ac",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Data center opposition; battery storage passing mention"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "7bb0e4ba9705b62b7401cd378750af19",
+   "state_sha256": "59cc4d748e8399c282f159f196f5c6c1bc06f56b394424c2332d0298c1f505c0",
+   "label": "no_position",
+   "clear": false,
+   "note": "Utility plans for battery storage sites"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "54b370b7d772bbaf5a602bdc9a9c38c5",
+   "state_sha256": "45e3252cec2cf706d7091443c67b225274107a749651d957d6efb1077bb7f210",
+   "label": "against",
+   "clear": true,
+   "note": "Asks to vote no on battery storage and rezoning"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "cd37175c6aaac5e7082b48d913525822",
+   "state_sha256": "0b20aafeb33ed19d661bbc27d1146e245538adb4253fedd8e8aca7a8cdd332bd",
+   "label": "for",
+   "clear": true,
+   "note": "Argues against a blanket ban citing strict safety codes"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "04e90a38f237284105b686b4e4ec71fa",
+   "state_sha256": "2676f2be1330838c8c03ffcf13e414c7c84d7a5d8cd68a408c62e4b5e87353ca",
+   "label": "for",
+   "clear": true,
+   "note": "Argues against a blanket ban citing strict safety codes"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "50dd599d590ee862311469b1a0e6f1e3",
+   "state_sha256": "4991d9a041d39b19b7c9d602258cb931dff0e0f644e753ac383befb4541fc76d",
+   "label": "against",
+   "clear": true,
+   "note": "Says town will not allow the battery facility"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "b19744293e8036944cbc78afe5caf787",
+   "state_sha256": "1ab29c0fdb608873a900550f85f68b30787daf8e7cbba8284a0801594ee493d4",
+   "label": "against",
+   "clear": true,
+   "note": "Says town is not the place for utility-scale batteries"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "a8efae0259bd1a7059c402cb20f2df05",
+   "state_sha256": "45203cc4485adf78a2b219372d74d1cdcc67f12f63ee6f2332a10d1de972d692",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Solar canopy project with small battery component"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "11f71484e96fe6dcc67fc01e66557357",
+   "state_sha256": "ac9936c470b4be92ffd876fc67abe1fbad6d4f022d661445f8cf7cb91857a74e",
+   "label": "against",
+   "clear": true,
+   "note": "Asks council to tell siting council to vote against it"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "6e3d938ab6ecc67590a378bb277c7302",
+   "state_sha256": "e5c1c93db1e1b0ad90f5a0c69096787139235a14fa184a11e685d3c64d78aab8",
+   "label": "against",
+   "clear": true,
+   "note": "States opposition to battery storage facilities"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "d0a58653b1e2d43eaf27bcdbcc2f996b",
+   "state_sha256": "c0595daba1d751c489fed432880265d451d19fc7521b9988525a5186e61e76fb",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Criticizes openness of the board's process"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "213153cd681ac495e565e68ed79d33dc",
+   "state_sha256": "15c8e3af3a7e1de07414469f4c7db26cd591071ba2d30e6bdef232febcf12129",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Building energy requirements mention on-site batteries"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "a5e83a615c21f6c7baedfbda666eb31e",
+   "state_sha256": "78f26ef518c34eaf70763e44ebb201754715374e518e6939d092cd9f9f137816",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Word refers to a person, not battery storage"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "2ce1ac65364c59c92bca77f73aa05b58",
+   "state_sha256": "53a02a552e9df4338f3f1376527db6c634124cc57e4c3dce7a0ec7315f4703a4",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff presents power generation zoning amendment"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "7aa39e9482c281cbed5739f400d94fe7",
+   "state_sha256": "2faa6d8c7a41cb351c8e3a8b43f6d50169766dc58366324080856323abd1c5eb",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Consumer device battery fire safety tips"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "461f89c0d8354cd6d7ee9fc7293d0f67",
+   "state_sha256": "312e7206419b9768de99f962bd8f486449d56831953cc92b0a64821624fee644",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Raises scale and fire risk of proposed facility"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "f72e522e14981b1e66d5b12030eebf50",
+   "state_sha256": "c4ce19733311d105c9bafc98c848ddd9fadc8b548191eba35994741ba5fd0f83",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Objects to tax for turf field fund on ballot"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "320bacb6ccbd2454c98807240ee04e86",
+   "state_sha256": "e6ce8f537850a444ba7443c20de8704136651660a94806466aa7b6924f217838",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Astroturf used to mean fake grassroots campaigns"
+  },
+  {
+   "topic": "artificial-turf",
+   "meeting_speaker_id": "b81e930e9e32339e2eebf46daf76c480",
+   "state_sha256": "8d2571fd7e052b2d508c20353568bd9bd4334a78b6b0e0624c57e5e209b8ef0f",
+   "label": "no_position",
+   "clear": false,
+   "note": "Announcement of turf replacement project and workshop"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "2d72c794ee2ac546107590310f1891cd",
+   "state_sha256": "d7278996bb7270f771c8b309049a4bd9ea01f79fb9ead2bc353fe0b9fe0ae831",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Housing project, not a solar farm"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "d23342493471ebf1c777d35855c2d32d",
+   "state_sha256": "9e58d40077188d3475a8aab30dd2d6bef2b19b6e9077dc86dc9ffcf59ec4911c",
+   "label": "against",
+   "clear": true,
+   "note": "Seeks legal support for residents opposing solar project"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "f43f6fa504ea2f37bf5a7c88795abf16",
+   "state_sha256": "a65d01775c968402a479b7632473c0c13e268ef57ef6a937284962bc6ca53947",
+   "label": "against",
+   "clear": true,
+   "note": "Vehemently against the solar farm near property"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "e288b929105230769d6a8e7f4e4bc7d0",
+   "state_sha256": "4c60ae30c757846c273c4289cc4c71a5e5bfbe0a04b9f6c71866496dded8ac74",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Utility discusses rooftop and community solar generally"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "f8f8814afa0347bf6ac2385b6ea926fa",
+   "state_sha256": "512601f57263528491dc8e2e45ff82c55a7cc68b564bf5772c6afd0655d499e5",
+   "label": "for",
+   "clear": false,
+   "note": "Celebrates a new solar project as advocacy win"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "8eececc9526da2d54c148635d21285c1",
+   "state_sha256": "05907a4b3fd178c85eab6a43cc16b508ab54905e6a2f0bf3e521f1cd569ee356",
+   "label": "against",
+   "clear": true,
+   "note": "Asks officials to keep fighting solar farms"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "6f770c523f5782e41c191ba363fed2c1",
+   "state_sha256": "6e58ee43f811b54e3b80edccd11f89fb31a551bc9ad2b9389551a36d79644805",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Questions lease terms of existing solar field"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "ee63b25809ca36d8936d4b154ff3cbb1",
+   "state_sha256": "90b2fff17d6fe563d0b0497e88ffb61ad7b9fa3a7beea851cb939680b617eef9",
+   "label": "off_topic",
+   "clear": false,
+   "note": "About battery storage tiers, not a solar farm"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "a8f112660923f5e4fe733ca60513b905",
+   "state_sha256": "4b9d686bf744f8ff87116f8e0893178dad00ae8d164d238cfc3e9df2e20d7542",
+   "label": "off_topic",
+   "clear": false,
+   "note": "About battery storage tiers, not a solar farm"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "20d2ff674b53e6b9c7ee9b8d5d639474",
+   "state_sha256": "45e82591daf1f8a50ba3d29cc068a6d663dc76ba6fb5193a759e2d6b81c1332b",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Cites existing solar field as neighborhood burden"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "9bb8993fa227f0d481f8e1e9143f2d62",
+   "state_sha256": "65e334beeeeee57df945f5fb6622d3a534e3e14c609ca203f7c594579901e6a3",
+   "label": "against",
+   "clear": true,
+   "note": "Wants a moratorium on solar farms too"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "850680509a07cbe04343c29a3ebce9ba",
+   "state_sha256": "a8ac4e0edeeea5b292353f5a7d133959029f9aa88a1499bb6316439a1e0612db",
+   "label": "for",
+   "clear": false,
+   "note": "Lists community solar programs among recommendations"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "fdb348772983ad7ad5493dab4f507fd1",
+   "state_sha256": "85ca39b1e2dd9a231b0b240a79d52d8b4a931f90698a20b9ae5c112402018b37",
+   "label": "off_topic",
+   "clear": false,
+   "note": "State energy legislation, not a local solar farm"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "478e32e9ea733fd162f45322a0bb8b69",
+   "state_sha256": "b2cf03ae1c97834b06da62501c4fdd985d1388e0e0f8aae2ad5e7762139bc747",
+   "label": "against",
+   "clear": false,
+   "note": "Thanks board's stance on solar projects; side implied"
+  },
+  {
+   "topic": "solar-farms",
+   "meeting_speaker_id": "80e8364c43b24255f958c161e6f38d02",
+   "state_sha256": "b60a4bb55f1c269f36495390ff5880d0b8a29446d0662f23483289f5614139f0",
+   "label": "for",
+   "clear": false,
+   "note": "Urges community solar plan for airport expansion"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "596af021a7068cb515ab02caa583b044",
+   "state_sha256": "be30dde48e22e50855dc6aaea939386c426e9958e4d59d8d1ab3735db97a1a13",
+   "label": "against",
+   "clear": true,
+   "note": "Supports continuing the battery storage moratorium"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "ee63b25809ca36d8936d4b154ff3cbb1",
+   "state_sha256": "a6c6a175ad2d35bfc63f1fc720bf0821d1c24ac200e5d1efd43f4895fdef3325",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Describes safety standards; urges further study"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "f649ac0dac13818a090312afbaa9b483",
+   "state_sha256": "17faa5b24cceaf7307831b32366f7116f4270cdd2af57690c4095f394111ca78",
+   "label": "against",
+   "clear": true,
+   "note": "Asks to ban large-scale battery storage systems"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "a8f112660923f5e4fe733ca60513b905",
+   "state_sha256": "0108354271b0d09913773c9b95dc1ba2d8171944492d2bb9c9182c4ae4e7023e",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Describes safety standards; urges further study"
+  },
+  {
+   "topic": "battery-storage",
+   "meeting_speaker_id": "5d99833cc61b10c9b77258e073078b80",
+   "state_sha256": "911400e2af900b0527993606198fa3da005e79a210543fff8615a05827aa0026",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Data center moratorium; battery storage passing mention"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "c6ae724e2e74a422b1d22f2f7cebe846",
+   "state_sha256": "ae59caca48207e30a4ba918740f50f7d9db0f23bed3c4009cc0127171fffc4cd",
+   "label": "for",
+   "clear": true,
+   "note": "Official backs infill density project, supports moving forward"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "44a5abb5b1b94a2e2afd7c7bde96a44b",
+   "state_sha256": "78a7b2502330e7d468e07df01bfd5d32a901225c161fcf595305db81fdfcd5a6",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Rezoning for a restaurant business use"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "ff08c24e2bf422cd456c715ed95c8b7b",
+   "state_sha256": "46cb991d7af6eeb02bf36423e9864273dcc8f70fb0bc097d89cde02dae6acd54",
+   "label": "against",
+   "clear": false,
+   "note": "Asks denial of special use permit, fears mixed density"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "fdca38d47b86e8c44f59900e331836a7",
+   "state_sha256": "1abcd3c873789f62e817146b886b00ed1c0f7463b00b921db2a3decbb0c18061",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Rent stabilization, not zoning"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "b421a8c71a639a492e72be9ff1259750",
+   "state_sha256": "75522cc1b0968770af77aaf7163bf31b086038622a8aeb47ddded5fb4d8784df",
+   "label": "for",
+   "clear": false,
+   "note": "Urges approval of project with affordable apartments"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "b4d9b0c8fc4bb611cca63e855042aa4b",
+   "state_sha256": "670f578b98e30dd1baf7763d583b4a5802a92b32cbc8f1bb39d7711d1a5155f7",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Supports self-storage business use"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "51296c971df62dbd2ee0a65c322f3a09",
+   "state_sha256": "3c88a997a8df598907280504bb3b5463c58ab6d3984d4dc6d03de9a83059e2dd",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Pandemic recreation rules"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "5134b365d5ae82b42ddd9894484a9f93",
+   "state_sha256": "3de910cf913431b2cf4b21173a9001cc5d9d96d6bf954f4e69fc7fe37f1d26dd",
+   "label": "off_topic",
+   "clear": false,
+   "note": "School budget support"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "ff5018bf72e0ab6584c791a171291ce9",
+   "state_sha256": "46bccbb5daa578e99c1e6c3cfcd98af4471acfde7f55ca626d60f2a1ad80db42",
+   "label": "against",
+   "clear": true,
+   "note": "Urges only minimum middle-housing rules, limits"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "08279e9182faa64eae9b4ea02108db30",
+   "state_sha256": "bfbf7406cce8846e2b2f279df473d16a0e09817872fbf689e80a8dbd58488618",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Procedural vote on office rezoning"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "81839f569e6a2238b92793ed8ca538dd",
+   "state_sha256": "a40ff0f5cde187ebd2e8c9c2ae4037e0e3a2263bed2385fec0725f6b076126b3",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Officials discuss single-family home incentives"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "06ebec2eb86bf995a7f7e9f1663cc218",
+   "state_sha256": "e2e93b48ba5b817feece5565dab3c543a9ae16254abe048c2b53ca1e39c73c66",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Rental assistance debate; passing multifamily mention"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "399eb081bdb5a677c86660e433e80103",
+   "state_sha256": "f2944bb0da663df07b6a61927872e027823b3dec1d75f0d4fc721fffd8204a28",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Sewer assessment dispute"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "328b91ea274ea0106372535b52af798a",
+   "state_sha256": "22cd83a3b32d57a58eb4ff45a773454f8c9199d62fa51cbe29fcd38821ae9d49",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Supports preservation rezoning, no added density"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "f67d7a67fde03af80d28575f62ec069b",
+   "state_sha256": "9de1fa4e9951acdf5e185d63c673afe7ea3c5a2814fe0d0630d64dfaa1107e54",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Sports field project; passing rezoning mention"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "0c6b5cd9271d27d251ff3c7c5f4ed611",
+   "state_sha256": "4b667d6d52f0c16210c6fca5e140256a38a687ffb3478846e2aeca46531f3b80",
+   "label": "no_position",
+   "clear": false,
+   "note": "Staff presents accessory dwelling permit"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "e21b70098f607033adafd29616973bd2",
+   "state_sha256": "48d6349a2436e32e8c06c29b3e950ebb520ac429b09fabbfea2f491a198c0878",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Opposes industrial rezoning"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "54cd0e29cbd5dbf8250d3e3a6c10f9d6",
+   "state_sha256": "749232334d398d142ce6708a8625308beede39d08fa575581fe345814404be37",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Commercial rezoning for RV park"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "63e579499d00620a61c55eddfa2c7ac1",
+   "state_sha256": "c7e2eaf39680f26654be67594dcdeb6b7a260e8d77161522259163f47894d90f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Short-term rental ban"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "b4be5ee777044cf2726ce6d276c8bc8d",
+   "state_sha256": "2ef44ff1554a24aa7284a95d91d1c9ca1b36b414db6485ca48c87f46c3303dca",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Parking enforcement; passing density mention"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "6b60dec65cadfad00f3af9fe85913be0",
+   "state_sha256": "faada1475ed11e10a6525d5bb6f92974b457c2c497410353fd6f51f54c0bb7a5",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Procedural agenda items"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "026579c406341043706d06e1d767ecc1",
+   "state_sha256": "ab72da82d43fd2398e126bb02ab0c3d97e303b544edef44587cbe1cd597673e5",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Downtown parking fees"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "6a1d7b77e04bd91ede6d7b5856436fc3",
+   "state_sha256": "93e5d7445b4bb7e46942c8d23fa743dc2ef0f479b6fb3bbdc641569a7849c37e",
+   "label": "against",
+   "clear": true,
+   "note": "Urges rejecting rezoning, wants lower density"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "67d2a13c038ef6fa0c7bbf74c91cb06d",
+   "state_sha256": "dfdbcfe38985ea789f562dfca701e6ce8137cab8522e3d7a1aa4973f010617e0",
+   "label": "against",
+   "clear": false,
+   "note": "Questions project, does not want more apartments"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "053b9db24a49c40bc3173724e99419ff",
+   "state_sha256": "56924620c3b75032e2f820d4edd6554bf70c119cb1fa55350c8ebf9f7e0d2b65",
+   "label": "off_topic",
+   "clear": false,
+   "note": "City budget reserves"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "538027d784b6783b666d6c3b2a699478",
+   "state_sha256": "abe26ba6e849f06cea3f1f21cc6c62c25d0c517058b2ac2761e139d2343bfac5",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Opposes waste transfer station"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "6ab084c6ccd6de438be79eeb01d5b4b9",
+   "state_sha256": "a51b1006aa7be198eeca437b9acb3f03ad97ece91013154347c3effe1f990322",
+   "label": "against",
+   "clear": true,
+   "note": "Opposes amendments expanding middle housing"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "6916524dedb164ca3cdcb9f802582e91",
+   "state_sha256": "af97eaa8e6ee9ee56143d5da04357f59f1825d5f50dae5ebc2f98bad8dd087a1",
+   "label": "against",
+   "clear": true,
+   "note": "Opposes high-density condos, wants units halved"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "33d6dbd3eba10d69527c3ffae9e3e3de",
+   "state_sha256": "9adc274032e1fe6b30ed18bdfd6c19de48522f70a3bbb043039289772fe90253",
+   "label": "against",
+   "clear": true,
+   "note": "Opposes zone change adding density"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "f351837d688a5e9600e104a69bf66128",
+   "state_sha256": "c65f44fd0753bebed8537a58686403138599268159b0d06731751cafa124c2d2",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Homeless rehousing funding"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "dbce91e13a0ac231338843967c60daa7",
+   "state_sha256": "c4572efc9c16d5679b81a339c42d9f4fd79fe9ff9bd12f96db16360578655fb5",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Agricultural zoning on annexation questions"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "fe20c640c435869d83b2b9ebb6fd533f",
+   "state_sha256": "1d550473acb59b972334621bee1c4a1ee87645e4e1572285294e916649c4bbe3",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Traffic and density concerns about development"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "f9e25a439ba43c7de17b500add145f5c",
+   "state_sha256": "16885afb98bc04287d19cc41d3dfacf311f3655fb55c1f1e18edccebf171a198",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Procedural office rezoning item"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "4b73a2bdeedc8ce5eb346974674a3912",
+   "state_sha256": "ab12031e49a49589ad57cbabc42aa6275cf2e93edb94e4afc15aa38b07aa8fa8",
+   "label": "against",
+   "clear": false,
+   "note": "Rent control rant, opposes dense apartment project"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "07b7b5fff489dc78118d524d04c36546",
+   "state_sha256": "550cd778a015104055cd80314e91ae97d3f0ddc246279c624e0b0e0bc26cd334",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Budget objection; passing density remark"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "fce9ce4e5d8a3faa63c4ec4f95afe187",
+   "state_sha256": "1fba26ceed6f98c8ff2bdccc9ed2031fb3ee82a0320a491fac742db611189e79",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Referendum campaign incident"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "8212407db92cd402167cfb4bad2c56ad",
+   "state_sha256": "8b7c89568c8b154b5e478388c7b137e4335daba3046fd8091473f7ccb8ec4a79",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Neighbors oppose apparent commercial change"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "6c37d4285b558cd77f62afca1d6eb88d",
+   "state_sha256": "fc5ea50d950b10cc0fbe1d9f917f08d92b768ba4e91e04ca36900b853a85500f",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Opposes giving up street for garage"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "95ad7cbf52a0fe1347ca953e6b1ed2bf",
+   "state_sha256": "5ca9036ed10f437fb4d3e91f0c00c38ba247e786fd24a84ad7fb06b8f256ed09",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Commercial rezoning for oil service"
+  },
+  {
+   "topic": "zoning-regulations",
+   "meeting_speaker_id": "3e1fbfefc87b85a466ae63cb37aa6b0e",
+   "state_sha256": "733a5ce752c4f0f3dcbbd5de831e385ab8a505a2b0a155a2e9ffdf48a19438a3",
+   "label": "against",
+   "clear": true,
+   "note": "Urges rejecting townhouse development"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "6ad7af2e58c664ad55b3e7c16a60b6d0",
+   "state_sha256": "d5161a0b0cc40060957bc40c8e7509c84b4d3803557ae537ab86895ec29d7836",
+   "label": "for",
+   "clear": true,
+   "note": "Supports funding protected bike lanes"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "9d8c31023262bf7594e24e0082cdb0a5",
+   "state_sha256": "d7206e164647c1b9e6b13f6adb90239bc98c418c89465048194a389a468d55ef",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Business site issue; passing bike lane mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "511f8726eb8c2859ae3b9917e1755b12",
+   "state_sha256": "352a3fbe17f6225355cb6f455c322f67c9667ca779380cbc5b1f19e5148aa8a8",
+   "label": "for",
+   "clear": true,
+   "note": "Urges protected bike lanes option"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "8dff00274dad15687f01e57a2174588f",
+   "state_sha256": "15fb51c7fd2818e427c669420d8400e4aea04309f30d34fd2a97a90df7f70595",
+   "label": "no_position",
+   "clear": false,
+   "note": "Council vote on funds, bike trail costs"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "7b0268a95976c0a584e5cad05e404cc7",
+   "state_sha256": "c738f47d3939dd2d5dc5e030397c30e3217716f239155556df8060693eac5618",
+   "label": "for",
+   "clear": true,
+   "note": "Opposes changes to existing bike path"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "4d66ec69a51977785b298002348642c9",
+   "state_sha256": "f3a7e2afb082a99fed78bcf1a47632f87fee8715736e35217604c5f134a10e88",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Event announcement near bike path"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "6a04aa9ff306f46b7b5b0830740727a4",
+   "state_sha256": "43a6e2e1cc0c6614fb172588e3d45e07f4102e2d4c010417bf88e30b0610bbc4",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Other ordinance; passing bike lane mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "4cfac4e1dd00599e3e9736e2a701827b",
+   "state_sha256": "e7136d0c7842eedaccf2887e981da95624fd7f081ccaa859935fa7727252ab64",
+   "label": "for",
+   "clear": true,
+   "note": "Supports funding bike infrastructure"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "88d62a6f2dc3dbb0c1e8ce86e81e453d",
+   "state_sha256": "611790f9d57a6d294594a3724334ca9cece146ccac48220f69e5f444f730cc69",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Development concern about recreation access"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "ddf9cce56252679e0544da61f767dc69",
+   "state_sha256": "9b7bf562d271e54e584bb781ce024cc4f7e8404927fe0493e2d28f492712d1df",
+   "label": "against",
+   "clear": true,
+   "note": "Urges vote against downtown bike path"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "a34e3fd601c3930375d1331f7898fb26",
+   "state_sha256": "78fba8a4de5068ac031babb4c48491d6922664ac6424c6a1aa5b0ef3dc5ea9f4",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Other ordinance; passing bike lane mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "039211a8fbe0a7eb02b11a357cbcc6d3",
+   "state_sha256": "cf2384ed0b0a662032a9871bcfcfe26e2c6dfbca411fd237d0d1888b09f1ccc3",
+   "label": "against",
+   "clear": true,
+   "note": "Does not want bike trail near home"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "2bd04f7358d4af662c1a0e05fcbc0e30",
+   "state_sha256": "4fe0654aab3c18128e79cbf40d71197b9c203a893aef50fcf89c26f2a7f4454b",
+   "label": "for",
+   "clear": true,
+   "note": "Opposes motion against bike lane, wants more"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "7f04336bf5eb9cd1f834375c9f5d1a0c",
+   "state_sha256": "cd8a8d805e6be0df38968dbccb92a5f9195deaeec4cc88af15cabccb6574c8d0",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Field lights issue; passing bike path mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "7055a3a1ae384f854c0d240ddd5d18d7",
+   "state_sha256": "588cf2c4b92a557072c94b8afe89b080b66f9ca2eaa7a960b30314e24215576b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Mountain bike trails, not streets"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "81ddc73d69101d4bd39dbbdf4583c24f",
+   "state_sha256": "29cf98ae933c4d1809f0400b4ecc54f80daa068c0fcddfd65fb88e8ac6000860",
+   "label": "for",
+   "clear": true,
+   "note": "Opposes removing existing bike path"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "dcad345a05168922a419271950dc2f12",
+   "state_sha256": "25e4f0fe3c594daf8c0a1500c000534670947bbdd41f4c6d75c1d3ac30314ada",
+   "label": "for",
+   "clear": false,
+   "note": "Asks safety infrastructure for cyclists"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "e3970e5e4329c388ad22eda1c0c6a5eb",
+   "state_sha256": "a95404a851bb04d9a6dce0f7f62cab7502eaf579eb220bb595da3a3cbaca0bf9",
+   "label": "no_position",
+   "clear": false,
+   "note": "Consultant mentions possible trail"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "874b7befa4c1a75ecbc9358339c4a82f",
+   "state_sha256": "5a12bb144115c8286b7b1ba9165d304cac5905e69aba259db508c60db8619ef0",
+   "label": "for",
+   "clear": true,
+   "note": "Says bike lanes critical, wants concrete ones"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "725323806ca859ed5cd03805103e93b7",
+   "state_sha256": "5b6797ad97b14889f3b8e182ea275e5f57dc8497a74994a023cd98675956f629",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Concern about fast bikes on trails"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "84a38f77dbf1543fcf039714663b1d67",
+   "state_sha256": "a1439a3a6e3a68caa5a31fcc99ce968e72771581923424629146ae0e3bf8147a",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Traffic concerns; passing bike lane mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "3560060514118f191ffff5cc0bba0c79",
+   "state_sha256": "98d11ac4a1a883c9c388ef430a1f923be7975b38059db64575557938ccc3608b",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Opposes development; passing bike lane mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "e429ffa8081d171ca778beb73e2a16ed",
+   "state_sha256": "c1fa1133b35655d30492aea1b614a9c3a0c0f1c73f0d25129623f4fc3b78b410",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Traffic cut-through; passing bike path mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "97ab98270bc36156a5b7e00a6f3adb92",
+   "state_sha256": "005980486d2ca08f3731293de95a3a9314ac378f0c9b7e7fd5190733ce99328e",
+   "label": "for",
+   "clear": false,
+   "note": "Wishes for bike lanes on a road"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "ab46942bb64875c97d89bd447408afe3",
+   "state_sha256": "4c4dd5ed925302dd1c11f2b876a5672df5110d83e22f9133240ea5710b31d811",
+   "label": "against",
+   "clear": false,
+   "note": "Criticizes bike lane spending, mixed"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "28673e14477619cdbe493920c9156752",
+   "state_sha256": "04510e26b1bb974f017bd44446419a8a81ab798275ba7fd36ca3c32f7ccce9c5",
+   "label": "for",
+   "clear": true,
+   "note": "Urges street changes allowing protected bike lanes"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "11f86895be9ea0e22606fede3d1935e6",
+   "state_sha256": "b16cbff4bc7a01b3c3891f79d1794b503c417d32d863d70e279b7af7649be877",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Concerns about bike trail impacts"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "d2a918de91ee66e436ba099c179bfd7a",
+   "state_sha256": "7b4a7bf9666fb4c23d9b6859dd14818847821a8ef4c250786c1836397a066209",
+   "label": "concerns_only",
+   "clear": false,
+   "note": "Questions bike lane bonus unit criteria"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "27894e74da0818b14728574d4a48816e",
+   "state_sha256": "f4fdd63e1b337a5bce4249332a5d22556fa067dd0abe5cab3e2766768522a7b4",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Business harm from street construction"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "2a53605cf50957fae800314407b997d5",
+   "state_sha256": "f90dc74f4e0577a0ff12f6ca38845f59bc6ed00080f066482f1d427b65c84333",
+   "label": "no_position",
+   "clear": false,
+   "note": "Official curious about bike lanes near projects"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "9c63c26b6f0901fc9457c9befb531d94",
+   "state_sha256": "f306f0446fae42279e79d3ec81574d6dae803507c729907588f76d39bc83f9c8",
+   "label": "for",
+   "clear": true,
+   "note": "Urges protected bike lane on corridor"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "6cf9eb14418fc5708894bb3545a92c7b",
+   "state_sha256": "0bb9da054a9eee23c1933ea150f7c0f9b51fd6e15bddf8b99ad62eade407b51d",
+   "label": "no_position",
+   "clear": false,
+   "note": "Official describes required cycle track"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "02a0a525ac384e1b399d0c8205101c31",
+   "state_sha256": "e0b56eb837f761d74ea962ee3af96718eb5020e793e2ff99b7f37fc582f91c45",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Passing bike lane mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "d1c6825c88e8d7b31ac0e43a0364a76a",
+   "state_sha256": "b770dbedd9a78ba0ee3269c201df8547f8e9d667dc8c88b5a726ae5f5005d49a",
+   "label": "for",
+   "clear": false,
+   "note": "Councilor says keep bike lanes, compromise parking"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "62c02cfb544e8e3f7bf7b675df594d89",
+   "state_sha256": "05a67f2a6edd99afc468653a27334fa64be4e960beb8e607355bf7cbe46e9425",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Spending process; passing bike path mention"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "cc0793b5807f7db7126c8333652a99bd",
+   "state_sha256": "e769a635d07be55498fdd0ac82e4eb97d8ebf0d379e52f13222246d9771d9c50",
+   "label": "off_topic",
+   "clear": false,
+   "note": "Rezoning opposition; passing streets policy"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "af42f8092f69793cb6c6512cccbda66e",
+   "state_sha256": "e9020858f05bec01a855052234776ddb07729ad6add6963156728a04a7938259",
+   "label": "for",
+   "clear": false,
+   "note": "Backs safety funding, bike lane concern"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "850680509a07cbe04343c29a3ebce9ba",
+   "state_sha256": "7faaeeff05e759229161bf0083e2e83ff7bf5e0ddba419200bd5a236f104e134",
+   "label": "for",
+   "clear": false,
+   "note": "Urges more bicycle infrastructure"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "d7d0da738530c83b214fd255512e11e9",
+   "state_sha256": "fc19e7ac3cde659cec08c99fb1caebe308977d76483298ae7b23609f97b88e50",
+   "label": "for",
+   "clear": false,
+   "note": "Thanks for bike lanes, asks more"
+  },
+  {
+   "topic": "bike-lanes",
+   "meeting_speaker_id": "8d9acc27e832ba00111cf06b1e0e4247",
+   "state_sha256": "7029385e22c4eec6a362ee17c7d16b2f7707a3b107b4a1b0a285e50216287075",
+   "label": "for",
+   "clear": false,
+   "note": "Official supports trail paving letter"
+  }
+ ]
+}
