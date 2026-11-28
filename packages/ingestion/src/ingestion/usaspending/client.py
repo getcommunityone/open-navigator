@@ -92,17 +92,22 @@ class UsaSpendingClient:
             page += 1
 
     def iter_awards(
-        self, start: date, end: date, recipient_type: str = "local_government", aln: str | None = None
+        self,
+        start: date,
+        end: date,
+        recipient_type: str = "local_government",
+        aln: str | None = None,
+        max_rows: int = MAX_ROWS_PER_WINDOW,
     ) -> Iterator[dict[str, Any]]:
-        """Yield awards in [start, end], splitting windows that are too large to page."""
+        """Yield awards in [start, end], splitting windows larger than ``max_rows`` to page."""
         flt = self.filters(start, end, recipient_type, aln)
         n = self.count(flt)
         if n == 0:
             return
-        if n > MAX_ROWS_PER_WINDOW and (end - start).days >= 1:
+        if n > max_rows and (end - start).days >= 1:
             mid = start + (end - start) // 2
-            yield from self.iter_awards(start, mid, recipient_type, aln)
-            yield from self.iter_awards(mid + timedelta(days=1), end, recipient_type, aln)
+            yield from self.iter_awards(start, mid, recipient_type, aln, max_rows)
+            yield from self.iter_awards(mid + timedelta(days=1), end, recipient_type, aln, max_rows)
             return
         logger.info("{} to {}: {:,} awards", start, end, n)
         yield from self.iter_window(flt)
