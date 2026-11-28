@@ -6,6 +6,13 @@ const PHONE = '(max-width: 767px)'
 const MORE_ROOM = 64
 /** The smallest a first block is zoomed to before it is left to the "More" view. */
 const MIN_ZOOM = 0.55
+/** A zoom chosen within this long of the last one may only go down (see `lastZoom`). */
+const ZOOM_BURST_MS = 1500
+/** A re-measure within this of the zoom already shown keeps it. */
+const ZOOM_KEEP = 0.04
+/** More than this many observer-driven measures inside the window is a layout loop: the observers stop. */
+const LOOP_MAX_RUNS = 6
+const LOOP_WINDOW_MS = 2000
 
 /**
  * Fit one story screen above the fixed bottom bar on a phone (#1290, owner screenshot 27 Nov 2026: "Not fitting on phone by
@@ -22,6 +29,11 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
     if (!section || !right || typeof window === 'undefined' || !window.matchMedia) return
     const mq = window.matchMedia(PHONE)
     let frame = 0
+    // A zoom changes the width its chart is laid out at, which changes the chart's height, which asks for another zoom (#1415,
+    // Sites "spasming" on 360x740 and 375x667: 0.61 / 0.55 / 0.61 ... for ever). A zoom chosen in the last moment only ever
+    // goes down, so a burst of re-measures ends at the first zoom that fits; and a burst that goes on is stopped (see `schedule`).
+    let lastZoom = 1
+    let lastZoomAt = 0
 
     const reset = () => {
       section.querySelectorAll<HTMLElement | SVGElement>('.fit-hidden').forEach((e) => e.classList.remove('fit-hidden'))
@@ -87,7 +99,13 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
         const over = primary.getBoundingClientRect().bottom - top - room
         if (over > 0 && room > 0) {
           const h = primary.getBoundingClientRect().height
-          const z = Math.max(MIN_ZOOM, (h - over) / h)
+          let z = Math.max(MIN_ZOOM, (h - over) / h)
+          const now = performance.now()
+          if (now - lastZoomAt < ZOOM_BURST_MS) z = Math.min(z, lastZoom)
+          // A late re-measure that lands within a few percent of the zoom already shown keeps it: no visible nudge.
+          else if (lastZoom < 1 && Math.abs(z - lastZoom) < ZOOM_KEEP) z = lastZoom
+          lastZoom = z
+          lastZoomAt = now
           // A chart's <svg> is as wide as its column, so zoom leaves its height alone: cap its height instead (its viewBox
           // keeps the drawing whole). Anything else is zoomed.
           if (primary instanceof SVGSVGElement) primary.style.setProperty('max-height', `${Math.floor(h * z)}px`)
@@ -119,26 +137,55 @@ export function useScreenFit(sectionRef: RefObject<HTMLElement | null>, rightRef
       setHasMore(hidden)
     }
     // A re-measure after our own change lands on the same result and the same size, so the observers settle.
+    let runs: number[] = []
+    let frozen = false
     const schedule = () => {
-      if (frame) return
+      if (frame || frozen) return
       frame = requestAnimationFrame(measure)
     }
+    // What the size and content observers ask for: a screen that keeps asking (a layout that never settles) is left as it is.
+    const observed = () => {
+      const now = performance.now()
+      runs = runs.filter((t) => now - t < LOOP_WINDOW_MS)
+      runs.push(now)
+      if (runs.length > LOOP_MAX_RUNS) {
+        frozen = true
+        ro?.disconnect()
+        mo?.disconnect()
+        return
+      }
+      schedule()
+    }
+    // A real change of the window starts over.
+    const rescheduleAll = () => {
+      frozen = false
+      runs = []
+      if (ro && !frozen) {
+        ro.disconnect()
+        ro.observe(right)
+      }
+      if (mo) {
+        mo.disconnect()
+        mo.observe(right, { childList: true, subtree: true })
+      }
+      schedule()
+    }
     measure()
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(observed) : null
     ro?.observe(right)
-    const mo = typeof MutationObserver !== 'undefined' ? new MutationObserver(schedule) : null
+    const mo = typeof MutationObserver !== 'undefined' ? new MutationObserver(observed) : null
     mo?.observe(right, { childList: true, subtree: true })
-    window.addEventListener('resize', schedule)
-    mq.addEventListener?.('change', schedule)
+    window.addEventListener('resize', rescheduleAll)
+    mq.addEventListener?.('change', rescheduleAll)
     // Late layout (fonts, the screen sliding in): measure again once things settle.
-    const lates = [600, 1500, 3000, 6000, 10_000].map((ms) =>
+    const lates = [600, 1500, 3000].map((ms) =>
       window.setTimeout(schedule, ms),
     )
     return () => {
       ro?.disconnect()
       mo?.disconnect()
-      window.removeEventListener('resize', schedule)
-      mq.removeEventListener?.('change', schedule)
+      window.removeEventListener('resize', rescheduleAll)
+      mq.removeEventListener?.('change', rescheduleAll)
       lates.forEach((t) => window.clearTimeout(t))
       if (frame) cancelAnimationFrame(frame)
       reset()
