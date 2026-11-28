@@ -1,3 +1,5 @@
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
+import { TONE_COLOR } from '../chart/toneColors'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import type { DotsSpec } from '../../utils/stanceGame'
@@ -130,6 +132,22 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
   const capped = spec.grandTotal != null ? spec.drawn < spec.grandTotal : /Showing/.test(spec.note ?? '')
   const hasVideo = records.some((r) => r.d.video)
 
+  // Title and key (#1409): the largest group as the takeaway when it is clear, every group's colour in the key.
+  const top = [...groups].sort((a, b) => b.count - a.count)[0]
+  const unitWord = `${spec.unit}${records.length === 1 ? '' : 's'}`
+  const frameTitle =
+    active !== 'all' && top && records.length >= 5 && top.pct >= 40 && groups.length > 1
+      ? `${spec.title}: ${top.label} is the largest group, ${Math.round(top.pct)}% of ${fmt(records.length)} ${unitWord}`
+      : `${spec.title}: ${fmt(records.length)} ${unitWord}, ${scopeLabel}`
+  const legend: LegendItem[] =
+    active === 'all'
+      ? [{ key: 'all', label: `One square per ${spec.unit}`, color: 'var(--ink-3)' }]
+      : groups.map((g, gi) => ({
+          key: g.key,
+          label: `${g.label} (${fmt(g.count)})`,
+          color: g.tone ? TONE_COLOR[g.tone] : g.key === 'none' ? 'var(--paper-raised)' : colour(gi, g.tone),
+        }))
+
   return (
     <div className="sc-block">
       {options.length > 1 && (
@@ -143,6 +161,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
           </div>
         </div>
       )}
+      <ChartFrame title={frameTitle} legend={legend} caption={`One square per ${spec.unit}, grouped ${groupingName(active).toLowerCase()}.`}>
       <div ref={ref} data-keys-own onKeyDown={onKey}>
         <svg
           ref={svgRefs}
@@ -217,7 +236,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
                 style={{
                   transform: `translate(${s.x}px, ${s.y}px)`,
                   transitionDelay: `${fly}ms, ${fly}ms, ${wave}ms`,
-                  fill: dimmed ? 'var(--neutral-data)' : g?.key === 'none' && active !== 'all' ? undefined : colour(gi, g?.tone),
+                  fill: dimmed ? 'var(--neutral-data)' : g?.key === 'none' && active !== 'all' ? undefined : g?.tone ? TONE_COLOR[g.tone] : colour(gi, g?.tone),
                   opacity: dimmed ? 0.3 : undefined,
                 }}
                 tabIndex={i === rove ? 0 : -1}
@@ -237,6 +256,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
           })}
         </svg>
       </div>
+      </ChartFrame>
       {active !== 'all' && (
       <p className="sc-note">
         {`Percentages are of the ${fmt(records.length)} ${capped ? 'shown' : 'on record in this scope'}. `}
