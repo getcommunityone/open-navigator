@@ -5,7 +5,7 @@ title: "feat(api): per-year speaker heat and top concern per topic and place"
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: a728f1fe033ea967987975c914e79705f973c2ff
+head_sha: f11e919cacea5fde4e2a653bafedd78290eb85b3
 verdict: approve
 ---
 
@@ -28,6 +28,7 @@ Automated review (#648) for PR #1481 on `feat/1418-heat-concern-by-topic`. Heuri
 - `dbt_project/models/marts/topic_heat_year.sql`
 - `dbt_project/models/marts/topic_top_concern.sql`
 - `packages/hosting/src/hosting/neon/sync_public_to_neon.py`
+- `pull_requests/pr-1481-review.md`
 - `tests/test_api_topic_heat_concern.py`
 - `web_app/src/api/topics.ts`
 - `web_app/src/components/chart/insightFacts.test.ts`
@@ -35,13 +36,18 @@ Automated review (#648) for PR #1481 on `feat/1418-heat-concern-by-topic`. Heuri
 - `web_app/src/components/chart/useInsightHeatConcern.ts`
 - `web_app/src/components/home/HomeDataStories.tsx`
 - `web_app/src/components/home/HomeTopicStoryCard.tsx`
+- `web_app/src/components/stance/HeatYearBoxes.test.tsx`
+- `web_app/src/components/stance/HeatYearBoxes.tsx`
 - `web_app/src/components/stance/TimelineChart.tsx`
 - `web_app/src/components/stance/TopicCountyMap.tsx`
+- `web_app/src/pages/TopicStory.tsx`
+- `web_app/src/utils/chartInsight.test.ts`
+- `web_app/src/utils/chartInsight.ts`
 - `web_docs/docs/development/chart-title-and-legend-rule.md`
 
 ## CI Status
 
-See the PR checks on `a728f1fe033e`.
+See the PR checks on `f11e919cacea`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
