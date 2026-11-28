@@ -197,6 +197,8 @@ CIVIC_SERVING = frozenset(
         # federal assistance dollars per jurisdiction x FY x ALN (#1393), ~4 MB;
         # served via /api/benchmark. federal_award (111 MB) stays gold-only.
         "jurisdiction_federal_funding",
+        # opioid settlement spending pilot, Michigan (#1396), 221 rows (~0.1 MB)
+        "opioid_settlement_spending",
         # Census ASPEP payroll, latest year, 12 core functions (#1395), ~3.7 MB; the full
         # history (jurisdiction_public_payroll, ~41 MB) stays gold-only.
         "jurisdiction_public_payroll_latest",

@@ -137,3 +137,10 @@ def test_payroll_metrics_read_the_served_slice_and_are_aggregate_only():
         spec = benchmark.METRICS[key]
         assert "jurisdiction_public_payroll_latest" in spec.values_sql
         assert "Census" in spec.source
+
+
+def test_opioid_metric_is_null_without_a_source_not_zero():
+    spec = benchmark.METRICS["opioid_settlement_spending"]
+    assert "FROM opioid_settlement_spending" in spec.values_sql
+    assert "HAVING sum(expenditure_dollars) IS NOT NULL" in spec.values_sql  # unreported stays null
+    assert "Michigan" in spec.source

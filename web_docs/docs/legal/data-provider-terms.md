@@ -192,6 +192,23 @@ https://www.census.gov/programs-surveys/apes.html
 
 ---
 
+### 5e. Michigan DHHS Opioid Settlement Spending
+
+**Publisher:** Michigan Department of Health and Human Services
+**Data Type:** State opioid settlement spending lines (pilot)
+**License:** State public record; no licence text on the page
+**Source:** [Michigan Opioid Settlement spending](https://www.michigan.gov/opioids/opioidsettlements/settlement-spending/prior-years-spending)
+**Coverage:** Michigan, FY22 to FY24 (as of 30 Jun 2024)
+**Last updated:** 27 Nov 2026
+
+**Attribution (Recommended):**
+```
+Data source: Michigan Department of Health and Human Services, Opioid Settlement spending
+https://www.michigan.gov/opioids/
+```
+
+---
+
 ## Google Services
 
 ### 8. Google BigQuery IRS 990 Public Dataset
