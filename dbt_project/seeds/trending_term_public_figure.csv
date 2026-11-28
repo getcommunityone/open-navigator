@@ -1,0 +1,25 @@
+term,label,note
+trump,Donald Trump,"U.S. President (2017-2021, 2025-)"
+donald trump,Donald Trump,U.S. President
+president trump,Donald Trump,U.S. President
+biden,Joe Biden,U.S. President (2021-2025)
+joe biden,Joe Biden,U.S. President
+president biden,Joe Biden,U.S. President
+obama,Barack Obama,U.S. President (2009-2017)
+kamala harris,Kamala Harris,U.S. Vice President (2021-2025)
+jd vance,JD Vance,U.S. Vice President (2025-)
+vance,JD Vance,U.S. Vice President
+elon musk,Elon Musk,Business leader and former federal official (DOGE); also in comment_entity_terms
+musk,Elon Musk,Business leader; also in comment_entity_terms
+elon,Elon Musk,Business leader; known by first name alone; also in comment_entity_terms
+zuckerberg,Mark Zuckerberg,Business leader; also in comment_entity_terms
+bezos,Jeff Bezos,Business leader; also in comment_entity_terms
+altman,Sam Altman,Business leader; also in comment_entity_terms
+bill gates,Bill Gates,Business leader; also in comment_entity_terms
+rfk,Robert F. Kennedy Jr.,U.S. Secretary of Health and Human Services
+kennedy,Robert F. Kennedy Jr.,U.S. Secretary of Health and Human Services (also a common surname of officials)
+newsom,Gavin Newsom,Governor of California
+desantis,Ron DeSantis,Governor of Florida
+abbott,Greg Abbott,Governor of Texas
+martin luther king,Martin Luther King Jr.,Historical public figure (holiday and street names)
+martin luther,Martin Luther King Jr.,Historical public figure (holiday and street names)

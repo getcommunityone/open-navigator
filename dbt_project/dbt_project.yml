@@ -144,6 +144,19 @@ seeds:
         concern_label: text
         in_reference_list: boolean
         pattern: text
+    trending_term_excluded:
+      # #1399: filler / procedural / generic words (match = word: first or last word) and boilerplate phrases
+      # (match = phrase: contained) left out of trending terms.
+      +column_types: {term: text, match: text, reason: text}
+    trending_term_public_figure:
+      # #1399: reviewed allow-list of widely known public figures whose names may trend.
+      +column_types: {term: text, label: text, note: text}
+    trending_term_sensitive:
+      # #1399: sensitive words (health, religion, immigration ...): counts only, never tied to a speaker.
+      +column_types: {term: text, category: text}
+    trending_term_common_word:
+      # #1399: common civic words that are also names ("bill", "park"): not treated as a person's name.
+      +column_types: {term: text, note: text}
     comment_entity_terms:
       # #1233: companies, people and AI terms named in a comment.
       +column_types:
@@ -242,6 +255,29 @@ snapshots:
 
 # Variables
 vars:
+  # Trending terms and hot words (#1399; web_docs/docs/development/trending-terms-and-hot-words.md)
+  trending_year_a: 2025
+  trending_year_b: 2026
+  trending_sample_per_year: 750
+  trending_sample_min_meetings: 6
+  trending_sample_min_jurisdictions: 3
+  trending_max_doc_share: 0.35
+  trending_name_ratio: 0.25
+  trending_min_meetings_b: 15
+  trending_min_jurisdictions: 5
+  trending_state_min_meetings_b: 5
+  trending_state_min_jurisdictions: 3
+  trending_served_per_sort: 60
+  trending_max_jurisdiction_share: 0.4
+  trending_fragment_share: 0.85
+  trending_place_min_population: 20000
+  trending_hot_min_heat: 4
+  trending_hot_prior: 500
+  trending_hot_min_speakers: 5
+  trending_hot_min_meetings: 3
+  trending_evidence_national: 5
+  trending_evidence_state: 1
+  trending_evidence_rank: 20
   # Speaker attribution (#1386): bump when seeds/speaker_attribution_rules.csv changes
   speaker_attribution_version: 'speaker_attribution/1'
   # Comment heat (#1386). The rules baseline is served only when it passes calibration against the AI-rated

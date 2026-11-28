@@ -1,0 +1,39 @@
+version: 2
+
+# #1399: the private (gold/intermediate) layers behind trending terms and hot words. Never published.
+
+models:
+  - name: int_trending_term__meeting
+    description: "One row per recorded meeting dated in year_a or year_b (recorded_meeting_year's definition), with the counted flag (not school board, transcript text)."
+    columns:
+      - name: video_id
+        data_tests: [unique, not_null]
+  - name: int_trending_term__name_lexicon
+    description: "One row per word used as a first or last name in our name data (self-introductions, officials, legislators). Privacy filter input."
+    columns:
+      - name: word
+        data_tests: [unique, not_null]
+  - name: int_trending_term__official_name
+    description: "One row per public official's first+last name (person_government, legislator)."
+    columns:
+      - name: name_key
+        data_tests: [unique, not_null]
+  - name: int_trending_term__sample_term
+    description: "One row per (surface term, n_words) said in public-comment turns of the fixed meeting sample, with sampled meetings and governments."
+  - name: int_trending_term__candidate
+    description: "One row per candidate term key from sampled public-comment turns, with drop_reason (null = kept) and the sensitive flag."
+    columns:
+      - name: term_key
+        data_tests: [unique, not_null]
+      - name: drop_reason
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['excluded_word', 'excluded_phrase', 'thin_sample', 'too_common', 'person_name', 'place_name']
+  - name: int_trending_term__jurisdiction_year
+    description: "One row per (term_key, state_code, jurisdiction_key, meeting_year): counted meetings whose transcript says a kept term."
+  - name: int_trending_term__hot
+    description: "One row per term passing the national floor: heated vs other public-comment speakers who said it, and the log-odds z-score."
+    columns:
+      - name: term_key
+        data_tests: [unique, not_null]

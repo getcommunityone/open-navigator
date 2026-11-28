@@ -630,3 +630,13 @@ outputPorts:
   contractId: open-navigator-public-body_recent_speaker
   type: table
   description: 'One row per governing body x member heard in that body''s meetings in the last 18 months: a roster member called on by the chair, answering a roll call or naming themself (bronze_meeting_official_mention), or an official self-introduction matched to our officials (meeting_speaker_intro).'
+- name: trending_term
+  version: 1.0.0
+  contractId: open-navigator-public-trending_term
+  type: table
+  description: 'One row per (scope_code, term_key), national (''US'') and per state: a candidate term''s meetings and share of recorded meetings in the last full year and this year to date, rise, governments, national hot score and ranks.'
+- name: trending_term_evidence
+  version: 1.0.0
+  contractId: open-navigator-public-trending_term_evidence
+  type: table
+  description: 'One row per (term_key, video_id) for served terms: a verbatim, highlighted excerpt of a recent meeting that says the term, with the public commenter''s "First L." when the excerpt is their own segment (never for a sensitive term).'

@@ -287,6 +287,9 @@ CIVIC_SERVING = frozenset(
         # Recorded meetings per place and year (#1140, #1194): the story timelines and dumbbell need it to tell a real
         # zero year from a year with no recordings; small (~1 MB, one row per jurisdiction and year)
         "recorded_meeting_year",
+        # Trending terms in meeting speech (#1399): only the served top rows per scope (~2 MB) and their evidence
+        "trending_term",
+        "trending_term_evidence",
         # Meetings per topic, place and year (#1361): backs /api/topics/yoy for all 95 curated + CivicSearch topics (~10 MB)
         "topic_meeting_year",
         # Which videos are real public meetings (#1240, #1258): map cards only quote these; ~1 MB, one row per video

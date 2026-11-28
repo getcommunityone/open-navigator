@@ -209,6 +209,8 @@
         "_s.video_id in (select video_id from gold.topic_transcript_link where state_code in {{states}} "
         "union select video_id from gold.data_center_meeting_mention where state_code in {{states}})",
     'recorded_meeting_year':               "_s.state_code in {{states}}",
+    'trending_term':                       "(_s.state_code in {{states}} or _s.state_code is null)",
+    'trending_term_evidence':              "_s.state_code in {{states}}",
     'topic_meeting_year':                  "_s.state_code in {{states}}",
     'data_center_public_comment':          "_s.state_code in {{states}}",
     'data_center_decision':                "_s.state_code in {{states}}",
@@ -306,7 +308,8 @@
     'segmented_meeting', 'meeting_speaker_position', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
     'meeting_passage_speaker', 'meeting_speaker_topic_side',
     'topic_place_ranking',
-    'governing_body', 'meeting_body', 'body_membership', 'body_recent_speaker'
+    'governing_body', 'meeting_body', 'body_membership', 'body_recent_speaker',
+    'trending_term', 'trending_term_evidence'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
@@ -335,7 +338,19 @@
     * meeting_speaker_turn: nothing reads it, so it is not published (see `served`).
     * meeting_speaker_topic_side (#1391): only the counted columns the caption facts read (topic, place, side, heat);
       not_sure readings are never counted, so they stay in gold. -#}
+{#- trending_term (#1399): gold keeps every scope x term; public serves only is_served (the top
+    trending_served_per_sort of each sort per scope) and only the columns api/routes/trending_terms.py reads; the
+    evidence keeps its key but drops its title and video_url (every row is a YouTube recording; the API builds the link from video_id).
+    Together they stay under 3 MB. -#}
 {%- set projections = {
+    'trending_term':
+        'select trending_term_id, scope_code, state_code, term_key, term, year_a, year_b, meetings_a, meetings_b, '
+        'recorded_a, recorded_b, share_a, share_b, rise, n_meetings, n_jurisdictions, latest_meeting_date, '
+        'hot_score, is_sensitive, rank_rising, rank_hot, rank_volume, is_served '
+        'from gold.trending_term where is_served',
+    'trending_term_evidence':
+        'select trending_term_evidence_id, term_key, video_id, meeting_date, state_code, jurisdiction_name, excerpt, '
+        'excerpt_source, start_seconds, speaker_display_name from gold.trending_term_evidence',
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
         'district, office, null::text as email, null::text as phone, photo_url, '

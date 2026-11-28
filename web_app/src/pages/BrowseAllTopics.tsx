@@ -22,6 +22,8 @@ import {
   type YoyTopicFilter,
 } from '../utils/topicsYoy'
 import { useDocumentTitle } from '../utils/useDocumentTitle'
+import TrendingTermsRow from '../components/trends/TrendingTermsRow'
+import { parseTrendSort, type TrendChipSort } from '../utils/trendingTerms'
 import { HOUSE_STYLE } from '../utils/houseTheme'
 import '../styles/folio.css'
 import '../components/stance/storyCharts.css'
@@ -49,6 +51,7 @@ export default function BrowseAllTopics() {
   const cityParam = stateParam ? (searchParams.get('city') || '').trim() || undefined : undefined
   const filter = parseTopicFilter(searchParams.get('show'))
   const sort = parseYoySort(searchParams.get('sort'))
+  const trendSort = parseTrendSort(searchParams.get('trend'))
   const [metric, setMetric] = useState<YoyMetric>('share')
   const [tableOpen, setTableOpen] = useState(false)
 
@@ -73,7 +76,7 @@ export default function BrowseAllTopics() {
   const here = scopeQuery(stateCode, city)
   const inPlace = city ? `in ${city}` : stateName ? `in ${stateName}` : 'nationally'
 
-  const updateParam = (key: 'show' | 'sort', value: string, def: string) => {
+  const updateParam = (key: 'show' | 'sort' | 'trend', value: string, def: string) => {
     const next = new URLSearchParams(searchParams)
     if (value === def) next.delete(key)
     else next.set(key, value)
@@ -84,6 +87,7 @@ export default function BrowseAllTopics() {
     const p = new URLSearchParams(scopeQuery(targetState, targetCity))
     if (filter !== 'all') p.set('show', filter)
     if (sort !== 'change') p.set('sort', sort)
+    if (trendSort !== 'rising') p.set('trend', trendSort)
     const s = p.toString()
     return s ? `?${s}` : ''
   }
@@ -154,6 +158,14 @@ export default function BrowseAllTopics() {
           )}
           {stateCode && <Link to={`/browse-topics/all${keepViewQuery(null, null)}`}>National</Link>}
         </div>
+
+        {/* Open-ended terms rising in meeting speech, or heated in public comment (#1399). Counted per state. */}
+        <TrendingTermsRow
+          stateCode={stateCode ?? undefined}
+          city={city ?? undefined}
+          sort={trendSort}
+          onSortChange={(v: TrendChipSort) => updateParam('trend', v, 'rising')}
+        />
 
         <div className="sc-block" style={{ marginTop: 16 }}>
           <div className="sc-controls" style={{ flexWrap: 'wrap' }}>
