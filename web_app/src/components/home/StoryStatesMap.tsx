@@ -32,6 +32,7 @@ import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type Sta
 import { pickBoxQuote } from '../../utils/mapQuote'
 import { layoutHoverBadge } from '../../utils/mapHoverBadge'
 import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 
 export interface StateMarker {
   state_code: string
@@ -456,6 +457,31 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     navigate(href(b.code), { state: DRILL_FROM_NATIONAL })
   }
 
+  // Title and key (#1409): what the map says from the real counts, and every colour it draws, from the palette constants.
+  const stateTotal = byState.reduce((a, r) => a + Math.max(0, r.meetings), 0)
+  const topStates = [...byState].sort((a, b) => b.meetings - a.meetings).filter((r) => r.meetings > 0).slice(0, 2).map((r) => r.state ?? stateName(r.state_code))
+  const title = grid.zoomed && zoom
+    ? `Meetings where ${subject} came up in ${stateName(zoom.stateCode)}: ${fmt(meetings.get(zoom.stateCode) ?? 0)}`
+    : stateTotal > 0
+      ? `Meetings where ${subject} came up: ${fmt(stateTotal)} in ${plural(withMeetings, 'state', 'states')}${topStates.length > 1 ? `, most in ${topStates.join(' and ')}` : ''}`
+      : `Meetings where ${subject} came up, by state`
+  const legend: LegendItem[] = [
+    ...(hasStance && split.length > 0
+      ? LEGEND_STANCES.map((k) => ({ key: k, color: BOX_COLORS[k], label: words ? (k === 'neutral' ? words.split : words[k]) : (byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k] }))
+      : []),
+    ...(hasLean && leanStates.length > 0 ? [{ key: 'lean', color: PUBLIC_AGAINST_COLOR, label: PUBLIC_AGAINST_LABEL }] : []),
+    hasStance
+      ? {
+          key: 'meetings',
+          color: MEETING_GREYS[2],
+          shape: 'ramp' as const,
+          ramp: MEETING_GREYS,
+          label: words ? `${missingLegend(words)} (darker = more meetings)` : byMeetings ? 'Meetings, not read yet (darker = more meetings)' : 'Meetings, no stance on record (darker = more meetings)',
+        }
+      : { key: 'meetings', color: MEETINGS_ONLY, label: `Meetings where ${subject} came up` },
+    { key: 'empty', color: HOUSE_THEME.neutral, label: 'No meetings on record' },
+  ]
+
   return (
     // The map, its lines and its card: leaving all of them (not moving between them) hides the card and stops its recording.
     <div
@@ -468,6 +494,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       }}
       {...keyNav.stageProps}
     >
+      <ChartFrame title={title} legend={legend}>
       <div style={{ position: 'relative' }}>
       {keyNav.sr}
       <svg
@@ -599,6 +626,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       )}
 
       </div>
+      </ChartFrame>
       {cardSlot && cardShown ? createPortal(cardShown, cardSlot) : null}
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
@@ -627,36 +655,6 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         )}
       </p>
 
-      <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-tight text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>
-        {hasStance &&
-          split.length > 0 &&
-          LEGEND_STANCES.map((k) => (
-            <li key={k} className="inline-flex items-center gap-1">
-              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: BOX_COLORS[k], display: 'inline-block' }} />
-              {words ? (k === 'neutral' ? words.split : words[k]) : (byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k]}
-            </li>
-          ))}
-        {hasLean && leanStates.length > 0 && (
-          <li className="inline-flex items-center gap-1">
-            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: PUBLIC_AGAINST_COLOR, display: 'inline-block' }} />
-            {PUBLIC_AGAINST_LABEL}
-          </li>
-        )}
-        <li className="inline-flex items-center gap-1">
-          {hasStance ? (
-            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: MEETING_GREYS[2], display: 'inline-block' }} />
-          ) : (
-            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: MEETINGS_ONLY, display: 'inline-block' }} />
-          )}
-          {hasStance
-            ? words
-              ? `${missingLegend(words)} (darker = more meetings)`
-              : byMeetings
-              ? 'Meetings, not read yet (darker = more meetings)'
-              : 'Meetings, no stance on record (darker = more meetings)'
-            : `Meetings where ${subject} came up`}
-        </li>
-      </ul>
       {!cardSlot && cardShown}
       {/* Compact under the map (#1187) so the first screen keeps room for Browse topics: the method note sits with the
           data table. No "(AI reading)" in visible labels (owner, #1277): the method note below names the classifier. */}
