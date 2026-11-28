@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useBoxFlight } from './BoxFlightProvider'
 
 interface Props {
   /** Where Close goes: `storyCloseHref(storyId, scopeQuery)`, the home page with the scope kept. */
@@ -16,6 +17,14 @@ interface Props {
  */
 export default function StoryClose({ to, escape = true }: Props) {
   const navigate = useNavigate()
+  const boxFlight = useBoxFlight()
+  const closeStory = useCallback(() => {
+    const src = document.querySelector<HTMLElement>('.stance-story [data-live], .stance-story')
+    if (src) {
+      boxFlight.launch({ source: src, targetSelector: '.home-story-map' })
+    }
+    navigate(to)
+  }, [boxFlight, navigate, to])
   useEffect(() => {
     if (!escape) return
     const onKey = (e: KeyboardEvent) => {
@@ -28,14 +37,14 @@ export default function StoryClose({ to, escape = true }: Props) {
       if (ae?.closest?.('[data-map-keys][data-map-active]')) return
       // A KPI list that is open and focused (#1288): its Escape closes the list, not the story.
       if (ae?.closest?.('[data-keeps-escape]')) return
-      navigate(to)
+      closeStory()
     }
     // Capture phase: this runs before a dialog's own Escape closes it, so an open dialog is still seen and keeps its Escape.
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [to, escape, navigate])
+  }, [escape, closeStory])
   return (
-    <button type="button" className="story-close" aria-label="Close story" title="Close · back to home" data-testid="story-close" onClick={() => navigate(to)}>
+    <button type="button" className="story-close" aria-label="Close story" title="Close · back to home" data-testid="story-close" onClick={closeStory}>
       <span aria-hidden="true">×</span>
       <span className="story-close-label" aria-hidden="true">Close</span>
     </button>

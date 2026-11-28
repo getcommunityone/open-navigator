@@ -30,7 +30,7 @@ export interface TopicControl {
  * The topic word in a title as the stories' inline dropdown (#1350): the same dotted underline and caret as the place
  * blank, a native select so it is keyboard and screen-reader operable. Sized to the word shown where the browser can.
  */
-function TopicSelect({ word, control }: { word: string; control: TopicControl }) {
+export function TopicSelect({ word, control }: { word: string; control: TopicControl }) {
   return (
     <span className="home-place home-topic-blank">
       <span className="stance-blank-wrap">

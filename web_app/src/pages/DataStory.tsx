@@ -13,6 +13,9 @@ import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenView from '../components/stance/StoryScreenView'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
 import UpcomingPanel from '../components/stance/UpcomingPanel'
+import ScreenBoxes from '../components/stance/ScreenBoxes'
+import UpcomingBoxes from '../components/stance/UpcomingBoxes'
+import { nonprofitsBoxes, sitesTimelineBoxes } from '../utils/screenBoxes'
 import NonprofitsPanel from '../components/stance/NonprofitsPanel'
 import { useTopicOrganizations } from '../hooks/useTopicOrganizations'
 import { nonprofitsHeadline } from '../utils/topicOrganizations'
@@ -27,6 +30,8 @@ import { useTopicOutcomes } from '../hooks/useTopicOutcomes'
 import { outcomesHeadline } from '../utils/topicOutcomes'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
 import StoryClose from '../components/stance/StoryClose'
+import { useBoxFlight } from '../components/stance/BoxFlightProvider'
+import { useStoryBoxTransition } from '../components/stance/useStoryBoxTransition'
 import { useStoryStatements } from '../components/stance/useStoryStatements'
 import { QuestionScreen, VerdictScreen, type VoteState } from '../components/stance/StoryVoteScreens'
 import { useStoryScreens } from '../components/stance/useStoryScreens'
@@ -155,8 +160,8 @@ export default function DataStory() {
       }),
     [allScreens, data, status, scope, question, overviewCaption, captionQ.data],
   )
-  // A chart screen with nothing on record drops out (#1002); so does Over time once it knows no site has a date (#1348).
-  const timelineEmpty = timelineQ.isSuccess && timelineQ.data.available && (timelineQ.data.dated ?? 0) === 0
+  // A chart screen with nothing on record drops out (#1002); so does Over time once it knows no site is on record (#1348, #1428).
+  const timelineEmpty = timelineQ.isSuccess && timelineQ.data.available && (timelineQ.data.total ?? 0) === 0
   const keep = allScreens.map((s, i) => (s.kind === 'timeline' ? !timelineEmpty : s.kind !== 'chart' || !allTexts[i]!.empty))
   const keepKey = keep.join()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,6 +220,8 @@ export default function DataStory() {
     // Soft page-turn when the reader advances (silent until Web Audio is unlocked by a click/key) (#966).
     onMove: () => board.play('open'),
   })
+  const boxFlight = useBoxFlight()
+  useStoryBoxTransition(rootRef, active, reduced)
   // A reader who has stopped gets a calm cue on the screen's next step; first idle nudge plays a soft sound when sound is on (#966).
   useIdleNudge({
     rootRef,
@@ -447,7 +454,12 @@ export default function DataStory() {
                 display: story.topic,
                 // Every live story (#1224); choosing one opens it on its Overview, keeping the place.
                 options: storyTopicOptions(liveList, storyId, story.topic),
-                onChange: (v) => navigate(storyStartHref(v, scopeQuery(scope))),
+                onChange: (v) => {
+                  if (rootRef.current) {
+                    boxFlight.launch({ source: rootRef.current, targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]' })
+                  }
+                  navigate(storyStartHref(v, scopeQuery(scope)))
+                },
               },
             ]}
           />
@@ -536,10 +548,11 @@ export default function DataStory() {
                         ? 'Data center sites over time could not be loaded right now.'
                         : timelineHeadline(timelineQ.data, sitesLabel)
                   }
-                  context={`Each site appears in the year of its earliest date on record. Epoch AI sites move to operating as Epoch dates them; registry sites keep their status today.${scope.city && scope.stateName ? ` Sites are placed by state, so this shows ${scope.stateName}.` : ''}`}
+                  context={`Each site appears in the year of its start date; a site with no start date (a square) appears when a source first listed it, and may be older. Epoch AI sites move to operating as Epoch dates them; registry sites keep their status today.${scope.city && scope.stateName ? ` Sites are placed by state, so this shows ${scope.stateName}.` : ''}`}
                   nextLabel={common.nextLabel}
                   onNext={common.onNext}
                   onPrev={common.onPrev}
+                  boxes={<ScreenBoxes spec={sitesTimelineBoxes(timelineQ.data?.years, sitesLabel)} />}
                   right={<SitesTimelinePanel res={timelineQ.data} scopeLabel={sitesLabel} stateCode={stateCode} active={active === i} reduced={reduced} />}
                 />
               )
@@ -563,6 +576,7 @@ export default function DataStory() {
                   nextLabel={common.nextLabel}
                   onNext={common.onNext}
                   onPrev={common.onPrev}
+                  boxes={<ScreenBoxes spec={nonprofitsBoxes(nonprofitsQ.data, label)} />}
                   right={
                     <NonprofitsPanel
                       topic={storyId}
@@ -595,6 +609,7 @@ export default function DataStory() {
                   nextLabel={common.nextLabel}
                   onNext={common.onNext}
                   onPrev={common.onPrev}
+                  boxes={upcomingQ.data ? <UpcomingBoxes data={upcomingQ.data} scopeLabel={label} /> : null}
                   right={
                     <UpcomingPanel
                       topic={storyId}
@@ -651,7 +666,13 @@ export default function DataStory() {
       {active < n - 1 ? (
         <StoryNextButton label="Next" ariaLabel={`Next: ${screens[active + 1]?.eyebrow ?? ''}`.replace(/: $/, '')} onClick={() => goTo(Math.min(activeRef.current + 1, n - 1))} />
       ) : (
-        <StoryNextButton label="Done" ariaLabel="Done: close the story" href={storyCloseHref(storyId, scopeQuery(scope))} quiet />
+        <StoryNextButton
+          label="Done"
+          ariaLabel="Done: close the story"
+          href={storyCloseHref(storyId, scopeQuery(scope))}
+          onClick={() => rootRef.current && boxFlight.launch({ source: rootRef.current, targetSelector: '.home-story-map' })}
+          quiet
+        />
       )}
       {/* Phones: the bottom bar keeps Back and the progress dots; Next is the fixed button above, at its right end. */}
       {!wide && (

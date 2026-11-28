@@ -17,6 +17,7 @@ import { communityEventKindLabel, concernLabel, siteSourcesText, siteTotal } fro
 import type { StanceQuestion } from '../api/stance'
 import { questionText } from './storyQuestion'
 import { countClauses, joinClauses } from './clauses'
+import STORY_COPY from '../data/seo/story-copy.json'
 import {
   DOT_CAP,
   cap,
@@ -132,10 +133,11 @@ export interface StoryEntry {
 
 export const STORIES: Record<string, StoryEntry> = {
   'data-centers': {
-    title: 'The Data Center Story',
-    topic: 'data centers',
+    // Title, topic and question live in data/seo/story-copy.json, which the server's page meta reads too (#1430).
+    title: STORY_COPY.stories['data-centers'].title,
+    topic: STORY_COPY.stories['data-centers'].topic,
     pack: 'data-centers',
-    question: 'What did local meetings say about data centers?',
+    question: STORY_COPY.stories['data-centers'].question,
     screens: DATA_CENTER_STORY,
     conclusion: {
       headline: 'America hates data centers.',
@@ -679,10 +681,8 @@ function meetingsText(res: DataCenterMeetingMentionsResponse, scope: StoryScope)
     const a = years[0]!
     const z = years[years.length - 1]!
     lead = `By year of the meeting: ${plural(a.count, 'passage')} in ${a.key}, ${plural(z.count, 'passage')} in ${z.key}. `
-  } else if (years.length >= 1) {
-    const top = [...years].sort((a, b) => b.count - a.count || b.key.localeCompare(a.key))[0]!
-    lead = `Among the ${items.length >= DOT_CAP || (passages > items.length) ? `most recent ${fmt(items.length)} passages` : `${fmt(items.length)} passages`}, ${top.key} has the most (${fmt(top.count)}). `
   }
+  // A capped list (most recent 500) cannot say which year has the most: the chart states the peak from the full yearly counts.
   return { headline, context: `${lead}What is on the agenda?`, empty: false, failed: false }
 }
 

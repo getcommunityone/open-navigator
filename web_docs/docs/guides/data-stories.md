@@ -152,7 +152,7 @@ Owner, 27 Nov 2026, on `/stories/water-fluoridation?state=AL`: "why do the locat
 
 ## Browse all topics: every major meeting topic, last year against this year (#1343, #1361)
 
-`/browse-topics/all?state=&city=&show=&sort=` compares every major meeting topic in `civicsearch_topic` (both curated story topics and CivicSearch meeting topics, 95 topics total) in one animated dumbbell ([#1343](https://github.com/getcommunityone/open-navigator/issues/1343), [#1361](https://github.com/getcommunityone/open-navigator/issues/1361)). Each row is a topic: the hollow dot is the last full year, the filled dot is this year to date, labelled by its months (for example **Jan–Nov 2026**, through the latest dated topic meeting in the place), and the line between them is the change. Rows default to sorting by change, largest rise first (`Biggest rise`), or can be sorted by `Most discussed` (`?sort=latest`). Each value sits over its dot and the relative change is written at the end of the row with its sign (**+456%**, **−20%**). Rising rows are teal and falling rows ochre (the house theme's two data colours, a blue–yellow pair that stays distinct under red–green colour blindness), and the sign carries the direction without colour. The dots grow in and the line draws when the chart scrolls into view; under prefers-reduced-motion it is drawn in its final state. A topic filter (`?show=all|candidates|stories`) switches between **All major topics**, **Not yet a story** (rising or high-volume meeting topics without a story yet), and **Live stories**. Tapping a live story opens `/stories/<slug>?state=&city=`; tapping a topic without a story yet opens `/browse-topics?topic_id=<id>&state=&city=`. On a phone the rows use the compact dumbbell from [#1268](https://github.com/getcommunityone/open-navigator/issues/1268) (label and change on one line, values over the dots, no axis) and fit 360px with no sideways scroll.
+`/browse-topics/all?state=&city=&show=&sort=` compares every major meeting topic in `civicsearch_topic` (both curated story topics and CivicSearch meeting topics, 95 topics total) in one animated dumbbell ([#1343](https://github.com/getcommunityone/open-navigator/issues/1343), [#1361](https://github.com/getcommunityone/open-navigator/issues/1361)). Each row is a topic: the hollow dot is the last full year, the filled dot is this year to date, labelled by its months (for example **Jan–Nov 2026**, through the latest dated topic meeting in the place), and the line between them is the change. Rows default to sorting by change, largest rise first (`Biggest rise`), or can be sorted by `Most discussed` (`?sort=latest`) or `Most heated` (`?sort=heat`, [#1407](https://github.com/getcommunityone/open-navigator/issues/1407)): the mean heat (1-5) a classifier rated from public speakers' own words on the topic in the place, all years (`meeting_speaker_topic_side`, see [Speaker stance classifier](../development/speaker-stance-classifier.md)); a topic needs at least 20 rated speakers, otherwise its row says **too few rated**, and each rated row ends with a flame and its mean (**🔥 3.7**) in place of the change. Each value sits over its dot and the relative change is written at the end of the row with its sign (**+456%**, **−20%**). Rising rows are teal and falling rows ochre (the house theme's two data colours, a blue–yellow pair that stays distinct under red–green colour blindness), and the sign carries the direction without colour. The dots grow in and the line draws when the chart scrolls into view; under prefers-reduced-motion it is drawn in its final state. A topic filter (`?show=all|candidates|stories`) switches between **All major topics**, **Not yet a story** (rising or high-volume meeting topics without a story yet), and **Live stories**. Tapping a live story opens `/stories/<slug>?state=&city=`; tapping a topic without a story yet opens `/browse-topics?topic_id=<id>&state=&city=`. On a phone the rows use the compact dumbbell from [#1268](https://github.com/getcommunityone/open-navigator/issues/1268) (label and change on one line, values over the dots, no axis) and fit 360px with no sideways scroll.
 
 **What the dots measure.** By default, the share of recorded meetings that discussed the topic: distinct topic meetings divided by all recorded (transcribed) meetings in the place that year (`recorded_meeting_year`). Recordings grew from 14,038 meetings in 2025 to 16,873 in 2026 nationally, so raw counts would show almost every topic rising; the share corrects for that. A toggle shows raw meeting counts instead, with a note that this year is not a full year.
 
@@ -396,7 +396,7 @@ Up to eleven screens, in this order (a chart screen with nothing on record for t
 | Opener | Overview | `overview` | A dot map of the country: each state's dots shaded by its real number of meetings where a data center came up, nationally (none stays grey). Hover or choose a state to read its count; clicking a state narrows the whole story to it (`?state=`). In a state or city scope that state stands out and the rest are muted but keep their own counts; clicking it again broadens (city → state → country), and **United States** goes straight to the country. A data table lists every state with a count. In a state or city scope the map is that state's counties instead, like the Census map's state drill-down, in the home box map's colours: where its governments have speakers on record, a county's dots are split in bands by the real counts of those who spoke against, for, asked a question or took no side; a county with meetings but no stance on record is grey, light to dark by its real meeting count; a county with none takes the empty colour, and the legend matches the home map's ([#1106](https://github.com/getcommunityone/open-navigator/issues/1106)). A county government counts by its geoid; a city, town or school district is placed by its coordinates and drawn as a ring. Hovering a county quotes one of its passages and gives its stance counts, and the data table lists counties with their governments. A government that can't be placed is named under the map, not shaded ([#1039](https://github.com/getcommunityone/open-navigator/issues/1039)). Each ring's government is named beside it in the Data Explorer's label style (dark text, white halo), largest meeting counts first, and a label that would overlap one already drawn is left out; a county government is named at its county's centre only when that spot is free. At a state or city scope the Overview headline says which way speakers leaned once at least as many are on record as the national headline needs (10): two thirds or more against reads "Arizona pushed back: 11 of 12 speakers spoke against data centers.", two thirds or more for reads "… welcomed data centers …", otherwise "… was split …"; the meeting count moves to the line under it, and with fewer speakers the neutral count stays ([#1115](https://github.com/getcommunityone/open-navigator/issues/1115)). On a phone the maps say **Tap** instead of **Hover**, and tapping a county selects it like hovering does ([#1057](https://github.com/getcommunityone/open-navigator/issues/1057)). Then the row of large real counts ([#970](https://github.com/getcommunityone/open-navigator/issues/970)) |
 | Who spoke up | Who spoke up | `voices` | The five figures, one dot per speaker, and up to three of the speakers' own words on each side, each linked to the moment in the recording |
 | Where they are | Sites | `sites` | Data center sites by status (one dot per site) |
-| How they grew | Over time | `over-time` | For context ([#1348](https://github.com/getcommunityone/open-navigator/issues/1348)): a map of data center sites by the year of their earliest real date, a year slider that plays from the first year to the last projected one, a stacked strip of the running total by phase per year, and a card for the site tapped. See [Data centers over time](#data-centers-over-time-1348) |
+| How they grew | Over time | `over-time` | For context ([#1348](https://github.com/getcommunityone/open-navigator/issues/1348)): a map of every data center site, placed by the year of its start date (or, for a site with no start date, the year a source first listed it, drawn as a square), a year slider that plays from the first year to the last projected one, a stacked strip of the running total by phase per year, and a card for the site tapped. See [Data centers over time](#data-centers-over-time-1348) |
 | What is proposed | Proposals | `projects` | Projects by status (one dot per project) |
 | What is promised | Promises | `jobs` | Jobs claims by phase (one dot per claim) |
 | What is raised | Concerns | `concerns` | A dumbbell ([#1209](https://github.com/getcommunityone/open-navigator/issues/1209)): in a state or city, one row per concern, hollow dot = its share of national concern mentions, filled dot = its share of the place's, the difference in percentage points on the right (a fall in the warning colour), sorted **By [place]**, **By difference** or **Nationally**. Nationally there is one dot per concern, its share of all mentions: the records count objections per area, not per concern, so there is no second value to compare. Concerns with fewer than 2 mentions in the place are left out and the note names them. **Show data table** lists every row |
@@ -412,25 +412,52 @@ The **Over time** screen (`?screen=over-time`) answers "how many data centers ar
 `GET /api/data-centers/sites-timeline?state=`, backed by the dbt mart `data_center_site_timeline` (one row per site, PK and
 FK `data_center_site_id`).
 
-- **Only real dates.** A site appears in the year of its earliest date on record: the US Data Center Registry's
-  announced date (it publishes day, month or year-only dates; staging now keeps the year of all three) or Epoch AI's first
-  dated timeline row. The registry publishes no opening or completion date. A site with no date is never placed at a
-  guessed year: the footnote counts them by status ("60 sites have no date on record …"). Coverage on 27 Nov 2026: 728 of
-  2,379 sites have a date: 649 by a registry announced date (217 to the day, 322 to the month, 110 year only) and 79 by
-  Epoch's first dated report. All 96 Epoch sites have an operating year, 20 of them projected (2027–2028). 2,307 sites have
-  coordinates.
+- **Every site, by its date basis ([#1428](https://github.com/getcommunityone/open-navigator/issues/1428)).** The map draws
+  every site with coordinates, and today's frame holds every site at its current status. `appear_basis` says how each
+  site's year is known, checked in this order:
+  - `announced`: the US Data Center Registry's announced date. It publishes day, month or year-only dates, and staging
+    keeps the year of all three.
+  - `epoch_first_report`: Epoch AI's first dated timeline row (satellite or permit evidence of work).
+  - `listed_by`: only when a site has neither of those. The year is the earliest date a source had it listed: the earlier
+    of `data_center_site.first_seen_on` (our first load that listed it) and `status_as_of` (the registry's
+    `record_updated`). This date is an upper bound, because the site existed by then and may be much older. It is never
+    shown as an opening, and `appear_precision` is `listed_by`.
+  - `none`: no date at all. The site appears only at today's frame and fades in, and is never placed at a guessed year.
+
+  The registry publishes no opening or completion date.
+
+  | Basis | 27 Nov 2026, before #1428 | 27 Nov 2026, after |
+  |---|---|---|
+  | announced | 649 (217 to the day, 322 to the month, 110 year only) | 649 |
+  | epoch_first_report | 79 | 79 |
+  | listed_by | (not used) | 1,651 (all first listed in 2026) |
+  | none | 1,651 (footnote only) | 0 |
+
+  Every registry record's `record_updated` and first load fall in 2026, so the listed-by sites join the map at the 2026
+  ("today") frame. Of the 2,379 sites, 2,307 have coordinates. The other 72 are Epoch sites with a street address only,
+  and the legend shows them as "Not mapped". All 96 Epoch sites have an operating year, 20 of them projected (2027–2028).
+- **Headline.** It counts every site, for example "2,379 data center sites on record across the country: 728 with a known
+  start date, 1,651 listed by 2026 with no earlier date on record". It never says when an undated site began.
 - **Phase in a year.** An Epoch AI site is proposed before its first dated row, under construction from it, and operating
   from its first row with a building operational; a year after this one is Epoch's projection and the screen says
   "projected". A registry site keeps its status today, because the registry has no history. The per-year totals are
   counted in SQL (`PHASE_SQL` in `api/routes/data_center_sites_timeline.py`); the dots use the same rule
   (`web_app/src/utils/siteTimeline.ts`), and a shared test fixture keeps them equal.
-- **Drawing.** Operating, under construction and cancelled sites are filled dots in their colour; proposed (planned) sites
-  are outlined and dashed, and hatched in the strip. A site the source gives no coordinates is counted in the strip and
-  named in the footnote, not mapped.
+- **Drawing.**
+  - Operating, under construction and cancelled sites with a start date are filled dots in their colour.
+  - Proposed (planned) sites are dashed outlines, and hatched in the strip.
+  - A site with no start date on record (`listed_by` or `none`) is a small outlined square in its status colour, dashed
+    when it is proposed.
+  - The legend counts the mapped sites in the frame by status. These counts sum to the mapped total, with a line for how
+    many of them have no start date and a "Not mapped" line.
+  - The strip stacks the start-dated sites by phase and draws the undated ones as an outlined block, so they never read
+    as growth.
+  - The caption says "Plus 1,651 sites with no start date on record (squares): listed by 2026, they may be older". Before
+    that frame it says when they join the map.
 - **Motion.** The years play once when the screen comes on view. Under `prefers-reduced-motion` there is no autoplay and no
   pop-in: the slider and the ‹ › buttons step through the years.
 - **Small counts.** The shared display rule (`utils/displayFit.ts`) decides: 1–5 dated sites (or under 20 with one status)
-  are a plain list with their year, status and source link, not an animation. A place with no dated site drops the screen.
+  are a plain list with their year, status and source link, not an animation. A place with no site on record drops the screen.
 - **Scope.** Sites narrow by state only, so a city's story shows its state and the screen says so.
 
 ### Recording coverage (#1348)
@@ -895,3 +922,26 @@ The numbers on the maps and captions count **meetings**, not comments. Each meet
 Counts say what they count: "Of 7,036 meetings read nationwide, the public spoke on gun control in 438 (197 favor gun limits, 97 favor gun rights, both sides spoke at 144)." Only counts from the caption comment data (`meeting_comment`) are called "comments".
 
 "Both sides spoke" is a meeting-grain label only: several people at one meeting disagreed. A single comment or speaker is one person and is never labelled "both sides", "mixed" or "split". A per-comment or per-speaker reading that comes back mixed (for example one segment that merged two speakers) is shown as "Unclear (may be more than one speaker)". Today no per-comment display shows a mixed value: the speaker counts use "Spoke, no side", and "both sides" appears only on meeting readings, worded "At this meeting: both sides spoke" under a quote.
+
+## Unified box charts and cross-page particle flights ([#1400](https://github.com/getcommunityone/open-navigator/issues/1400))
+
+Across home, maps, and story screens, data units share the `[data-box]` square geometry inspired by the `vizjb12` interactive patterns:
+
+- **Box maps everywhere.** State box maps (`StoryStatesMap`), Overview national dot maps (`StoryDotMap`), and state county maps (`StoryCountyMap`) render their data units as rounded `<rect data-box="">` squares (while town and city pin markers on county maps remain `.stance-map-place` rings). `MapDrill` animates national↔state drills as flying rounded boxes and yields automatically when a cross-page particle flight is already active.
+- **Unit matrix and category spotlighting.** `ChartPanel` (for `meeting-mentions`, `agenda-items`, `decisions`, `job-claims`, `sites`, `projects`, `community-events`, and `positions`) and `PositionsBlock` render `UnitMatrixChart` when 6–400 real individual records are present (`!spec.countsOnly`), tagging each square with `data-box` and `data-group`. Hovering, clicking, or pressing Enter/Space on any group heading spotlights that group's squares and dims all others to `--neutral-data`.
+- **10×10 proportion waffles and proportional outcome strips.** When `FitDisplay`, `TopicPositionsBreakdown`, or `NonprofitsPanel` draws `bars` / `top-bars` with real counts, `BoxWaffleChart` renders a 100-square (`10×10`, bottom-left origin) proportion grid (`allocateWaffleCells`) with a staggered entrance wave, live bold percentage readout, and hover/pin category spotlighting beside the count bars. `OutcomesChain` steps include a proportional `[data-box]` strip (`.oc-box-strip` / `.oc-box-sq`, omitted when count is 0).
+- **Cross-page and cross-screen particle flights.** `BoxFlightProvider` wraps the router in `App.tsx`, snapshotting outgoing `[data-box]` elements on navigation between `/` and `/stories/:storyId` (`HomeDataStories`, `HomeTopicStoryCard`, `HomeOutcomesScroller`, `StoryClose`, and story **Done** / topic-dropdown switches), gently lifting/holding starting boxes while waiting up to `2200ms` for the destination `[data-box]` grid to settle, and flying quadratic-Bezier particles across a fixed `pointer-events: none; aria-hidden="true"` viewport canvas. `useStoryBoxTransition` runs the same particle flight when stepping between screens inside `DataStory` and `TopicStory`, and home topic pill switches (`HomeDataStories`) use `document.startViewTransition` when supported. All box flights and entrance waves turn off under `prefers-reduced-motion: reduce`.
+
+## Hot and trending topic pills, and the flight on a switch ([#1416](https://github.com/getcommunityone/open-navigator/issues/1416))
+
+The home hero's pill row lists every topic that is hot or trending for the page's place, not only the live stories. It is built in the browser (`web_app/src/utils/hotTopics.ts`) from the catalog's live stories and one `GET /api/topics/yoy?state=&city=` response (the same one Browse all topics reads, so there is no new endpoint):
+
+- **Live stories**: always in the row, marked with a dot.
+- **Rising** (▲): the top 8 topics the API marks `comparable` whose share of recorded meetings grew by at least 25% on last year (minimum meeting counts are the endpoint's own).
+- **Heated** (🔥): the top 6 topics with a `heat_mean` of 3 or more; the API only returns it with at least `min_heat_rated` (20) classifier-rated public speakers.
+- **Order**: rise score (change capped at +300%) plus heat score ((mean − 1) / 4), highest first; ties go to live stories, then to more meetings this year. The row is recomputed for each `?state=&city=`. **Compare all** stays last.
+- Phones scroll one row with a fade; desktops wrap to two rows with **More** / **Fewer**.
+
+A pill for a topic without a story swaps the hero to its meeting view (`HomeCandidateTopicCard`): the headline comes from the yoy counts for the place, the map is the topic's own meetings (county map at state scope, state map nationally), and the one action opens its meetings in Browse topics. Where nothing was recorded the headline says so. Every topic carries `?topic=<slug>`.
+
+Switching topic (pill or headline dropdown) prefetches the new topic's data (on hover, focus or pointer-down, and again before the swap), then flies the hero map's boxes into the new layout with the #1400 particle flight; a newer pick supersedes an older one. A change of place (the title's place control, the header toggle, the county map's state pick) flies the same way: national to state, state to national, state to state. With reduced motion the map and card crossfade. `e2e/hero-topic-switch.check.mjs` checks pills, switching and place flights at Pixel 7 and 1440 for national, GA and FL.

@@ -111,9 +111,6 @@ export default function DumbbellChart({ topic, stateCode, scopeLabel, subject, i
 
   return (
     <div className="sc-block">
-      <p className="sc-h">
-        Share of recorded meetings that discussed {subject}, {y0} and {y1}, by {place} · {scopeLabel}
-      </p>
       <div className="sc-controls">
         <div className="folio-seg sc-chips" role="group" aria-label="Sort the rows">
           {(
@@ -130,6 +127,7 @@ export default function DumbbellChart({ topic, stateCode, scopeLabel, subject, i
         </div>
       </div>
       <DumbbellRows
+        title={`Share of recorded meetings that discussed ${subject}, ${y0} and ${y1}, by ${place} · ${scopeLabel}`}
         key={stateCode ?? 'national'}
         rows={drawn}
         aName={String(y0)}

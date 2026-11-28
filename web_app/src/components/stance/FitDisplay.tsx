@@ -1,6 +1,9 @@
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import type { ReactNode } from 'react'
 import type { DotsSpec } from '../../utils/stanceGame'
+import { GROUP_COLORS } from '../../utils/houseTheme'
 import { countsSentence, specDisplay, topCategories, type CategoryCount } from '../../utils/displayFit'
+import BoxWaffleChart from './BoxWaffleChart'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 /** "data center project" → "data center projects" (the spec's units are all regular). */
@@ -41,7 +44,16 @@ export function RecordList({ spec, showStatus }: { spec: DotsSpec; showStatus: b
 export function CountBars({ rows, label }: { rows: CategoryCount[]; label: string }) {
   const top = topCategories(rows)
   const max = Math.max(1, ...top.map((r) => r.count))
+  const sum = top.reduce((a, r) => a + r.count, 0)
+  const lead = top[0]
+  // The title leads with the biggest bar; the key says what a bar is and what grey means (#1409).
+  const title = lead && top.length > 1 && sum >= 5 ? `${label}: ${lead.label} leads with ${fmt(lead.count)} of ${fmt(sum)}` : label
+  const legend: LegendItem[] = [
+    { key: 'bar', label: 'Bar length = how many, count at the right', color: 'var(--teal, #0f766e)' },
+    ...(top.some((r) => r.other) ? [{ key: 'other', label: 'Other: the smaller groups together', color: 'var(--ink-2)' }] : []),
+  ]
   return (
+    <ChartFrame title={title} legend={legend}>
     <ol className="stance-fit-bars" aria-label={label}>
       {top.map((r) => (
         <li key={r.label} data-other={r.other ? '' : undefined}>
@@ -53,6 +65,7 @@ export function CountBars({ rows, label }: { rows: CategoryCount[]; label: strin
         </li>
       ))}
     </ol>
+    </ChartFrame>
   )
 }
 
@@ -115,14 +128,32 @@ export default function FitDisplay({ spec, scopeLabel, units, barsExtra }: Props
         </div>
       )
     case 'bars':
-    case 'top-bars':
+    case 'top-bars': {
+      const waffleRows = topCategories(live)
+      const rowsTotal = waffleRows.reduce((s, r) => s + r.count, 0)
+      const waffleDrawn = rowsTotal >= 20 && waffleRows.length >= 2
       return (
         <div className="stance-fit" data-display={display.kind}>
           <p className="stance-fit-lead">{lead}.</p>
-          <CountBars rows={rows} label={`${spec.title}, ${scopeLabel}`} />
+          {waffleDrawn && (
+            <BoxWaffleChart
+              categories={waffleRows.map((r, i) => ({
+                key: r.label,
+                label: r.label,
+                count: r.count,
+                color: GROUP_COLORS[i % GROUP_COLORS.length]!,
+              }))}
+              title={spec.title}
+              unitLabel={plural(spec.unit, rowsTotal)}
+              replayKey={`${spec.title}|${scopeLabel}|${rowsTotal}`}
+            />
+          )}
+          {/* One visual per screen (#1415): the boxes carry the counts in their legend chips, so the bars are drawn only when the boxes are not. */}
+          {!waffleDrawn && <CountBars rows={rows} label={`${spec.title}, ${scopeLabel}`} />}
           {barsExtra}
         </div>
       )
+    }
     case 'units':
       return (
         <div className="stance-fit" data-display="units">

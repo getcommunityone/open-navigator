@@ -1,0 +1,45 @@
+title,jurisdiction_name,jurisdiction_type,expected_body_key,expected_body_name
+"Tuscaloosa City Council Meeting - Nov 17, 2026",Tuscaloosa,city,governing_body,City Council
+"Tuscaloosa Pre-Council Briefing - Nov 03, 2026",Tuscaloosa,city,governing_body,
+"Tuscaloosa Finance Committee Meeting - Nov 17, 2026",Tuscaloosa,city,committee:finance_committee,Finance Committee
+"Tuscaloosa Projects Committee Meeting - Nov 17, 2026",Tuscaloosa,city,committee:projects_committee,Projects Committee
+"Tuscaloosa Planning and Zoning Commission Meeting - Nov 16, 2026",Tuscaloosa,city,planning_zoning,Planning and Zoning Commission
+"Tuscaloosa Zoning Board of Adjustment Meeting - Oct 26, 2026",Tuscaloosa,city,board_of_adjustment,Zoning Board of Adjustment
+Tuscaloosa Zoning Board of Adjustments,Tuscaloosa,city,board_of_adjustment,Zoning Board of Adjustment
+Tuscaloosa Historic Preservation Commission,Tuscaloosa,city,historic_preservation,Historic Preservation Commission
+"Tuscaloosa Public Safety Committee Meeting - Oct 27, 2026",Tuscaloosa,city,committee:public_safety_committee,Public Safety Committee
+"Tuscaloosa Community Development Meeting - Nov 17, 2026",Tuscaloosa,city,,
+"City of Brentwood - Board of Aldermen - October 20, 2025",Brentwood,city,governing_body,Board of Aldermen
+"Durham City Council October 6, 2025",Durham,city,governing_body,City Council
+"April 15, 2024 Council Meeting",Columbia Falls,city,governing_body,Council
+Waterloo City Council Budget Special Session - March 8 2018,Waterloo,city,governing_body,
+Manistee City Council Work Session 2023-08-08,Manistee,city,governing_body,
+"Town of Nashville NC, Council Meeting (January 17th, 2023)",Nashville,city,governing_body,Council
+"Dover MA Selectmen's Meeting of May 14, 2014",Dover,city,governing_body,Selectmen
+"Morton, IL Village Board Meeting - March 6th, 2023",Morton,city,governing_body,Village Board
+BoC Meeting 9/12/2022,Whitfield County,county,governing_body,Board of Commissioners
+"Susquehanna County Commissioners' Meeting September 26, 2018",Susquehanna County,county,governing_body,County Commissioners
+Jefferson County Commission Live Stream | 11-02-26,Jefferson County,county,governing_body,County Commission
+Chilton County Commission Work Session 6/22/26,Chilton County,county,governing_body,
+"Montgomery County Commission Formal Meeting  October 15, 2024",Montgomery County,county,governing_body,
+Denton County Commissioners Court,Denton County,county,governing_body,Commissioners Court
+Fiscal Court Meeting  8-13-2018,Pulaski County,county,governing_body,Fiscal Court
+Board of Supervisors Meeting  8/04/2026,Warren County,county,governing_body,Board of Supervisors
+Commissioner Ammons and Councilor Williams talk Collaboration,Jefferson County,county,,
+Kent County Board of Commissioners' Finance & Physical Resources Committee,Kent City,city,,
+Regular Board Meeting - 6/24/2025,Bloomfield School District,school_district,school_board,Board of Education
+05-22-2025 SRVUSD Special Board of Education Meeting,San Ramon Valley Unified School District,school_district,school_board,Board of Education
+"School Board Meeting Full Session, September 28, 2021, Hillsboro School District",Hillsboro,city,school_board,Board of Education
+"Planning and Zoning Commission March 20, 2025",Florence,city,planning_zoning,Planning and Zoning Commission
+"New Bern Planning & Zoning Meeting March 20, 2025",New Bern,city,planning_zoning,Planning and Zoning Commission
+Brockton Planning Board Meeting 12-10-20,Brockton,city,planning_commission,Planning Board
+"City of Beaumont - Planning Commission (February 13, 2018)",Beaumont,city,planning_commission,Planning Commission
+"Morgantown Board of Zoning Appeals - August 17, 2022",Morgantown,city,board_of_adjustment,Zoning Board of Appeals
+"City of Brentwood - Architectural Review Board - April 17, 2025",Brentwood,city,historic_preservation,Historic Preservation Commission
+"Hancock County, IN - 7/14/2026 Board of Health Meeting",Hancock County,county,board_of_health,Board of Health
+"City of Moorhead - Human Rights Commission Aug 19, 2020",Moorhead,city,commission:human_rights_commission,Human Rights Commission
+"City of Lowell's Downtown Development Authority Meeting, Thursday, Nov 5",Lowell,city,authority:downtown_development_authority,Downtown Development Authority
+"Board of Estimate and Apportionment - January 21, 2026",St. Louis,city,board:board_of_estimate_and_apportionment,Board of Estimate and Apportionment
+Library Board of Directors  06-12-2025,Norwalk,city,board:library_board_of_directors,Library Board of Directors
+"Memorial Day Ceremony - May 26, 2025",New Lenox,city,,
+Mayor Steven L. Reed's Speech from E.D. Nixon School,Montgomery,city,,

@@ -3,6 +3,7 @@
 // code change. Stories in the `STORIES` registry (data centers) stay on `DataStory`.
 import type { TopicSummary } from '../api/topics'
 import { STORIES } from './dataStory'
+import STORY_COPY from '../data/seo/story-copy.json'
 import type { LiveStory } from './storyNav'
 
 export interface TopicStoryDef {
@@ -18,23 +19,12 @@ export interface TopicStoryDef {
   meetings: number
 }
 
-/** Hand-written copy for topics that have it; any other curated topic gets a plain lede from its name. */
-const TOPIC_COPY: Record<string, Partial<Pick<TopicStoryDef, 'title' | 'subject' | 'lede' | 'companiesPath'>>> = {
-  'short-term-rentals': {
-    lede: 'Airbnb, VRBO and vacation rentals: where local governments are talking about them, in the words said at the meeting.',
-    companiesPath: '/short-term-rentals/companies',
-  },
-  'license-plate-readers': {
-    lede: 'Flock Safety cameras and other automated plate readers: who uses them, for what, and the contracts behind them, in the words said at the meeting.',
-  },
-  // Shown as "Gun control" (#1237), the question the AI reading asks; the curated_topics seed and /api/topics keep "Guns".
-  guns: {
-    title: 'Gun control',
-    subject: 'Gun control',
-    lede: 'Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them, in the words said at the meeting.',
-  },
-  pickleball: { lede: 'Courts, noise and new venues, as councils and parks boards weigh them, in the words said at the meeting.' },
-}
+/**
+ * Hand-written copy for topics that have it; any other curated topic gets a plain lede from its name. It lives in
+ * data/seo/story-copy.json so the server's page meta (api/seo.py) names stories the same way (#1430). "Guns" is shown as
+ * "Gun control" (#1237), the question the AI reading asks; the curated_topics seed and /api/topics keep "Guns".
+ */
+const TOPIC_COPY: Record<string, Partial<Pick<TopicStoryDef, 'title' | 'subject' | 'lede' | 'companiesPath'>>> = STORY_COPY.topics
 
 /** True for a curated topic with linked meetings: it can be told as a story. */
 export function isLiveTopic(t: Pick<TopicSummary, 'source' | 'meeting_count' | 'query_id'>): boolean {

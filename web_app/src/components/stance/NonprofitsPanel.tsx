@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTopicOrganizations } from '../../hooks/useTopicOrganizations'
-import { highlightSnippet } from '../../lib/highlight'
+import { hasQuoteText, highlightSnippet } from '../../lib/highlight'
 import { countsSentence, pickDisplay } from '../../utils/displayFit'
 import {
   methodCounts,
@@ -14,6 +14,8 @@ import {
   whyListed,
 } from '../../utils/topicOrganizations'
 import { broaderHref } from '../../utils/topicUpcoming'
+import { GROUP_COLORS } from '../../utils/houseTheme'
+import BoxWaffleChart from './BoxWaffleChart'
 import { CountBars } from './FitDisplay'
 import './storyCharts.css'
 import './UpcomingPanel.css'
@@ -103,7 +105,7 @@ export default function NonprofitsPanel({ topic, stateCode, city, scopeLabel, su
           const mission = oneLine(sentenceCase(o.mission))
           const money = revenueLine(o)
           const side = sideLabel(o.side)
-          const quote = o.match_method === 'ntee_code' ? null : o.match_text
+          const quote = o.match_method === 'ntee_code' || !hasQuoteText(o.match_text) ? null : o.match_text
           return (
             <li key={o.master_org_id} className="np-item">
               <p className="np-name">
@@ -139,7 +141,25 @@ export default function NonprofitsPanel({ topic, stateCode, city, scopeLabel, su
       )}
       {/* The counts by evidence after the list: on a phone the list is what fits first (useScreenFit). */}
       {display.kind === 'bars' || display.kind === 'top-bars' ? (
-        <CountBars rows={rows} label={`Nonprofits by how they are tied to ${subject}`} />
+        <>
+          {rows.reduce((s, r) => s + r.count, 0) >= 20 && rows.filter((r) => r.count > 0).length >= 2 && (
+            <BoxWaffleChart
+              categories={[...rows]
+                .filter((r) => r.count > 0)
+                .sort((a, b) => b.count - a.count)
+                .map((r, i) => ({
+                  key: r.label,
+                  label: r.label,
+                  count: r.count,
+                  color: GROUP_COLORS[i % GROUP_COLORS.length]!,
+                }))}
+              title={`Nonprofits by how they are tied to ${subject}`}
+              unitLabel="nonprofits"
+              replayKey={`np|${subject}|${scopeLabel}|${rows.reduce((s, r) => s + r.count, 0)}`}
+            />
+          )}
+          <CountBars rows={rows} label={`Nonprofits by how they are tied to ${subject}`} />
+        </>
       ) : display.kind !== 'list' ? (
         <p className="np-counts">{countsSentence(rows)}</p>
       ) : null}

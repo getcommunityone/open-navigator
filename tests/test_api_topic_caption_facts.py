@@ -390,3 +390,23 @@ def test_lean_sql_counts_official_positions_on_the_p07_rule():
 def test_older_reading_without_official_counts_leaves_them_null(get):
     d = get(dc_conn(), "data-centers").json()
     assert d["position_meetings"] is None and d["official_for_meetings"] is None
+
+
+def test_classifier_speakers_are_a_labelled_separate_source(get):
+    """#1391: speakers' own words read by the classifier come back as their own labelled block, scoped like the rest,
+    and never fold into the hand-counted speakers."""
+    clf = [{"for_": 4, "against": 9, "concerns_only": 3, "no_position": 1, "meetings": 6}]
+    conn = topic_conn(routes={"FROM meeting_speaker_topic_side": clf})
+    d = get(conn, "guns", {"state": "GA", "city": "Atlanta"}).json()
+    c = d["classifier_speakers"]
+    assert c == {"source": "speakers' own words, classifier", "for": 4, "against": 9, "concerns_only": 3,
+                 "no_position": 1, "meetings": 6}
+    assert d["speakers"] is None
+    sql, params = next((s, p) for s, p in conn.calls if "meeting_speaker_topic_side" in s)
+    assert "not_sure" in sql and params == (100003, "GA", "%Atlanta%")  # topic_conn resolves every slug to 100003
+
+
+def test_classifier_speakers_null_when_missing_or_none_read(get):
+    assert get(topic_conn(fail=("meeting_speaker_topic_side",)), "guns").json()["classifier_speakers"] is None
+    zero = [{"for_": 0, "against": 0, "concerns_only": 0, "no_position": 0, "meetings": 0}]
+    assert get(topic_conn(routes={"FROM meeting_speaker_topic_side": zero}), "guns").json()["classifier_speakers"] is None

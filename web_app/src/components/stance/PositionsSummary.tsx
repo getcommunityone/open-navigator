@@ -11,7 +11,9 @@ import {
   officialPositionsLine,
   publicPositionsLine,
   recordedEvidence,
+  speakersOwnWordsLine,
 } from '../../utils/stanceEvidence'
+import { topicPositions } from '../../utils/topicPositions'
 import { DrillValue, KpiDrillSheet } from './KpiDrill'
 
 /**
@@ -51,6 +53,7 @@ export default function PositionsSummary({
   const label = storyScopeLabel(scope)
   const where = scope.stateName ? `In ${label}` : 'Across America'
   const pub = publicPositionsLine(e)
+  const own = speakersOwnWordsLine(e, topicPositions('data-centers'))
   // Named people only from a complete list: a capped list would undercount and still read as the scope's total.
   const dec = decisionsQ.data
   const complete = Boolean(dec && dec.counts.contested != null && dec.counts.uncontested != null && dec.items.length >= dec.counts.contested + dec.counts.uncontested)
@@ -59,11 +62,12 @@ export default function PositionsSummary({
   const officials = off ? [off, named].filter(Boolean).join('; ') : named ? `Officials: ${named}` : null
   const dis = disagreementLine(e, where)
   const parts = disagreementParts(e, where)
-  if (only === 'disagreement' ? !dis : !pub && !officials && !dis) return null
+  if (only === 'disagreement' ? !dis : !pub && !own && !officials && !dis) return null
   const n = e.disagreement ?? 0
   return (
     <div className="stance-positions-summary" data-testid="positions-summary">
       {!only && pub && <p className="stance-positions-who">{pub}</p>}
+      {!only && own && <p className="stance-positions-who" data-testid="positions-own-words">{own}</p>}
       {!only && officials && <p className="stance-positions-who">{officials}</p>}
       {dis && headlined && (
         <p className="stance-positions-disagree" data-testid="positions-disagreement">
@@ -93,8 +97,9 @@ export default function PositionsSummary({
         />
       )}
       {!only && <p className="stance-note">
-        Positions are read from each meeting&apos;s transcript, one reading per meeting; named people are from each decision&apos;s
-        record; votes are by which way each decision went.
+        Positions are read from each meeting&apos;s transcript, one reading per meeting; speakers&apos; own words are read one
+        speaker at a time by a classifier, confident readings only; named people are from each decision&apos;s record; votes are
+        by which way each decision went.
       </p>}
     </div>
   )

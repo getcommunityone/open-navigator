@@ -94,6 +94,25 @@ models:
 seeds:
   open_navigator_dbt:
     +schema: seeds
+    governing_body_pattern:
+      # #1442: meeting title -> governing body patterns, tried by priority (Python twin: ingestion.governance.body_titles).
+      +column_types:
+        pattern_id: text
+        priority: integer
+        applies_to: text
+        pattern: text
+        body_key: text
+        body_name: text
+        body_type: text
+        name_from_title: boolean
+    governing_body_title_example:
+      # #1442: real titles and the body each must map to (pytest and assert_governing_body_title_examples).
+      +column_types:
+        title: text
+        jurisdiction_name: text
+        jurisdiction_type: text
+        expected_body_key: text
+        expected_body_name: text
     topic_organization_rule:
       # #1345: how each curated topic is tied to nonprofits (NTEE code, name or mission keyword regex).
       +column_types:
@@ -102,6 +121,10 @@ seeds:
         pattern: text
         side: text
         label: text
+    aspep_function_code:
+      +column_types:
+        function_code: text
+        function_name: text
     cap_topic:
       +column_types:
         code: varchar
@@ -255,6 +278,18 @@ vars:
   heat_version: 'heat/1'
   heat_rules_enabled: false
   heat_rules_within1: 0.78
+  # Speaker side / heat from the classifier (#1391): a reading counts only at or above this probability (calibrated on
+  # the hand-labelled gold set; llm.typesafe.speaker_stance.MIN_SIDE_CONFIDENCE, kept equal by a test).
+  speaker_side_min_confidence: 0.8
+  speaker_heat_min_confidence: 0.65
+  # topic_place_ranking (#1437): where places stand on a topic, from the speaker sides above.
+  # ranking_as_of: the window's end date ('' = the run date); the window is the last ranking_window_months months.
+  ranking_as_of: ''
+  ranking_window_months: 24
+  ranking_min_speakers: 10
+  ranking_min_meetings: 2
+  # pseudo-speakers at the topic's national against-rate added to every place (shrinkage prior)
+  ranking_prior_weight: 10
   # Confidence score thresholds
   confidence_authoritative: 1.0
   confidence_high: 0.90

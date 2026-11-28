@@ -11,6 +11,7 @@ import {
   filterTopics,
   parseTopicFilter,
   parseYoySort,
+  heatColumnLabel,
   scopeQuery,
   splitTopics,
   topicDestination,
@@ -96,6 +97,9 @@ export default function BrowseAllTopics() {
 
   const drawn: DumbbellRow[] = rows.map(({ topic: t, a, b, change }) => {
     const ch = changeLabel(change)
+    const heat = heatColumnLabel(t)
+    const heatAria = t.heat_mean != null ? `classifier heat ${t.heat_mean.toFixed(1)} of 5 from ${fmt(t.heat_rated ?? 0)} rated speakers` : 'too few speakers rated for heat'
+
     const counts = `${fmt(t.meetings_a)} of ${fmt(t.recorded_a)} meetings in ${yA}; ${fmt(t.meetings_b)} of ${fmt(t.recorded_b)} in ${yB}`
     const status = t.has_story ? 'Live story' : 'Not a story yet — opens Browse Topics'
     return {
@@ -103,10 +107,14 @@ export default function BrowseAllTopics() {
       label: t.name,
       a,
       b,
-      right: ch,
+      right: sort === 'heat' ? heat : ch,
       negative: b < a,
-      ariaLabel: `${t.name} (${t.has_story ? 'live story' : 'not a story yet'}): ${yA} ${format(a)}, ${yB} ${format(b)}, ${ch.replace('−', 'minus ')} change. ${counts}. ${t.has_story ? 'Opens the story.' : 'Opens meetings in Browse Topics.'}`,
-      tip: { cat: t.name, val: `${format(a)} → ${format(b)} (${ch})`, sub: `${counts} · ${status}` },
+      ariaLabel: `${t.name} (${t.has_story ? 'live story' : 'not a story yet'}): ${yA} ${format(a)}, ${yB} ${format(b)}, ${ch.replace('−', 'minus ')} change; ${heatAria}. ${counts}. ${t.has_story ? 'Opens the story.' : 'Opens meetings in Browse Topics.'}`,
+      tip: {
+        cat: t.name,
+        val: sort === 'heat' ? `${heat} (${fmt(t.heat_rated ?? 0)} rated speakers)` : `${format(a)} → ${format(b)} (${ch})`,
+        sub: `${counts} · ${status}`,
+      },
     }
   })
 
@@ -176,6 +184,7 @@ export default function BrowseAllTopics() {
                 [
                   ['change', 'Biggest rise'],
                   ['latest', 'Most discussed'],
+                  ['heat', 'Most heated'],
                 ] as [YoySort, string][]
               ).map(([k, label]) => (
                 <button
@@ -219,8 +228,11 @@ export default function BrowseAllTopics() {
                 <b>{rising}</b> {rising === 1 ? 'topic is' : 'topics are'} up and <b>{falling}</b> down
                 {filter === 'all' && candidateRows > 0 ? ` (${candidateRows} without a story yet)` : ''}. Hollow dot = {yA}, filled dot ={' '}
                 {yB}; teal rises, ochre falls. Tap a row to open its story or meetings.
+                {sort === 'heat' &&
+                  ` Most heated: the mean heat (1-5) a classifier rated from public speakers' own words on the topic, all years, shown with at least ${d.min_heat_rated ?? 20} rated speakers; fewer says "too few rated".`}
               </p>
               <DumbbellRows
+                title={`${rising} of ${rising + falling} topics compared rose from ${yA} to ${yB} · ${scopeLabel}`}
                 rows={drawn}
                 aName={yA}
                 bName={yB}

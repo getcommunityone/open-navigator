@@ -39,6 +39,8 @@ import DumbbellChart from '../components/stance/DumbbellChart'
 import PlaceControl from '../components/stance/PlaceControl'
 import ProgressPips from '../components/stance/ProgressPips'
 import StoryClose from '../components/stance/StoryClose'
+import { useBoxFlight } from '../components/stance/BoxFlightProvider'
+import { useStoryBoxTransition } from '../components/stance/useStoryBoxTransition'
 import ScopeBar from '../components/stance/ScopeBar'
 import ScopeNote from '../components/stance/ScopeNote'
 import { StoryBottomBar } from '../components/stance/StoryProgress'
@@ -66,6 +68,9 @@ import '../styles/stance.css'
 import '../styles/story-actions.css'
 import '../styles/topic-story.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
+import ScreenBoxes from '../components/stance/ScreenBoxes'
+import UpcomingBoxes from '../components/stance/UpcomingBoxes'
+import { actionsBoxes, billsBoxes, decidedBoxes, nonprofitsBoxes, recapBoxes, saidBoxes } from '../utils/screenBoxes'
 
 /**
  * A topic story (#1013): one curated topic's meetings, told from the transcript record. Since #1224 it is told screen by
@@ -323,6 +328,8 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
     dialogOpen: placeOpen,
     reduced,
   })
+  const boxFlight = useBoxFlight()
+  useStoryBoxTransition(rootRef, active, reduced)
   useIdleNudge({ rootRef, screen: `[data-panel="${active}"]`, resetKey: active, entranceMs: NUDGE_ENTRANCE_MS })
 
   // --- the title --------------------------------------------------------------------------------------------------------
@@ -369,6 +376,44 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
     />
   )
 
+  /** The screen's box strip (#1415): real counts from the data the screen already loaded, never shown while it loads. */
+  const boxesFor = (id: TopicScreenId): ReactNode => {
+    const place = stateName ?? 'National'
+    switch (id) {
+      case 'upcoming':
+        return upcoming.data ? <UpcomingBoxes data={upcoming.data} scopeLabel={label} /> : null
+      case 'nonprofits':
+        return <ScreenBoxes spec={nonprofitsBoxes(nonprofits.data, place)} />
+      case 'bills':
+        return <ScreenBoxes spec={billsBoxes(legislation.data, place, stateCode)} />
+      case 'actions': {
+        const w = actionLabels(def.slug)
+        return <ScreenBoxes spec={actionsBoxes(localActions.data, { advanced: w.advanced, blocked: w.blocked }, place)} />
+      }
+      case 'said':
+        return <ScreenBoxes spec={saidBoxes(meetings.data?.pages[0]?.position_counts, place)} />
+      case 'decided':
+        return <ScreenBoxes spec={decidedBoxes(decisions.data, place)} />
+      case 'companies':
+        return companies.data ? <ScreenBoxes spec={recapBoxes([{ key: 'companies', label: named.length === 1 ? 'Company named' : 'Companies named', count: named.length }], place)} /> : null
+      case 'recap':
+        return (
+          <ScreenBoxes
+            spec={recapBoxes(
+              [
+                { key: 'meetings', label: meetingCount === 1 ? 'Meeting' : 'Meetings', count: captionQ.isSuccess ? meetingCount : null },
+                { key: 'decisions', label: decisions.data?.total === 1 ? 'Decision' : 'Decisions', count: decisions.isSuccess ? decisions.data.total : null },
+                { key: 'companies', label: 'Companies named', count: def.companiesPath && companies.isSuccess ? named.length : null },
+              ],
+              place,
+            )}
+          />
+        )
+      default:
+        return null
+    }
+  }
+
   const screen = (id: TopicScreenId): { headline: string; context: ReactNode; right: ReactNode; lead?: ReactNode } => {
     switch (id) {
       case 'overview':
@@ -402,6 +447,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 // Center Story. The state outline is kept only when none of its meetings can be placed.
                 <TopicCountyMap
                   topicId={def.topicId}
+                  topicSlug={def.slug}
                   stateCode={stateCode}
                   scopeCity={cityAsked}
                   scopeLabel={label}
@@ -769,7 +815,12 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 // Every live story, the same list as the Data Center Story's (#1224); choosing one opens it on its Overview,
                 // keeping the place.
                 options: storyTopicOptions(live, def.slug, topicWord),
-                onChange: (v) => navigate(storyStartHref(v, scopeQ)),
+                onChange: (v) => {
+                  if (rootRef.current) {
+                    boxFlight.launch({ source: rootRef.current, targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]' })
+                  }
+                  navigate(storyStartHref(v, scopeQ))
+                },
               },
             ]}
           />
@@ -804,6 +855,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 nextLabel={null}
                 onNext={() => goTo(i + 1)}
                 onPrev={i > 0 ? () => goTo(i - 1) : undefined}
+                boxes={boxesFor(s.id)}
                 right={v.right}
                 glance={!wide && s.id === 'overview'}
               >
@@ -826,7 +878,13 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       {active < n - 1 ? (
         <StoryNextButton label="Next" ariaLabel={`Next: ${screens[active + 1]?.eyebrow ?? ''}`.replace(/: $/, '')} onClick={() => goTo(Math.min(activeRef.current + 1, n - 1))} />
       ) : (
-        <StoryNextButton label="Done" ariaLabel="Done: close the story" href={homeHref} quiet />
+        <StoryNextButton
+          label="Done"
+          ariaLabel="Done: close the story"
+          href={homeHref}
+          onClick={() => rootRef.current && boxFlight.launch({ source: rootRef.current, targetSelector: '.home-story-map' })}
+          quiet
+        />
       )}
       {/* Phones: the bottom bar keeps Back and the progress dots; Next is the fixed button above, at its right end. */}
       {!wide && (

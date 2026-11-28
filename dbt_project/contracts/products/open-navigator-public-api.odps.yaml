@@ -115,6 +115,41 @@ outputPorts:
   contractId: open-navigator-public-jurisdiction_finance_category
   type: table
   description: 'Tidy/long companion to jurisdiction_finance: one row per (government x expenditure category) with amount (whole dollars) and share_pct of direct_expenditure.'
+- name: federal_award
+  version: 1.0.0
+  contractId: open-navigator-public-federal_award
+  type: table
+  description: One row per USAspending assistance award (types 02-05) to a local-government recipient, FY2019+.
+- name: jurisdiction_federal_funding
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_federal_funding
+  type: table
+  description: Federal assistance dollars per matched jurisdiction x fiscal year x Assistance Listing Number, summed from federal_award (matched awards only).
+- name: cdbg_allocation
+  version: 1.0.0
+  contractId: open-navigator-public-cdbg_allocation
+  type: table
+  description: CDBG grant dollars per matched jurisdiction and federal fiscal year, summed from the USAspending awards under 14.218 and 14.228 (current total obligations).
+- name: cdbg_activity_summary
+  version: 1.0.0
+  contractId: open-navigator-public-cdbg_activity_summary
+  type: table
+  description: Completed CDBG activities, FY2019 onward, matched to a jurisdiction, summed per fiscal year and HUD activity group.
+- name: opioid_settlement_spending
+  version: 1.0.0
+  contractId: open-navigator-public-opioid_settlement_spending
+  type: table
+  description: 'One row per spend-plan line of a state''s opioid settlement funds (pilot: Michigan, MDHHS dashboard workbook FY22 to FY24, as of 2024-06-30).'
+- name: jurisdiction_public_payroll
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_public_payroll
+  type: table
+  description: Employees and March payroll per matched government, survey year and function from the Census Annual Survey of Public Employment and Payroll.
+- name: jurisdiction_public_payroll_latest
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_public_payroll_latest
+  type: table
+  description: 'Served slice of jurisdiction_public_payroll: the latest ASPEP survey year only, trimmed columns, rows with full-time employees.'
 - name: jurisdiction_property_tax_rate
   version: 1.0.0
   contractId: open-navigator-public-jurisdiction_property_tax_rate
@@ -314,7 +349,7 @@ outputPorts:
   version: 1.0.0
   contractId: open-navigator-public-data_center_site_timeline
   type: table
-  description: 'One row per data center site (PK data_center_site_id, FK data_center_site): the year of its earliest date on record (appear_year; the registry''s announced date or Epoch AI''s first dated timeline row, appear_basis says which, appear_precision how precise), Epoch''s first operating year (operating_year, operating_is_expected when after today) and the coordinates the sources publish.'
+  description: 'One row per data center site (PK data_center_site_id, FK data_center_site): the year of its earliest date on record (appear_year; the registry''s announced date or Epoch AI''s first dated timeline row, else (#1428) the earliest date a source had it listed, an upper bound labelled listed_by; appear_basis says which, appear_precision how precise), Epoch''s first operating year (operating_year, operating_is_expected when after today) and the coordinates the sources publish.'
 - name: data_center_agenda_item
   version: 1.0.0
   contractId: open-navigator-public-data_center_agenda_item
@@ -565,3 +600,13 @@ outputPorts:
   contractId: open-navigator-public-meeting_passage_speaker
   type: table
   description: 'One row per quoted story-map passage (topic_transcript_link evidence or data_center_meeting_mention excerpt) inside a speaker''s introduction window: the nearest preceding introduction in the same recording within 2,500 characters; a two-fragment excerpt only when both fragments take the same introduction.'
+- name: meeting_speaker_topic_side
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_speaker_topic_side
+  type: table
+  description: 'One row per meeting x public speaker x topic (#1391): the side the speaker''s own words took on the topic, read by a classifier (TypeSafe Jev, llm.typesafe.speaker_stance) from the passages of their turn text that name the topic, at the topic''s current question version.'
+- name: topic_place_ranking
+  version: 1.0.0
+  contractId: open-navigator-public-topic_place_ranking
+  type: table
+  description: 'One row per place x topic x window (#1437): where a place''s public speakers stood on a topic, from their own classifier sides (meeting_speaker_topic_side).'

@@ -643,6 +643,7 @@ These platforms present **multiple positions on the same issue side by side** �
 - [GroundVue](#groundvue)
 - [USLege](#uslege)
 - [Hamlet](#hamlet)
+- [GovWell](#govwell)
 
 These are **commercial peers** in local government data, meeting intelligence, legislative AI, and resident-facing civic tools. We name them here with respect for the work they do and as **friendly reference** for the product category Open Navigator also serves. We **do not scrape, mirror, or redistribute** their content or data. When a site's terms forbid competitors' use, we also **never fetch** that host (see American Sentiment and ProphecyGov). Our own meeting stance and summaries come only from sources we are allowed to use (our transcripts and analyses).
 
@@ -725,9 +726,9 @@ These are **commercial peers** in local government data, meeting intelligence, l
 ### Hamlet
 
 **Organization:** Hamlet
-**What they do:** Commercial **local-government / civic AI** product (hamlet.com) aimed at helping residents and staff work with city and local government information.
+**What they do:** Commercial **local-government / civic AI** product (myhamlet.com) aimed at helping residents and staff work with city and local government information.
 
-- **Website:** https://hamlet.com/
+- **Website:** https://myhamlet.com/
 - **How we reference them:** As a peer in resident-facing local government AI and civic Q&A.
 - **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
 
@@ -736,8 +737,27 @@ These are **commercial peers** in local government data, meeting intelligence, l
 @misc{hamlet_civic,
  author = {{Hamlet}},
  title = {Hamlet},
- url = {https://hamlet.com/},
+ url = {https://myhamlet.com/},
  note = {Local government / civic AI peer; friendly reference-only.}
+}
+```
+
+### GovWell
+
+**Organization:** GovWell
+**What they do:** Commercial **local-government software** product (govwell.com) for city and county staff workflows.
+
+- **Website:** https://govwell.com/
+- **How we reference them:** As a commercial peer serving local governments.
+- **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
+
+**BibTeX:**
+```bibtex
+@misc{govwell,
+ author = {{GovWell}},
+ title = {GovWell},
+ url = {https://govwell.com/},
+ note = {Local government software peer; friendly reference-only.}
 }
 ```
 
@@ -1174,6 +1194,12 @@ Municipalities and school boards often publish **official agendas, packets, and 
 **In this section:**
 - [U.S. Census Bureau](#us-census-bureau)
 - [Census of Governments (U.S. Census Bureau)](#census-of-governments-us-census-bureau)
+- [Annual Survey of State and Local Government Finances (Census Bureau, via Tax Policy Center)](#annual-survey-of-state-and-local-government-finances-census-bureau-via-tax-policy-center)
+- [USAspending.gov](#usaspendinggov)
+- [Michigan opioid settlement spending](#michigan-opioid-settlement-spending-mdhhs)
+- [HUD CDBG activity](#hud-open-data-community-development-block-grant-activity)
+- [Census ASPEP public payroll](#census-annual-survey-of-public-employment--payroll-aspep)
+- [Grants.gov](#grantsgov)
 - [State Symbols USA (reference)](#state-symbols-usa-reference)
 - [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf)
 - [Open States / Plural Policy](#open-states--plural-policy-)
@@ -1197,6 +1223,74 @@ Municipalities and school boards often publish **official agendas, packets, and 
 - **2025 total:** 91,438 local governments ([Government Organization Summary, 2022-2025](https://www.census.gov/library/publications/2026/econ/govtorg2225.html))
 - **2022 breakdown:** 90,837 local governments: 3,031 counties, 19,491 municipalities, 16,214 townships, 12,546 independent school districts and 39,555 special districts ([Census of Governments 2022 webinar slides](https://www.fdlp.gov/sites/default/files/training/20231212-wn-census-govts-slides.pdf))
 - **Note:** About 40% of local governments are special districts (water, fire, transit and similar). Open Navigator does not include special districts.
+
+### Annual Survey of State and Local Government Finances (Census Bureau, via Tax Policy Center)
+
+**Organization:** U.S. Census Bureau, republished by the Urban-Brookings Tax Policy Center (State and Local Finance Initiative)
+**What we use:** Revenue, taxes and expenditure by function for each state and local government (`jurisdiction_finance`, `jurisdiction_finance_category`). It is the baseline for "where your tax money goes" and for the per-capita peer benchmarks.
+
+- **Source:** https://www.census.gov/programs-surveys/gov-finances.html
+- **Republication:** https://www.taxpolicycenter.org/
+- **License / terms:** Census data is public domain (U.S. Government). Credit the Census Bureau and the Tax Policy Center.
+- **Refresh cadence:** Annual, with about a two-year lag. We hold the latest fiscal year per government.
+- **Date accessed:** Loaded before 2026; re-confirmed 27 Nov 2026.
+- **On screen:** the "Where your tax money goes" card shows "Source: U.S. Census Bureau, Annual Survey of State & Local Government Finances / Census of Governments (via the Tax Policy Center)" from the API's `source` field.
+
+### USAspending.gov
+
+**Organization:** U.S. Department of the Treasury, Bureau of the Fiscal Service
+**What we use:** Federal assistance awards (grants, cooperative agreements and formula or block grants, award types 02 to 05) to local-government recipients, fiscal year 2019 onward. They fill `federal_award` and `jurisdiction_federal_funding` and feed the `federal_total`, `federal_cdbg` and `federal_opioid` peer benchmarks ([decision](../development/usaspending-federal-awards-decision.md)).
+
+- **Source:** https://www.usaspending.gov/ . API: https://api.usaspending.gov/docs/endpoints
+- **License / terms:** Public domain (U.S. Government work). No key. We identify as `open-navigator`, keep requests slow and stop on HTTP 403 or 429.
+- **Refresh cadence:** USAspending updates daily from agency submissions, which lag the award by weeks to months. We re-run the loader on demand. Each row carries `source_updated_at`.
+- **Date accessed:** 27 Nov 2026.
+- **On screen:** benchmark figures show "Source: USAspending.gov (U.S. Treasury), assistance awards to local governments, public domain" from the API's `source` field, with `data_as_of`.
+- **Caveat:** recipients are linked to jurisdictions by name, state and kind, with a `match_confidence`. Totals are for awards we matched, so a missing jurisdiction means "not matched", not "received nothing".
+
+### Census Annual Survey of Public Employment & Payroll (ASPEP)
+
+**Organization:** U.S. Census Bureau
+**What we use:** Full-time and part-time employees and March payroll by government and function, survey years 2019 to 2024. They fill `jurisdiction_public_payroll` and the `payroll_total`, `payroll_police` and `avg_pay_all_functions` peer benchmarks ([decision](../development/aspep-public-payroll-decision.md)).
+
+- **Source:** https://www.census.gov/programs-surveys/apes.html . Files: https://www2.census.gov/programs-surveys/apes/datasets/
+- **License / terms:** Public domain (U.S. Government work). No key. Disclaimer in each year's zip.
+- **Refresh cadence:** annual, about 18 months after the survey month. Each row carries `source_updated_at`.
+- **Date accessed:** 27 Nov 2026.
+- **On screen:** benchmark figures show "Source: U.S. Census Bureau, Annual Survey of Public Employment & Payroll (ASPEP), latest survey year, public domain".
+- **Caveat:** aggregate only. ASPEP has no department-head or per-person salary. Years not ending in 2 or 7 are samples.
+
+### Michigan Opioid Settlement spending (MDHHS)
+
+**Organization:** Michigan Department of Health and Human Services
+**What we use:** The state's published opioid settlement spending dashboard workbook (FY22 to FY24, as of 30 Jun 2024): program, recipient organization, spend plan and expenditures per line. It fills `opioid_settlement_spending` and the `opioid_settlement_spending` peer benchmark ([decision](../development/opioid-settlement-decision.md)).
+
+- **Source:** https://www.michigan.gov/opioids/opioidsettlements/settlement-spending/prior-years-spending
+- **License / terms:** State of Michigan public record published for transparency. The page states no licence; we cite MDHHS and link to the page.
+- **Refresh cadence:** the state updates the workbook periodically; we re-run the loader on demand. Rows carry `reported_as_of` and `source_updated_at`.
+- **Date accessed:** 27 Nov 2026.
+- **Caveat:** state-agency lines only, not payments to cities or counties. A pilot for one state; other states are listed in the decision page.
+### HUD Open Data: Community Development Block Grant Activity
+
+**Organization:** U.S. Department of Housing and Urban Development (HUD)
+**What we use:** CDBG activities (grantee, HUD activity group, activity name, funding, completion date) since 1996. They fill `cdbg_activity` and `cdbg_activity_summary` and feed the `cdbg_public_services_share` peer benchmark; `cdbg_allocation` is built from USAspending awards under 14.218 and 14.228 ([decision](../development/hud-cdbg-decision.md)).
+
+- **Source:** https://hudgis-hud.opendata.arcgis.com/ . Service: https://services.arcgis.com/VTyQ9soqVukalItT/arcgis/rest/services/CDBG_PROGRAM_ACTIVITY/FeatureServer
+- **License / terms:** U.S. government data published on HUD Open Data (public access; the item carries no separate licence text). We cite HUD as publisher.
+- **Refresh cadence:** HUD updates the service from IDIS (modified July 2025 at the time of loading). We re-run the loader on demand; each row carries `source_updated_at`.
+- **Date accessed:** 27 Nov 2026.
+- **Not loaded:** street addresses, ZIP codes and coordinates (privacy), HUD Exchange allocation pages (not fetchable).
+- **Caveat:** activities are matched to jurisdictions by grantee name and state with a `match_confidence`.
+
+### Grants.gov
+
+**Organization:** U.S. Department of Health and Human Services (Grants.gov, the federal grant opportunity portal)
+**What we use:** Open and forecast federal funding opportunities (`grant_opportunity`). Used to benchmark what is open to apply for, next to the awards in USAspending.
+
+- **Source:** https://www.grants.gov/ . API guide: https://www.grants.gov/api/api-guide
+- **License / terms:** Public domain (U.S. Government). The Search2 API needs no key.
+- **Refresh cadence:** Refreshed on demand with `make grants-refresh`.
+- **Date accessed:** Loaded before 2026; re-confirmed 27 Nov 2026.
 
 ---
 
@@ -3566,3 +3660,12 @@ License: MIT
 This project respects all dataset licenses and terms of use. See [LICENSE](https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/LICENSE) for this project's MIT license.
 
 For dataset-specific licenses, please refer to the original sources listed above.
+
+### Candidate finance sources (inventory only, not loaded)
+
+Listed in the [state grants, budgets and ACFR inventory](../development/state-grants-budgets-acfr-inventory.md) (#1397). Nothing from these is on the site yet, so there is nothing to attribute on screen.
+
+- **Federal Audit Clearinghouse single audits** (GSA): https://www.fac.gov/ , API https://api.fac.gov/ . U.S. government work, public domain. Recommended next. Date reviewed: 27 Nov 2026.
+- **California State Controller, By The Numbers**: https://bythenumbers.sco.ca.gov/ . State open data terms. Recommended. Date reviewed: 27 Nov 2026.
+- **New York Office of the State Comptroller local government data**: https://data.ny.gov/ . Open Data terms. Recommended. Date reviewed: 27 Nov 2026.
+- **MSRB EMMA**: https://emma.msrb.org/ . Terms restrict automated collection; link out only, never ingested.

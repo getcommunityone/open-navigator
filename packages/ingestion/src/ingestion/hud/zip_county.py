@@ -24,18 +24,16 @@ import argparse
 import asyncio
 import xml.etree.ElementTree as ET
 import zipfile
+from collections.abc import AsyncIterator
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import AsyncIterator
-
-from pydantic import Field
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core_lib.db import async_session
 from core_lib.logging import setup_logging
 from core_lib.pipeline import DataSourcePipeline, PipelineContext, RawRow
-
+from pydantic import Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 CACHE_DIR = Path("data/cache/hud")
 NS = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}

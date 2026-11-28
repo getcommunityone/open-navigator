@@ -1,3 +1,5 @@
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
+import { TONE_COLOR } from '../chart/toneColors'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import type { DotsSpec } from '../../utils/stanceGame'
@@ -22,6 +24,7 @@ const NATIVE_NAMES: Record<string, string> = {
   sites: 'By status',
   projects: 'By status',
   'community-events': 'By kind',
+  positions: 'By stance',
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -52,6 +55,8 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
   const { ref: revealRef, revealed, reduced } = useChartReveal<SVGSVGElement>(`${chartKey}|${scopeLabel}`)
   const [tableOpen, setTableOpen] = useState(false)
   const [playing, setPlaying] = useState<MeetingVideo | null>(null)
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null)
+  const [pinnedGroup, setPinnedGroup] = useState<string | null>(null)
   const playingFrom = useRef<number | null>(null)
 
   const records = useMemo(
@@ -122,8 +127,26 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
   const groupingName = (k: GroupingKey) =>
     k === 'all' ? 'All' : k === 'native' ? nativeName : k === 'year' ? 'By year' : k === 'place' ? (placeGrain === 'town' ? 'By town' : 'By state') : k === 'outcome' ? 'By outcome (AI reading)' : 'By who spoke (AI reading)'
   const aiGrouping = active === 'outcome' || active === 'side'
+  const spotlightRaw = hoveredGroup ?? pinnedGroup
+  const spotlight = spotlightRaw && groups.some((g) => g.key === spotlightRaw) ? spotlightRaw : null
   const capped = spec.grandTotal != null ? spec.drawn < spec.grandTotal : /Showing/.test(spec.note ?? '')
   const hasVideo = records.some((r) => r.d.video)
+
+  // Title and key (#1409): the largest group as the takeaway when it is clear, every group's colour in the key.
+  const top = [...groups].sort((a, b) => b.count - a.count)[0]
+  const unitWord = `${spec.unit}${records.length === 1 ? '' : 's'}`
+  const frameTitle =
+    active !== 'all' && top && records.length >= 5 && top.pct >= 40 && groups.length > 1
+      ? `${spec.title}: ${top.label} is the largest group, ${Math.round(top.pct)}% of ${fmt(records.length)} ${unitWord}`
+      : `${spec.title}: ${fmt(records.length)} ${unitWord}, ${scopeLabel}`
+  const legend: LegendItem[] =
+    active === 'all'
+      ? [{ key: 'all', label: `One square per ${spec.unit}`, color: 'var(--ink-3)' }]
+      : groups.map((g, gi) => ({
+          key: g.key,
+          label: `${g.label} (${fmt(g.count)})`,
+          color: g.tone ? TONE_COLOR[g.tone] : g.key === 'none' ? 'var(--paper-raised)' : colour(gi, g.tone),
+        }))
 
   return (
     <div className="sc-block">
@@ -138,6 +161,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
           </div>
         </div>
       )}
+      <ChartFrame title={frameTitle} legend={legend} caption={`One square per ${spec.unit}, grouped ${groupingName(active).toLowerCase()}.`}>
       <div ref={ref} data-keys-own onKeyDown={onKey}>
         <svg
           ref={svgRefs}
@@ -147,7 +171,27 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
           aria-label={`${spec.title}, ${scopeLabel}: one square per ${spec.unit}, ${groupingName(active)}`}
         >
           {layout.labels.map((l) => (
-            <text key={l.key} className="sc-label" x={l.x} y={l.y}>
+            <text
+              key={l.key}
+              className="sc-label sc-label-btn"
+              x={l.x}
+              y={l.y}
+              role="button"
+              tabIndex={0}
+              aria-pressed={pinnedGroup === l.key}
+              style={spotlight && spotlight !== l.key ? { opacity: 0.45 } : undefined}
+              onMouseEnter={() => setHoveredGroup(l.key)}
+              onMouseLeave={() => setHoveredGroup((c) => (c === l.key ? null : c))}
+              onFocus={() => setHoveredGroup(l.key)}
+              onBlur={() => setHoveredGroup((c) => (c === l.key ? null : c))}
+              onClick={() => setPinnedGroup((c) => (c === l.key ? null : l.key))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setPinnedGroup((c) => (c === l.key ? null : l.key))
+                }
+              }}
+            >
               {l.text}
             </text>
           ))}
@@ -155,6 +199,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
             const s = layout.squares[i]!
             const gi = groupOf[i] ?? 0
             const g = groups[gi]
+            const dimmed = Boolean(spotlight && g?.key !== spotlight)
             const sub = [r.d.place, r.d.date].filter(Boolean).join(' · ') || undefined
             const b = bind({
               cat: g ? g.label : r.group,
@@ -182,11 +227,18 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
             return (
               <rect
                 key={r.d.id + i}
+                data-box=""
+                data-group={g?.key ?? ''}
                 data-sq={i}
                 className={`sc-sq${g?.tone ? ` sc-tone-${g.tone}` : g?.key === 'none' && active !== 'all' ? ' sc-tone-none' : ''}`}
                 width={s.size}
                 height={s.size}
-                style={{ transform: `translate(${s.x}px, ${s.y}px)`, transitionDelay: `${fly}ms, ${fly}ms, ${wave}ms`, fill: g?.key === 'none' && active !== 'all' ? undefined : colour(gi, g?.tone) }}
+                style={{
+                  transform: `translate(${s.x}px, ${s.y}px)`,
+                  transitionDelay: `${fly}ms, ${fly}ms, ${wave}ms`,
+                  fill: dimmed ? 'var(--neutral-data)' : g?.key === 'none' && active !== 'all' ? undefined : g?.tone ? TONE_COLOR[g.tone] : colour(gi, g?.tone),
+                  opacity: dimmed ? 0.3 : undefined,
+                }}
                 tabIndex={i === rove ? 0 : -1}
                 role="img"
                 aria-label={label}
@@ -204,6 +256,7 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
           })}
         </svg>
       </div>
+      </ChartFrame>
       {active !== 'all' && (
       <p className="sc-note">
         {`Percentages are of the ${fmt(records.length)} ${capped ? 'shown' : 'on record in this scope'}. `}

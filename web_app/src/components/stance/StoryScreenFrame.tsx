@@ -22,6 +22,8 @@ interface Props {
   onPrev?: () => void
   /** The screen's own primary action in Next's spot (see ScreenNav). */
   navPrimary?: ReactNode
+  /** The screen's small box strip (#1415), always shown first in the figure column so a flight lands on boxes. */
+  boxes?: ReactNode
   /** The figure column. */
   right: ReactNode
   /** Phones (#1380): the Overview drops its boxed word and fills the screen with the map; the headline stays for screen readers. */
@@ -88,6 +90,7 @@ export default function StoryScreenFrame(p: Props) {
           <ScreenNav ref={nextRef} nextLabel={p.nextLabel} onNext={p.onNext} onPrev={p.onPrev} primary={p.navPrimary} />
         </div>
         <div className="stance-right" ref={rightRef}>
+          {p.boxes}
           {p.right}
           {(hasMore || more) && (
             <button type="button" className="folio-link-btn stance-screen-more" aria-expanded={more} onClick={() => setMore((m) => !m)}>

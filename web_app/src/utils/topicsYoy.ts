@@ -5,7 +5,7 @@ import type { YoyResponse, YoyTopic } from '../api/topicsYoy'
 
 export type YoyMetric = 'share' | 'count'
 export type YoyTopicFilter = 'all' | 'candidates' | 'stories'
-export type YoySort = 'change' | 'latest'
+export type YoySort = 'change' | 'latest' | 'heat'
 
 export interface YoyRow {
   topic: YoyTopic
@@ -43,7 +43,20 @@ export function parseTopicFilter(raw: string | null): YoyTopicFilter {
 }
 
 export function parseYoySort(raw: string | null): YoySort {
-  return raw === 'latest' ? 'latest' : 'change'
+  return raw === 'latest' || raw === 'heat' ? raw : 'change'
+}
+
+/** A topic's classifier heat for ranking (#1407): the mean when enough speakers were rated, else null. */
+export const topicHeat = (t: Pick<YoyTopic, 'heat_mean'>): number | null =>
+  typeof t.heat_mean === 'number' && Number.isFinite(t.heat_mean) ? t.heat_mean : null
+
+/**
+ * The "Most heated" column (#1407): "🔥 3.6" from the classifier's mean heat of rated speakers, "too few rated" under the
+ * minimum. Never a guessed number.
+ */
+export function heatColumnLabel(t: Pick<YoyTopic, 'heat_mean' | 'heat_rated'>): string {
+  const h = topicHeat(t)
+  return h == null ? 'too few rated' : `\u{1F525} ${h.toFixed(1)}`
 }
 
 export function filterTopics(topics: YoyTopic[], filter: YoyTopicFilter): YoyTopic[] {
@@ -69,10 +82,14 @@ export function splitTopics(
     const b = metric === 'share' ? t.share_b : t.meetings_b
     rows.push({ topic: t, a, b, change: relChange(a, b) })
   }
+  const byChange = (x: YoyRow, y: YoyRow) =>
+    (y.change ?? -Infinity) - (x.change ?? -Infinity) || y.b - x.b || x.topic.name.localeCompare(y.topic.name)
   rows.sort((x, y) =>
     sort === 'latest'
       ? y.b - x.b || (y.change ?? -Infinity) - (x.change ?? -Infinity) || x.topic.name.localeCompare(y.topic.name)
-      : (y.change ?? -Infinity) - (x.change ?? -Infinity) || y.b - x.b || x.topic.name.localeCompare(y.topic.name),
+      : sort === 'heat'
+        ? (topicHeat(y.topic) ?? -Infinity) - (topicHeat(x.topic) ?? -Infinity) || byChange(x, y)
+        : byChange(x, y),
   )
   tooFew.sort((x, y) => x.name.localeCompare(y.name))
   return { rows, tooFew }

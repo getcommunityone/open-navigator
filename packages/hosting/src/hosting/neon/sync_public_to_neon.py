@@ -194,6 +194,18 @@ CIVIC_SERVING = frozenset(
         # reference series — annual CPI for the real-dollar / inflation toggle
         # (tiny: ~15 rows/series). Served via /api/cpi/annual.
         "cpi_annual",
+        # federal assistance dollars per jurisdiction x FY x ALN (#1393), ~4 MB;
+        # served via /api/benchmark. federal_award (111 MB) stays gold-only.
+        "jurisdiction_federal_funding",
+        # opioid settlement spending pilot, Michigan (#1396), 221 rows (~0.1 MB)
+        "opioid_settlement_spending",
+        # HUD CDBG (#1394): allocation per jurisdiction x FY (tiny) and the FY2019+ activity
+        # summary by HUD activity group (~2 MB); cdbg_activity (~400k rows) stays gold-only.
+        "cdbg_allocation",
+        "cdbg_activity_summary",
+        # Census ASPEP payroll, latest year, 12 core functions (#1395), ~3.7 MB; the full
+        # history (jurisdiction_public_payroll, ~41 MB) stays gold-only.
+        "jurisdiction_public_payroll_latest",
         # --- triaged 2026-06-14: small civic marts, ~26 MB combined ---
         # browse counts + directory (homepage / browse surfaces)
         "browse_directory_summary",
@@ -292,6 +304,9 @@ CIVIC_SERVING = frozenset(
         "data_center_comment_place",
         "segmented_meeting",
         "meeting_passage_speaker",
+        # Each public speaker's side and heat on a topic, read by a classifier from their own words (#1391): the
+        # caption facts' "speakers' own words" counts read it; slim projection without not_sure rows (~3 MB)
+        "meeting_speaker_topic_side",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

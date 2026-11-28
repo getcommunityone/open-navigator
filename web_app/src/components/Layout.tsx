@@ -4,6 +4,8 @@ import { XMarkIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
 import SiteFooter from './SiteFooter'
 import SiteHeader from './SiteHeader'
+import PageClose from './PageClose'
+import { showsPageClose } from '../lib/pageClose'
 import { PLACE_PICK_STATE } from '../hooks/usePlacePick'
 
 export default function Layout() {
@@ -56,6 +58,7 @@ export default function Layout() {
           </div>
         )}
         <main id="main-content" tabIndex={-1} className="flex min-h-0 flex-1 flex-col focus:outline-none">
+          {showsPageClose(routerLocation.pathname) && <PageClose />}
           <Outlet key={placeKey} />
         </main>
         <SiteFooter />

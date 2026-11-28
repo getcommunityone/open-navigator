@@ -89,6 +89,10 @@ rm -rf "$HERE/web_app/public"
 mkdir -p "$HERE/web_app/public"
 rsync -a "${RSYNC_EXCL[@]}" "$REPO/web_app/public/" "$HERE/web_app/public/"
 
+# The route titles/descriptions and story copy api/seo.py reads for per-page <head> meta and the sitemap (#1430).
+log "Staging web_app/src/data/seo (route meta for api/seo.py)"
+stage web_app/src/data/seo
+
 # --------------------------------------------------------------------------
 # 3. Strip files over the 10 MB per-file limit (e.g. web_app/public/wikicommons/
 #    GA_latest.jpg ~36 MB). Same policy the HF deploy uses. These are decorative

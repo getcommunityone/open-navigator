@@ -4,7 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { pickDisplay } from '../../utils/displayFit'
 import { fetchTopicTimeline, type TimelineMilestone, type TopicTimelineResponse } from '../../api/topicTimeline'
 import {
+  boxUnit,
   buildSeries,
+  columnBoxes,
   dateToYearPos,
   defaultMarker,
   defaultSeriesMode,
@@ -13,7 +15,7 @@ import {
   milestoneLanes,
   MILESTONE_LABELS,
   niceMax,
-  splitRun,
+  peakStatement,
   stepMarker,
   thinNote,
   thinYears,
@@ -24,6 +26,8 @@ import {
 import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
+import { pickInsight } from '../../utils/chartInsight'
 import { useChartReveal } from './useChartReveal'
 import { useChartWidth } from './useChartWidth'
 import { pickYearTicks } from '../../utils/axisTicks'
@@ -117,8 +121,6 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const openOn = useMemo(() => defaultSeriesMode(years, Boolean(data?.coverage_available)), [years, data])
   const activeMode: SeriesMode = (mode ?? openOn) === 'share' && shareOk ? 'share' : 'meetings'
   const runs = useMemo(() => buildSeries(years, activeMode), [years, activeMode])
-  // Dashed pieces only on the count line: the share stays comparable in a thin year.
-  const pieces = useMemo(() => runs.map((run) => splitRun(run, activeMode === 'meetings' ? thin : new Set<number>())), [runs, activeMode, thin])
   const gaps = useMemo(() => gapYears(years, activeMode), [years, activeMode])
   const lanes = useMemo(() => milestoneLanes(ms), [ms])
 
@@ -131,7 +133,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   if (q.isError) return <p className="stance-nodata" role="status">The timeline could not be loaded right now.</p>
   const pts = runs.flat()
   if (!data || pts.length === 0) return null
-  // A line only with 6 or more points (#1289, utils/displayFit): fewer years read as the numbers in a sentence.
+  // Box columns only with 6 or more years (#1289, utils/displayFit): fewer years read as the numbers in a sentence.
   const counts = buildSeries(years, 'meetings').flat()
   // The choice reads the same series the sentence prints (meetings per year), whichever series the chart opens on.
   const fit = pickDisplay({ items: counts.reduce((a, p) => a + p.value, 0), seriesPoints: counts.length })
@@ -145,7 +147,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
           {counts.length === 1
             ? `All in ${counts[0]!.year}: ${fmt(counts[0]!.value)} ${counts[0]!.value === 1 ? 'meeting' : 'meetings'}.`
             : `${counts.map((p) => `${p.year}: ${fmt(p.value)}`).join('; ')}.`}{' '}
-          Too few years on record for a trend line.
+          Too few years on record for a chart.
         </p>
       </div>
     )
@@ -170,6 +172,11 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const vmax = niceMax(Math.max(...pts.map((p) => p.value)))
   const ys = (v: number) => h - padB - (v / vmax) * (h - padT - padB)
   const ticks = [0, vmax / 2, vmax]
+  // One box per `unit` (#1406): 1 box = 1 meeting while the tallest year has 12 or fewer, coarser above; the top box is partial.
+  const unit = boxUnit(Math.max(...pts.map((p) => p.value)))
+  const bw = Math.min(30, Math.max(6, ((w - padL - padR) / span) * 0.72))
+  const peak = peakStatement(years, subject)
+  const unitText = activeMode === 'share' ? `${unit} percentage point${unit === 1 ? '' : 's'} of recorded meetings` : `${fmt(unit)} meeting${unit === 1 ? '' : 's'}`
   // Year labels chosen by the room they have, so they never run together on a phone.
   const yearTicks = pickYearTicks(Array.from({ length: span }, (_, i) => x0 + i), w - padL - padR)
   const valueText = (v: number) => (activeMode === 'share' ? `${v < 10 ? v.toFixed(1) : Math.round(v)}%` : fmt(v))
@@ -201,11 +208,23 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const tapOrder = ms.map((_, i) => i).reverse()
   const tapShown = showAll ? tapOrder : tapOrder.slice(0, TAP_LIST_FIRST)
 
+  // Title and key (#1409): the takeaway from the real yearly counts, the description as caption.
+  const insight = pickInsight({
+    subject,
+    place: scopeLabel === 'National' ? 'the United States' : scopeLabel,
+    totalMeetings: data.total_meetings,
+    years: years.map((y) => ({ year: y.year, meetings: y.meetings, share: y.share, recorded: y.all_recorded_meetings })),
+  })
+  const captionText = activeMode === 'share' ? `Share of recorded meetings that discussed ${subject}, by year · ${scopeLabel}` : `Meetings that discussed ${subject}, by year · ${scopeLabel}`
+  const frameTitle = insight.kind === 'none' || insight.kind === 'volume' ? captionText : insight.title
+  const legend: LegendItem[] = [
+    { key: 'box', label: `1 box = ${unitText}; the top box of a year is partial`, color: 'var(--violet)' },
+    ...(thinDrawn.size > 0 || hollowShare ? [{ key: 'thin', label: 'Hollow box: few meetings recorded, not comparable', color: 'var(--violet)', shape: 'ring' as const }] : []),
+    ...(ms.length > 0 ? [{ key: 'ms', label: 'Square on the track: a milestone (selected one in red)', color: 'var(--ink)', shape: 'square' as const }] : []),
+  ]
+
   return (
     <div className="sc-block">
-      <p className="sc-h">
-        {activeMode === 'share' ? `Share of recorded meetings that discussed ${subject}, by year` : `Meetings that discussed ${subject}, by year`} · {scopeLabel}
-      </p>
       {shareOk && (
         <div className="sc-controls">
           <div className="folio-seg" role="group" aria-label="Series">
@@ -218,8 +237,10 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
           </div>
         </div>
       )}
+      {peak && <p className="sc-peak">{peak}</p>}
+      <ChartFrame title={frameTitle} titleSupport={insight.support} caption={frameTitle === captionText ? undefined : captionText} legend={legend}>
       <div ref={ref}>
-        <svg ref={revealRef} className={`sc-svg sc-trend${revealed ? ' is-revealed' : ''}`} viewBox={`0 0 ${w} ${h}`} role="group" aria-label={`Trend line, ${scopeLabel}`}>
+        <svg ref={revealRef} className={`sc-svg sc-trend${revealed ? ' is-revealed' : ''}`} viewBox={`0 0 ${w} ${h}`} role="group" aria-label={`Box columns by year, ${scopeLabel}`}>
           {ticks.map((t) => (
             <g key={t}>
               <line x1={padL} x2={w - padR} y1={ys(t)} y2={ys(t)} stroke={t === 0 ? 'var(--ink)' : 'var(--rule)'} strokeWidth={t === 0 ? 1.5 : 1} />
@@ -233,19 +254,6 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
               {y}
             </text>
           ))}
-          {pieces.flat().map((piece) => {
-            const d = piece.points.map((p, i) => `${i ? 'L' : 'M'} ${xYear(p.year).toFixed(1)} ${ys(p.value).toFixed(1)}`).join(' ')
-            return piece.dashed ? (
-              <path key={`${activeMode}-thin-${piece.points[0]!.year}`} className="sc-line sc-line--thin" d={d} />
-            ) : (
-              <path
-                key={`${activeMode}-${piece.points[0]!.year}`}
-                className={`sc-line${revealed && !reduced ? ' is-drawing' : ''}`}
-                pathLength={1}
-                d={d}
-              />
-            )
-          })}
           {pts.map((p) => {
             const y = p.src
             const sub = [
@@ -262,23 +270,40 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
                 : ` (fewer than ${MIN_RECORDED_FOR_ZERO} meetings recorded)`
               : ''
             const label = `${y.year}: ${fmt(y.meetings)} meetings${sub ? `, ${sub}` : ''}${caveat}`
+            const cx = xYear(p.year)
+            const boxes = columnBoxes(p.value, unit)
             return (
-              <rect
+              <g
                 key={`${activeMode}-${p.year}`}
-                className={`sc-pt sc-focusable${hollow ? ' is-hollow' : ''}`}
-                style={reduced ? undefined : { transitionDelay: popDelay(alongMs(xYear(p.year))) }}
-                x={xYear(p.year) - 3.5}
-                y={ys(p.value) - 3.5}
-                width={7}
-                height={7}
+                className="sc-col sc-focusable"
                 tabIndex={0}
                 role="img"
                 aria-label={label}
                 {...bind({ cat: y.year, val: activeMode === 'share' ? valueText(p.value) : `${fmt(y.meetings)} meetings`, sub: (sub + caveat).trim() || undefined })}
-              />
+              >
+                <rect className="sc-col-hit" x={cx - bw / 2 - 2} y={ys(p.value) - 2} width={bw + 4} height={ys(0) - ys(p.value) + 2} fill="transparent" />
+                {boxes.map((b) => {
+                  const bottom = ys(b.index * unit)
+                  const height = Math.max(2, (ys(0) - ys(unit)) * b.fill - 1.5)
+                  return (
+                    <rect
+                      key={b.index}
+                      data-box=""
+                      data-group={y.year}
+                      className={`sc-pt sc-bx${hollow ? ' is-hollow' : ''}`}
+                      style={reduced ? undefined : { transitionDelay: popDelay(alongMs(cx) + b.index * 28) }}
+                      x={cx - bw / 2}
+                      y={bottom - height - 0.75}
+                      width={bw}
+                      height={height}
+                      rx={1.5}
+                    />
+                  )
+                })}
+              </g>
             )
           })}
-          <text className="sc-end" style={reduced ? undefined : { transitionDelay: `${DRAW_MS}ms` }} x={xYear(last.year) + 9} y={ys(last.value) + 7}>
+          <text className="sc-end" style={reduced ? undefined : { transitionDelay: `${DRAW_MS}ms` }} x={xYear(last.year)} y={ys(last.value) - 6} textAnchor="middle">
             {valueText(last.value)}
           </text>
         </svg>
@@ -356,6 +381,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
         )}
         {sel >= 0 && ms[sel] && <MilestoneCard m={ms[sel]!} />}
       </div>
+      </ChartFrame>
 
       <p className="sc-note">
         {COVERAGE_NOTE}
@@ -364,8 +390,8 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
           (activeMode === 'meetings'
             ? ` ${thinText} ${thinDrawn.size === 1 ? 'It is drawn as a hollow point' : 'They are drawn as hollow points'} on a dashed line.`
             : ` ${thinText} The share of recorded meetings still compares, so the chart opens on it; Meetings shows the counts.`)}
-        {hollowShare && ` A hollow point is a share of fewer than ${MIN_RECORDED_FOR_ZERO} recorded meetings.`}
-        {gaps.length > 0 && ` No line is drawn for ${gaps.join(', ')}: too few recorded meetings to say.`}
+        {hollowShare && ` Hollow boxes are a share of fewer than ${MIN_RECORDED_FOR_ZERO} recorded meetings.`}
+        {gaps.length > 0 && ` No boxes are drawn for ${gaps.join(', ')}: too few recorded meetings to say.`}
         {data.undated_meetings > 0 && ` ${fmt(data.undated_meetings)} ${data.undated_meetings === 1 ? 'meeting has' : 'meetings have'} no date and ${data.undated_meetings === 1 ? 'is' : 'are'} not on the line.`}
         {ms.length > 0 &&
           ' Milestones are meetings where officials approved, denied, tabled or paused the item, as an AI read the transcript'}

@@ -186,7 +186,8 @@ describe('screenText on a full fixture', () => {
       'meeting-mentions': { ...(full['meeting-mentions'] as object), counts: { passages: 900, meetings: 300, site_specific: 0 } } as never,
     }
     const t = screenText(DATA_CENTER_STORY.find((s) => s.id === 'meetings')!, capped, ready, nat)
-    expect(t.context).toContain('most recent 5 passages')
+    expect(t.context).not.toContain('most recent')
+    expect(t.context).not.toContain('has the most')
     expect(t.context).not.toContain('By year')
   })
 

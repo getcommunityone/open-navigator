@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTopicUpcoming } from '../../hooks/useTopicUpcoming'
-import { highlightSnippet } from '../../lib/highlight'
+import { hasQuoteText, highlightSnippet } from '../../lib/highlight'
 import {
   broaderHref,
   nothingUpcoming,
@@ -100,14 +100,23 @@ export default function UpcomingPanel({ topic, stateCode, city, scopeLabel, subj
                   <p className="up-title">{i.title ?? i.body_name ?? 'Meeting'}</p>
                   {i.location && <p className="up-meta">{i.location}</p>}
                   <p className="up-basis">{upcomingBasisNote(i, subject)}</p>
-                  <blockquote className="up-quote">
-                    “{highlightSnippet(i.matched_text)}”
-                    {i.match_basis === 'place_discussed_before' && i.prior_url && (
+                  {hasQuoteText(i.matched_text) ? (
+                    <blockquote className="up-quote">
+                      “{highlightSnippet(i.matched_text)}”
+                      {i.match_basis === 'place_discussed_before' && i.prior_url && (
+                        <a className="up-prior" href={i.prior_url} target="_blank" rel="noopener noreferrer">
+                          Watch that meeting
+                        </a>
+                      )}
+                    </blockquote>
+                  ) : (
+                    i.match_basis === 'place_discussed_before' &&
+                    i.prior_url && (
                       <a className="up-prior" href={i.prior_url} target="_blank" rel="noopener noreferrer">
                         Watch that meeting
                       </a>
-                    )}
-                  </blockquote>
+                    )
+                  )}
                   {i.match_basis === 'hosted_by_org' && i.host_org_name && (
                     <p className="up-meta">
                       Hosted by{' '}

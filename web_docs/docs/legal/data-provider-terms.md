@@ -150,6 +150,74 @@ https://www.grants.gov/
 
 ---
 
+### 5b. USAspending.gov API
+
+**Publisher:** U.S. Department of the Treasury, Bureau of the Fiscal Service
+**Data Type:** Federal assistance awards (grants, cooperative agreements) to local governments, FY2019 onward
+**License:** Public Domain (U.S. Government Work)
+**Terms of Use:** [USAspending.gov About / Data Sources](https://www.usaspending.gov/about)
+**API Documentation:** [USAspending API](https://api.usaspending.gov/docs/endpoints)
+**Coverage:** United States, recipients of type local government; award-level, current total obligation
+**Last updated:** 27 Nov 2026 (re-run on demand; the source updates daily)
+
+**Usage Rights:**
+- Yes Public government data
+- Yes No API key required
+
+**Restrictions:**
+- No We identify as `open-navigator`, keep requests slow and stop on HTTP 403 or 429
+
+**Attribution (Recommended):**
+```
+Data source: USAspending.gov (U.S. Department of the Treasury)
+https://www.usaspending.gov/
+```
+
+---
+
+### 5c. Census Annual Survey of Public Employment & Payroll (ASPEP)
+
+**Publisher:** U.S. Census Bureau
+**Data Type:** Employees and March payroll by government and function (aggregate; no per-person pay)
+**License:** Public Domain (U.S. Government Work)
+**Source:** [ASPEP datasets](https://www2.census.gov/programs-surveys/apes/datasets/) and [program page](https://www.census.gov/programs-surveys/apes.html)
+**Coverage:** State and local governments, survey years 2019 to 2024 (non-census years are samples)
+**Last updated:** 27 Nov 2026
+
+**Attribution (Recommended):**
+```
+Data source: U.S. Census Bureau, Annual Survey of Public Employment & Payroll
+https://www.census.gov/programs-surveys/apes.html
+```
+
+---
+
+### 5e. Michigan DHHS Opioid Settlement Spending
+
+**Publisher:** Michigan Department of Health and Human Services
+**Data Type:** State opioid settlement spending lines (pilot)
+**License:** State public record; no licence text on the page
+**Source:** [Michigan Opioid Settlement spending](https://www.michigan.gov/opioids/opioidsettlements/settlement-spending/prior-years-spending)
+**Coverage:** Michigan, FY22 to FY24 (as of 30 Jun 2024)
+### 5d. HUD Open Data: CDBG Activity
+
+**Publisher:** U.S. Department of Housing and Urban Development
+**Data Type:** CDBG activities by grantee (no addresses loaded)
+**License:** U.S. Government data, public access
+**Source:** [HUD Open Data](https://hudgis-hud.opendata.arcgis.com/)
+**Coverage:** United States, activities since 1996
+**Last updated:** 27 Nov 2026
+
+**Attribution (Recommended):**
+```
+Data source: Michigan Department of Health and Human Services, Opioid Settlement spending
+https://www.michigan.gov/opioids/
+Data source: U.S. Department of Housing and Urban Development, HUD Open Data
+https://hudgis-hud.opendata.arcgis.com/
+```
+
+---
+
 ## Google Services
 
 ### 8. Google BigQuery IRS 990 Public Dataset

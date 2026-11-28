@@ -20,6 +20,12 @@
   display: flex;
   gap: 8px;
 }
+.home-tbar-tail {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
 .home-tbar-chip {
   flex: none;
   display: inline-flex;
@@ -74,5 +80,112 @@
 @media (prefers-reduced-motion: reduce) {
   .home-tbar::after {
     transition: none;
+  }
+}
+
+/* #1416: badges and the live-story dot on a pill. */
+.home-tbar-dot {
+  width: 6px;
+  height: 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: #0f766e;
+  flex: none;
+}
+.home-tbar-chip.is-on .home-tbar-dot {
+  background: #fff;
+}
+.home-tbar-badges {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+  font-size: 11px;
+  line-height: 1;
+}
+.home-tbar-badges [data-badge='rising'] {
+  color: #0f766e;
+}
+.home-tbar-chip.is-on .home-tbar-badges [data-badge='rising'] {
+  color: #ccfbf1;
+}
+.home-tbar-chip.is-pending {
+  animation: home-tbar-pulse 900ms ease-in-out infinite alternate;
+}
+@keyframes home-tbar-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.72;
+  }
+}
+.home-tbar-chip.is-more {
+  border-style: solid;
+  color: #44403c;
+}
+/* Desktop: the pills wrap to at most two rows; More opens the rest. Phones keep the one scrolling row above. */
+@media (min-width: 768px) {
+  .home-tbar::after {
+    display: none;
+  }
+  .home-tbar-scroll {
+    overflow: visible;
+    align-items: flex-start;
+    padding-right: 2px;
+  }
+  .home-tbar-list {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-width: 0;
+    /* two rows of 36px pills, one 8px gap, and room for the focus ring */
+    max-height: 86px;
+    overflow: hidden;
+    padding: 3px 3px;
+    margin: -3px;
+  }
+  .home-tbar[data-expanded] .home-tbar-list {
+    max-height: none;
+    overflow: visible;
+  }
+  .home-tbar-tail {
+    align-self: flex-end;
+    padding-bottom: 0;
+  }
+}
+@media (max-width: 767px) {
+  .home-tbar-tail {
+    padding-right: 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-tbar-chip.is-pending {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
+/* #1416: a switched topic's text fades in under the box flight; with reduced motion the whole card crossfades instead. */
+@keyframes home-card-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.home-story-card .home-story-text {
+  animation: home-card-in 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-story-card {
+    animation: home-card-in 220ms ease-out;
+  }
+  .home-story-card .home-story-text {
+    animation: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-story-map[data-xfade] {
+    animation: home-card-in 220ms ease-out;
   }
 }

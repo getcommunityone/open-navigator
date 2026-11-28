@@ -50,6 +50,17 @@
 .dc-tl-counts li[data-phase='planned'] .dc-tl-key {
   background: transparent;
 }
+/* #1428: start date not on record, the map's small outlined square */
+.dc-tl-key.dc-tl-key-sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  border: 1.5px solid var(--ink-soft, #6b6f73);
+  background: transparent;
+}
+.dc-tl-counts li[data-key='not-mapped'] {
+  color: var(--ink-soft, #6b6f73);
+}
 .dc-tl-map svg {
   display: block;
   width: 100%;
@@ -96,8 +107,21 @@
     transform: scale(1);
   }
 }
+/* #1428: sites with no start date fade in gently where they join (never a pop, which reads as an opening) */
+.dc-tl-sq.is-fade {
+  animation: dc-tl-fade 900ms ease-out;
+}
+@keyframes dc-tl-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .dc-tl-dot.is-new {
+  .dc-tl-dot.is-new,
+  .dc-tl-sq.is-fade {
     animation: none;
   }
 }
@@ -185,7 +209,7 @@
   }
   .dc-tl-map svg,
   .dc-tl-map-skeleton {
-    max-height: 21vh;
+    max-height: 17vh;
   }
   .dc-tl-counts {
     font-size: 11px;

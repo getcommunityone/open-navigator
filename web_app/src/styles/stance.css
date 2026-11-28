@@ -3576,6 +3576,15 @@ html.stance-snap .stance-intro {
 .stance-map--county .stance-map-title {
   min-width: 0;
 }
+/* #1409: the title and the colour key are always drawn (ChartFrame); the wide layout stacks head, map, key, notes. */
+.stance-map-layout {
+  display: flex;
+  flex-direction: column;
+}
+.stance-map-layout > .stance-map-head { order: 0; }
+.stance-map-layout > .stance-map-stage { order: 1; }
+.stance-map-layout > .stance-map-key { order: 2; }
+.stance-map-layout > .stance-map-side { order: 3; }
 .stance-map-swatch-focus {
   display: inline-block;
   width: 10px;
@@ -3587,9 +3596,10 @@ html.stance-snap .stance-intro {
   .stance-map-layout[data-shape='tall'] {
     display: grid;
     grid-template-columns: auto minmax(200px, 1fr);
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     grid-template-areas:
       'stage head'
+      'stage key'
       'stage side';
     column-gap: 28px;
     align-items: start;
@@ -3601,6 +3611,9 @@ html.stance-snap .stance-intro {
   }
   .stance-map-layout[data-shape='tall'] > .stance-map-stage {
     grid-area: stage;
+  }
+  .stance-map-layout[data-shape='tall'] > .stance-map-key {
+    grid-area: key;
   }
   .stance-map-layout[data-shape='tall'] > .stance-map-side {
     grid-area: side;
@@ -3726,6 +3739,19 @@ html.stance-snap .stance-intro {
     display: flex;
     flex-direction: column;
   }
+  /* #1409: the colour key stays on screen (compact, two lines at most) under the map, never behind "More". */
+  .stance-panel--glance .stance-map-key {
+    flex: none;
+    margin-top: 2px;
+  }
+  .stance-panel--glance .chart-frame-caption,
+  .stance-panel--glance [data-chart-why] {
+    display: none;
+  }
+  .stance-panel--glance .stance-map-key ul {
+    font-size: 10px;
+    gap: 1px 8px;
+  }
   .stance-panel--glance .stance-map-head {
     flex: none;
     margin: 0 0 2px;
@@ -3760,7 +3786,7 @@ html.stance-snap .stance-intro {
   }
   /* The map is as tall as the column less its title row, and as wide as that and the state's shape allow, centred. */
   .stance-panel--glance .stance-map-fit {
-    --map-h: calc(100cqh - 34px);
+    --map-h: calc(100cqh - 84px);
     width: min(100%, calc(var(--map-h) * var(--map-ar, 1)));
     height: var(--map-h);
   }
@@ -3772,3 +3798,18 @@ html.stance-snap .stance-intro {
 /* The × names its purpose (#1341): a small "Close" caption under it; the tooltip says "Close · back to home". */
 .folio .story-close { flex-direction: column; gap: 0; }
 .folio .story-close .story-close-label { font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0.02em; margin-top: -4px; }
+
+/* Close sits fully inside the story bar (#1405): vertically centred, a 44px target, 6px clear of the bottom rule, and the bar
+   is never shorter than the button, so the caption never lands on the rule (owner phone screenshot 2026-11-27). */
+.stance-story .stance-top {
+  min-height: 56px;
+  padding-right: calc(68px + env(safe-area-inset-right));
+  box-sizing: border-box;
+}
+.folio .story-close {
+  top: 50%;
+  transform: translateY(-50%);
+  right: calc(10px + env(safe-area-inset-right));
+  min-width: 44px;
+  min-height: 44px;
+}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '../../api/topics'
@@ -9,8 +9,10 @@ import { useStoryScope } from '../../hooks/useStoryScope'
 import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
 import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
+import { useBoxFlight } from '../stance/BoxFlightProvider'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { stanceFromPublicLean } from '../../utils/mapQuote'
+import { useInsightYears } from '../chart/useInsightYears'
 import TopicCountyMap from '../stance/TopicCountyMap'
 import HomeStoryTitle, { type TopicControl, HomeStorySubhead } from './HomeStoryTitle'
 import { storyStartHref } from '../../utils/storyNav'
@@ -40,6 +42,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   const placeScope = useStoryScope(def.slug, topicNoun, asked.stateCode, asked.city)
   const scope: StoryScope = placeScope.effective
   const label = storyScopeLabel(scope)
+  const natYears = useInsightYears(def.slug, scope.stateCode ?? undefined)
   // The map's hover card goes in the text column, under Start (#1277), never over the map.
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   const states = useQuery({
@@ -98,10 +101,19 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   // Start opens the story past its cover (#1222).
   const href = storyStartHref(def.slug, query)
   const navigate = useNavigate()
+  const mapWrapRef = useRef<HTMLDivElement | null>(null)
+  const boxFlight = useBoxFlight()
   const positions = topicPositions(def.slug)
   // At state scope (#1349) the hero draws the story Overview's county map: a county or a town ring opens the story there.
   const drill = (city: string | null) => {
     if (!scope.stateCode) return
+    if (mapWrapRef.current) {
+      boxFlight.launch({
+        source: mapWrapRef.current,
+        focusGroup: city ?? scope.stateCode,
+        targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+      })
+    }
     const p = new URLSearchParams({ state: scope.stateCode, screen: 'overview' })
     if (city) p.set('city', city)
     navigate(`/stories/${encodeURIComponent(def.slug)}?${p.toString()}`)
@@ -109,6 +121,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
 
   const statesMap = (
     <StoryStatesMap
+      insightExtras={{ years: natYears }}
       byState={states.data?.states}
       quotes={quotes}
       highlight={scope.stateCode ?? null}
@@ -132,7 +145,8 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
 
   return (
     <div className="home-story-card">
-      <div className="home-story-text">
+      {/* Keyed text only: the map keeps its boxes and recolours in place when the topic changes (#1416). */}
+      <div className="home-story-text" key={def.slug}>
         <p className="font-mono-x home-story-eyebrow">Data story · {def.title}</p>
         <h1
           id="home-story-dc"
@@ -157,18 +171,31 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
           {caption.basis ?? 'Counted from local meeting recordings and transcripts that mention the topic.'}
         </p>
         <div className="home-story-actions">
-          <Link to={href} className="home-story-start">
+          <Link
+            to={href}
+            className="home-story-start"
+            onClick={() => {
+              if (mapWrapRef.current) {
+                boxFlight.launch({
+                  source: mapWrapRef.current,
+                  focusGroup: scope.stateCode ?? undefined,
+                  targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+                })
+              }
+            }}
+          >
             {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
           </Link>
         </div>
         <HomeStoryDrill slotRef={setCardSlot} hint={scope.stateCode ? 'Pick a county or a town on the map to open its story.' : undefined} />
       </div>
-      <div className="home-story-map">
+      <div className="home-story-map" ref={mapWrapRef}>
         {states.isError ? (
           <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
         ) : scope.stateCode ? (
           <TopicCountyMap
             topicId={def.topicId}
+            topicSlug={def.slug}
             stateCode={scope.stateCode}
             scopeCity={scope.city ?? null}
             scopeLabel={label}

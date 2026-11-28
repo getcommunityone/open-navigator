@@ -358,11 +358,13 @@ from api.routes import efile990 as efile990_routes
 from api.routes import lenses as lenses_routes
 from api.routes import money_flow as money_flow_routes
 from api.routes import topics as topics_routes
+from api.routes import seo as seo_routes
 from api.routes import short_term_rentals as short_term_rentals_routes
 from api.routes import topic_companies as topic_companies_routes
 from api.routes import topic_timeline as topic_timeline_routes
 from api.routes import topic_yoy as topic_yoy_routes
 from api.routes import trending_terms as trending_terms_routes
+from api.routes import rankings as rankings_routes
 from api.routes import topic_policy as topic_policy_routes
 from api.routes import topic_upcoming as topic_upcoming_routes
 from api.routes import topic_organizations as topic_organizations_routes
@@ -372,6 +374,7 @@ from api.routes import organizations as organizations_routes
 from api.routes import money_and_talk as money_and_talk_routes
 from api.routes import grandkid_outlook as grandkid_outlook_routes
 from api.routes import local_finance as local_finance_routes
+from api.routes import benchmark as benchmark_routes
 from api.routes import browse as browse_routes
 from api.routes import decision_browse as decision_browse_routes
 from api.routes import meeting_browse as meeting_browse_routes
@@ -418,6 +421,8 @@ app.include_router(lenses_routes.router)
 app.include_router(money_flow_routes.router)
 # Prefix ("/api/topics") baked into the router — include with NO extra prefix.
 app.include_router(topics_routes.router)
+# Sitemaps + the server-rendered SPA shell with per-route <head> meta (#1430); registered before the catch-all.
+app.include_router(seo_routes.router)
 # Prefix ("/api/short-term-rentals") baked into the router (#1015).
 app.include_router(short_term_rentals_routes.router)
 app.include_router(topic_companies_routes.router)
@@ -426,6 +431,8 @@ app.include_router(topic_timeline_routes.router)
 # Every main topic, last year vs this year (#1343); prefix /api/topics baked in.
 app.include_router(topic_yoy_routes.router)
 app.include_router(trending_terms_routes.router)
+# Where places stand on a topic (#1437); prefix /api/rankings baked in.
+app.include_router(rankings_routes.router)
 # State bills, local actions and public positions on a topic (#1274); prefix /api/topics baked in.
 app.include_router(topic_policy_routes.router)
 app.include_router(topic_upcoming_routes.router)
@@ -442,6 +449,7 @@ app.include_router(money_and_talk_routes.router)
 app.include_router(grandkid_outlook_routes.router)
 # Prefix ("/api/local-finance") baked into the router — include with NO extra prefix.
 app.include_router(local_finance_routes.router)
+app.include_router(benchmark_routes.router)
 # Prefix ("/api/browse") baked into the router — include with NO extra prefix.
 app.include_router(browse_routes.router)
 # Flat decision-browse list. Router prefix is "/decisions"; add the shared "/api"
@@ -568,7 +576,7 @@ class StatesResponse(BaseModel):
 # API Endpoints
 
 @app.get("/", response_class=HTMLResponse)
-async def root():
+async def root(request: Request):
     """Root endpoint.
 
     Single-process deployments (Databricks Apps) have no nginx in front to serve
@@ -578,8 +586,8 @@ async def root():
     """
     spa_index = Path(__file__).parent / "static" / "index.html"
     if spa_index.is_file():
-        from fastapi.responses import FileResponse
-        return FileResponse(spa_index, media_type="text/html")
+        # The home page's own <head> meta (#1430), the same shell every SPA path gets.
+        return await seo_routes.spa_response(spa_index, str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""))
     html_content = """
     <!DOCTYPE html>
     <html>
@@ -1775,7 +1783,7 @@ if (_spa_static_dir / "index.html").is_file():
     logger.info(f"Serving built SPA + docs from {_spa_static_dir}")
 
     @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa_and_docs(full_path: str):
+    async def serve_spa_and_docs(full_path: str, request: Request):
         """Serve the built docs / SPA for any non-API path.
 
         Resolution order:
@@ -1804,7 +1812,9 @@ if (_spa_static_dir / "index.html").is_file():
                 if candidate.is_dir() and index_in_dir.is_file():
                     return FileResponse(index_in_dir)
 
-        return FileResponse(_spa_static_dir / "index.html", media_type="text/html")
+        # The React shell, with this path's own title, description, canonical and OpenGraph tags (#1430).
+        query = f"?{request.url.query}" if request.url.query else ""
+        return await seo_routes.spa_response(_spa_static_dir / "index.html", f"/{full_path}{query}")
 
 
 if __name__ == "__main__":

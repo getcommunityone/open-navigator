@@ -1,0 +1,159 @@
+version: 2
+
+# #1442: governing bodies per place and the meetings each held. Design: web_docs/docs/development/governing-bodies.md
+
+models:
+  - name: governing_body
+    description: >
+      One row per jurisdiction x governing body (city council, county commission, school board, planning and zoning,
+      board of adjustment, historic preservation, committees, commissions, boards, authorities). Derived from meeting
+      titles and body fields (int_meeting_body__matched, seed governing_body_pattern) and from official rosters
+      (person_government). meeting_count counts distinct meeting dates on file.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: governing_body_id
+        description: "Primary key: md5(jurisdiction_id | body_key)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: jurisdiction_id
+        description: "FK to jurisdictions."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state_code
+        description: "2-letter state code."
+        data_type: text
+      - name: state
+        description: "Full state name."
+        data_type: text
+      - name: body_key
+        description: "Stable key within the place: governing_body, school_board, planning_zoning, board_of_adjustment, ... or '<type>:<slug>' for a named committee/commission/board/authority."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: body_name
+        description: "Display name: the name most of the body's meetings use, else a default for its type."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: body_type
+        description: "council | county_commission | school_board | planning_zoning | planning_commission | board_of_adjustment | historic_preservation | committee | commission | board | authority"
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['council', 'county_commission', 'school_board', 'planning_zoning', 'planning_commission',
+                         'board_of_adjustment', 'historic_preservation', 'committee', 'commission', 'board',
+                         'authority', 'legislature_chamber']
+      - name: is_primary
+        description: "True for the place's own legislative body (city council, county commission, a school district's board)."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: meeting_count
+        description: "Distinct meeting dates on file for the body (0 for a body known only from a roster)."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: first_meeting_date
+        description: "Earliest meeting date on file."
+        data_type: date
+      - name: last_meeting_date
+        description: "Latest meeting date on file."
+        data_type: date
+      - name: sources
+        description: "Comma list of where the body was found: youtube, platform, document, roster."
+        data_type: text
+
+  - name: meeting_body
+    description: >
+      One row per meeting we matched to a governing body: YouTube videos (title, then the AI body name), Legistar /
+      Granicus meetings (platform body name, then title) and scraped agenda/minutes meetings (body name, then title).
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [governing_body_id]
+        to: ref('governing_body')
+        to_columns: [governing_body_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+      - type: foreign_key
+        columns: [platform_meeting_id]
+        to: ref('platform_meeting')
+        to_columns: [platform_meeting_id]
+      - type: foreign_key
+        columns: [event_meeting_id]
+        to: ref('event_meeting')
+        to_columns: [event_meeting_id]
+    columns:
+      - name: meeting_body_id
+        description: "Primary key: md5(source | source_key)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: governing_body_id
+        description: "FK to governing_body."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('governing_body')
+                field: governing_body_id
+      - name: jurisdiction_id
+        description: "FK to jurisdictions."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source
+        description: "youtube | platform | document"
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: video_id
+        description: "YouTube video id for youtube rows."
+        data_type: text
+      - name: platform_meeting_id
+        description: "FK to platform_meeting for platform rows."
+        data_type: text
+      - name: event_meeting_id
+        description: "FK to event_meeting when the meeting has an AI extraction."
+        data_type: integer
+      - name: meeting_title
+        description: "The title as the source gives it."
+        data_type: text
+      - name: meeting_date
+        description: "Meeting date (YouTube event date, else published date)."
+        data_type: date
+      - name: video_url
+        description: "Recording URL where the source has one."
+        data_type: text
+      - name: matched_on
+        description: "Which text named the body: title | body_name | platform_body | document_body."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: pattern_id
+        description: "The governing_body_pattern row that matched."
+        data_type: text
+        constraints:
+          - type: not_null

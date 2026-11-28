@@ -161,6 +161,13 @@
     'person_government':                    "_s.state_code in {{states}}",
     'jurisdiction_state_aggregate':        "_s.state_code in {{states}}",
     'jurisdiction_finance':                "_s.state_code in {{states}}",
+    'federal_award':                       "_s.state_code in {{states}}",
+    'jurisdiction_federal_funding':        "_s.state_code in {{states}}",
+    'opioid_settlement_spending':          "_s.state_code in {{states}}",
+    'cdbg_allocation':                     "_s.state_code in {{states}}",
+    'cdbg_activity_summary':               "_s.state_code in {{states}}",
+    'jurisdiction_public_payroll':         "_s.state_code in {{states}}",
+    'jurisdiction_public_payroll_latest':  "_s.state_code in {{states}}",
     'jurisdiction_finance_category':
         "_s.jurisdiction_finance_id in (select jurisdiction_finance_id "
         "from gold.jurisdiction_finance where state_code in {{states}})",
@@ -187,6 +194,8 @@
     'segmented_meeting':                   "_s.state_code in {{states}}",
     'meeting_comment':                     "_s.state_code in {{states}}",
     'meeting_speaker_position':            "_s.state_code in {{states}}",
+    'meeting_speaker_topic_side':          "_s.state_code in {{states}}",
+    'topic_place_ranking':                 "_s.state_code in {{states}}",
     'data_center_comment':                 "_s.state_code in {{states}}",
     'data_center_comment_place':
         "_s.data_center_comment_id in (select data_center_comment_id from gold.data_center_comment "
@@ -248,6 +257,9 @@
     'contact_official', 'person_government', 'jurisdictions', 'civic_jurisdiction',
     'jurisdiction_county_crosswalk',
     'jurisdiction_document', 'jurisdiction_finance', 'jurisdiction_finance_category',
+    'federal_award', 'jurisdiction_federal_funding', 'cdbg_allocation', 'cdbg_activity_summary',
+    'opioid_settlement_spending',
+    'jurisdiction_public_payroll', 'jurisdiction_public_payroll_latest',
     'jurisdiction_property_tax_rate', 'state_sales_tax_rate',
     'opportunity_atlas_mobility', 'opportunity_atlas_mobility_national',
     'jurisdiction_mapping_analysis',
@@ -293,7 +305,8 @@
     'recorded_meeting_year',
     'topic_meeting_year',
     'segmented_meeting', 'meeting_speaker_position', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
-    'meeting_passage_speaker',
+    'meeting_passage_speaker', 'meeting_speaker_topic_side',
+    'topic_place_ranking',
     'trending_term', 'trending_term_evidence'
 ] -%}
 
@@ -320,7 +333,9 @@
       (video_id, comment_index, speaker_display_name, topic_ids, jurisdiction); no comment text exists on the mart.
     * meeting_speaker_position: the data-center metrics and drill read only speakers who have a
       data_center_comment row; long cue_texts, counters and versions stay in gold.
-    * meeting_speaker_turn: nothing reads it, so it is not published (see `served`). -#}
+    * meeting_speaker_turn: nothing reads it, so it is not published (see `served`).
+    * meeting_speaker_topic_side (#1391): only the counted columns the caption facts read (topic, place, side, heat);
+      not_sure readings are never counted, so they stay in gold. -#}
 {#- trending_term (#1399): gold keeps every scope x term; public serves only is_served (the top
     trending_served_per_sort of each sort per scope) and only the columns api/routes/trending_terms.py reads; the
     evidence keeps its key but drops its title and video_url (every row is a YouTube recording; the API builds the link from video_id).
@@ -378,7 +393,11 @@
         'segment_count, possible_name, attribution_method, attribution_confidence, attribution_tier, '
         'attribution_evidence, heat, heat_method, heat_confidence, stance_shape, shape_cue_text '
         'from gold.meeting_speaker_position '
-        'where meeting_speaker_id in (select meeting_speaker_id from gold.data_center_comment)'
+        'where meeting_speaker_id in (select meeting_speaker_id from gold.data_center_comment)',
+    'meeting_speaker_topic_side':
+        'select meeting_speaker_id, topic_id, video_id, meeting_date, jurisdiction_id, jurisdiction_name, state_code, '
+        'side, side_confidence, side_method, side_version, heat, heat_confidence '
+        'from gold.meeting_speaker_topic_side where side <> \'not_sure\''
 } -%}
 
 {#- ===================================================================

@@ -1,8 +1,10 @@
+import { sumStances } from '../../utils/boxSplit'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 // The state's story plays its drill-down transition on arrival, from the national layout (#1195).
 import { DRILL_FROM_NATIONAL } from '../stance/drillState'
+import { useBoxFlight } from '../stance/BoxFlightProvider'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import MapSkeleton, { NATIONAL_MAP_ASPECT } from '../stance/MapSkeleton'
 import { COUNTIES_ALBERS_TOPO, NATIONAL_BBOX, STATES_ALBERS_TOPO, albersPoint, dotsFor, fetchTopo, meetingColor, toFeats, type Feat } from '../../lib/dotMatrix'
@@ -31,6 +33,8 @@ import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type Sta
 import { pickBoxQuote } from '../../utils/mapQuote'
 import { layoutHoverBadge } from '../../utils/mapHoverBadge'
 import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
+import { pickInsight, type InsightInput } from '../../utils/chartInsight'
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 
 export interface StateMarker {
   state_code: string
@@ -107,6 +111,8 @@ interface Props {
    * Zoom to one state (#1285): the place the story speaks for is a state or a city in it. Only that state is drawn, on a
    * finer grid; `pin` marks the asked city at its real coordinates, and `note` says why there is no pin.
    */
+  /** Extra real findings for the title (#1409): timeline years, heat by year, the top concern. */
+  insightExtras?: Pick<InsightInput, 'years' | 'heatByYear' | 'concern'>
   zoom?: { stateCode: string; pin?: { name: string; lat: number; lon: number } | null; note?: string | null } | null
 }
 
@@ -218,13 +224,15 @@ interface Box {
  * the map (never over it), with the recording playing muted at the quoted moment (#1277); clicking opens that state's story. On a
  * phone there is no card: a tap opens the state's story at once. Nothing is drawn from a guess: no counts, no split.
  */
-export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions, cardSlot = null, zoom = null }: Props) {
+export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions, cardSlot = null, zoom = null, insightExtras }: Props) {
   const byMeetings = stanceUnit === 'meetings'
   // Topic words (#1200) only for an AI-read meeting split; the speaker map keeps its own words.
   const words = byMeetings ? positions : undefined
   const lineOf = (st: StateStance | undefined) => (words ? positionLine(st, words) : stanceLine(st, stanceUnit))
   const navigate = useNavigate()
   const location = useLocation()
+  const boxFlight = useBoxFlight()
+  const mapWrapRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<number | null>(null)
   // Leaving the map hides the card after a moment, so the mouse can cross to the card (in the home page's text column,
   // #1277) and click its link; entering the map or the card again keeps it.
@@ -414,7 +422,20 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           <p className="map-hover-here">You’re reading the {stateName(shownCode)} story</p>
         ) : (
           // A real link, the same target as a click on the state (#1277).
-          <Link to={href(shownCode)} state={DRILL_FROM_NATIONAL} className="map-hover-open">
+          <Link
+            to={href(shownCode)}
+            state={DRILL_FROM_NATIONAL}
+            className="map-hover-open"
+            onClick={() => {
+              if (!isCurrentPage(href(shownCode), location.pathname, location.search)) {
+                boxFlight.launch({
+                  source: mapWrapRef.current,
+                  focusGroup: shownCode,
+                  targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+                })
+              }
+            }}
+          >
             {keyNav.keyed ? `Press Enter to open the ${stateName(shownCode)} story` : `Click ${stateName(shownCode)} to open its story`} <span aria-hidden="true">→</span>
           </Link>
         )}
@@ -432,12 +453,55 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     if (!b?.code) return
     setHover(firstBox.get(b.code) ?? i)
     if (isCurrentPage(href(b.code), location.pathname, location.search)) return
+    boxFlight.launch({
+      source: mapWrapRef.current,
+      focusGroup: b.code,
+      targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+    })
     navigate(href(b.code), { state: DRILL_FROM_NATIONAL })
   }
+
+  // Title and key (#1409): the most impactful finding the real counts support (utils/chartInsight), the description as caption.
+  const stateTotal = byState.reduce((a, r) => a + Math.max(0, r.meetings), 0)
+  const topStates = [...byState].sort((a, b) => b.meetings - a.meetings).filter((r) => r.meetings > 0).slice(0, 2).map((r) => r.state ?? stateName(r.state_code))
+  const subjectBare = subject.replace(/^an? /, '')
+  const subjectPlural = subject.startsWith('a ') ? `${subjectBare}s` : subjectBare
+  const officialsMeetings = (stance ?? []).reduce((a, st) => a + Math.max(0, st.disagreement_meetings ?? 0), 0)
+  const leanSum = sumStances(split)
+  const insight = pickInsight({
+    subject: subjectPlural,
+    place: grid.zoomed && zoom ? stateName(zoom.stateCode) : 'the United States',
+    totalMeetings: grid.zoomed && zoom ? meetings.get(zoom.stateCode) ?? 0 : stateTotal,
+    topPlaces: grid.zoomed ? [] : topStates,
+    years: insightExtras?.years,
+    heatByYear: insightExtras?.heatByYear,
+    concern: insightExtras?.concern,
+    officials: officialsMeetings > 0 ? { meetings: officialsMeetings } : undefined,
+    lean: split.length > 0 && !grid.zoomed ? { unit: byMeetings ? 'meetings' : 'speakers', against: leanSum.speakers_against, for: leanSum.speakers_for, other: leanSum.speakers_neutral + leanSum.speakers_question } : undefined,
+  })
+  const title = insight.kind === 'none' ? `Meetings where ${subject} came up, by state` : insight.title
+  const caption = grid.zoomed && zoom ? `Meetings where ${subject} came up in ${stateName(zoom.stateCode)}` : `Meetings where ${subject} came up, by state · ${plural(withMeetings, 'state', 'states')} with at least one`
+  const legend: LegendItem[] = [
+    ...(hasStance && split.length > 0
+      ? LEGEND_STANCES.map((k) => ({ key: k, color: BOX_COLORS[k], label: words ? (k === 'neutral' ? words.split : words[k]) : (byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k] }))
+      : []),
+    ...(hasLean && leanStates.length > 0 ? [{ key: 'lean', color: PUBLIC_AGAINST_COLOR, label: PUBLIC_AGAINST_LABEL }] : []),
+    hasStance
+      ? {
+          key: 'meetings',
+          color: MEETING_GREYS[2],
+          shape: 'ramp' as const,
+          ramp: MEETING_GREYS,
+          label: words ? `${missingLegend(words)} (darker = more meetings)` : byMeetings ? 'Meetings, not read yet (darker = more meetings)' : 'Meetings, no stance on record (darker = more meetings)',
+        }
+      : { key: 'meetings', color: MEETINGS_ONLY, label: `Meetings where ${subject} came up` },
+    { key: 'empty', color: HOUSE_THEME.neutral, label: 'No meetings on record' },
+  ]
 
   return (
     // The map, its lines and its card: leaving all of them (not moving between them) hides the card and stops its recording.
     <div
+      ref={mapWrapRef}
       className="map-fade-in"
       onMouseLeave={hideSoon}
       onMouseEnter={() => {
@@ -446,6 +510,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       }}
       {...keyNav.stageProps}
     >
+      <ChartFrame title={title} titleSupport={insight.support} caption={insight.kind === 'none' ? undefined : caption} legend={legend}>
       <div style={{ position: 'relative' }}>
       {keyNav.sr}
       <svg
@@ -491,6 +556,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
           return (
             <rect
               key={i}
+              data-box=""
               data-state={b.code ?? undefined}
               x={b.x - s / 2}
               y={b.y - s / 2}
@@ -576,6 +642,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       )}
 
       </div>
+      </ChartFrame>
       {cardSlot && cardShown ? createPortal(cardShown, cardSlot) : null}
 
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the data table. */}
@@ -604,36 +671,6 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
         )}
       </p>
 
-      <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-tight text-stone-600" aria-label="Legend" style={{ listStyle: 'none', padding: 0 }}>
-        {hasStance &&
-          split.length > 0 &&
-          LEGEND_STANCES.map((k) => (
-            <li key={k} className="inline-flex items-center gap-1">
-              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: BOX_COLORS[k], display: 'inline-block' }} />
-              {words ? (k === 'neutral' ? words.split : words[k]) : (byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k]}
-            </li>
-          ))}
-        {hasLean && leanStates.length > 0 && (
-          <li className="inline-flex items-center gap-1">
-            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: PUBLIC_AGAINST_COLOR, display: 'inline-block' }} />
-            {PUBLIC_AGAINST_LABEL}
-          </li>
-        )}
-        <li className="inline-flex items-center gap-1">
-          {hasStance ? (
-            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: MEETING_GREYS[2], display: 'inline-block' }} />
-          ) : (
-            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: MEETINGS_ONLY, display: 'inline-block' }} />
-          )}
-          {hasStance
-            ? words
-              ? `${missingLegend(words)} (darker = more meetings)`
-              : byMeetings
-              ? 'Meetings, not read yet (darker = more meetings)'
-              : 'Meetings, no stance on record (darker = more meetings)'
-            : `Meetings where ${subject} came up`}
-        </li>
-      </ul>
       {!cardSlot && cardShown}
       {/* Compact under the map (#1187) so the first screen keeps room for Browse topics: the method note sits with the
           data table. No "(AI reading)" in visible labels (owner, #1277): the method note below names the classifier. */}

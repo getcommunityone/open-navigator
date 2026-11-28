@@ -946,6 +946,38 @@ seeds:
     columns:
       - name: signal
         tests: [unique, not_null]
+
+  - name: governing_body_pattern
+    description: >
+      #1442: ordered patterns that turn a cleaned meeting title into a governing body (int_meeting_body__matched).
+      Tried by priority; the first whose applies_to (any | municipal | county | school_district) fits the
+      jurisdiction wins. body_key __skip__ = a body that is not this place's (a county commission in a city's
+      video); __generic__ = key and name built from the cleaned title. name_from_title: the display name is the text
+      the (end-anchored) pattern matched. Regex syntax must read the same in Postgres and Python (the Python twin
+      ingestion.governance.body_titles is pinned by pytest). Design: web_docs/docs/development/governing-bodies.md
+    columns:
+      - name: pattern_id
+        tests: [unique, not_null]
+      - name: priority
+        tests: [not_null]
+      - name: applies_to
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['any', 'municipal', 'county', 'school_district']
+      - name: pattern
+        tests: [not_null]
+      - name: body_key
+        tests: [not_null]
+
+  - name: governing_body_title_example
+    description: >
+      #1442: real meeting titles from the warehouse and the body each must resolve to (blank = no body). Checked in
+      SQL by tests/assert_governing_body_title_examples.sql and in Python by
+      packages/ingestion/tests/test_governing_body_titles.py.
+    columns:
+      - name: title
+        tests: [not_null]
   - name: trending_term_excluded
     description: "#1399: words (match = word, first or last word of a term) and phrases (match = phrase, contained) left out of trending terms: filler, procedural, generic, caption noise."
     columns:

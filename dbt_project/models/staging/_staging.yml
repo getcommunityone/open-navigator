@@ -1507,6 +1507,55 @@ sources:
           - name: ingestion_date
             description: "When record was loaded"
 
+      - name: bronze_usaspending_award
+        description: |
+          USAspending.gov assistance awards (types 02-05) to local-government recipients,
+          one row per generated_unique_award_id. Landed by
+          `python -m ingestion.usaspending.load_awards` (#1393). Public domain.
+        columns:
+          - name: generated_unique_award_id
+            description: "USAspending generated unique award id (primary key)."
+          - name: total_obligation
+            description: "Current total obligation of the award in dollars."
+          - name: period_start
+            description: "Award period start (real DATE)."
+      - name: bronze_aspep_unit
+        description: |
+          Census ASPEP individual units (one row per government x survey year), fixed-width
+          text parsed by `python -m ingestion.census.load_aspep` (#1395). Public domain.
+        columns:
+          - name: unit_id
+            description: "14-character legacy individual unit id (state, type, county, unit, supplement, sub)."
+          - name: survey_year
+            description: "ASPEP survey year (integer)."
+      - name: bronze_aspep_employment
+        description: |
+          Census ASPEP employees and March payroll by government x functional category.
+          Aggregate only: there is no per-person pay in this source (#1395).
+        columns:
+          - name: item_code
+            description: "Functional category code (see seed aspep_function_code)."
+          - name: full_time_payroll
+            description: "Full-time March payroll, 31-day monthly equivalent, dollars (text as landed)."
+      - name: bronze_opioid_settlement_spending
+        description: |
+          State opioid settlement spending lines. Pilot: Michigan MDHHS dashboard workbook,
+          landed by `python -m ingestion.opioid_settlement.michigan` (#1396).
+        columns:
+          - name: source_row
+            description: "Row number in the source sheet (with state_code, the primary key)."
+          - name: expenditures
+            description: "Expenditures in dollars as text; blank when not yet reported."
+      - name: bronze_hud_cdbg_activity
+        description: |
+          HUD CDBG activities (HUD Open Data), one row per OBJECTID. Landed by
+          `python -m ingestion.hud.load_cdbg` (#1394). Street addresses and point locations
+          are deliberately not loaded.
+        columns:
+          - name: objectid
+            description: "Service OBJECTID (primary key)."
+          - name: funding_amount
+            description: "Activity funding in dollars."
       - name: bronze_grants_gov_opportunity
         description: |
           Grants.gov federal grant opportunities — one row per prospective
@@ -2238,6 +2287,32 @@ sources:
           - name: model
           - name: meeting_kind
           - name: meeting_kind_probabilities
+          - name: screened_at
+
+      - name: bronze_speaker_topic_stance_jev
+        description: >
+          Jev (TypeSafe) reading of one public speaker's own words on one topic (#1391): side (for / against /
+          concerns_only / no_position / off_topic) and a 1-5 heat ladder. PK (meeting_speaker_id, topic_id,
+          question_version). Landed by ``python -m llm.typesafe.speaker_stance`` (CREATE_SQL defines these columns).
+          Probabilities only; no text; meeting_speaker_id is a hash. Until the first run creates the table,
+          stg_jev__speaker_topic_stance builds empty.
+        columns:
+          - name: meeting_speaker_id
+          - name: topic_id
+          - name: question_version
+          - name: video_id
+          - name: topic_slug
+          - name: model
+          - name: state_version
+          - name: side
+          - name: side_probabilities
+          - name: side_confidence
+          - name: heat
+          - name: heat_probabilities
+          - name: heat_confidence
+          - name: input_chars
+          - name: input_tokens
+          - name: answers
           - name: screened_at
 
       - name: bronze_transcript_topic_lean_jev
