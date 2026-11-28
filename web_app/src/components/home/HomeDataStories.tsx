@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
 import { STORIES, scopeQuery, storyScopeLabel } from '../../utils/dataStory'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
@@ -12,6 +12,11 @@ import HomeTopicBar from './HomeTopicBar'
 import { askedStory as askedStoryOf, withStory } from '../../utils/homeTopic'
 import { storyTopicOptions } from '../../utils/storyNav'
 import HomeTopicStoryCard, { HomeStoryDrill } from './HomeTopicStoryCard'
+import HomeCandidateTopicCard from './HomeCandidateTopicCard'
+import { useHotTopics } from '../../hooks/useHotTopics'
+import type { HotPill } from '../../utils/hotTopics'
+import { prefetchHeroTopic } from '../../utils/heroPrefetch'
+import { captureDomBoxes, captureDomBoxesChunked, type ParticleBox } from '../../utils/boxFlight'
 import HomeStoryTitle, { HomeStorySubhead } from './HomeStoryTitle'
 import { useTopicStories } from '../../hooks/useTopicStories'
 import { useStoryScope } from '../../hooks/useStoryScope'
@@ -24,6 +29,7 @@ import { scopedMeetingHref } from '../stance/quoteCardUtils'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
 import StoryCountyMap from '../stance/StoryCountyMap'
 import MapSkeleton, { useStateAspect } from '../stance/MapSkeleton'
+import { useInsightYears } from '../chart/useInsightYears'
 import CoverageLine from '../stance/CoverageLine'
 
 
@@ -39,6 +45,29 @@ interface Props {
 }
 
 const STORY = STORIES['data-centers']!
+const MAP_SEL = '.home-story-map'
+
+/** Hide the hero map's boxes at once (still measurable), failsafe-cleared if no flight takes over; the provider clears it on finish. */
+function prehideHeroMap() {
+  const el = document.querySelector(MAP_SEL)
+  if (!el) return
+  el.setAttribute('data-box-flight-prehide', '1')
+  window.setTimeout(() => el.removeAttribute('data-box-flight-prehide'), 3500)
+}
+
+/** A resting snapshot of the hero's boxes and the scroll it was taken at, so a later scroll only shifts it. */
+interface HeroSnap {
+  boxes: ParticleBox[]
+  sx: number
+  sy: number
+  w: number
+}
+function snapToViewport(s: HeroSnap | null): ParticleBox[] {
+  if (!s || s.w !== window.innerWidth) return []
+  const dx = window.scrollX - s.sx
+  const dy = window.scrollY - s.sy
+  return s.boxes.map((b) => ({ ...b, x: b.x - dx, y: b.y - dy })).filter((b) => b.y + b.h / 2 > 0 && b.y - b.h / 2 < window.innerHeight)
+}
 /** A state's map passages, in order (speakers' own words first, then the API's map-quote meetings, #1230), at most this many. */
 const QUOTES_PER_STATE = 12
 
@@ -87,24 +116,129 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   const mapWrapRef = useRef<HTMLDivElement | null>(null)
   const reduced = usePrefersReducedMotion()
   const boxFlight = useBoxFlight()
-  // Any live topic story can be shown (#1133); an unknown or not-yet-loaded ?story= shows data centers.
+  // Any live topic story can be shown (#1133); a rising or heated topic with no story gets the meeting view (#1416);
+  // an unknown ?topic= shows data centers.
   const topicStories = useTopicStories()
+  const hot = useHotTopics(topicStories.live, stateCode, asked.city)
   const askedStory = askedStoryOf(sp)
   const topicDef = askedStory ? topicStories.stories[askedStory] : undefined
-  const story = topicDef ? askedStory : 'data-centers'
-  // ?topic= (the legacy ?story= still reads) keeps the place and replaces history, so Back leaves the page (#1350).
-  const selectStory = (next: string) => {
-    const go = () => setSp((prev) => withStory(prev, next), { replace: true, preventScrollReset: true })
-    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown }
-    if (!reduced && typeof doc.startViewTransition === 'function') {
-      doc.startViewTransition(() => flushSync(go))
-    } else {
-      go()
-    }
+  const candidate = !topicDef && askedStory && askedStory !== 'data-centers' ? hot.yoy?.topics.find((t) => t.slug === askedStory) : undefined
+  // A deep-linked topic we cannot place yet: hold the hero (no data-centers flash) until the catalog and yoy have answered.
+  const resolving = Boolean(askedStory && askedStory !== 'data-centers' && !topicDef && !candidate && (topicStories.pending || hot.pending))
+  const story = topicDef || candidate ? askedStory : 'data-centers'
+  // The row: the hot pills, plus the shown topic when it is not among them (a deep link), so it always reads as active.
+  const pills = useMemo<HotPill[]>(() => {
+    if (!candidate || hot.pills.some((p) => p.id === story)) return hot.pills
+    const one: HotPill = { id: candidate.slug, title: candidate.name, topicId: candidate.topic_id, live: false, rise: null, heat: null, heatRated: 0, score: 0, meetings: candidate.meetings_b }
+    return [one, ...hot.pills]
+  }, [hot.pills, candidate, story])
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const switchSeq = useRef(0)
+  const qc = useQueryClient()
+  const hasStory = (id: string) => id === 'data-centers' || Boolean(topicStories.stories[id])
+  const prefetch = (id: string) => {
+    const m = pills.find((x) => x.id === id)
+    if (!m) return Promise.resolve()
+    return prefetchHeroTopic(qc, { id, topicId: m.topicId ?? topicStories.stories[id]?.topicId ?? null, story: hasStory(id) }, stateCode, asked.city)
   }
-  // The topic word in the headline: a dropdown of every live story, the same list as the chip row and the story pages.
-  const topicWord = topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : dcTopic
-  const topicControl = { value: story, options: storyTopicOptions(topicStories.live, story, topicWord), onPick: selectStory }
+  // ?topic= (the legacy ?story= still reads) keeps the place and replaces history, so Back leaves the page (#1350).
+  // The switch (#1416): the new topic's data is prefetched first, then the hero map's boxes fly into the new layout
+  // (#1404's particle flight). A newer pick supersedes an older one; reduced motion swaps with a crossfade (CSS).
+  const selectStory = (next: string) => {
+    if (next === story && !pendingId) return
+    const mine = ++switchSeq.current
+    setPendingId(next)
+    const boxes = reduced ? [] : snapToViewport(heroSnap.current)
+    const wait = Promise.race([prefetch(next), new Promise((r) => window.setTimeout(r, 1500))])
+    void wait.then(() => {
+      if (mine !== switchSeq.current) return
+      flushSync(() => {
+        setSp((prev) => withStory(prev, next), { replace: true, preventScrollReset: true })
+        setPendingId(null)
+      })
+      if (!reduced && boxes.length > 0) {
+        // Hide the new map's boxes now, so the old ones carry the eye across and no frame shows both.
+        prehideHeroMap()
+        boxFlight.launch({ boxes, targetSelector: MAP_SEL })
+      }
+    })
+  }
+  // A place change flies too (#1416): national -> state or city, state -> national, state -> state, and the city -> state
+  // fallbacks. The hero's resting boxes are remembered; the new place's data is prefetched where the pick starts here
+  // (the title's place control, a state tapped on the county map); the header's own toggle has no hook, so there the
+  // flight waits for the new map's boxes (the provider holds the old ones until they are drawn).
+  const placeKey = `${stateCode ?? ''}|${stateCode ? (asked.city ?? '') : ''}`
+  const heroSnap = useRef<HeroSnap | null>(null)
+  const pendingFrom = useRef<ParticleBox[] | null>(null)
+  const prevPlace = useRef(placeKey)
+  const placeSeq = useRef(0)
+  // The resting snapshot is read in slices off the main thread's critical path (thousands of boxes), after the map settles.
+  const snapSeq = useRef(0)
+  useEffect(() => {
+    if (reduced) return
+    const mine = ++snapSeq.current
+    const snap = async () => {
+      if (boxFlight.isFlying) return
+      const sx = window.scrollX
+      const sy = window.scrollY
+      const boxes = await captureDomBoxesChunked(document.querySelector(MAP_SEL), { isStale: () => mine !== snapSeq.current || window.scrollY !== sy })
+      if (boxes.length > 0 && mine === snapSeq.current) heroSnap.current = { boxes, sx, sy, w: window.innerWidth }
+    }
+    const t1 = window.setTimeout(() => void snap(), 900)
+    const t2 = window.setTimeout(() => void snap(), 2200)
+    // A phone shows the headline first and the map below it: re-read once a scroll or resize settles, so the map's boxes
+    // are in the snapshot whenever they are on screen.
+    let t3 = 0
+    const again = () => {
+      window.clearTimeout(t3)
+      t3 = window.setTimeout(() => void snap(), 350)
+    }
+    window.addEventListener('scroll', again, { passive: true })
+    window.addEventListener('resize', again)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.clearTimeout(t3)
+      window.removeEventListener('scroll', again)
+      window.removeEventListener('resize', again)
+    }
+  }, [placeKey, story, reduced, boxFlight])
+  useLayoutEffect(() => {
+    if (prevPlace.current === placeKey) return
+    prevPlace.current = placeKey
+    const map = document.querySelector(MAP_SEL)
+    if (reduced) {
+      // Reduced motion: the map crossfades in place.
+      map?.removeAttribute('data-xfade')
+      void (map as HTMLElement | null)?.offsetWidth
+      map?.setAttribute('data-xfade', '1')
+      return
+    }
+    const from = pendingFrom.current ?? snapToViewport(heroSnap.current)
+    pendingFrom.current = null
+    if (from.length === 0) return
+    prehideHeroMap()
+    boxFlight.launch({ boxes: from, targetSelector: MAP_SEL })
+  }, [placeKey, reduced, boxFlight])
+  const applyPlace = onPlaceApply
+    ? (code: string | null, c: string | null) => {
+        const mine = ++placeSeq.current
+        if (!reduced) {
+          const resting = snapToViewport(heroSnap.current)
+          // No resting snapshot yet (the map just scrolled into view): read it now, once, at the user's action.
+          const now = resting.length > 0 ? resting : captureDomBoxes(document.querySelector(MAP_SEL))
+          pendingFrom.current = now.length > 0 ? now : null
+        }
+        const m = pills.find((x) => x.id === story)
+        const warm = prefetchHeroTopic(qc, { id: story, topicId: m?.topicId ?? topicStories.stories[story]?.topicId ?? null, story: hasStory(story) }, code, c)
+        void Promise.race([warm, new Promise((r) => window.setTimeout(r, 1200))]).then(() => {
+          if (mine === placeSeq.current) onPlaceApply(code, c)
+        })
+      }
+    : undefined
+  // The topic word in the headline: a dropdown of the same pills as the chip row.
+  const topicWord = topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : candidate ? candidate.name : dcTopic
+  const topicControl = { value: story, options: storyTopicOptions(pills, story, topicWord), onPick: selectStory }
   // National: every state's own count, and each state's passages to quote (#1230): real public meetings only, meetings
   // where the public mostly opposed first, then newest first (the API's map-quote pick).
   const national = useQuery({
@@ -169,6 +303,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   // At state (or city) scope the hero draws the story Overview's own state map (#1307): the state's counties with its
   // meeting towns, in the stance colours, from the same meeting-mentions place counts.
   const navigate = useNavigate()
+  const dcYears = useInsightYears('data-centers', scope.stateCode ?? undefined)
   const statePlaces = useQuery({
     queryKey: ['home', 'story-map', 'meeting-mentions', 'state', scope.stateCode ?? ''],
     queryFn: () => fetchDataCenterMeetingMentions({ state: scope.stateCode, limit: 200 }),
@@ -203,21 +338,25 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   return (
     <section id="data-stories" aria-labelledby="home-story-dc" className="home-stories" style={{ scrollMarginTop: 72 }}>
       <div className="home-stories-inner">
-        <HomeTopicBar topics={topicStories.live} selected={story} onSelect={selectStory} query={q} panelId="home-story-panel" />
+        <HomeTopicBar pills={pills} selected={story} pendingId={pendingId} onSelect={selectStory} onPrefetch={(id) => void prefetch(id)} query={q} panelId="home-story-panel" scopeLabel={hot.yoy ? (hot.yoy.scope.city ? `${hot.yoy.scope.city}, ${hot.yoy.scope.state}` : (hot.yoy.scope.state ?? 'National')) : label} />
         <div id="home-story-panel" role="tabpanel" aria-labelledby={`home-tab-${story}`}>
-        {topicDef ? (
-          <HomeTopicStoryCard def={topicDef} scope={asked} query={q} onPlaceApply={onPlaceApply} topicControl={topicControl} />
+        {resolving ? (
+          <div className="home-story-card" aria-busy="true" style={{ minHeight: 320 }} />
+        ) : candidate && hot.yoy ? (
+          <HomeCandidateTopicCard key={candidate.slug} topic={candidate} yoy={hot.yoy} onPlaceApply={applyPlace} topicControl={topicControl} />
+        ) : topicDef ? (
+          <HomeTopicStoryCard def={topicDef} scope={asked} query={q} onPlaceApply={applyPlace} topicControl={topicControl} />
         ) : (
-        <div className="home-story-card">
+        <div className="home-story-card" key="data-centers">
           <div className="home-story-text">
             <p className="font-mono-x home-story-eyebrow">Data story · {STORY.title}</p>
             {/* While the record loads, the headline's place is held (invisible) so the question doesn't flash first. */}
             <h1 id="home-story-dc" className={`font-display home-story-headline${isLongTitle(dcTitle) ? ' is-long' : ''}`} aria-busy={pending || undefined} style={pending ? { visibility: 'hidden' } : undefined}>
               {/* The place in the title is the place control (#1206): "[America ▾] hates data centers." */}
-              <HomeStoryTitle caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} topicControl={topicControl} />
+              <HomeStoryTitle caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={applyPlace} topicControl={topicControl} />
             </h1>
             {/* The subhead speaks only for the caption's scope (#1134): never a national claim on a place's page. */}
-            {!pending && <HomeStorySubhead caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={onPlaceApply} subhead={dcSubhead} />}
+            {!pending && <HomeStorySubhead caption={dcCaption} topic={dcTopic} scope={scope} onPlaceApply={applyPlace} subhead={dcSubhead} />}
             {dcCaption.basis && (
               <p className="home-story-basis">
                 {dcCaption.basis}
@@ -257,11 +396,12 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                   scopeCity={asked.city}
                   scopeLabel={label}
                   byPlace={byPlace}
-                  onPickState={(code) => onPlaceApply?.(code, null)}
+                  onPickState={(code) => applyPlace?.(code, null)}
                   passages={statePlaces.data?.items}
                   cardSlot={cardSlot}
                   onDrill={drill}
                   chrome={false}
+                  insightExtras={{ years: dcYears }}
                 />
               ) : (
                 <MapSkeleton aspect={stateAspect} label={`Loading the map of ${label}`} />
@@ -270,6 +410,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
               <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
             ) : (
               <StoryStatesMap
+                insightExtras={{ years: dcYears }}
                 byState={national.data?.counts?.by_state}
                 quotes={quotes}
                 stance={speakers.data?.available ? (speakers.data.by_state ?? []) : undefined}
@@ -287,6 +428,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
         {/* Story -> what happens next (#1302): below the story and its map; Coming up first. It follows the place asked in
             the URL (each card says when that place has nothing and offers the wider view). Topic switching is only the
             chip bar above (#1371); the large Browse topics strip is gone. */}
+        {!candidate && !resolving && (
         <HomeOutcomesScroller
           topic={story}
           subject={topicDef ? (CAPTION_COPY[story]?.topic ?? topicDef.subject.toLowerCase()) : dcTopic}
@@ -295,6 +437,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
           label={topicDef ? (stateName ?? 'National') : storyScopeLabel(asked)}
           dataCenterStory={!topicDef}
         />
+        )}
       </div>
     </section>
   )

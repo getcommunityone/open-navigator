@@ -220,6 +220,7 @@ export default function BrowseAllTopics() {
                   ` Most heated: the mean heat (1-5) a classifier rated from public speakers' own words on the topic, all years, shown with at least ${d.min_heat_rated ?? 20} rated speakers; fewer says "too few rated".`}
               </p>
               <DumbbellRows
+                title={`${rising} of ${rising + falling} topics compared rose from ${yA} to ${yB} · ${scopeLabel}`}
                 rows={drawn}
                 aName={yA}
                 bName={yB}

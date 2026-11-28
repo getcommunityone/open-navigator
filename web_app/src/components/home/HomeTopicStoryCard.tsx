@@ -12,6 +12,7 @@ import type { TopicStoryDef } from '../../utils/topicStories'
 import { useBoxFlight } from '../stance/BoxFlightProvider'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { stanceFromPublicLean } from '../../utils/mapQuote'
+import { useInsightYears } from '../chart/useInsightYears'
 import TopicCountyMap from '../stance/TopicCountyMap'
 import HomeStoryTitle, { type TopicControl, HomeStorySubhead } from './HomeStoryTitle'
 import { storyStartHref } from '../../utils/storyNav'
@@ -41,6 +42,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   const placeScope = useStoryScope(def.slug, topicNoun, asked.stateCode, asked.city)
   const scope: StoryScope = placeScope.effective
   const label = storyScopeLabel(scope)
+  const natYears = useInsightYears(def.slug, scope.stateCode ?? undefined)
   // The map's hover card goes in the text column, under Start (#1277), never over the map.
   const [cardSlot, setCardSlot] = useState<HTMLDivElement | null>(null)
   const states = useQuery({
@@ -119,6 +121,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
 
   const statesMap = (
     <StoryStatesMap
+      insightExtras={{ years: natYears }}
       byState={states.data?.states}
       quotes={quotes}
       highlight={scope.stateCode ?? null}
@@ -142,7 +145,8 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
 
   return (
     <div className="home-story-card">
-      <div className="home-story-text">
+      {/* Keyed text only: the map keeps its boxes and recolours in place when the topic changes (#1416). */}
+      <div className="home-story-text" key={def.slug}>
         <p className="font-mono-x home-story-eyebrow">Data story · {def.title}</p>
         <h1
           id="home-story-dc"
@@ -191,6 +195,7 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
         ) : scope.stateCode ? (
           <TopicCountyMap
             topicId={def.topicId}
+            topicSlug={def.slug}
             stateCode={scope.stateCode}
             scopeCity={scope.city ?? null}
             scopeLabel={label}

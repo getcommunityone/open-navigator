@@ -253,6 +253,14 @@ vars:
   # the hand-labelled gold set; llm.typesafe.speaker_stance.MIN_SIDE_CONFIDENCE, kept equal by a test).
   speaker_side_min_confidence: 0.8
   speaker_heat_min_confidence: 0.65
+  # topic_place_ranking (#1437): where places stand on a topic, from the speaker sides above.
+  # ranking_as_of: the window's end date ('' = the run date); the window is the last ranking_window_months months.
+  ranking_as_of: ''
+  ranking_window_months: 24
+  ranking_min_speakers: 10
+  ranking_min_meetings: 2
+  # pseudo-speakers at the topic's national against-rate added to every place (shrinkage prior)
+  ranking_prior_weight: 10
   # Confidence score thresholds
   confidence_authoritative: 1.0
   confidence_high: 0.90

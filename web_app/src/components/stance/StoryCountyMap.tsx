@@ -25,6 +25,8 @@ import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { useChartWidth } from './useChartWidth'
+import { pickInsight, type InsightInput } from '../../utils/chartInsight'
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { MAP_MIN_COUNTY_PX, MAP_MIN_LABEL_PX, TALL_ASPECT, labelUnits, mapAspect } from '../../utils/mapFit'
 
 /** Meetings for one government in the scoped state (meeting-mentions `counts.by_place`, #1039). */
@@ -78,6 +80,8 @@ interface Props {
    * and the panel crowded the map. Story Overview keeps the default (true).
    */
   chrome?: boolean
+  /** Extra real findings for the title (#1409): the topic's timeline years, heat by year, the top concern in opposing turns. */
+  insightExtras?: Pick<InsightInput, 'years' | 'heatByYear' | 'concern'>
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -93,9 +97,8 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
  * city, town or school district is placed in the county its coordinates fall in, and drawn as a ring. United States broadens
  * back to the national map.
  */
-export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill, subject, positions, unplacedMeetings = 0, chrome = true }: Props) {
+export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill, subject, positions, unplacedMeetings = 0, chrome = true, insightExtras }: Props) {
   const what = subject ?? 'a data center'
-  const titleNoun = subject ? subject.charAt(0).toUpperCase() + subject.slice(1) : 'Data center'
   const [hover, setHover] = useState<string | null>(null)
   // The map's drawn width (#1309): it is capped by the screen's height, so its labels are sized from what is really drawn.
   const { ref: fitRef, width: drawnWidth } = useChartWidth<HTMLDivElement>(0)
@@ -378,6 +381,44 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   const unplacedHere = unplaced.reduce((a, p) => a + p.meetings, 0)
   const unplacedAll = unplacedHere + Math.max(0, unplacedMeetings)
 
+  // Title (#1409): the most impactful finding the real counts support (utils/chartInsight), the description as its caption.
+  const subjectWords = subject ?? 'data centers'
+  const subjectCap = subjectWords.charAt(0).toUpperCase() + subjectWords.slice(1)
+  const stateMeetings = byPlace.reduce((a, p) => a + Math.max(0, p.meetings || 0), 0)
+  const topCounties = listed.slice(0, 2).map(([id]) => nameOf(id).replace(/\s+(County|Parish)$/i, ''))
+  const officialsMeetings = byPlace.reduce((a, p) => a + Math.max(0, p.disagreement_meetings || 0), 0)
+  const leanSum = sumStances(byPlace)
+  const insight = pickInsight({
+    subject: subjectWords,
+    place: stateName,
+    totalMeetings: stateMeetings,
+    topPlaces: topCounties.length > 1 ? topCounties.map((c) => `${c} County`) : [],
+    years: insightExtras?.years,
+    heatByYear: insightExtras?.heatByYear,
+    concern: insightExtras?.concern,
+    officials: officialsMeetings > 0 ? { meetings: officialsMeetings } : undefined,
+    lean: speakersOf(leanSum) > 0 ? { unit: positions ? 'meetings' : 'speakers', against: leanSum.speakers_against, for: leanSum.speakers_for, other: leanSum.speakers_neutral + leanSum.speakers_question } : undefined,
+  })
+  const title = insight.kind === 'none' ? `${subjectCap} meetings by county · ${stateName}` : insight.title
+  const caption = `${subjectCap} meetings by county · ${stateName}`
+  // The key (#1409): every colour and shape drawn, from the same constants the dots use.
+  const legend: LegendItem[] = [
+    ...(scopeCity ? [{ key: 'focus', label: `${scopeCity}’s county`, color: '#0f172a', shape: 'hatch' as const }] : []),
+    ...(stances.size > 0
+      ? LEGEND_STANCES.map((k) => ({ key: k, label: positions ? (k === 'neutral' ? positions.split : positions[k]) : LEGEND_LABEL[k], color: BOX_COLORS[k] }))
+      : []),
+    ...(leanCounties > 0 ? [{ key: 'lean', label: PUBLIC_AGAINST_LABEL, color: PUBLIC_AGAINST_COLOR }] : []),
+    {
+      key: 'meetings',
+      label: stances.size > 0 || leanCounties > 0 ? 'Meetings, no stance on record (darker = more)' : `Meetings on ${subjectWords} (darker = more)`,
+      color: MEETING_GREYS[2],
+      shape: 'ramp',
+      ramp: MEETING_GREYS,
+    },
+    ...(rings.length > 0 ? [{ key: 'ring', label: 'Ring: town on record', color: HOUSE_THEME.ramp[5] ?? '#0f766e', shape: 'ring' as const }] : []),
+    { key: 'empty', label: 'None on record', color: HOUSE_THEME.neutral },
+  ]
+
   return (
     // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
     // The layout follows the state's shape (#1309, owner 27 Nov 2026): a tall state in a wide column puts the title, key and
@@ -391,26 +432,34 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     >
       {/* The figure is the size container; this inner grid is what the container query lays out (a container can't
           query itself). */}
-      <div className="stance-map-layout" data-shape={mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide'} data-chrome={chrome ? undefined : 'off'}>
-      {chrome && (
-      <div className="stance-map-head">
-        {/* One short line; the highlighted city is named in the key, not appended here. */}
-        <span className="stance-map-title">{titleNoun} meetings by county · {stateName}</span>
-        <span className="stance-map-controls">
-          <button type="button" className="folio-link-btn" onClick={() => onPickState(null)}>
-            United States
-          </button>
-          <select aria-label="Show one state" className="folio-select" value={stateCode} onChange={(e) => onPickState(e.target.value || null)}>
-            <option value="">All states</option>
-            {states.map(([c, n]) => (
-              <option key={c} value={c}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </span>
-      </div>
-      )}
+      <ChartFrame
+        title={title}
+        titleSupport={insight.support}
+        caption={insight.kind === 'none' ? undefined : caption}
+        legend={legend}
+        className="stance-map-layout"
+        headClassName="stance-map-head"
+        titleClassName="stance-map-title"
+        legendClassName="stance-map-key"
+        rootProps={{ 'data-shape': mapAspect(vbW, vbH) < TALL_ASPECT ? 'tall' : 'wide', 'data-chrome': chrome ? undefined : 'off' }}
+        controls={
+          chrome ? (
+            <span className="stance-map-controls">
+              <button type="button" className="folio-link-btn" onClick={() => onPickState(null)}>
+                United States
+              </button>
+              <select aria-label="Show one state" className="folio-select" value={stateCode} onChange={(e) => onPickState(e.target.value || null)}>
+                <option value="">All states</option>
+                {states.map(([c, n]) => (
+                  <option key={c} value={c}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </span>
+          ) : undefined
+        }
+      >
       <div className="stance-map-stage">
         {keyNav.sr}
         {/* Fits the screen (#1309): the height is capped by the visible screen and the width follows the state's shape. */}
@@ -534,30 +583,6 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
       </p>
       {max > 0 && (
         <>
-          <div className="stance-map-legend" aria-hidden="true">
-            {scopeCity && (
-              <span className="stance-map-none">
-                <span className="stance-map-swatch-focus" /> {scopeCity}&rsquo;s county (others faded)
-              </span>
-            )}
-            {stances.size > 0 &&
-              LEGEND_STANCES.map((k) => (
-                <span key={k} className="stance-map-none">
-                  <span style={{ background: BOX_COLORS[k] }} /> {positions ? (k === 'neutral' ? positions.split : positions[k]) : LEGEND_LABEL[k]}
-                </span>
-              ))}
-            {leanCounties > 0 && (
-              <span className="stance-map-none">
-                <span style={{ background: PUBLIC_AGAINST_COLOR }} /> {PUBLIC_AGAINST_LABEL}
-              </span>
-            )}
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
-              <span className="stance-map-ramp">
-                <span style={{ background: MEETING_GREYS[2] }} />
-              </span>
-              Meetings, no stance on record (darker = more meetings)
-            </span>
-          </div>
           <p className="stance-note">
             {positions
               ? stances.size > 0
@@ -622,7 +647,7 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
         // Home hero (#1374): no side panel; the hover card still goes in the text column under Start.
         cardSlot ? (cardShown ? createPortal(cardShown, cardSlot) : null) : cardShown
       )}
-      </div>
+      </ChartFrame>
     </figure>
   )
 }

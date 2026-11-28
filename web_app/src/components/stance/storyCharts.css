@@ -125,6 +125,10 @@
   pointer-events: none;
   z-index: 90;
 }
+/* #1416: a caller that is about to launch a flight into a container hides its marks at once (still measurable, unlike opacity 0). */
+[data-box-flight-prehide='1'] [data-box] {
+  visibility: hidden;
+}
 [data-box-flight-hide='1'] [data-box] {
   opacity: 0 !important;
   transition: none !important;
