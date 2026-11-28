@@ -132,7 +132,7 @@ const SPEAKER_SLUGS = [...SPEAKER_STANCE.matchAll(/^ {4}"([a-z-]+)": (?:SpeakerT
 
 describe('speaker side words (#1391)', () => {
   it('has words for every topic the speaker classifier reads', () => {
-    expect(SPEAKER_SLUGS.length).toBe(19)
+    expect(SPEAKER_SLUGS.length).toBe(30) // 19 (#1391) + 11 coverage topics (#1436)
     for (const slug of SPEAKER_SLUGS) {
       const w = TOPIC_POSITIONS[slug]
       expect(w, slug).toBeDefined()
