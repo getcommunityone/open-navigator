@@ -1,63 +1,23 @@
 ---
 pr: 1453
-branch: chore/1452-mit-license
-title: "chore(license): relicense the project under MIT"
-author: jcbowyer
-reviewed_at: 2026-11-28
-reviewer: github-actions
-head_sha: 5cee89b1dac7e0159436b1c0841040a50df411e4
+issue: 1452
 verdict: approve
 ---
 
-# PR Review: chore(license): relicense the project under MIT
+# PR #1453 review
 
-## Summary
+Reviewed against `.claude/review-rubric.md`.
 
-Automated review (#648) for PR #1453 on `chore/1452-mit-license`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+- **Issue and branch:** `chore/1452-mit-license`, `Closes #1452`; the issue has all four parts and the `documentation` label.
+- **Scans:** no secrets, no fabricated data, no personal data, no data changes. The PR body names outside contributors only to say the owner should confirm consent; nobody is contacted.
+- **Correctness:**
+  - `LICENSE` is word-for-word the SPDX `MIT` text (whitespace-normalised diff against spdx/license-list-data `text/MIT.txt` is empty), with `Copyright (c) 2026 CommunityOne`, wrapped as in GitHub's choosealicense template so Licensee can detect it. It remains the only licence file at the root.
+  - Every remaining `apache` match in the tree was read in context: Delta Lake/PySpark (costs.md), Bitol ODCS/ODPS (data-contracts.md), civic-scraper (integrations/overview.md), OMOP and other citations, Apache Spark/Iceberg/Parquet as technologies, Spark config class names, and the vendored `dbt_project/contracts/_schema/NOTICE`. All describe third parties and are correctly unchanged.
+  - Hugging Face front matter uses `license: mit`, a valid HF licence identifier.
+  - `setup.py` uses the valid trove classifier `License :: OSI Approved :: MIT License`.
+- **Verification:** grep for `apache` across the edited files returns only the historical note in `huggingface-spaces.md` ("relicensed from Apache 2.0"). No code paths change, so no tests apply.
+- **Docs:** the governed pages `web_docs/docs/deployment/huggingface-spaces.md` and `web_docs/docs/pitch/full-text-and-notes.md` are updated in this PR.
 
-## Scope of Change
+🔵 Nit (not blocking): `apps/rag-chat-app/package.json` says `"license": "Unlicensed"`. It is a separate sample app and never said Apache, so it is listed in the PR for the owner rather than changed.
 
-- `.huggingface/README.md`
-- `LICENSE`
-- `README.md`
-- `README_HF.md`
-- `scripts/mcp/README.md`
-- `setup.py`
-- `web_app/README.md`
-- `web_docs/deck/slides/01-cover.html`
-- `web_docs/deck/slides/09-open.html`
-- `web_docs/docs/deployment/huggingface-spaces.md`
-- `web_docs/docs/pitch/full-text-and-notes.md`
-- `web_docs/static/deck/index.html`
-
-## CI Status
-
-See the PR checks on `5cee89b1dac7`.
-
-## Scans (secrets, fabricated data, personal data, destructive data changes)
-
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
-
-## Findings
-
-### 🔴 Blocking (Critical)
-
-None.
-
-### 🟡 Should fix (Important)
-
-None from automated heuristics.
-
-### 🔵 Nit (Minor)
-
-None from automated heuristics.
-
-## Verdict
-
-**approve**
+No blocking findings. Owner action outside the code: confirm outside contributors' consent to relicensing.
