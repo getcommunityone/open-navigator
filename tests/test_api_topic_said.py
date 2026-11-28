@@ -267,8 +267,12 @@ def test_decisions_endpoint_splits_and_links(get, monkeypatch):
     off, = body["in_passing"]
     assert on["event_decision_id"] == "d2" and on["decision_url"] == "/decisions/d2" and on["meeting_url"] is None
     # #1320: who supported it (an official by name and title, a resident First L.), no opposition recorded, the vote.
-    assert on["supported_by"] == [{"name": "Lee Busby", "role": "Councilor", "kind": "official"},
-                                  {"name": "Scott H.", "role": None, "kind": "resident"}]
+    assert [{k: p[k] for k in ("name", "role", "kind")} for p in on["supported_by"]] == [
+        {"name": "Lee Busby", "role": "Councilor", "kind": "official"},
+        {"name": "Scott H.", "role": None, "kind": "resident"},
+    ]
+    # #1386: each person says how we know (AI held_by slugs: never high without a roster match).
+    assert [p["attribution_method"] for p in on["supported_by"]] == ["ai_extraction_held_by", "ai_extraction_held_by"]
     assert on["opposition_recorded"] is False and (on["vote_yes"], on["vote_no"]) == (7, 0)
     assert off["supported_by"] == [] and off["opposition_recorded"] is None
     assert off["meeting_url"] == "/meetings/7" and off["video_url"] == "https://www.youtube.com/watch?v=abcdefghijk"
