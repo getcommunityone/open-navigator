@@ -398,7 +398,7 @@ export async function fetchTopicCaptionFacts(topic: string, state?: string, city
 /** `GET /api/topics/{topic}/heat-by-year?state=&city=` (#1418): mean speaker heat per year; thin years are omitted. */
 export interface TopicHeatByYear {
   topic: string
-  years: { year: string; mean: number; speakers_rated: number; share_heated: number | null }[]
+  years: { year: string; mean: number; speakers_rated: number; share_heated: number | null; speakers_heated: number | null }[]
 }
 
 export async function fetchTopicHeatByYear(topic: string, state?: string, city?: string | null): Promise<TopicHeatByYear> {

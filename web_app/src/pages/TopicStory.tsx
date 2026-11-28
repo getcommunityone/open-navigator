@@ -35,6 +35,7 @@ import TopicCountyMap from '../components/stance/TopicCountyMap'
 import type { MapPassage } from '../components/stance/StoryDotMap'
 import { overviewLead } from '../utils/overviewLead'
 import TimelineChart from '../components/stance/TimelineChart'
+import HeatYearBoxes from '../components/stance/HeatYearBoxes'
 import DumbbellChart from '../components/stance/DumbbellChart'
 import PlaceControl from '../components/stance/PlaceControl'
 import ProgressPips from '../components/stance/ProgressPips'
@@ -534,6 +535,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
           right: (
             <div className="topic-story-charts">
               <TimelineChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} idBase={`topic-${def.slug}`} />
+              <HeatYearBoxes topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} />
               <DumbbellChart topic={def.slug} stateCode={stateCode ?? undefined} scopeLabel={label} subject={subject} idBase={`topic-${def.slug}`} />
             </div>
           ),

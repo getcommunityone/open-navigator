@@ -446,6 +446,7 @@ class HeatYear(BaseModel):
     mean: float = Field(..., description="Mean heat (1-5) over the year's rated speakers.")
     speakers_rated: int
     share_heated: float | None = Field(None, description="Share (0-1) of rated speakers with heat 4 or 5.")
+    speakers_heated: int | None = Field(None, description="Rated speakers with heat 4 or 5.")
 
 
 class TopicHeatByYear(BaseModel):
@@ -472,7 +473,7 @@ HEAT_BY_YEAR_SQL = (
     "WITH m AS (SELECT * FROM topic_heat_year WHERE topic_id = $1 AND scope_level = $2 "
     "AND ($2 = 'national' OR state_code = $3) AND ($2 <> 'city' OR lower(city) = lower($4))), "
     "best AS (SELECT scope_key FROM m GROUP BY scope_key ORDER BY sum(speakers_rated) DESC, scope_key LIMIT 1) "
-    "SELECT year, mean_heat, speakers_rated, share_heated FROM m "
+    "SELECT year, mean_heat, speakers_rated, share_heated, speakers_heated FROM m "
     "WHERE scope_key = (SELECT scope_key FROM best) ORDER BY year"
 )
 
@@ -526,6 +527,7 @@ async def topic_heat_by_year(
             mean=float(r["mean_heat"]),
             speakers_rated=int(r["speakers_rated"]),
             share_heated=float(r["share_heated"]) if r["share_heated"] is not None else None,
+            speakers_heated=int(r["speakers_heated"]) if r["speakers_heated"] is not None else None,
         )
         for r in (rows or [])
     ]

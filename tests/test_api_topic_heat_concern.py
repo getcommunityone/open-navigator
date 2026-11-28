@@ -71,15 +71,15 @@ TOPIC = {"FROM civicsearch_topic": [{"topic_id": 100001, "query_id": "data-cente
 
 def test_heat_by_year_serves_years_as_strings(get):
     rows = [
-        {"year": 2025, "mean_heat": 1.4, "speakers_rated": 40, "share_heated": 0.1},
-        {"year": 2026, "mean_heat": 2.9, "speakers_rated": 55, "share_heated": 0.4},
+        {"year": 2025, "mean_heat": 1.4, "speakers_rated": 40, "share_heated": 0.1, "speakers_heated": 4},
+        {"year": 2026, "mean_heat": 2.9, "speakers_rated": 55, "share_heated": 0.4, "speakers_heated": 22},
     ]
     conn = _Conn({**TOPIC, "FROM topic_heat_year": rows})
     r = get(conn, "/api/topics/data-centers/heat-by-year", {"state": "va"})
     assert r.status_code == 200
     d = r.json()
     assert d["scope"]["level"] == "state" and d["scope"]["state_code"] == "VA"
-    assert d["years"][1] == {"year": "2026", "mean": 2.9, "speakers_rated": 55, "share_heated": 0.4}
+    assert d["years"][1] == {"year": "2026", "mean": 2.9, "speakers_rated": 55, "share_heated": 0.4, "speakers_heated": 22}
     assert conn.calls[-1][1] == (100001, "state", "VA", None)
 
 

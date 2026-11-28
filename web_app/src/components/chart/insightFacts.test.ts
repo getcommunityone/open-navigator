@@ -5,7 +5,7 @@ import { pickInsight } from '../../utils/chartInsight'
 // Test-only fixtures: nothing here is served by the app.
 describe('insight facts mapping (#1418)', () => {
   it('maps heat rows to the picker shape and drops an empty answer', () => {
-    expect(toHeatByYear({ topic: 't', years: [{ year: '2026', mean: 2.9, speakers_rated: 55, share_heated: 0.4 }] })).toEqual([
+    expect(toHeatByYear({ topic: 't', years: [{ year: '2026', mean: 2.9, speakers_rated: 55, share_heated: 0.4, speakers_heated: 22 }] })).toEqual([
       { year: '2026', mean: 2.9, rated: 55 },
     ])
     expect(toHeatByYear({ topic: 't', years: [] })).toBeUndefined()
@@ -22,8 +22,8 @@ describe('insight facts mapping (#1418)', () => {
     const base = { subject: 'data centers', place: 'Virginia' }
     const rows = (a: number, b: number) =>
       toHeatByYear({ topic: 't', years: [
-        { year: '2025', mean: 1.4, speakers_rated: a, share_heated: null },
-        { year: '2026', mean: 2.9, speakers_rated: b, share_heated: null },
+        { year: '2025', mean: 1.4, speakers_rated: a, share_heated: null, speakers_heated: null },
+        { year: '2026', mean: 2.9, speakers_rated: b, share_heated: null, speakers_heated: null },
       ] })
     expect(pickInsight({ ...base, heatByYear: rows(40, 55) }).kind).toBe('heat')
     expect(pickInsight({ ...base, heatByYear: rows(10, 55) }).kind).not.toBe('heat')

@@ -71,6 +71,10 @@ models:
         constraints: [{type: not_null}]
         tests:
           - dbt_utils.expression_is_true: {expression: ">= 20"}
+      - name: speakers_heated
+        data_type: int
+        description: "Rated speaker-meetings with heat 4 or 5 (the boxes of the year chart)."
+        constraints: [{type: not_null}]
       - name: meetings
         data_type: int
         description: "Distinct meetings those speakers spoke at."

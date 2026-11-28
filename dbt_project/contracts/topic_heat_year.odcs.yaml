@@ -97,6 +97,12 @@ schema:
     physicalType: int
     description: Rated speaker-meetings in the year; always at least var('heat_year_min_speakers').
     required: true
+  - id: speakers_heated
+    name: speakers_heated
+    logicalType: integer
+    physicalType: int
+    description: Rated speaker-meetings with heat 4 or 5 (the boxes of the year chart).
+    required: true
   - id: meetings
     name: meetings
     logicalType: integer

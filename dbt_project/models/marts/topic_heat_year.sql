@@ -56,6 +56,7 @@ select
     round(avg(heat), 2)::numeric(3, 2)                                 as mean_heat,
     round((count(*) filter (where heat >= 4))::numeric / count(*), 3)::numeric(4, 3) as share_heated,
     count(*)::int                                                      as speakers_rated,
+    (count(*) filter (where heat >= 4))::int                           as speakers_heated,
     count(distinct video_id)::int                                      as meetings
 from scoped
 group by topic_id, scope_level, scope_key, year

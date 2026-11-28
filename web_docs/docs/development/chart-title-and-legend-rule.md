@@ -57,8 +57,13 @@ Titles stay near 90 characters. The numbers behind a title are one tap away on t
   turns, from the free keyword concern list (`comment_concern_terms`), with its turn count, the turns read and its share. No row
   under `top_concern_min_turns` (20) turns read. The stance-shape cue texts are verbatim phrases, not categories, so they are not
   counted here.
-- `GET /api/topics/{slug}/heat-by-year?state=&city=` returns `{years: [{year: "2026", mean, speakers_rated, share_heated}]}`;
+- `GET /api/topics/{slug}/heat-by-year?state=&city=` returns `{years: [{year: "2026", mean, speakers_rated, share_heated, speakers_heated}]}`;
   `GET /api/topics/{slug}/top-concern?state=&city=` returns `{label, count, of, basis, share}` (the opposing basis, else heated;
   all null when there is no row).
 - The picker still applies its own thresholds (20 rated speakers in each of two consecutive years and a clear rise; the
   concern in at least 30% and 5 of the turns read), so a finding fires only when both the server and the picker agree.
+
+The topic story's **Over time** screen draws the same rows as a year chart (`HeatYearBoxes`): one box per speaker rated heated
+(heat 4 or 5), stacked by the calendar year of the meeting, with the year's average heat and rated count under each column. The
+picker leads its title with "getting heated" (average heat up by a quarter and 0.4) or "cooling" (down by a fifth and 0.4) between
+two consecutive years that each have at least 20 rated speakers; otherwise the title is the plain description.
