@@ -56,6 +56,7 @@ class Metric:
     # SQL returning (jurisdiction_id, value, as_of) for $1 = text[] ids, $2 = int fiscal year or NULL.
     values_sql: str
     note: str = ""
+    per_capita: bool = True  # False for rates such as an average pay: dividing by population is meaningless
 
 
 _USASPENDING = "USAspending.gov (U.S. Treasury), assistance awards to local governments, public domain"
@@ -67,6 +68,19 @@ _FUNDING_BY_ALN = """
       AND ($2::int IS NULL OR fiscal_year = $2::int)
       {extra}
     GROUP BY jurisdiction_id
+"""
+
+_CENSUS_ASPEP = (
+    "U.S. Census Bureau, Annual Survey of Public Employment & Payroll (ASPEP), latest survey year, public domain"
+)
+
+# $2 (fiscal_year) is the ASPEP survey year; NULL = the latest year served.
+_PAYROLL = """
+    SELECT jurisdiction_id, {col} AS value, max(source_updated_at) OVER () AS as_of
+    FROM jurisdiction_public_payroll_latest
+    WHERE jurisdiction_id = ANY($1::text[])
+      AND function_code = '{code}'
+      AND ($2::int IS NULL OR year = $2::int)
 """
 
 METRICS: dict[str, Metric] = {
@@ -93,6 +107,27 @@ METRICS: dict[str, Metric] = {
         """,
         "Awards under SAMHSA Opioid STR (93.788) and DOJ COSSUP (16.838), plus any award whose description mentions opioids.",
     ),
+    "payroll_total": Metric(
+        "payroll_total", "Public payroll, all functions (full-time, March, per month)", "dollars per month",
+        _CENSUS_ASPEP,
+        _PAYROLL.format(col="full_time_payroll_dollars", code="000"),
+        "Census ASPEP full-time payroll of all government functions for March (31-day monthly equivalent). "
+        "Aggregate only: this is not any person's salary.",
+    ),
+    "payroll_police": Metric(
+        "payroll_police", "Police payroll (sworn officers, full-time, March, per month)", "dollars per month",
+        _CENSUS_ASPEP,
+        _PAYROLL.format(col="full_time_payroll_dollars", code="062"),
+        "Census ASPEP full-time payroll of police protection staff with power of arrest, March.",
+    ),
+    "avg_pay_all_functions": Metric(
+        "avg_pay_all_functions", "Average full-time monthly pay, all functions", "dollars per month",
+        _CENSUS_ASPEP,
+        _PAYROLL.format(col="avg_monthly_pay", code="000"),
+        "Full-time March payroll divided by full-time employees, all functions. An average over the "
+        "workforce, not any person's salary.",
+        per_capita=False,
+    ),
 }
 
 
@@ -113,6 +148,14 @@ def select_peers(
         ),
     )
     return ranked[:n]
+
+
+def _median(xs: list[float | None]) -> float | None:
+    ys = sorted(x for x in xs if x is not None)
+    if not ys:
+        return None
+    mid = len(ys) // 2
+    return ys[mid] if len(ys) % 2 else round((ys[mid - 1] + ys[mid]) / 2, 2)
 
 
 def rank_among(values: dict[str, float | None], target_id: str) -> dict[str, Any] | None:
@@ -146,6 +189,8 @@ class BenchmarkResponse(BaseModel):
     peer_selection: str
     peer_median_per_capita: float | None = None
     rank_per_capita: dict[str, int] | None = None
+    peer_median_value: float | None = None  # median of the peers' own values (the figure for rate metrics)
+    rank_value: dict[str, int] | None = None
     data_as_of: str | None = None
     source: str
     note: str = ""
@@ -154,14 +199,14 @@ class BenchmarkResponse(BaseModel):
 _JUR_COLS = "jurisdiction_id, name, jurisdiction_type, state_code, state_name, population"
 
 
-def _entity(row: Any, value: float | None) -> BenchmarkEntity:
+def _entity(row: Any, value: float | None, per_capita: bool = True) -> BenchmarkEntity:
     pop = row["population"]
     val = float(value) if value is not None else None
     return BenchmarkEntity(
         jurisdiction_id=row["jurisdiction_id"], name=row["name"],
         jurisdiction_type=row["jurisdiction_type"], state_code=row["state_code"],
         state=row["state_name"], population=int(pop) if pop else None, value=val,
-        per_capita=round(val / pop, 2) if (val is not None and pop) else None,
+        per_capita=round(val / pop, 2) if (per_capita and val is not None and pop) else None,
     )
 
 
@@ -233,20 +278,22 @@ async def benchmark(
                 f"preferring peers with matched data ({with_data} of {len(peer_rows)} have it)"
             )
 
-    t_entity = _entity(target, values.get(target["jurisdiction_id"], (None, None))[0])
-    p_entities = [_entity(r, values.get(r["jurisdiction_id"], (None, None))[0]) for r in peer_rows]
-    pcs = {e.jurisdiction_id: e.per_capita for e in [t_entity, *p_entities]}
-    peer_pc = sorted(e.per_capita for e in p_entities if e.per_capita is not None)
-    median = None
-    if peer_pc:
-        mid = len(peer_pc) // 2
-        median = peer_pc[mid] if len(peer_pc) % 2 else round((peer_pc[mid - 1] + peer_pc[mid]) / 2, 2)
+    t_entity = _entity(target, values.get(target["jurisdiction_id"], (None, None))[0], spec.per_capita)
+    p_entities = [
+        _entity(r, values.get(r["jurisdiction_id"], (None, None))[0], spec.per_capita) for r in peer_rows
+    ]
+    ents = [t_entity, *p_entities]
+    pcs = {e.jurisdiction_id: e.per_capita for e in ents}
+    vals = {e.jurisdiction_id: e.value for e in ents}
+    median = _median([e.per_capita for e in p_entities])
+    median_value = _median([e.value for e in p_entities])
     as_ofs = [v[1] for v in values.values() if v[1] is not None]
     return BenchmarkResponse(
         metric=spec.key, label=spec.label, unit=spec.unit,
         fiscal_year=str(fiscal_year) if fiscal_year else None,
         jurisdiction=t_entity, peers=p_entities, peer_selection=selection,
         peer_median_per_capita=median, rank_per_capita=rank_among(pcs, jurisdiction_id),
+        peer_median_value=median_value, rank_value=rank_among(vals, jurisdiction_id),
         data_as_of=max(as_ofs).isoformat() if as_ofs else None,
         source=spec.source, note=spec.note,
     )

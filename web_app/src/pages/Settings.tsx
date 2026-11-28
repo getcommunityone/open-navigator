@@ -2,7 +2,8 @@
  * Settings panel (#674): top-level My account / Site / Admin sections.
  * My account includes profile fields, location, and Following tabs (from Profile).
  */
-import { useState, useEffect, useCallback } from 'react'
+import { CloseButton, usePageClose } from '../components/PageClose'
+import { useState, useEffect } from 'react'
 import { SOUND_EVENT, readSoundSetting, writeSoundSetting } from '../utils/stanceSound'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -13,7 +14,6 @@ import {
   UserCircleIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
-  XMarkIcon,
   ChartBarSquareIcon,
   WrenchScrewdriverIcon,
   BuildingOffice2Icon,
@@ -85,10 +85,8 @@ export default function Settings() {
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const handleClose = useCallback(() => {
-    if (window.history.length > 1) navigate(-1)
-    else navigate('/')
-  }, [navigate])
+  // Close goes back to the page before, or home with the scope kept (#1405).
+  const { close: handleClose, label: closeLabel } = usePageClose()
 
   useEffect(() => {
     if (user) {
@@ -226,14 +224,7 @@ export default function Settings() {
           <h1 className="text-xl font-bold sm:text-2xl" style={{ color: '#354F52' }}>
             Settings
           </h1>
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label="Close settings"
-            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-          >
-            <XMarkIcon className="h-6 w-6" />
-          </button>
+          <CloseButton onClick={handleClose} label={closeLabel} aria="Close settings" />
         </div>
 
         {!user ? (

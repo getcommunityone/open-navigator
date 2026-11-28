@@ -4,7 +4,7 @@ import { summaryStats } from '../../utils/storySummary'
 import { useQuery } from '@tanstack/react-query'
 import type { StoryData, StoryScope, StoryScreen, ScreenText, StoryStatus } from '../../utils/dataStory'
 import { chartScopeLabel, contextSourceFor, positionsLoaded, statsScopeNote, storyScopeLabel, storyStats } from '../../utils/dataStory'
-import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, JobClaimsResponse } from '../../api/dataCenters'
+import type { DataCenterMeetingMentionsResponse, DataCenterPositionsResponse, DataCenterProjectsResponse, JobClaimsResponse } from '../../api/dataCenters'
 import { fetchDataCenterMeetingMentions } from '../../api/dataCenters'
 import ChartPanel from './ChartPanel'
 import PayrollJobsPanel from './PayrollJobsPanel'
@@ -19,7 +19,13 @@ import { COUNTIES_ALBERS_TOPO, STATES_ALBERS_TOPO, fetchTopo } from '../../lib/d
 import MapDrill from './MapDrill'
 import StoryStatement from './StoryStatement'
 import type { ScreenStatement } from './useStoryStatements'
-import { speakerCounts } from '../../utils/stanceGame'
+import { speakerCounts, statusLabel, tally } from '../../utils/stanceGame'
+import ScreenBoxes from './ScreenBoxes'
+import { useChartData } from './ChartPanel'
+import { chartSpec } from '../../utils/stanceGame'
+import { specDisplay } from '../../utils/displayFit'
+import { GROUP_COLORS } from '../../utils/houseTheme'
+import { jobClaimsBoxes, positionsBoxes, statusBoxes, type BoxesSpec } from '../../utils/screenBoxes'
 
 interface Props {
   screen: StoryScreen
@@ -43,6 +49,27 @@ interface Props {
   said?: string | null
   /** Overview only (#1282): the opening's subhead, basis and points, under the headline in the left column. */
   lead?: ReactNode
+}
+
+/**
+ * The box strip of a chart screen whose own figure is a list or a sentence (a few records, #1289): the same cached dataset, one
+ * box per record by its group. Screens that already draw boxes (the unit matrix, the box waffle) get none, so there is one visual.
+ */
+function ChartScreenBoxes({ chartKey, scope }: { chartKey: string; scope: StoryScope }) {
+  const q = useChartData(chartKey, true, scope.stateCode, scope.city)
+  const spec = q.data ? chartSpec(chartKey, q.data, scope.stateName, undefined) : null
+  if (!spec) return null
+  const kind = specDisplay(spec).display.kind
+  const small = specDisplay(spec).rows.reduce((n, r) => n + r.count, 0) < 20
+  if (kind !== 'list' && kind !== 'sentence' && kind !== 'line' && !((kind === 'bars' || kind === 'top-bars') && small)) return null
+  const place = storyScopeLabel(scope)
+  const groups = spec.groups.map((g, i) => ({ key: g.key, label: g.label, count: g.total ?? g.shown, color: GROUP_COLORS[i % GROUP_COLORS.length]! }))
+  const total = groups.reduce((n, g) => n + g.count, 0)
+  return (
+    <ScreenBoxes
+      spec={{ title: total > 0 ? `${place}: ${total.toLocaleString('en-US')} ${total === 1 ? spec.unit : `${spec.unit}s`} on record` : `No ${spec.unit}s on record in ${place}`, unit: `${spec.unit}s`, groups }}
+    />
+  )
 }
 
 /** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
@@ -110,8 +137,22 @@ export default function StoryScreenView(p: Props) {
   const facts = summary ? summaryStats(stats, p.data.positions as DataCenterPositionsResponse | null | undefined, scope) : []
   const noClaims = (jobsData?.totals?.construction ?? 0) + (jobsData?.totals?.operations ?? 0) === 0
 
+  // The screen's own box strip (#1415), from the data its chart already loaded; the other chart screens draw theirs in the chart.
+  const place = storyScopeLabel(scope)
+  let boxSpec: BoxesSpec | null = null
+  if (screen.chart === 'positions') {
+    const pos = p.data.positions as DataCenterPositionsResponse | null | undefined
+    boxSpec = pos?.available ? positionsBoxes(pos.totals, place) : null
+  } else if (screen.chart === 'projects') {
+    const pr = p.data.projects as DataCenterProjectsResponse | null | undefined
+    boxSpec = pr ? statusBoxes(tally(pr.items ?? [], (x) => statusLabel(x.status)), 'projects', place) : null
+  } else if (screen.chart === 'job-claims') {
+    boxSpec = jobClaimsBoxes(jobsData?.totals, place)
+  }
+
   return (
     <StoryScreenFrame
+      boxes={boxSpec ? <ScreenBoxes spec={boxSpec} /> : screen.kind === 'chart' && screen.chart && !['positions', 'projects', 'job-claims'].includes(screen.chart) ? <ChartScreenBoxes chartKey={String(screen.chart)} scope={scope} /> : null}
       id={screen.id}
       index={p.index}
       active={p.active}

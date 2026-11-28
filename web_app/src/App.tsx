@@ -63,6 +63,7 @@ import EventBillDetail from './pages/EventBillDetail'
 import NotFound from './pages/NotFound'
 import { DATA_EXPLORER_MAP_BASE } from './utils/dataExplorerPaths'
 import { storyRoute } from './utils/topicStories'
+import { recordLocation } from './lib/pageClose'
 import { STORIES } from './utils/dataStory'
 import { useTopicStories } from './hooks/useTopicStories'
 import { useDocumentTitle } from './utils/useDocumentTitle'
@@ -148,6 +149,8 @@ function LegacyCensusMapRedirect() {
  */
 function RouteChangeTracer() {
   const location = useLocation()
+  // The trail lets Close (#1405) know the page before this one.
+  recordLocation({ pathname: location.pathname, search: location.search })
   useEffect(() => {
     const span = tracer.startSpan('route.change', {
       attributes: { 'route.path': location.pathname },

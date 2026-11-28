@@ -68,6 +68,9 @@ import '../styles/stance.css'
 import '../styles/story-actions.css'
 import '../styles/topic-story.css'
 import { HOUSE_STYLE } from '../utils/houseTheme'
+import ScreenBoxes from '../components/stance/ScreenBoxes'
+import UpcomingBoxes from '../components/stance/UpcomingBoxes'
+import { actionsBoxes, billsBoxes, decidedBoxes, nonprofitsBoxes, recapBoxes, saidBoxes } from '../utils/screenBoxes'
 
 /**
  * A topic story (#1013): one curated topic's meetings, told from the transcript record. Since #1224 it is told screen by
@@ -372,6 +375,44 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       positions={words}
     />
   )
+
+  /** The screen's box strip (#1415): real counts from the data the screen already loaded, never shown while it loads. */
+  const boxesFor = (id: TopicScreenId): ReactNode => {
+    const place = stateName ?? 'National'
+    switch (id) {
+      case 'upcoming':
+        return upcoming.data ? <UpcomingBoxes data={upcoming.data} scopeLabel={label} /> : null
+      case 'nonprofits':
+        return <ScreenBoxes spec={nonprofitsBoxes(nonprofits.data, place)} />
+      case 'bills':
+        return <ScreenBoxes spec={billsBoxes(legislation.data, place, stateCode)} />
+      case 'actions': {
+        const w = actionLabels(def.slug)
+        return <ScreenBoxes spec={actionsBoxes(localActions.data, { advanced: w.advanced, blocked: w.blocked }, place)} />
+      }
+      case 'said':
+        return <ScreenBoxes spec={saidBoxes(meetings.data?.pages[0]?.position_counts, place)} />
+      case 'decided':
+        return <ScreenBoxes spec={decidedBoxes(decisions.data, place)} />
+      case 'companies':
+        return companies.data ? <ScreenBoxes spec={recapBoxes([{ key: 'companies', label: named.length === 1 ? 'Company named' : 'Companies named', count: named.length }], place)} /> : null
+      case 'recap':
+        return (
+          <ScreenBoxes
+            spec={recapBoxes(
+              [
+                { key: 'meetings', label: meetingCount === 1 ? 'Meeting' : 'Meetings', count: captionQ.isSuccess ? meetingCount : null },
+                { key: 'decisions', label: decisions.data?.total === 1 ? 'Decision' : 'Decisions', count: decisions.isSuccess ? decisions.data.total : null },
+                { key: 'companies', label: 'Companies named', count: def.companiesPath && companies.isSuccess ? named.length : null },
+              ],
+              place,
+            )}
+          />
+        )
+      default:
+        return null
+    }
+  }
 
   const screen = (id: TopicScreenId): { headline: string; context: ReactNode; right: ReactNode; lead?: ReactNode } => {
     switch (id) {
@@ -814,6 +855,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 nextLabel={null}
                 onNext={() => goTo(i + 1)}
                 onPrev={i > 0 ? () => goTo(i - 1) : undefined}
+                boxes={boxesFor(s.id)}
                 right={v.right}
                 glance={!wide && s.id === 'overview'}
               >

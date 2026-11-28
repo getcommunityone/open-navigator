@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTopicOrganizations } from '../../hooks/useTopicOrganizations'
-import { highlightSnippet } from '../../lib/highlight'
+import { hasQuoteText, highlightSnippet } from '../../lib/highlight'
 import { countsSentence, pickDisplay } from '../../utils/displayFit'
 import {
   methodCounts,
@@ -105,7 +105,7 @@ export default function NonprofitsPanel({ topic, stateCode, city, scopeLabel, su
           const mission = oneLine(sentenceCase(o.mission))
           const money = revenueLine(o)
           const side = sideLabel(o.side)
-          const quote = o.match_method === 'ntee_code' ? null : o.match_text
+          const quote = o.match_method === 'ntee_code' || !hasQuoteText(o.match_text) ? null : o.match_text
           return (
             <li key={o.master_org_id} className="np-item">
               <p className="np-name">

@@ -13,6 +13,9 @@ import SentenceHeading from '../components/stance/SentenceHeading'
 import StoryScreenView from '../components/stance/StoryScreenView'
 import StoryScreenFrame from '../components/stance/StoryScreenFrame'
 import UpcomingPanel from '../components/stance/UpcomingPanel'
+import ScreenBoxes from '../components/stance/ScreenBoxes'
+import UpcomingBoxes from '../components/stance/UpcomingBoxes'
+import { nonprofitsBoxes, sitesTimelineBoxes } from '../utils/screenBoxes'
 import NonprofitsPanel from '../components/stance/NonprofitsPanel'
 import { useTopicOrganizations } from '../hooks/useTopicOrganizations'
 import { nonprofitsHeadline } from '../utils/topicOrganizations'
@@ -549,6 +552,7 @@ export default function DataStory() {
                   nextLabel={common.nextLabel}
                   onNext={common.onNext}
                   onPrev={common.onPrev}
+                  boxes={<ScreenBoxes spec={sitesTimelineBoxes(timelineQ.data?.years, sitesLabel)} />}
                   right={<SitesTimelinePanel res={timelineQ.data} scopeLabel={sitesLabel} stateCode={stateCode} active={active === i} reduced={reduced} />}
                 />
               )
@@ -572,6 +576,7 @@ export default function DataStory() {
                   nextLabel={common.nextLabel}
                   onNext={common.onNext}
                   onPrev={common.onPrev}
+                  boxes={<ScreenBoxes spec={nonprofitsBoxes(nonprofitsQ.data, label)} />}
                   right={
                     <NonprofitsPanel
                       topic={storyId}
@@ -604,6 +609,7 @@ export default function DataStory() {
                   nextLabel={common.nextLabel}
                   onNext={common.onNext}
                   onPrev={common.onPrev}
+                  boxes={upcomingQ.data ? <UpcomingBoxes data={upcomingQ.data} scopeLabel={label} /> : null}
                   right={
                     <UpcomingPanel
                       topic={storyId}

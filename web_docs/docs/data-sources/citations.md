@@ -643,6 +643,7 @@ These platforms present **multiple positions on the same issue side by side** �
 - [GroundVue](#groundvue)
 - [USLege](#uslege)
 - [Hamlet](#hamlet)
+- [GovWell](#govwell)
 
 These are **commercial peers** in local government data, meeting intelligence, legislative AI, and resident-facing civic tools. We name them here with respect for the work they do and as **friendly reference** for the product category Open Navigator also serves. We **do not scrape, mirror, or redistribute** their content or data. When a site's terms forbid competitors' use, we also **never fetch** that host (see American Sentiment and ProphecyGov). Our own meeting stance and summaries come only from sources we are allowed to use (our transcripts and analyses).
 
@@ -725,9 +726,9 @@ These are **commercial peers** in local government data, meeting intelligence, l
 ### Hamlet
 
 **Organization:** Hamlet
-**What they do:** Commercial **local-government / civic AI** product (hamlet.com) aimed at helping residents and staff work with city and local government information.
+**What they do:** Commercial **local-government / civic AI** product (myhamlet.com) aimed at helping residents and staff work with city and local government information.
 
-- **Website:** https://hamlet.com/
+- **Website:** https://myhamlet.com/
 - **How we reference them:** As a peer in resident-facing local government AI and civic Q&A.
 - **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
 
@@ -736,8 +737,27 @@ These are **commercial peers** in local government data, meeting intelligence, l
 @misc{hamlet_civic,
  author = {{Hamlet}},
  title = {Hamlet},
- url = {https://hamlet.com/},
+ url = {https://myhamlet.com/},
  note = {Local government / civic AI peer; friendly reference-only.}
+}
+```
+
+### GovWell
+
+**Organization:** GovWell
+**What they do:** Commercial **local-government software** product (govwell.com) for city and county staff workflows.
+
+- **Website:** https://govwell.com/
+- **How we reference them:** As a commercial peer serving local governments.
+- **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
+
+**BibTeX:**
+```bibtex
+@misc{govwell,
+ author = {{GovWell}},
+ title = {GovWell},
+ url = {https://govwell.com/},
+ note = {Local government software peer; friendly reference-only.}
 }
 ```
 
@@ -1176,6 +1196,7 @@ Municipalities and school boards often publish **official agendas, packets, and 
 - [Census of Governments (U.S. Census Bureau)](#census-of-governments-us-census-bureau)
 - [Annual Survey of State and Local Government Finances (Census Bureau, via Tax Policy Center)](#annual-survey-of-state-and-local-government-finances-census-bureau-via-tax-policy-center)
 - [USAspending.gov](#usaspendinggov)
+- [Census ASPEP public payroll](#census-annual-survey-of-public-employment--payroll-aspep)
 - [Grants.gov](#grantsgov)
 - [State Symbols USA (reference)](#state-symbols-usa-reference)
 - [IRS Exempt Organizations Business Master File (EO-BMF)](#irs-exempt-organizations-business-master-file-eo-bmf)
@@ -1224,6 +1245,18 @@ Municipalities and school boards often publish **official agendas, packets, and 
 - **Date accessed:** 27 Nov 2026.
 - **On screen:** benchmark figures show "Source: USAspending.gov (U.S. Treasury), assistance awards to local governments, public domain" from the API's `source` field, with `data_as_of`.
 - **Caveat:** recipients are linked to jurisdictions by name, state and kind, with a `match_confidence`. Totals are for awards we matched, so a missing jurisdiction means "not matched", not "received nothing".
+
+### Census Annual Survey of Public Employment & Payroll (ASPEP)
+
+**Organization:** U.S. Census Bureau
+**What we use:** Full-time and part-time employees and March payroll by government and function, survey years 2019 to 2024. They fill `jurisdiction_public_payroll` and the `payroll_total`, `payroll_police` and `avg_pay_all_functions` peer benchmarks ([decision](../development/aspep-public-payroll-decision.md)).
+
+- **Source:** https://www.census.gov/programs-surveys/apes.html . Files: https://www2.census.gov/programs-surveys/apes/datasets/
+- **License / terms:** Public domain (U.S. Government work). No key. Disclaimer in each year's zip.
+- **Refresh cadence:** annual, about 18 months after the survey month. Each row carries `source_updated_at`.
+- **Date accessed:** 27 Nov 2026.
+- **On screen:** benchmark figures show "Source: U.S. Census Bureau, Annual Survey of Public Employment & Payroll (ASPEP), latest survey year, public domain".
+- **Caveat:** aggregate only. ASPEP has no department-head or per-person salary. Years not ending in 2 or 7 are samples.
 
 ### Grants.gov
 
@@ -3603,3 +3636,12 @@ License: MIT
 This project respects all dataset licenses and terms of use. See [LICENSE](https://github.com/getcommunityone/open-navigator-for-engagement/blob/main/LICENSE) for this project's MIT license.
 
 For dataset-specific licenses, please refer to the original sources listed above.
+
+### Candidate finance sources (inventory only, not loaded)
+
+Listed in the [state grants, budgets and ACFR inventory](../development/state-grants-budgets-acfr-inventory.md) (#1397). Nothing from these is on the site yet, so there is nothing to attribute on screen.
+
+- **Federal Audit Clearinghouse single audits** (GSA): https://www.fac.gov/ , API https://api.fac.gov/ . U.S. government work, public domain. Recommended next. Date reviewed: 27 Nov 2026.
+- **California State Controller, By The Numbers**: https://bythenumbers.sco.ca.gov/ . State open data terms. Recommended. Date reviewed: 27 Nov 2026.
+- **New York Office of the State Comptroller local government data**: https://data.ny.gov/ . Open Data terms. Recommended. Date reviewed: 27 Nov 2026.
+- **MSRB EMMA**: https://emma.msrb.org/ . Terms restrict automated collection; link out only, never ingested.
