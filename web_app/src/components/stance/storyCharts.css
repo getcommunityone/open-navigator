@@ -144,8 +144,13 @@
   gap: 14px;
   align-items: center;
 }
+/* Phones (#1415): the stat sits beside the boxes and the boxes take their size from the viewport height, so the chart and its
+   legend fit above the bottom bar instead of stacking. */
 @media (max-width: 480px) {
-  .wf-main { grid-template-columns: 1fr; }
+  .wf-wrap { padding: 8px 10px; margin: 6px 0 8px; }
+  .wf-main { grid-template-columns: minmax(0, 1fr) clamp(104px, 27svh, 190px); gap: 10px; }
+  .wf-svg { max-width: clamp(104px, 27svh, 190px); }
+  .wf-legend { gap: 4px; margin-top: 6px; }
 }
 .wf-stat {
   display: flex;

@@ -21,6 +21,10 @@ import StoryStatement from './StoryStatement'
 import type { ScreenStatement } from './useStoryStatements'
 import { speakerCounts, statusLabel, tally } from '../../utils/stanceGame'
 import ScreenBoxes from './ScreenBoxes'
+import { useChartData } from './ChartPanel'
+import { chartSpec } from '../../utils/stanceGame'
+import { specDisplay } from '../../utils/displayFit'
+import { GROUP_COLORS } from '../../utils/houseTheme'
 import { jobClaimsBoxes, positionsBoxes, statusBoxes, type BoxesSpec } from '../../utils/screenBoxes'
 
 interface Props {
@@ -45,6 +49,27 @@ interface Props {
   said?: string | null
   /** Overview only (#1282): the opening's subhead, basis and points, under the headline in the left column. */
   lead?: ReactNode
+}
+
+/**
+ * The box strip of a chart screen whose own figure is a list or a sentence (a few records, #1289): the same cached dataset, one
+ * box per record by its group. Screens that already draw boxes (the unit matrix, the box waffle) get none, so there is one visual.
+ */
+function ChartScreenBoxes({ chartKey, scope }: { chartKey: string; scope: StoryScope }) {
+  const q = useChartData(chartKey, true, scope.stateCode, scope.city)
+  const spec = q.data ? chartSpec(chartKey, q.data, scope.stateName, undefined) : null
+  if (!spec) return null
+  const kind = specDisplay(spec).display.kind
+  const small = specDisplay(spec).rows.reduce((n, r) => n + r.count, 0) < 20
+  if (kind !== 'list' && kind !== 'sentence' && kind !== 'line' && !((kind === 'bars' || kind === 'top-bars') && small)) return null
+  const place = storyScopeLabel(scope)
+  const groups = spec.groups.map((g, i) => ({ key: g.key, label: g.label, count: g.total ?? g.shown, color: GROUP_COLORS[i % GROUP_COLORS.length]! }))
+  const total = groups.reduce((n, g) => n + g.count, 0)
+  return (
+    <ScreenBoxes
+      spec={{ title: total > 0 ? `${place}: ${total.toLocaleString('en-US')} ${total === 1 ? spec.unit : `${spec.unit}s`} on record` : `No ${spec.unit}s on record in ${place}`, unit: `${spec.unit}s`, groups }}
+    />
+  )
 }
 
 /** One screen of the record: the short word, the headline, one line of context and the chart (or counts) beside it. */
@@ -127,7 +152,7 @@ export default function StoryScreenView(p: Props) {
 
   return (
     <StoryScreenFrame
-      boxes={boxSpec ? <ScreenBoxes spec={boxSpec} /> : null}
+      boxes={boxSpec ? <ScreenBoxes spec={boxSpec} /> : screen.kind === 'chart' && screen.chart && !['positions', 'projects', 'job-claims'].includes(screen.chart) ? <ChartScreenBoxes chartKey={String(screen.chart)} scope={scope} /> : null}
       id={screen.id}
       index={p.index}
       active={p.active}

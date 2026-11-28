@@ -120,10 +120,11 @@ export default function FitDisplay({ spec, scopeLabel, units, barsExtra }: Props
     case 'top-bars': {
       const waffleRows = topCategories(live)
       const rowsTotal = waffleRows.reduce((s, r) => s + r.count, 0)
+      const waffleDrawn = rowsTotal >= 20 && waffleRows.length >= 2
       return (
         <div className="stance-fit" data-display={display.kind}>
           <p className="stance-fit-lead">{lead}.</p>
-          {rowsTotal >= 20 && waffleRows.length >= 2 && (
+          {waffleDrawn && (
             <BoxWaffleChart
               categories={waffleRows.map((r, i) => ({
                 key: r.label,
@@ -136,7 +137,8 @@ export default function FitDisplay({ spec, scopeLabel, units, barsExtra }: Props
               replayKey={`${spec.title}|${scopeLabel}|${rowsTotal}`}
             />
           )}
-          <CountBars rows={rows} label={`${spec.title}, ${scopeLabel}`} />
+          {/* One visual per screen (#1415): the boxes carry the counts in their legend chips, so the bars are drawn only when the boxes are not. */}
+          {!waffleDrawn && <CountBars rows={rows} label={`${spec.title}, ${scopeLabel}`} />}
           {barsExtra}
         </div>
       )
