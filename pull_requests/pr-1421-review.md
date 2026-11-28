@@ -1,5 +1,5 @@
 ---
-pr: 1417
+pr: 1421
 branch: feat/boxesall
 title: "feat(stories): boxes on every story screen, Coming up date strip, no empty quote cards"
 author: jcbowyer
@@ -13,7 +13,7 @@ verdict: approve
 
 ## Summary
 
-Automated review (#648) for PR #1417 on `feat/boxesall`. Heuristic rubric scans ran on
+Automated review (#648) for PR #1421 on `feat/boxesall`. Heuristic rubric scans ran on
 `BASE...HEAD`; a human or agent `/pr-review` may refine this file.
 
 ## Scope of Change
