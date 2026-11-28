@@ -171,31 +171,40 @@ def main(argv: list[str] | None = None) -> int:
                 cx.execute(_UPSERT, buf)
         buf = []
 
+    failed: list[str] = []
     try:
         for start, end in month_windows(a.fy_start, a.fy_end):
             if a.resume_from and start.isoformat()[:7] < a.resume_from:
                 continue
-            for hit in client.iter_awards(start, end, a.recipient_type, a.aln):
-                rec = to_record(hit, a.recipient_type)
-                if rec is None:
-                    continue
-                total += 1
-                if a.dry_run:
-                    logger.info("{} {} {}", rec["recipient_name"], rec["aln"], rec["total_obligation"])
-                else:
-                    buf.append(rec)
-                    if len(buf) >= a.batch:
+            try:
+                for hit in client.iter_awards(start, end, a.recipient_type, a.aln):
+                    rec = to_record(hit, a.recipient_type)
+                    if rec is None:
+                        continue
+                    total += 1
+                    if a.dry_run:
+                        logger.info("{} {} {}", rec["recipient_name"], rec["aln"], rec["total_obligation"])
+                    else:
+                        buf.append(rec)
+                        if len(buf) >= a.batch:
+                            flush()
+                    if a.limit and total >= a.limit:
                         flush()
-                if a.limit and total >= a.limit:
-                    flush()
-                    logger.success("Stopped at --limit ({:,} awards)", total)
-                    return 0
+                        logger.success("Stopped at --limit ({:,} awards)", total)
+                        return 0
+            except RuntimeError as exc:  # transient API failure: keep going, retry with --resume-from
+                if isinstance(exc, RateLimited):
+                    raise
+                logger.warning("{} to {} failed ({}); continuing", start, end, exc)
+                failed.append(start.isoformat()[:7])
             flush()
     except RateLimited as exc:
         flush()
         logger.error("{}; loaded {:,} so far", exc, total)
         return 2
     logger.success("Loaded {:,} awards into {}", total, TABLE)
+    if failed:
+        logger.warning("Months to retry with --resume-from: {}", ", ".join(failed))
     return 0
 
 
