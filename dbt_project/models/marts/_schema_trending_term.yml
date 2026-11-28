@@ -1,0 +1,185 @@
+version: 2
+
+# #1399: trending terms and hot words in meeting speech. Decision page:
+# web_docs/docs/development/trending-terms-and-hot-words.md
+
+models:
+  - name: trending_term
+    description: >
+      One row per (scope_code, term_key), national ('US') and per state: a candidate term's meetings and share of
+      recorded meetings in the last full year and this year to date, rise, governments, national hot score and ranks.
+      Served rows (is_served) are published to public.trending_term; read by GET /api/trends/terms.
+    config:
+      contract:
+        enforced: true
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "meetings_a <= recorded_a and meetings_b <= recorded_b"
+    columns:
+      - name: trending_term_id
+        data_type: text
+        description: "Primary key: md5(scope_code | term_key)."
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique, not_null]
+      - name: scope_code
+        data_type: text
+        description: "'US' for the national scope, else the 2-letter state code."
+        constraints: [{type: not_null}]
+      - name: state_code
+        data_type: text
+        description: "2-letter state code; null for the national scope."
+      - name: state
+        data_type: text
+        description: "Full state name; null for the national scope."
+      - name: term_key
+        data_type: text
+        description: "md5 of the term's stemmed phrase query (int_trending_term__candidate)."
+        constraints: [{type: not_null}]
+      - name: term
+        data_type: text
+        description: "Display form: the most-said surface form of the term in public comment."
+        constraints: [{type: not_null}]
+      - name: term_tsquery
+        data_type: text
+        description: "The stemmed phrase query (phraseto_tsquery) the term is matched with."
+        constraints: [{type: not_null}]
+      - name: n_words
+        data_type: int
+        description: "Words in the term (1-3)."
+        constraints: [{type: not_null}]
+      - name: year_a
+        data_type: int
+        description: "Last full year (integer; a string on the wire)."
+        constraints: [{type: not_null}]
+      - name: year_b
+        data_type: int
+        description: "This year, to date."
+        constraints: [{type: not_null}]
+      - name: meetings_a
+        data_type: int
+        description: "Counted meetings in the scope in year_a whose transcript says the term."
+        constraints: [{type: not_null}]
+      - name: meetings_b
+        data_type: int
+        description: "...in year_b, to date."
+        constraints: [{type: not_null}]
+      - name: recorded_a
+        data_type: int
+        description: "All counted meetings in the scope in year_a (the denominator)."
+        constraints: [{type: not_null}]
+      - name: recorded_b
+        data_type: int
+        description: "All counted meetings in the scope in year_b."
+        constraints: [{type: not_null}]
+      - name: share_a
+        data_type: numeric(9, 6)
+        description: "meetings_a / recorded_a."
+      - name: share_b
+        data_type: numeric(9, 6)
+        description: "meetings_b / recorded_b."
+      - name: rise
+        data_type: numeric(12, 3)
+        description: "share_b / share_a; null when share_a is 0."
+      - name: rise_score
+        data_type: numeric(10, 4)
+        description: "ln of the ratio of smoothed shares ((meetings + 2) / recorded); the rising rank key."
+      - name: n_meetings
+        data_type: int
+        description: "meetings_a + meetings_b."
+        constraints: [{type: not_null}]
+      - name: n_jurisdictions
+        data_type: int
+        description: "Distinct governments that said the term in year_b."
+        constraints: [{type: not_null}]
+      - name: latest_meeting_date
+        data_type: date
+        description: "Newest counted meeting in the scope that says the term."
+      - name: hot_score
+        data_type: numeric(10, 3)
+        description: "National log-odds z-score of heated against other speakers (int_trending_term__hot); null below the minimum counts."
+      - name: hot_speakers
+        data_type: int
+        description: "Heated public-comment speakers who said the term (national)."
+        constraints: [{type: not_null}]
+      - name: is_sensitive
+        data_type: boolean
+        description: "Names a sensitive category (trending_term_sensitive): counts only, never tied to a speaker."
+        constraints: [{type: not_null}]
+      - name: sensitive_category
+        data_type: text
+        description: "health, religion, immigration, sexual_orientation, disability, race_ethnicity, criminal_history or finances."
+      - name: name_allowed_as
+        data_type: text
+        description: "'public_figure' or 'public_official' when a name-shaped term is allowed; null otherwise."
+      - name: eligible
+        data_type: boolean
+        description: "Meets the scope's meeting and government floors (see the model header)."
+        constraints: [{type: not_null}]
+      - name: rank_rising
+        data_type: int
+        description: "Rank by rise_score within the scope (eligible, rising only)."
+      - name: rank_hot
+        data_type: int
+        description: "Rank by hot_score within the scope (eligible, hot_score >= 1.96)."
+      - name: rank_volume
+        data_type: int
+        description: "Rank by meetings_b within the scope (eligible only)."
+      - name: is_served
+        data_type: boolean
+        description: "In the top trending_served_per_sort of any rank: published to public.trending_term."
+        constraints: [{type: not_null}]
+
+  - name: trending_term_evidence
+    description: >
+      One row per (term_key, video_id) for served terms: a verbatim, highlighted excerpt of a recent meeting that says
+      the term, with the public commenter's "First L." when the excerpt is their own segment (never for a sensitive
+      term). Read by GET /api/trends/terms/{term_id}/evidence.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: trending_term_evidence_id
+        data_type: text
+        description: "Primary key: md5(term_key | video_id)."
+        constraints: [{type: not_null}, {type: primary_key}]
+        data_tests: [unique, not_null]
+      - name: term_key
+        data_type: text
+        description: "The term (trending_term.term_key)."
+        constraints: [{type: not_null}]
+      - name: video_id
+        data_type: text
+        description: "The meeting recording."
+        constraints: [{type: not_null}]
+      - name: meeting_date
+        data_type: date
+        description: "Meeting date."
+        constraints: [{type: not_null}]
+      - name: state_code
+        data_type: text
+        description: "2-letter state code of the meeting's government."
+      - name: jurisdiction_name
+        data_type: text
+        description: "Government that met."
+      - name: meeting_title
+        data_type: text
+        description: "Recording title."
+        constraints: [{type: not_null}]
+      - name: video_url
+        data_type: text
+        description: "Recording link."
+      - name: excerpt
+        data_type: text
+        description: "Verbatim excerpt with the term in <mark>...</mark> (ts_headline); self-introduced names replaced by [name]."
+        constraints: [{type: not_null}]
+      - name: excerpt_source
+        data_type: text
+        description: "public_comment (a speaker's own segment) or transcript."
+        constraints: [{type: not_null}]
+      - name: start_seconds
+        data_type: numeric(12, 3)
+        description: "Where the public-comment segment starts in the recording; null for a transcript excerpt."
+      - name: speaker_display_name
+        data_type: text
+        description: "'First L.' of the public commenter, or null (not identified, or a sensitive term)."

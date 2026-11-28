@@ -199,6 +199,8 @@
         "_s.video_id in (select video_id from gold.topic_transcript_link where state_code in {{states}} "
         "union select video_id from gold.data_center_meeting_mention where state_code in {{states}})",
     'recorded_meeting_year':               "_s.state_code in {{states}}",
+    'trending_term':                       "(_s.state_code in {{states}} or _s.state_code is null)",
+    'trending_term_evidence':              "_s.state_code in {{states}}",
     'topic_meeting_year':                  "_s.state_code in {{states}}",
     'data_center_public_comment':          "_s.state_code in {{states}}",
     'data_center_decision':                "_s.state_code in {{states}}",
@@ -291,7 +293,8 @@
     'recorded_meeting_year',
     'topic_meeting_year',
     'segmented_meeting', 'meeting_speaker_position', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
-    'meeting_passage_speaker'
+    'meeting_passage_speaker',
+    'trending_term', 'trending_term_evidence'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
@@ -318,7 +321,11 @@
     * meeting_speaker_position: the data-center metrics and drill read only speakers who have a
       data_center_comment row; long cue_texts, counters and versions stay in gold.
     * meeting_speaker_turn: nothing reads it, so it is not published (see `served`). -#}
+{#- trending_term (#1399): gold keeps every scope x term; public serves only is_served (the top
+    trending_served_per_sort of each sort per scope), which keeps it under ~3 MB. -#}
 {%- set projections = {
+    'trending_term':
+        'select * from gold.trending_term where is_served',
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
         'district, office, null::text as email, null::text as phone, photo_url, '
