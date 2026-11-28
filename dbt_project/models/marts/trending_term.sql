@@ -30,7 +30,7 @@
     rank_rising / rank_hot / rank_volume  1 = top, within the scope, over eligible rows that aren't a fragment of a
                              longer eligible term said in at least var trending_fragment_share (85%) as many meetings;
                              rising needs rise_score > 0, hot needs hot_score >= 1.96.
-    is_served                within the top var trending_served_per_sort (60) of any of the three ranks: what
+    is_served                within the top var trending_served_per_sort (55) of any of the three ranks: what
                              public.trending_term publishes.
 */
 
@@ -40,7 +40,7 @@
 {%- set nat_j = var('trending_min_jurisdictions', 5) %}
 {%- set st_b = var('trending_state_min_meetings_b', 5) %}
 {%- set st_j = var('trending_state_min_jurisdictions', 3) %}
-{%- set per_sort = var('trending_served_per_sort', 60) %}
+{%- set per_sort = var('trending_served_per_sort', 55) %}
 {%- set max_jur = var('trending_max_jurisdiction_share', 0.4) %}
 
 with jy as (

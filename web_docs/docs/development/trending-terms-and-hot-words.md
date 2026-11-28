@@ -124,11 +124,11 @@ too sparse per state, so a state's "most heated" list ranks that state's own eli
 ### 7. Serving
 
 `public.trending_term` publishes only `is_served` rows, and only the columns the API reads. A served row is in the top
-60 of any sort in its scope, so each scope has roughly 60 to 180 terms. That is about 6,500 rows and 1.2 MB.
+55 of any sort in its scope, so each scope has roughly 55 to 165 terms. That is about 6,000 rows and 1.1 MB.
 
 `public.trending_term_evidence` holds excerpts for the terms in the top 20 of any sort in a scope. It keeps each
 government's newest counted meeting that says the term, for the 5 newest governments nationally plus the newest one
-per state where the term is served. That is about 6,800 rows and 1.7 MB.
+per state where the term is served. That is about 6,800 rows and 1.8 MB.
 
 Together they stay under 3 MB; a test checks this. The serving view drops the stored URL, and the API builds the
 YouTube link from `video_id`. Each government's newest meeting is taken from the counting step

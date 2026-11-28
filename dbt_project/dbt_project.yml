@@ -267,7 +267,7 @@ vars:
   trending_min_jurisdictions: 5
   trending_state_min_meetings_b: 5
   trending_state_min_jurisdictions: 3
-  trending_served_per_sort: 60
+  trending_served_per_sort: 55
   trending_max_jurisdiction_share: 0.4
   trending_fragment_share: 0.85
   trending_place_min_population: 20000
