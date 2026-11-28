@@ -25,6 +25,7 @@ import type { MapPassage } from './StoryDotMap'
 import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { useChartWidth } from './useChartWidth'
+import { pickInsight, type InsightInput } from '../../utils/chartInsight'
 import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { MAP_MIN_COUNTY_PX, MAP_MIN_LABEL_PX, TALL_ASPECT, labelUnits, mapAspect } from '../../utils/mapFit'
 
@@ -79,6 +80,8 @@ interface Props {
    * and the panel crowded the map. Story Overview keeps the default (true).
    */
   chrome?: boolean
+  /** Extra real findings for the title (#1409): the topic's timeline years, heat by year, the top concern in opposing turns. */
+  insightExtras?: Pick<InsightInput, 'years' | 'heatByYear' | 'concern'>
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -94,7 +97,7 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
  * city, town or school district is placed in the county its coordinates fall in, and drawn as a ring. United States broadens
  * back to the national map.
  */
-export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill, subject, positions, unplacedMeetings = 0, chrome = true }: Props) {
+export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill, subject, positions, unplacedMeetings = 0, chrome = true, insightExtras }: Props) {
   const what = subject ?? 'a data center'
   const [hover, setHover] = useState<string | null>(null)
   // The map's drawn width (#1309): it is capped by the screen's height, so its labels are sized from what is really drawn.
@@ -378,15 +381,26 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
   const unplacedHere = unplaced.reduce((a, p) => a + p.meetings, 0)
   const unplacedAll = unplacedHere + Math.max(0, unplacedMeetings)
 
-  // Title (#1409): what the map says, from the real counts: all the state's meetings and the counties with the most.
+  // Title (#1409): the most impactful finding the real counts support (utils/chartInsight), the description as its caption.
   const subjectWords = subject ?? 'data centers'
   const subjectCap = subjectWords.charAt(0).toUpperCase() + subjectWords.slice(1)
   const stateMeetings = byPlace.reduce((a, p) => a + Math.max(0, p.meetings || 0), 0)
   const topCounties = listed.slice(0, 2).map(([id]) => nameOf(id).replace(/\s+(County|Parish)$/i, ''))
-  const title =
-    stateMeetings > 0
-      ? `${subjectCap} came up in ${plural(stateMeetings)} in ${stateName}${listed.length > 1 ? ` — most in ${topCounties.join(' and ')} ${topCounties.length > 1 ? 'counties' : 'county'}` : ''}`
-      : `${subjectCap} meetings by county · ${stateName}`
+  const officialsMeetings = byPlace.reduce((a, p) => a + Math.max(0, p.disagreement_meetings || 0), 0)
+  const leanSum = sumStances(byPlace)
+  const insight = pickInsight({
+    subject: subjectWords,
+    place: stateName,
+    totalMeetings: stateMeetings,
+    topPlaces: topCounties.length > 1 ? topCounties.map((c) => `${c} County`) : [],
+    years: insightExtras?.years,
+    heatByYear: insightExtras?.heatByYear,
+    concern: insightExtras?.concern,
+    officials: officialsMeetings > 0 ? { meetings: officialsMeetings } : undefined,
+    lean: speakersOf(leanSum) > 0 ? { unit: positions ? 'meetings' : 'speakers', against: leanSum.speakers_against, for: leanSum.speakers_for, other: leanSum.speakers_neutral + leanSum.speakers_question } : undefined,
+  })
+  const title = insight.kind === 'none' ? `${subjectCap} meetings by county · ${stateName}` : insight.title
+  const caption = `${subjectCap} meetings by county · ${stateName}`
   // The key (#1409): every colour and shape drawn, from the same constants the dots use.
   const legend: LegendItem[] = [
     ...(scopeCity ? [{ key: 'focus', label: `${scopeCity}’s county (others faded)`, color: '#0f172a', shape: 'hatch' as const }] : []),
@@ -420,6 +434,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           query itself). */}
       <ChartFrame
         title={title}
+        titleSupport={insight.support}
+        caption={insight.kind === 'none' ? undefined : caption}
         legend={legend}
         className="stance-map-layout"
         headClassName="stance-map-head"

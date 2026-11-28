@@ -1,4 +1,4 @@
-import { useId, type CSSProperties, type ReactNode } from 'react'
+import { useId, useState, type CSSProperties, type ReactNode } from 'react'
 
 /**
  * One entry of a chart's colour key. `color` comes from the same palette constant the visual draws with (BOX_COLORS,
@@ -20,6 +20,10 @@ export interface ChartFrameProps {
   title: ReactNode
   /** The colour key. Required: a visual never ships without saying what its colours and shapes mean. */
   legend: readonly LegendItem[] | ReactNode
+  /** One line saying what the visual shows (the description; the title is the takeaway). */
+  caption?: ReactNode
+  /** The numbers behind the title, on a tap or hover of the info button (never a guess). */
+  titleSupport?: string | null
   /** Where the numbers come from (one short line). */
   source?: ReactNode
   children: ReactNode
@@ -81,6 +85,8 @@ export default function ChartFrame({
   title,
   legend,
   source,
+  caption,
+  titleSupport,
   children,
   titleAs = 'div',
   className = '',
@@ -93,6 +99,7 @@ export default function ChartFrame({
   rootProps,
 }: ChartFrameProps) {
   const titleId = useId()
+  const [showWhy, setShowWhy] = useState(false)
   const Title = titleAs
   const key = (
     <div data-chart-legend="" className={`chart-frame-legend mt-1 text-[11px] leading-tight text-stone-700 ${legendClassName}`.trim()}>
@@ -113,8 +120,22 @@ export default function ChartFrame({
   const heading = (
     <Title id={titleId} data-chart-title="" className={`chart-frame-title m-0 text-[13px] font-semibold leading-snug text-stone-900 ${titleClassName}`.trim()}>
       {title}
+      {titleSupport && (
+        <button
+          type="button"
+          className="chart-frame-why ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-stone-400 align-middle text-[10px] leading-none text-stone-600"
+          aria-expanded={showWhy}
+          aria-label="Show the numbers behind this title"
+          title={titleSupport}
+          onClick={() => setShowWhy((v) => !v)}
+        >
+          i
+        </button>
+      )}
     </Title>
   )
+  const why = titleSupport && showWhy ? <div data-chart-why="" className="m-0 mb-1 text-[11px] leading-snug text-stone-600">{titleSupport}</div> : null
+  const cap = caption ? <div data-chart-caption="" className="chart-frame-caption m-0 mb-1 text-[11px] leading-snug text-stone-600">{caption}</div> : null
   return (
     <div data-chart-frame="" role="group" aria-labelledby={titleId} className={`chart-frame ${className}`.trim()} style={style} {...rootProps}>
       {controls ? (
@@ -125,6 +146,8 @@ export default function ChartFrame({
       ) : (
         <div className={`chart-frame-head mb-1 ${headClassName}`.trim()}>{heading}</div>
       )}
+      {why}
+      {cap}
       {legendFirst && key}
       {children}
       {!legendFirst && key}
