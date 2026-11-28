@@ -5,7 +5,7 @@ title: "feat(stance): Jev side and heat per public speaker for curated and major
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: 8ccbd85edb810c26455199c45d220c126bd8d176
+head_sha: ab0397ba25b0ff73682dc753fd7a05685a46e2e6
 verdict: approve
 ---
 
@@ -38,6 +38,7 @@ Automated review (#648) for PR #1405 on `feat/1391-speaker-stance-jev`. Heuristi
 - `packages/llm/src/llm/typesafe/speaker_stance_gold.py`
 - `packages/llm/src/llm/typesafe/speaker_stance_priority.py`
 - `packages/llm/tests/test_speaker_stance.py`
+- `pull_requests/pr-1405-review.md`
 - `tests/test_api_topic_caption_facts.py`
 - `web_app/src/api/topics.ts`
 - `web_app/src/components/stance/PositionsSummary.tsx`
@@ -49,7 +50,7 @@ Automated review (#648) for PR #1405 on `feat/1391-speaker-stance-jev`. Heuristi
 
 ## CI Status
 
-See the PR checks on `8ccbd85edb81`.
+See the PR checks on `ab0397ba25b0`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
@@ -77,16 +78,3 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
-
-## Reviewer pass (read-only subagent, verified)
-
-No Critical findings. Six Minor, verified and handled on the branch:
-
-1. Bike lanes id 100020 vs `main`'s seed (100007): verified in the warehouse (`public.civicsearch_topic` 100020 = Bike lanes, 100010-100019 present, built from the unmerged topic branches). Not changed here; tracked in #1401.
-2. A part-way re-read of a reworded topic hides older readings (current version = most recent): documented under Known limits on the decision page.
-3. Heat description named the wrong var: fixed (`speaker_heat_min_confidence`).
-4. `--limit` dry-run estimate used all to-do rows: fixed (estimate from the jobs kept).
-5. Non-Jev exceptions aborted the run: now counted as failed and retried next run.
-6. Capitalised topic words mid-line: lowercased in `speakersOwnWordsLine`.
-
-verdict stays: approve
