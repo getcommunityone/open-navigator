@@ -83,6 +83,8 @@ _PAYROLL = """
       AND ($2::int IS NULL OR year = $2::int)
 """
 
+_HUD = "HUD Open Data (CDBG activities) and USAspending.gov awards, public domain"
+
 METRICS: dict[str, Metric] = {
     "federal_total": Metric(
         "federal_total", "Federal assistance awards (all programs)", "dollars", _USASPENDING,
@@ -106,6 +108,35 @@ METRICS: dict[str, Metric] = {
         GROUP BY jurisdiction_id
         """,
         "Awards under SAMHSA Opioid STR (93.788) and DOJ COSSUP (16.838), plus any award whose description mentions opioids.",
+    ),
+    "cdbg_allocation": Metric(
+        "cdbg_allocation", "CDBG grant dollars (formula grants)", "dollars",
+        "USAspending.gov (U.S. Treasury), HUD CDBG awards 14.218 and 14.228, public domain",
+        """
+        SELECT jurisdiction_id, sum(total_obligation) AS value, max(source_updated_at) AS as_of
+        FROM cdbg_allocation
+        WHERE jurisdiction_id = ANY($1::text[])
+          AND ($2::int IS NULL OR fiscal_year = $2::int)
+        GROUP BY jurisdiction_id
+        """,
+        "Current total obligations of the grantee's CDBG awards by federal fiscal year, summed over the years asked for.",
+    ),
+    "cdbg_public_services_share": Metric(
+        "cdbg_public_services_share", "Share of completed CDBG activity dollars spent on public services",
+        "percent", _HUD,
+        """
+        SELECT jurisdiction_id,
+               round(100.0 * sum(funding_amount) FILTER (WHERE activity_group = 'Public Services')
+                     / NULLIF(sum(funding_amount), 0), 1) AS value,
+               max(source_updated_at) AS as_of
+        FROM cdbg_activity_summary
+        WHERE jurisdiction_id = ANY($1::text[])
+          AND ($2::int IS NULL OR fiscal_year = $2::int)
+        GROUP BY jurisdiction_id
+        HAVING sum(funding_amount) > 0
+        """,
+        "HUD activities completed in federal fiscal years 2019 onward. A share of the activity funding, not of the grant.",
+        per_capita=False,
     ),
     "payroll_total": Metric(
         "payroll_total", "Public payroll, all functions (full-time, March, per month)", "dollars per month",

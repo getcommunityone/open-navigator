@@ -125,6 +125,16 @@ outputPorts:
   contractId: open-navigator-public-jurisdiction_federal_funding
   type: table
   description: Federal assistance dollars per matched jurisdiction x fiscal year x Assistance Listing Number, summed from federal_award (matched awards only).
+- name: cdbg_allocation
+  version: 1.0.0
+  contractId: open-navigator-public-cdbg_allocation
+  type: table
+  description: CDBG grant dollars per matched jurisdiction and federal fiscal year, summed from the USAspending awards under 14.218 and 14.228 (current total obligations).
+- name: cdbg_activity_summary
+  version: 1.0.0
+  contractId: open-navigator-public-cdbg_activity_summary
+  type: table
+  description: Completed CDBG activities, FY2019 onward, matched to a jurisdiction, summed per fiscal year and HUD activity group.
 - name: jurisdiction_public_payroll
   version: 1.0.0
   contractId: open-navigator-public-jurisdiction_public_payroll

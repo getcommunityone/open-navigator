@@ -163,6 +163,8 @@
     'jurisdiction_finance':                "_s.state_code in {{states}}",
     'federal_award':                       "_s.state_code in {{states}}",
     'jurisdiction_federal_funding':        "_s.state_code in {{states}}",
+    'cdbg_allocation':                     "_s.state_code in {{states}}",
+    'cdbg_activity_summary':               "_s.state_code in {{states}}",
     'jurisdiction_public_payroll':         "_s.state_code in {{states}}",
     'jurisdiction_public_payroll_latest':  "_s.state_code in {{states}}",
     'jurisdiction_finance_category':
@@ -251,7 +253,7 @@
     'contact_official', 'person_government', 'jurisdictions', 'civic_jurisdiction',
     'jurisdiction_county_crosswalk',
     'jurisdiction_document', 'jurisdiction_finance', 'jurisdiction_finance_category',
-    'federal_award', 'jurisdiction_federal_funding',
+    'federal_award', 'jurisdiction_federal_funding', 'cdbg_allocation', 'cdbg_activity_summary',
     'jurisdiction_public_payroll', 'jurisdiction_public_payroll_latest',
     'jurisdiction_property_tax_rate', 'state_sales_tax_rate',
     'opportunity_atlas_mobility', 'opportunity_atlas_mobility_national',
