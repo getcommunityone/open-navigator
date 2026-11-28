@@ -53,7 +53,8 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
   const { ref: revealRef, revealed, reduced } = useChartReveal<SVGSVGElement>(`${chartKey}|${scopeLabel}`)
   const [tableOpen, setTableOpen] = useState(false)
   const [playing, setPlaying] = useState<MeetingVideo | null>(null)
-  const [activeGroup, setActiveGroup] = useState<string | null>(null)
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null)
+  const [pinnedGroup, setPinnedGroup] = useState<string | null>(null)
   const playingFrom = useRef<number | null>(null)
 
   const records = useMemo(
@@ -124,7 +125,8 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
   const groupingName = (k: GroupingKey) =>
     k === 'all' ? 'All' : k === 'native' ? nativeName : k === 'year' ? 'By year' : k === 'place' ? (placeGrain === 'town' ? 'By town' : 'By state') : k === 'outcome' ? 'By outcome (AI reading)' : 'By who spoke (AI reading)'
   const aiGrouping = active === 'outcome' || active === 'side'
-  const spotlight = activeGroup && groups.some((g) => g.key === activeGroup) ? activeGroup : null
+  const spotlightRaw = hoveredGroup ?? pinnedGroup
+  const spotlight = spotlightRaw && groups.some((g) => g.key === spotlightRaw) ? spotlightRaw : null
   const capped = spec.grandTotal != null ? spec.drawn < spec.grandTotal : /Showing/.test(spec.note ?? '')
   const hasVideo = records.some((r) => r.d.video)
 
@@ -157,15 +159,17 @@ export default function UnitMatrixChart({ spec, chartKey, placeGrain, idBase, sc
               y={l.y}
               role="button"
               tabIndex={0}
-              aria-pressed={spotlight === l.key}
+              aria-pressed={pinnedGroup === l.key}
               style={spotlight && spotlight !== l.key ? { opacity: 0.45 } : undefined}
-              onMouseEnter={() => setActiveGroup(l.key)}
-              onMouseLeave={() => setActiveGroup((c) => (c === l.key ? null : c))}
-              onClick={() => setActiveGroup((c) => (c === l.key ? null : l.key))}
+              onMouseEnter={() => setHoveredGroup(l.key)}
+              onMouseLeave={() => setHoveredGroup((c) => (c === l.key ? null : c))}
+              onFocus={() => setHoveredGroup(l.key)}
+              onBlur={() => setHoveredGroup((c) => (c === l.key ? null : c))}
+              onClick={() => setPinnedGroup((c) => (c === l.key ? null : l.key))}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  setActiveGroup((c) => (c === l.key ? null : l.key))
+                  setPinnedGroup((c) => (c === l.key ? null : l.key))
                 }
               }}
             >

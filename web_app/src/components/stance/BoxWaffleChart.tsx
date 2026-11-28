@@ -31,7 +31,8 @@ export default function BoxWaffleChart({ categories, title, unitLabel = 'records
   if (total <= 0 || cells.length === 0) return null
 
   const activeKey = hovered ?? pinned
-  const lead = (activeKey ? shares.find((s) => s.key === activeKey) : null) ?? shares[0]!
+  const topShare = shares.reduce((best, s) => (s.count > best.count ? s : best), shares[0]!)
+  const lead = (activeKey ? shares.find((s) => s.key === activeKey) : null) ?? topShare
   const leadPct = Math.round(lead.pct)
 
   const cellSize = 18

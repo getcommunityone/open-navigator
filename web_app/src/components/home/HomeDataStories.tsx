@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchDataCenterMeetingMentions, fetchDataCenterPositions } from '../../api/dataCenters'
@@ -96,7 +97,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
     const go = () => setSp((prev) => withStory(prev, next), { replace: true, preventScrollReset: true })
     const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown }
     if (!reduced && typeof doc.startViewTransition === 'function') {
-      doc.startViewTransition(go)
+      doc.startViewTransition(() => flushSync(go))
     } else {
       go()
     }

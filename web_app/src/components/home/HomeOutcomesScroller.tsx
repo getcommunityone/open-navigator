@@ -114,7 +114,6 @@ export default function HomeOutcomesScroller({ topic, subject, stateCode, city, 
                 const src = document.querySelector<HTMLElement>('.home-story-map') ?? e.currentTarget
                 boxFlight.launch({
                   source: src,
-                  focusGroup: c.key,
                   targetSelector: '.stance-story [data-live], .stance-story [data-panel]',
                 })
               }}

@@ -257,7 +257,7 @@ export default function ChartPanel({ chartKey, round, enabled, stateCode, stateN
           {stateName == null && ' National figures, because no state is chosen.'} {about}
         </figcaption>
       )}
-      {spec && !chartForm && (
+      {spec && !chartForm && !matrix && (
         <p className="stance-note stance-fit-source">
           Source: {spec.source}.{spec.note && ` ${spec.note}`}
           {chartKey === 'sites' && city && ' Sites are listed by state only: the source has no city.'} {about}

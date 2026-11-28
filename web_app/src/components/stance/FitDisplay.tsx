@@ -117,29 +117,30 @@ export default function FitDisplay({ spec, scopeLabel, units, barsExtra }: Props
         </div>
       )
     case 'bars':
-    case 'top-bars':
+    case 'top-bars': {
+      const waffleRows = topCategories(live)
+      const rowsTotal = waffleRows.reduce((s, r) => s + r.count, 0)
       return (
         <div className="stance-fit" data-display={display.kind}>
           <p className="stance-fit-lead">{lead}.</p>
-          {items >= 20 && live.length >= 2 && (
+          {rowsTotal >= 20 && waffleRows.length >= 2 && (
             <BoxWaffleChart
-              categories={[...live]
-                .sort((a, b) => b.count - a.count)
-                .map((r, i) => ({
-                  key: r.label,
-                  label: r.label,
-                  count: r.count,
-                  color: GROUP_COLORS[i % GROUP_COLORS.length]!,
-                }))}
+              categories={waffleRows.map((r, i) => ({
+                key: r.label,
+                label: r.label,
+                count: r.count,
+                color: GROUP_COLORS[i % GROUP_COLORS.length]!,
+              }))}
               title={spec.title}
-              unitLabel={plural(spec.unit, items)}
-              replayKey={`${spec.title}|${scopeLabel}|${items}`}
+              unitLabel={plural(spec.unit, rowsTotal)}
+              replayKey={`${spec.title}|${scopeLabel}|${rowsTotal}`}
             />
           )}
           <CountBars rows={rows} label={`${spec.title}, ${scopeLabel}`} />
           {barsExtra}
         </div>
       )
+    }
     case 'units':
       return (
         <div className="stance-fit" data-display="units">

@@ -239,6 +239,10 @@
 .sc-label-btn:hover {
   fill: var(--violet-ink);
 }
+.sc-label-btn:focus-visible {
+  outline: 2px solid var(--violet-ink);
+  outline-offset: 2px;
+}
 .oc-box-strip {
   display: flex;
   flex-wrap: wrap;

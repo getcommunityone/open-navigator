@@ -76,6 +76,17 @@ function clearHiddenMarks(): void {
   document.querySelectorAll('[data-box-flight-hide]').forEach((el) => el.removeAttribute('data-box-flight-hide'))
 }
 
+/** Resolve comma-separated selectors in priority order (unlike `querySelector`, which returns first in DOM order). */
+function resolveTarget(selectorList: string): Element | null {
+  for (const raw of selectorList.split(',')) {
+    const sel = raw.trim()
+    if (!sel) continue
+    const el = document.querySelector(sel)
+    if (el) return el
+  }
+  return null
+}
+
 /**
  * Viewport-level particle stage (#1400): renders flying `[data-box]` squares across route changes (`/` ↔ `/stories/:id`)
  * and across story screens (`useStoryBoxTransition`). Under `prefers-reduced-motion: reduce`, launches are no-ops.
@@ -86,8 +97,6 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
   const [job, setJob] = useState<FlightJob | null>(null)
   const seqRef = useRef(1)
   const lastBoxesRef = useRef<ParticleBox[]>([])
-  const flyingRef = useRef(false)
-  flyingRef.current = job != null
 
   const rememberBoxes = useCallback((boxes: ParticleBox[]) => {
     if (boxes.length > 0) lastBoxesRef.current = boxes
@@ -101,7 +110,6 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
       const from = opts.boxes && opts.boxes.length > 0 ? opts.boxes : captureDomBoxes(opts.source ?? null)
       if (!from.length) return
       lastBoxesRef.current = from
-      flyingRef.current = true
       setJob({
         id: seqRef.current++,
         from,
@@ -184,7 +192,6 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
       cancelAnimationFrame(raf)
       if (hiddenTarget) hiddenTarget.removeAttribute('data-box-flight-hide')
       clearHiddenMarks()
-      flyingRef.current = false
       setJob(null)
     }
 
@@ -200,7 +207,7 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
           finish()
           return
         }
-        const target = document.querySelector(job.targetSelector)
+        const target = resolveTarget(job.targetSelector)
         const to = target ? captureDomBoxes(target) : []
         if (to.length > 0) {
           if (to.length === lastToCount) stableCount += 1
@@ -218,9 +225,10 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
           // Hold / gently lift the starting boxes while waiting for the next page/screen to render its marks.
           const holdP = easeOutCubicSafe((now - t0) / 140)
           const focus = job.focusGroup
+          const hasFocusMatch = Boolean(focus && job.from.some((b) => b.group === focus))
           renderFrames(
             job.from.map((b) => {
-              const isFocus = !focus || b.group === focus
+              const isFocus = !hasFocusMatch || b.group === focus
               const liftScale = isFocus ? 1 + 0.18 * holdP : 1
               return {
                 x: b.x,
