@@ -1,0 +1,335 @@
+term,match,reason
+um,word,filler
+uh,word,filler
+yeah,word,filler
+yes,word,filler
+okay,word,filler
+ok,word,filler
+oh,word,filler
+hey,word,filler
+hi,word,filler
+hello,word,filler
+wow,word,filler
+like,word,filler
+just,word,filler
+really,word,filler
+actually,word,filler
+basically,word,filler
+literally,word,filler
+definitely,word,filler
+absolutely,word,filler
+certainly,word,filler
+probably,word,filler
+maybe,word,filler
+pretty,word,filler
+little,word,filler
+lot,word,filler
+lots,word,filler
+kind,word,filler
+sort,word,filler
+thing,word,filler
+things,word,filler
+stuff,word,filler
+something,word,filler
+anything,word,filler
+everything,word,filler
+nothing,word,filler
+someone,word,filler
+anyone,word,filler
+everyone,word,filler
+everybody,word,filler
+somebody,word,filler
+anybody,word,filler
+know,word,filler
+think,word,filler
+thought,word,filler
+guess,word,filler
+mean,word,filler
+going,word,filler
+gonna,word,filler
+wanna,word,filler
+gotta,word,filler
+want,word,filler
+wanted,word,filler
+get,word,filler
+got,word,filler
+getting,word,filler
+go,word,filler
+goes,word,filler
+went,word,filler
+come,word,filler
+comes,word,filler
+coming,word,filler
+came,word,filler
+say,word,filler
+says,word,filler
+said,word,filler
+saying,word,filler
+tell,word,filler
+told,word,filler
+see,word,filler
+seen,word,filler
+look,word,filler
+looking,word,filler
+looks,word,filler
+make,word,filler
+made,word,filler
+making,word,filler
+take,word,filler
+taking,word,filler
+took,word,filler
+give,word,filler
+given,word,filler
+put,word,filler
+let,word,filler
+need,word,filler
+needs,word,filler
+would,word,filler
+could,word,filler
+should,word,filler
+might,word,filler
+must,word,filler
+also,word,filler
+even,word,filler
+still,word,filler
+well,word,filler
+right,word,filler
+sure,word,filler
+good,word,filler
+great,word,filler
+much,word,filler
+many,word,filler
+every,word,filler
+one,word,filler
+two,word,filler
+three,word,filler
+four,word,filler
+five,word,filler
+six,word,filler
+seven,word,filler
+eight,word,filler
+nine,word,filler
+ten,word,filler
+first,word,filler
+second,word,procedural
+third,word,filler
+last,word,filler
+next,word,filler
+new,word,filler
+way,word,filler
+back,word,filler
+time,word,filler
+times,word,filler
+day,word,filler
+days,word,filler
+week,word,filler
+weeks,word,filler
+month,word,filler
+months,word,filler
+year,word,filler
+years,word,filler
+tonight,word,filler
+today,word,filler
+yesterday,word,filler
+tomorrow,word,filler
+ago,word,filler
+already,word,filler
+always,word,filler
+never,word,filler
+ever,word,filler
+around,word,filler
+part,word,filler
+point,word,filler
+whole,word,filler
+able,word,filler
+bit,word,filler
+fact,word,filler
+case,word,filler
+yep,word,filler
+nope,word,filler
+alright,word,filler
+please,word,procedural
+thank,word,procedural
+thanks,word,procedural
+sir,word,procedural
+ma'am,word,procedural
+madam,word,procedural
+mister,word,procedural
+mr,word,procedural
+mrs,word,procedural
+ms,word,procedural
+dr,word,procedural
+evening,word,procedural
+morning,word,procedural
+afternoon,word,procedural
+welcome,word,procedural
+name,word,procedural
+address,word,procedural
+removed,word,procedural
+minutes,word,procedural
+minute,word,procedural
+seconds,word,procedural
+motion,word,procedural
+moved,word,procedural
+move,word,procedural
+approve,word,procedural
+approved,word,procedural
+approval,word,procedural
+vote,word,procedural
+votes,word,procedural
+voted,word,procedural
+aye,word,procedural
+ayes,word,procedural
+nay,word,procedural
+nays,word,procedural
+opposed,word,procedural
+abstain,word,procedural
+item,word,procedural
+items,word,procedural
+agenda,word,procedural
+meeting,word,procedural
+meetings,word,procedural
+session,word,procedural
+hearing,word,procedural
+chair,word,procedural
+chairman,word,procedural
+chairwoman,word,procedural
+chairperson,word,procedural
+mayor,word,procedural
+council,word,procedural
+councilman,word,procedural
+councilwoman,word,procedural
+councilmember,word,procedural
+councilor,word,procedural
+commissioner,word,procedural
+commissioners,word,procedural
+commission,word,procedural
+board,word,procedural
+members,word,procedural
+member,word,procedural
+alderman,word,procedural
+alderperson,word,procedural
+supervisor,word,procedural
+supervisors,word,procedural
+trustee,word,procedural
+trustees,word,procedural
+clerk,word,procedural
+podium,word,procedural
+microphone,word,procedural
+mic,word,procedural
+speak,word,procedural
+speaking,word,procedural
+speaker,word,procedural
+speakers,word,procedural
+comment,word,procedural
+comments,word,procedural
+question,word,procedural
+questions,word,procedural
+answer,word,procedural
+discussion,word,procedural
+presentation,word,procedural
+recess,word,procedural
+adjourn,word,procedural
+adjourned,word,procedural
+adjournment,word,procedural
+resolution,word,procedural
+ordinance,word,procedural
+pledge,word,procedural
+allegiance,word,procedural
+applause,word,caption_noise
+laughter,word,caption_noise
+inaudible,word,caption_noise
+music,word,caption_noise
+throat,word,caption_noise
+clears,word,caption_noise
+crosstalk,word,caption_noise
+indiscernible,word,caption_noise
+unintelligible,word,caption_noise
+people,word,generic
+person,word,generic
+folks,word,generic
+guys,word,generic
+city,word,generic
+county,word,generic
+town,word,generic
+village,word,generic
+township,word,generic
+state,word,generic
+community,word,generic
+area,word,generic
+place,word,generic
+here,word,generic
+there,word,generic
+lives,word,generic
+live,word,generic
+living,word,generic
+work,word,generic
+working,word,generic
+worked,word,generic
+help,word,generic
+try,word,generic
+trying,word,generic
+tried,word,generic
+feel,word,generic
+believe,word,generic
+hope,word,generic
+understand,word,generic
+talk,word,generic
+talking,word,generic
+talked,word,generic
+ask,word,generic
+asking,word,generic
+asked,word,generic
+call,word,generic
+called,word,generic
+keep,word,generic
+start,word,generic
+started,word,generic
+done,word,generic
+use,word,generic
+used,word,generic
+important,word,generic
+different,word,generic
+big,word,generic
+small,word,generic
+long,word,generic
+high,word,generic
+old,word,generic
+public hearing,phrase,procedural
+public comment,phrase,procedural
+public comments,phrase,procedural
+roll call,phrase,procedural
+next item,phrase,procedural
+motion to approve,phrase,procedural
+make a motion,phrase,procedural
+second the motion,phrase,procedural
+all in favor,phrase,procedural
+any opposed,phrase,procedural
+consent agenda,phrase,procedural
+city council,phrase,procedural
+town council,phrase,procedural
+county commission,phrase,procedural
+board of supervisors,phrase,procedural
+board members,phrase,procedural
+council members,phrase,procedural
+city manager,phrase,procedural
+city attorney,phrase,procedural
+city staff,phrase,procedural
+staff report,phrase,procedural
+state your name,phrase,procedural
+my name,phrase,procedural
+live at,phrase,procedural
+reside at,phrase,procedural
+good evening,phrase,procedural
+good morning,phrase,procedural
+good afternoon,phrase,procedural
+opportunity to speak,phrase,procedural
+answer any questions,phrase,procedural
+three minutes,phrase,procedural
+time is up,phrase,procedural
+time's up,phrase,procedural
+quality of life,phrase,generic
+across the street,phrase,generic
+long term,phrase,generic
+long time,phrase,generic
+united states,phrase,generic
