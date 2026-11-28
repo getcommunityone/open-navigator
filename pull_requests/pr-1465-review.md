@@ -1,67 +1,61 @@
 ---
 pr: 1465
+issue: 1443
 branch: feat/1443-body-membership
 title: "feat(dbt): body_membership with roles from officials, Legistar office records, rosters and OpenStates"
-author: jcbowyer
 reviewed_at: 2026-11-28
-reviewer: github-actions
-head_sha: 638dc98c19def6d36009713c73c4a07d15d15547
-verdict: approve
+reviewer: coordinator
+verdict: approve-with-nits
 ---
 
-# PR Review: feat(dbt): body_membership with roles from officials, Legistar office records, rosters and OpenStates
+# PR #1465 review
+
+Reviewed against `.claude/review-rubric.md`.
 
 ## Summary
 
-Automated review (#648) for PR #1465 on `feat/1443-body-membership`. Heuristic rubric scans ran on
-`BASE...HEAD`; a human or agent `/pr-review` may refine this file.
+Adds the Legistar body-membership reader, two staging views, `int_body_member__candidate` and the `body_membership`
+mart, and widens `governing_body` to bodies known from rosters. It runs on the local warehouse (24/24 Legistar
+portals, 10,121 memberships; Tuscaloosa's mayor and six seated members with districts and the District 5 vacancy).
+Role and name-key twins agree on 14,865 real rows. Approve with nits.
 
-## Scope of Change
+## Scans
 
-- `dbt_project/dbt_project.yml`
-- `dbt_project/macros/body_membership.sql`
-- `dbt_project/models/intermediate/int_body_member__candidate.sql`
-- `dbt_project/models/marts/_schema_body_membership.yml`
-- `dbt_project/models/marts/body_membership.sql`
-- `dbt_project/models/marts/governing_body.sql`
-- `dbt_project/models/staging/_staging.yml`
-- `dbt_project/models/staging/stg_legistar__office_record.sql`
-- `dbt_project/models/staging/stg_openstates__chamber_member.sql`
-- `dbt_project/seeds/body_role_rule.csv`
-- `dbt_project/seeds/schema.yml`
-- `packages/ingestion/src/ingestion/governance/roles.py`
-- `packages/ingestion/tests/test_governing_body_roles.py`
-- `packages/scrapers/src/scrapers/platforms/legistar_people.py`
-- `packages/scrapers/tests/test_legistar_people.py`
-- `web_docs/docs/development/governing-bodies.md`
-
-## CI Status
-
-See the PR checks on `638dc98c19de`.
-
-## Scans (secrets, fabricated data, personal data, destructive data changes)
-
-- Secrets / credentials: clean (heuristic)
-- Fabricated data / personal / destructive: see findings
-
-## Strengths
-
-- Automated scans found no secret/credential patterns in added lines.
+- Secrets: clean. Fabricated data: clean (members come only from rosters; a vacancy stays a vacancy).
+- Personal data: officials and appointees in their public role only; the Legistar office email is deliberately not
+  stored (asserted in `test_parse_office_record_drops_email`). No residents.
+- Destructive data changes: the reader replaces a portal's current office records on a successful read only (a
+  failed read keeps the last set). New tables otherwise.
+- Scraping: PoliteClient (robots.txt, honest UA, 1 req/s, stop on 403/429), tested with MockTransport.
 
 ## Findings
 
-### 🔴 Blocking (Critical)
-
+### 🔴 Blocking
 None.
 
-### 🟡 Should fix (Important)
+### 🟡 Should fix
+None.
 
-None from automated heuristics.
+### 🔵 Nits
+- Legistar members are tied to `person_government` only on an exact name key (2 of 2,197 matched), so most have no
+  person page link yet. Promoting Legistar members into `contact_official` is a follow-up (#1441 tracks it).
+- `int_meeting_body__matched` now uses the AI body name only for videos that read as meetings (fixes interviews filed
+  under a council); covered by the next `dbt run`.
 
-### 🔵 Nit (Minor)
+## Repo-Rule Compliance
 
-None from automated heuristics.
+| Rule | Pass? | Notes |
+|---|---|---|
+| Issue first, branch/PR naming | Yes | #1443 |
+| New loaders in packages, polite scraping | Yes | `scrapers.platforms.legistar_people` |
+| Transformations in dbt; PK/FKs | Yes | contracts enforced; FKs to governing_body, person_government, legislator |
+| Privacy | Yes | public roles only; no email stored |
+| Docs with the change | Yes | decision page section "Members and roles" |
+
+## Test Coverage
+
+pytest 81 passed (roles, name keys, Legistar parsing, block/robots behaviour, title twin). dbt run + test PASS=24.
 
 ## Verdict
 
-**approve**
+approve-with-nits.
