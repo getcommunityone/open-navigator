@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { SitesTimelineResponse, TimelineSite } from '../../api/sitesTimeline'
 import { STATES_ALBERS_TOPO, NATIONAL_BBOX, albersPoint, bboxOf, fetchTopo, toFeats } from '../../lib/dotMatrix'
@@ -10,11 +10,13 @@ import {
   PHASE_LABEL,
   appearText,
   capacityText,
+  frameLegend,
   operatingText,
   sitesInYear,
+  stripColumns,
   timelineDisplay,
   timelineYears,
-  undatedNote,
+  undatedCaption,
   yearRow,
   type Phase,
 } from '../../utils/siteTimeline'
@@ -46,10 +48,12 @@ interface Props {
 const fmt = (n: number) => n.toLocaleString('en-US')
 
 /**
- * The "Over time" screen's figure (#1348): a map of data center sites by the year of their earliest real date, a year
- * slider (autoplay from the first year to the last projected one; step-through only under reduced motion), a stacked strip
- * of the running total by phase per year (from the API's SQL totals), a footnote for sites with no date, and a card for the
- * site tapped. 1–5 dated sites are listed instead (utils/displayFit, the shared rule).
+ * The "Over time" screen's figure (#1348, #1428): a map of every data center site with coordinates. A site with a start
+ * date appears in that year as a dot; a site with no start date appears in the year a source first listed it as a small
+ * outlined square ("start date not on record"); a site with no date at all fades in at today. A year slider (autoplay from
+ * the first year to the last projected one; step-through only under reduced motion), a legend that sums to the mapped sites
+ * in the frame plus a "not mapped" line, a stacked strip of the API's per-year totals (undated sites as an outlined block,
+ * never as growth), and a card for the site tapped. 1–5 sites are listed instead (utils/displayFit, the shared rule).
  */
 export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active, reduced }: Props) {
   const years = useMemo(() => timelineYears(res), [res])
@@ -115,17 +119,20 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
     }
     return out
   }, [res])
+  const today = Number.isFinite(current) ? current : null
+  const inYear = useMemo(() => sitesInYear(res?.sites ?? [], year, today), [res, year, today])
   const atYear = useMemo(() => {
-    const byId = new Map(sitesInYear(res?.sites ?? [], year).map((s) => [s.site.data_center_site_id, s]))
+    const byId = new Map(inYear.map((s) => [s.site.data_center_site_id, s]))
     return placed.flatMap((p) => {
       const s = byId.get(p.site.data_center_site_id)
-      return s ? [{ ...p, phase: s.phase, isNew: s.isNew }] : []
+      return s ? [{ ...p, phase: s.phase, isNew: s.isNew, undated: s.undated }] : []
     })
-  }, [placed, res, year])
+  }, [placed, inYear])
+  const legend = useMemo(() => frameLegend(inYear), [inYear])
+  const columns = useMemo(() => stripColumns(res), [res])
 
   const display = timelineDisplay(res)
-  const note = undatedNote(res)
-  const unmapped = (res?.dated ?? 0) - (res?.mapped ?? 0)
+  const note = undatedCaption(res, year)
   const source = (
     <p className="dc-tl-source">
       Sources:{' '}
@@ -145,8 +152,7 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
   if (display === 'empty') {
     return (
       <div className="dc-tl" data-display="empty">
-        <p className="dc-tl-status">No data center site in {scopeLabel === 'National' ? 'the country' : scopeLabel} has a date on record.</p>
-        {note && <p className="dc-tl-note">{note}</p>}
+        <p className="dc-tl-status">No data center site in {scopeLabel === 'National' ? 'the country' : scopeLabel} is on record.</p>
         {source}
       </div>
     )
@@ -168,7 +174,6 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
             </li>
           ))}
         </ul>
-        {note && <p className="dc-tl-note">{note}</p>}
         {source}
       </div>
     )
@@ -177,7 +182,7 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
   const row = yearRow(res, year)
   const isFuture = Boolean(row?.is_future)
   const r = geo ? geo.vb[2] / (stateCode ? 70 : 150) : 3
-  const maxTotal = Math.max(1, ...(res.years ?? []).map((y) => y.total ?? 0))
+  const maxTotal = Math.max(1, ...columns.map((c) => c.total))
 
   return (
     <div className="dc-tl" data-display="animated" data-future={isFuture ? '' : undefined}>
@@ -202,6 +207,36 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
               {atYear.map((d) => {
                 const proposed = d.phase === 'planned'
                 const isPicked = picked?.data_center_site_id === d.site.data_center_site_id
+                const pick = () => setPicked(d.site)
+                const onKey = (e: KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    pick()
+                  }
+                }
+                if (d.undated) {
+                  // Start date not on record: a small outlined square, so the site is on the map but not placed as an opening.
+                  const side = (isPicked ? r * 1.6 : r) * 1.3
+                  return (
+                    <rect
+                      key={d.site.data_center_site_id}
+                      className={`dc-tl-dot dc-tl-sq${d.isNew && !reduced ? ' is-fade' : ''}${isPicked ? ' is-picked' : ''}`}
+                      x={d.x - side / 2}
+                      y={d.y - side / 2}
+                      width={side}
+                      height={side}
+                      fill="none"
+                      stroke={PHASE_COLOR[d.phase]}
+                      strokeWidth={r * 0.32}
+                      strokeDasharray={proposed ? `${r * 0.5} ${r * 0.35}` : undefined}
+                      onClick={pick}
+                      tabIndex={stateCode ? 0 : -1}
+                      role="button"
+                      aria-label={`${d.site.site_name}: ${PHASE_LABEL[d.phase]}, start date not on record`}
+                      onKeyDown={onKey}
+                    />
+                  )
+                }
                 return (
                   <circle
                     key={d.site.data_center_site_id}
@@ -213,16 +248,11 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
                     stroke={PHASE_COLOR[d.phase]}
                     strokeWidth={proposed ? r * 0.55 : r * 0.25}
                     strokeDasharray={proposed ? `${r * 0.7} ${r * 0.45}` : undefined}
-                    onClick={() => setPicked(d.site)}
+                    onClick={pick}
                     tabIndex={stateCode ? 0 : -1}
                     role="button"
                     aria-label={`${d.site.site_name}: ${PHASE_LABEL[d.phase]}`}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setPicked(d.site)
-                      }
-                    }}
+                    onKeyDown={onKey}
                   />
                 )
               })}
@@ -241,13 +271,24 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
           {year}
           {isFuture ? ', projected' : ''}
         </span>
-        <ul className="dc-tl-counts" aria-label={`Sites on record by ${year}`}>
-          {PHASES.filter((p) => ((row?.[p] as number | undefined) ?? 0) > 0).map((p) => (
-            <li key={p} data-phase={p}>
+        <ul className="dc-tl-counts" aria-label={`Mapped sites on record by ${year}: ${fmt(legend.mapped)}`} data-mapped={legend.mapped}>
+          {PHASES.filter((p) => legend.byPhase[p] > 0).map((p) => (
+            <li key={p} data-phase={p} data-count={legend.byPhase[p]}>
               <span className="dc-tl-key" style={p === 'planned' ? { borderColor: PHASE_COLOR[p] } : { background: PHASE_COLOR[p] }} aria-hidden="true" />
-              {PHASE_LABEL[p]} <strong>{fmt((row?.[p] as number | undefined) ?? 0)}</strong>
+              {PHASE_LABEL[p]} <strong>{fmt(legend.byPhase[p])}</strong>
             </li>
           ))}
+          {legend.undatedMapped > 0 && (
+            <li data-key="undated" data-count={legend.undatedMapped}>
+              <span className="dc-tl-key dc-tl-key-sq" aria-hidden="true" />
+              of these, start date not on record <strong>{fmt(legend.undatedMapped)}</strong>
+            </li>
+          )}
+          {legend.notMapped > 0 && (
+            <li data-key="not-mapped" data-count={legend.notMapped}>
+              Not mapped <strong>{fmt(legend.notMapped)}</strong>
+            </li>
+          )}
         </ul>
       </div>
 
@@ -290,26 +331,30 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
         </button>
       </div>
 
-      <svg className="dc-tl-strip" viewBox={`0 0 ${years.length * 10} 36`} preserveAspectRatio="none" role="img" aria-label={`Running total of dated sites per year, ${firstYear} to ${lastYear}`}>
+      <svg className="dc-tl-strip" viewBox={`0 0 ${years.length * 10} 36`} preserveAspectRatio="none" role="img" aria-label={`Running total of sites on record per year, ${firstYear} to ${lastYear}; sites with no start date drawn as an outlined block`}>
         <defs>
           <pattern id="dc-tl-hatch" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <rect width="3" height="3" fill="var(--paper, #fff)" />
             <line x1="0" y1="0" x2="0" y2="3" stroke={PHASE_COLOR.planned} strokeWidth="1.6" />
           </pattern>
         </defs>
-        {(res.years ?? []).map((y, i) => {
+        {columns.map((c, i) => {
           let top = 36
-          const yv = Number.parseInt(y.year, 10)
+          const yv = c.year
+          const uh = (34 * c.undated) / maxTotal
           return (
-            <g key={y.year} onClick={() => (setPlaying(false), setYear(yv))} opacity={y.is_future ? 0.6 : 1} className={yv === year ? 'is-year' : undefined}>
+            <g key={yv} onClick={() => (setPlaying(false), setYear(yv))} opacity={c.isFuture ? 0.6 : 1} className={yv === year ? 'is-year' : undefined}>
               <rect x={i * 10} y={0} width={10} height={36} fill="transparent" />
               {PHASES.map((p) => {
-                const n = (y[p] as number | undefined) ?? 0
+                const n = c.dated[p]
                 if (!n) return null
                 const h = (34 * n) / maxTotal
                 top -= h
                 return <rect key={p} x={i * 10 + 1} y={top} width={8} height={h} fill={p === 'planned' ? 'url(#dc-tl-hatch)' : PHASE_COLOR[p]} />
               })}
+              {c.undated > 0 && (
+                <rect className="dc-tl-strip-undated" x={i * 10 + 1.3} y={top - uh + 0.3} width={7.4} height={Math.max(0, uh - 0.6)} fill="none" stroke={NEUTRAL} strokeWidth="0.6" />
+              )}
               {yv === year && <rect x={i * 10 + 0.3} y={0.3} width={9.4} height={35.4} fill="none" stroke="var(--ink, #222)" strokeWidth="0.6" />}
             </g>
           )
@@ -344,11 +389,11 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
         </div>
       )}
 
-      <p className="dc-tl-note">
-        {[note, unmapped > 0 ? `${fmt(unmapped)} dated ${unmapped === 1 ? 'site has' : 'sites have'} no map location and ${unmapped === 1 ? 'is' : 'are'} counted in the strip only.` : null]
+      <p className="dc-tl-note" data-undated={row?.undated ?? 0}>
+        {[note, legend.notMapped > 0 ? `${fmt(legend.notMapped)} ${legend.notMapped === 1 ? 'site has' : 'sites have'} no map location and ${legend.notMapped === 1 ? 'is' : 'are'} counted only.` : null]
           .filter(Boolean)
           .join(' ')}{' '}
-        Outlined dots are proposed. Tap a dot for its record.
+        Dashed outlines are proposed. Tap a site for its record.
       </p>
       {source}
     </div>
