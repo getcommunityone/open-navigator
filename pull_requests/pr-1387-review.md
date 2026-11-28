@@ -90,3 +90,13 @@ None from automated heuristics.
 ## Verdict
 
 **approve-with-nits**
+
+## Author notes (agent review)
+
+- No secrets, fabricated data or private names: a minor, student or school-board resident is "Speaker N" with no cue phrase; attribution evidence quotes the cue, never the name. No paid run, no Neon write.
+- Checks run: pytest (ingestion, API) 64 pass; vitest `components/stance` 70 pass; `tsc` clean; `dbt test` on the new models 65 pass.
+- Nit: `conditional` / `against_concept_open_to_terms` cues match anywhere in a speaker's text; precision is not measured.
+- Nit: the quote APIs now read `attribution_tier` from `meeting_passage_speaker`; rebuild the public view before the API deploys.
+- Rules-baseline heat is off: it ties a constant guess on the 178 calibration comments.
+
+No blocking findings.
