@@ -15,7 +15,7 @@ import {
   type DrillVoteDecision,
   type DrillDisagreementMeeting,
 } from '../../api/storyDrill'
-import { highlightSnippet } from '../../lib/highlight'
+import { hasQuoteText, highlightSnippet } from '../../lib/highlight'
 import { useIsMobile } from '../../hooks/useMediaQuery'
 import { StanceShapeChip } from './StanceShapeChip'
 import { SpeakerName } from './SpeakerName'
@@ -84,7 +84,7 @@ function SpeakerRow({ s }: { s: DrillSpeaker }) {
   const href = s.jump_url ?? s.video_url
   return (
     <li className="kpi-drill-row">
-      {s.quote_highlighted || s.quote ? (
+      {hasQuoteText(s.quote_highlighted) || hasQuoteText(s.quote) ? (
         <blockquote className="kpi-drill-quote">“{highlightSnippet(s.quote_highlighted ?? s.quote ?? '')}”</blockquote>
       ) : (
         <p className="kpi-drill-meta">No words were captured for this speaker.</p>
