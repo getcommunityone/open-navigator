@@ -21,6 +21,7 @@ scope isn't counted at that grain: the API answers for the state and says so (``
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Any, Literal
 
@@ -78,7 +79,6 @@ class TrendTermsResponse(BaseModel):
 
 class TrendEvidence(BaseModel):
     video_id: str
-    meeting_title: str
     meeting_date: str
     jurisdiction_name: str | None = None
     state_code: str | None = None
@@ -129,12 +129,21 @@ def evidence_sql(term_id: str, scope: TrendScope, limit: int, offset: int) -> tu
         where += f" AND e.state_code = ${len(params)}"
     params += [limit, offset]
     sql = (
-        "SELECT e.video_id, e.meeting_title, e.meeting_date, e.jurisdiction_name, e.state_code, e.video_url, "
+        "SELECT e.video_id, e.meeting_date, e.jurisdiction_name, e.state_code, "
         "e.excerpt, e.excerpt_source, e.start_seconds, e.speaker_display_name, count(*) OVER () AS total "
         f"FROM trending_term_evidence e WHERE {where} "
         f"ORDER BY e.meeting_date DESC, e.video_id LIMIT ${len(params) - 1} OFFSET ${len(params)}"
     )
     return sql, params
+
+
+_YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def video_url(video_id: str | None) -> str | None:
+    """The recording's link. Every served evidence row is a YouTube recording (the serving view drops the stored URL
+    to stay small); anything that isn't a YouTube id gets no link rather than a guessed one."""
+    return f"https://www.youtube.com/watch?v={video_id}" if video_id and _YOUTUBE_ID.match(video_id) else None
 
 
 def _f(v: Any) -> float | None:
@@ -168,7 +177,7 @@ async def trending_terms(
     state: str | None = Query(None, description="2-letter state code (or full name). Omit for national."),
     city: str | None = Query(None, description="Accepted for scope carry-over; terms are counted per state."),
     sort: Sort = Query("rising", description="rising | hot | volume"),
-    limit: int = Query(24, ge=1, le=MAX_LIMIT),
+    limit: int = Query(20, ge=1, le=MAX_LIMIT),
 ) -> TrendTermsResponse:
     """Terms rising in meeting speech, or over-represented in heated public comment.
 
@@ -230,8 +239,8 @@ async def trending_term_evidence(
     sensitive = bool(head["is_sensitive"])
     items = [
         TrendEvidence(
-            video_id=r["video_id"], meeting_title=r["meeting_title"] or "", meeting_date=_d(r["meeting_date"]) or "",
-            jurisdiction_name=r["jurisdiction_name"], state_code=r["state_code"], video_url=r["video_url"],
+            video_id=r["video_id"], meeting_date=_d(r["meeting_date"]) or "",
+            jurisdiction_name=r["jurisdiction_name"], state_code=r["state_code"], video_url=video_url(r["video_id"]),
             excerpt=r["excerpt"], excerpt_source=r["excerpt_source"], start_seconds=_f(r["start_seconds"]),
             # Belt and braces: the mart already drops it for sensitive terms.
             speaker_display_name=None if sensitive else r["speaker_display_name"],

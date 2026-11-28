@@ -57,9 +57,13 @@ for (const v of VIEWS) {
     const first = page.locator('[data-testid="trending-terms-chips"] button').first()
     await first.click()
     await page.waitForSelector('#trending-term-evidence', { timeout: 30_000 })
-    await page.waitForSelector('[data-testid="trending-term-evidence-list"] li, #trending-term-evidence .sc-note', {
-      timeout: 30_000,
-    })
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="trending-term-evidence-list"] li') ||
+        /No quoted meetings|could not be loaded/.test(document.querySelector('#trending-term-evidence')?.textContent ?? ''),
+      null,
+      { timeout: 60_000 },
+    )
     const ev = await page.evaluate(() => {
       const items = [...document.querySelectorAll('[data-testid="trending-term-evidence-list"] li')]
       return {

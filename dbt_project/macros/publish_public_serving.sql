@@ -322,10 +322,18 @@
       data_center_comment row; long cue_texts, counters and versions stay in gold.
     * meeting_speaker_turn: nothing reads it, so it is not published (see `served`). -#}
 {#- trending_term (#1399): gold keeps every scope x term; public serves only is_served (the top
-    trending_served_per_sort of each sort per scope), which keeps it under ~3 MB. -#}
+    trending_served_per_sort of each sort per scope) and only the columns api/routes/trending_terms.py reads; the
+    evidence drops its id, title and video_url (every row is a YouTube recording; the API builds the link from video_id).
+    Together they stay under 3 MB. -#}
 {%- set projections = {
     'trending_term':
-        'select * from gold.trending_term where is_served',
+        'select trending_term_id, scope_code, state_code, term_key, term, year_a, year_b, meetings_a, meetings_b, '
+        'recorded_a, recorded_b, share_a, share_b, rise, n_meetings, n_jurisdictions, latest_meeting_date, '
+        'hot_score, is_sensitive, rank_rising, rank_hot, rank_volume, is_served '
+        'from gold.trending_term where is_served',
+    'trending_term_evidence':
+        'select term_key, video_id, meeting_date, state_code, jurisdiction_name, excerpt, '
+        'excerpt_source, start_seconds, speaker_display_name from gold.trending_term_evidence',
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
         'district, office, null::text as email, null::text as phone, photo_url, '

@@ -10,9 +10,9 @@
 /*
     The evidence behind each served trending term (#1399, CLAUDE.md "show the match evidence"): one row per
     (term_key, video_id), a verbatim excerpt of a meeting that says the term, with the term marked by ts_headline
-    (<mark>...</mark>), for the terms in the top var trending_evidence_rank (24) of any sort in a scope: each
+    (<mark>...</mark>), for the terms in the top var trending_evidence_rank (20) of any sort in a scope: each
     government's newest counted meeting that says the term, for the newest
-    var trending_evidence_national (6) governments nationally and the newest var trending_evidence_state (2) per state
+    var trending_evidence_national (5) governments nationally and the newest var trending_evidence_state (1) per state
     where the term is served in that state. One meeting per government keeps one place from filling the list.
 
     Excerpt source, in order:
@@ -25,18 +25,18 @@
     replaced by "my name is [name]". School-board meetings are not counted, so never quoted.
 */
 
-{%- set n_nat = var('trending_evidence_national', 6) %}
-{%- set n_st = var('trending_evidence_state', 2) %}
+{%- set n_nat = var('trending_evidence_national', 5) %}
+{%- set n_st = var('trending_evidence_state', 1) %}
 {%- set hl = "StartSel=<mark>, StopSel=</mark>, MaxWords=22, MinWords=10, ShortWord=2, MaxFragments=1, HighlightAll=false" %}
 {%- set redact = "regexp_replace({}, '(my name is|my name''s|name is)\\s+[A-Za-z''-]+(\\s+[A-Za-z''-]+)?', '\\1 [name]', 'gi')" %}
 
--- The terms a page can show: in the top var trending_evidence_rank (24) of any sort in the scope.
+-- The terms a page can show: in the top var trending_evidence_rank (20) of any sort in the scope.
 with served as materialized (
     select distinct term_key, scope_code
     from {{ ref('trending_term') }}
     where is_served
       and least(coalesce(rank_rising, 1000000), coalesce(rank_hot, 1000000), coalesce(rank_volume, 1000000))
-          <= {{ var('trending_evidence_rank', 24) }}
+          <= {{ var('trending_evidence_rank', 20) }}
 ),
 
 term as (

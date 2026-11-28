@@ -42,7 +42,6 @@ export interface TrendTermsResponse {
 
 export interface TrendEvidence {
   video_id: string
-  meeting_title: string
   meeting_date: string
   jurisdiction_name: string | null
   state_code: string | null
@@ -67,7 +66,7 @@ export interface TrendEvidenceResponse {
   items: TrendEvidence[]
 }
 
-export async function fetchTrendingTerms(state: string | undefined, sort: TrendSort, limit = 24): Promise<TrendTermsResponse> {
+export async function fetchTrendingTerms(state: string | undefined, sort: TrendSort, limit = 20): Promise<TrendTermsResponse> {
   const params: Record<string, string | number> = { sort, limit }
   if (state) params.state = state
   const { data } = await api.get<TrendTermsResponse>('/trends/terms', { params })

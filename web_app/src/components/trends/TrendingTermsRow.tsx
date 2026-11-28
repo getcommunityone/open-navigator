@@ -40,7 +40,7 @@ export default function TrendingTermsRow({ stateCode, city, sort, onSortChange }
 
   const q = useQuery<TrendTermsResponse>({
     queryKey: ['trending-terms', stateCode ?? '', sort],
-    queryFn: () => fetchTrendingTerms(stateCode, sort, 24),
+    queryFn: () => fetchTrendingTerms(stateCode, sort, 20),
     staleTime: 5 * 60_000,
     retry: 1,
   })

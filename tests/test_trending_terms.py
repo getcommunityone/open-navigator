@@ -118,8 +118,8 @@ def test_bad_sort_is_422_and_db_failure_is_503(monkeypatch) -> None:
 
 
 def test_evidence_never_names_a_speaker_for_a_sensitive_term(monkeypatch) -> None:
-    ev = dict(video_id="v1", meeting_title="Council", meeting_date=date(2026, 10, 1), jurisdiction_name="Somewhere",
-              state_code="GA", video_url=None, excerpt="… the <mark>term</mark> …", excerpt_source="public_comment",
+    ev = dict(video_id="abcdefghijk", meeting_date=date(2026, 10, 1), jurisdiction_name="Somewhere",
+              state_code="GA", excerpt="… the <mark>term</mark> …", excerpt_source="public_comment",
               start_seconds=12.0, speaker_display_name="Jane D.", total=1)
     conn = _Conn([ev], head={"term": "sample", "is_sensitive": True, "n_meetings": 7})
 
@@ -130,6 +130,8 @@ def test_evidence_never_names_a_speaker_for_a_sensitive_term(monkeypatch) -> Non
     assert body["is_sensitive"] is True and body["total_meetings"] == 7 and body["total"] == 1
     assert body["items"][0]["speaker_display_name"] is None
     assert "<mark>term</mark>" in body["items"][0]["excerpt"]
+    assert body["items"][0]["video_url"] == "https://www.youtube.com/watch?v=abcdefghijk"
+    assert tt.video_url("not a youtube id") is None
     sql, params = conn.calls[-1]
     assert "e.state_code = $2" in sql and params[:2] == (TID, "GA")
 
@@ -265,9 +267,10 @@ def test_sensitive_terms_never_carry_a_speaker_and_minimums_hold() -> None:
             "SELECT count(*) FROM gold.trending_term WHERE scope_code = 'US' AND eligible "
             "AND (meetings_b < 15 OR n_jurisdictions < 5)")
         served_mb = await c.fetchval(
-            "SELECT coalesce(sum(pg_column_size(t.*)), 0)::numeric / 1e6 FROM gold.trending_term t WHERE t.is_served")
+            "SELECT (SELECT coalesce(sum(pg_column_size(t.*)), 0) FROM public.trending_term t)"
+            " + (SELECT coalesce(sum(pg_column_size(e.*)), 0) FROM public.trending_term_evidence e)")
         return named, thin, served_mb
 
     named, thin, served_mb = _live(q)
     assert named == 0 and thin == 0
-    assert served_mb <= 3
+    assert served_mb / 1e6 <= 3  # the whole public serving data: terms + evidence

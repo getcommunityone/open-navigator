@@ -237,7 +237,7 @@ vars:
   trending_min_jurisdictions: 5
   trending_state_min_meetings_b: 5
   trending_state_min_jurisdictions: 3
-  trending_served_per_sort: 100
+  trending_served_per_sort: 60
   trending_max_jurisdiction_share: 0.4
   trending_fragment_share: 0.85
   trending_place_min_population: 20000
@@ -245,9 +245,9 @@ vars:
   trending_hot_prior: 500
   trending_hot_min_speakers: 5
   trending_hot_min_meetings: 3
-  trending_evidence_national: 6
-  trending_evidence_state: 2
-  trending_evidence_rank: 24
+  trending_evidence_national: 5
+  trending_evidence_state: 1
+  trending_evidence_rank: 20
   # Speaker attribution (#1386): bump when seeds/speaker_attribution_rules.csv changes
   speaker_attribution_version: 'speaker_attribution/1'
   # Comment heat (#1386). The rules baseline is served only when it passes calibration against the AI-rated
