@@ -7,6 +7,7 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark } from '../../lib/highlight'
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import QuoteCard from './QuoteCard'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
 import { resolveVideoId, startFromUrl } from './quoteCardUtils'
@@ -179,6 +180,22 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     .filter((o): o is { code: string; name: string } => !!o.code)
     .sort((a, b) => a.name.localeCompare(b.name))
 
+  // Title and key (#1409): what the map says from the real counts, and each colour it draws.
+  const total = listed.reduce((a, r) => a + Math.max(0, r.meetings), 0)
+  const topNames = listed.filter((r) => r.meetings > 0).slice(0, 2).map((r) => stateNameOf(r.state_code))
+  const title =
+    total > 0
+      ? `Meetings where a data center came up: ${fmt(total)} in ${fmt(listed.filter((r) => r.meetings > 0).length)} ${listed.filter((r) => r.meetings > 0).length === 1 ? 'state' : 'states'}${topNames.length > 1 ? `, most in ${topNames.join(' and ')}` : ''}${scopeStateCode ? ` · ${stateNameOf(scopeStateCode)} highlighted` : ''}`
+      : 'Meetings where a data center came up, by state · National'
+  const legend: LegendItem[] = [
+    max > 0
+      ? min < max
+        ? { key: 'ramp', label: `${fmt(min)} to ${fmt(max)} meetings (darker = more meetings)`, color: ramp[ramp.length - 1] ?? colorFor(max), shape: 'ramp', ramp }
+        : { key: 'ramp', label: `${fmt(max)} ${max === 1 ? 'meeting' : 'meetings'}`, color: colorFor(max) }
+      : { key: 'ramp', label: 'Meetings (darker = more meetings)', color: ramp[ramp.length - 1] ?? HOUSE_THEME.neutral, shape: 'ramp', ramp },
+    { key: 'none', label: 'No meetings on record', color: HOUSE_THEME.neutral },
+  ]
+
   return (
     // Leaving the figure (map, lines and card), not moving between them, hides the card (#1277).
     <figure
@@ -192,31 +209,33 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
       onMouseEnter={() => void qc.prefetchQuery({ queryKey: ['us-atlas-counties-albers'], queryFn: () => fetchTopo(COUNTIES_ALBERS_TOPO), staleTime: 1000 * 60 * 60 })}
       {...keyNav.stageProps}
     >
-      <figcaption className="stance-map-head">
-        <span>
-          Meetings where a data center came up, by state · National{scopeStateCode ? ` (${stateNameOf(scopeStateCode)} highlighted${scopeCity ? `, which contains ${scopeCity}` : ''})` : ''}
-        </span>
-        <span className="stance-map-controls">
-          {scopeStateCode && (
-            <button type="button" className="folio-link-btn" onClick={() => onPickState(null)}>
-              United States
-            </button>
-          )}
-          <select
-            aria-label="Show one state"
-            className="folio-select"
-            value={scopeStateCode ?? ''}
-            onChange={(e) => onPickState(e.target.value || null)}
-          >
-            <option value="">All states</option>
-            {options.map((o) => (
-              <option key={o.code} value={o.code}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </span>
-      </figcaption>
+      <ChartFrame
+        title={title}
+        legend={legend}
+        headClassName="stance-map-head"
+        controls={
+      <span className="stance-map-controls">
+        {scopeStateCode && (
+          <button type="button" className="folio-link-btn" onClick={() => onPickState(null)}>
+            United States
+          </button>
+        )}
+        <select
+          aria-label="Show one state"
+          className="folio-select"
+          value={scopeStateCode ?? ''}
+          onChange={(e) => onPickState(e.target.value || null)}
+        >
+          <option value="">All states</option>
+          {options.map((o) => (
+            <option key={o.code} value={o.code}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </span>
+        }
+      >
       <div className="stance-map-stage">
       {keyNav.sr}
       <svg
@@ -289,6 +308,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
         )}
       </svg>
       </div>
+      </ChartFrame>
       {/* Not a live region: it changes on every pointer move. Keyboard and screen readers use the select and the table. */}
       <p className="stance-map-readout">
         {touch
@@ -297,33 +317,6 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
             ? `${readout(hover)}. ${hoverCode ? `${pickLabel(hoverCode)}.` : ''}`
             : 'Hover a state to hear what was said there; click it, or choose one, to open its story.'}
       </p>
-      {max > 0 && (
-        <div className="stance-map-legend" aria-hidden="true">
-          {min < max ? (
-            <>
-              <span>{fmt(min)}</span>
-              <span className="stance-map-ramp">
-                {ramp.map((c, i) => (
-                  <span key={i} style={{ background: c }} />
-                ))}
-              </span>
-              <span>{fmt(max)} meetings</span>
-            </>
-          ) : (
-            <>
-              <span className="stance-map-ramp">
-                <span style={{ background: colorFor(max) }} />
-              </span>
-              <span>
-                {fmt(max)} {max === 1 ? 'meeting' : 'meetings'}
-              </span>
-            </>
-          )}
-          <span className="stance-map-none">
-            <span style={{ background: HOUSE_THEME.neutral }} /> none on record
-          </span>
-        </div>
-      )}
       {passage && hover && hoverCode && (
         // Desktop only (#1277): under the legend, never over the map; one recording at a time.
         <QuoteCard
