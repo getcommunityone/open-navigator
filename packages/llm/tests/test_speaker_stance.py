@@ -37,6 +37,18 @@ PINNED_QUESTION_VERSIONS: dict[str, str] = {
     "surveillance-cameras": "eab4d415a535",
     "public-transit": "5546e557c76b",
     "alcohol-licensing": "e6393db1e018",
+    # #1436 coverage topics (new; held until their gold check passes)
+    "missing-middle-housing": "0d76267e8e1d",
+    "road-diets": "3112665afa83",
+    "backyard-chickens": "8e07cba2cec4",
+    "speed-cameras": "8ae8d3b0f77a",
+    "speed-bumps": "5c790ba201c9",
+    "roundabouts": "d19f8d1791fe",
+    "gas-stations": "7921e9f64e09",
+    "artificial-turf": "9a71a0753f17",
+    "homeless-encampments": "f475e5b73573",
+    "solar-farms": "030a6804e08c",
+    "battery-storage": "4cd0b9054486",
 }
 
 # The meeting-level topics' stored hashes (test_topic_lean.STORED_QUESTION_VERSIONS) must never move because of this work.
@@ -60,14 +72,29 @@ def test_meeting_topic_hashes_unchanged() -> None:
 
 
 def test_topics_ids_and_priority() -> None:
-    assert len(ss.TOPICS) == 19
-    assert len({t.topic_id for t in ss.TOPICS.values()}) == 19
+    assert len(ss.TOPICS) == 30
+    assert len({t.topic_id for t in ss.TOPICS.values()}) == 30
     assert ss.PRIORITY[0] == "data-centers"
     assert set(ss.PRIORITY) == set(ss.TOPICS)
     for slug, t in ss.TOPICS.items():
         assert t.slug == slug
-        # curated topics (>= 100000) use their seed keywords; reframed CivicSearch topics carry their own phrases
-        assert (t.keywords is None) == (t.topic_id >= 100000), slug
+        # the 19 original topics: curated (>= 100000) use their seed keywords, reframed CivicSearch topics carry their
+        # own phrases; the coverage topics (#1436) all carry their own whole-word phrases
+        if slug in ss.NEW_TOPICS:
+            assert t.keywords and t.topic_id > 100100, slug
+        else:
+            assert (t.keywords is None) == (t.topic_id >= 100000), slug
+
+
+def test_coverage_topics_are_held_until_validated() -> None:
+    assert set(ss.NEW_TOPICS) <= ss.HELD
+    assert not set(ss.NEW_TOPICS) & {t.slug for t in ss.resolve_topics("all")}
+    # renewable energy stays as it was; solar farms and battery storage are separate questions beside it
+    assert ss.TOPICS["renewable-energy"].topic_id == 90
+    pat = ss.strict_pattern(ss.TOPICS["speed-bumps"].keywords)
+    assert pat.search("we need speed humps on Elm") and not pat.search("a bump in the road")
+    turf = ss.strict_pattern(ss.TOPICS["roundabouts"].keywords)
+    assert not turf.search("the Rotary club met") and turf.search("a new roundabout at Main")
 
 
 def test_questions_ask_side_and_heat_ladder() -> None:

@@ -36,6 +36,10 @@ from llm.typesafe import speaker_stance as ss
 GOLD_DIR = Path(__file__).with_name("gold")
 GOLD_FILE = GOLD_DIR / "speaker_stance_gold.json"
 RESULTS_FILE = GOLD_DIR / "speaker_stance_gold_results.json"
+#: Round 2 (#1436): the coverage topics plus more items for held bike lanes and zoning. Its labels were made by an AI
+#: helper from the exact passage (blind to Jev), and the file says so in ``labelled_by``.
+ROUND2_GOLD_FILE = GOLD_DIR / "speaker_stance_gold_round2.json"
+ROUND2_RESULTS_FILE = GOLD_DIR / "speaker_stance_gold_round2_results.json"
 PASS_ACCURACY = 0.85
 #: A topic also needs this many clear items (fewer can't show 85%), and at least this share of its served sides
 #: (for / against at the confidence floor, on all its gold items) matching the hand label.
@@ -157,43 +161,72 @@ def score(args: argparse.Namespace) -> None:
     """Send each gold passage to Jev (paid, cents) and write the answers to RESULTS_FILE."""
     import psycopg2
 
-    from llm.typesafe.client import JevClient
+    from llm.typesafe.client import JevClient, JevError
     from llm.typesafe.screen_transcripts import _database_url
 
-    items = load_gold()
+    from llm.usage.prices import load_prices, model_price
+
+    args.rate = (model_price("jev-", "interactive", load_prices()) or {}).get("input_usd_per_1m") or 0.0
+    if not args.rate:
+        raise SystemExit("No sourced Jev price in llm/usage/prices.yaml: refusing to score without a cost bound")
+    gold_file = Path(args.gold) if args.gold else GOLD_FILE
+    results_file = Path(args.results) if args.results else RESULTS_FILE
+    items = load_gold(gold_file)
     conn = psycopg2.connect(_database_url(args.database_url))
     try:
-        topics = ss.resolve_topics("all")
+        # every topic the gold items name, held ones included (a gold check is how a held topic is released)
+        topics = [ss.TOPICS[slug] for slug in sorted({it["topic"] for it in items})]
         patterns = ss.topic_patterns(conn, topics)
         texts = _speaker_texts(conn, sorted({it["meeting_speaker_id"] for it in items}))
     finally:
         conn.close()
+    # resumable: answers already in the results file at the topic's current question version are kept, not re-asked
     preds: dict[str, dict[str, Any]] = {}
-    tokens = 0
+    if results_file.exists():
+        prior = json.loads(results_file.read_text(encoding="utf-8")).get("predictions", {})
+        preds = {k: v for k, v in prior.items()
+                 if v.get("question_version") == ss.question_version(ss.TOPICS[k.split("|", 1)[0]])}
+    tokens = sum(v.get("input_tokens") or 0 for v in preds.values())
+    stopped = None
     with JevClient() as client:
         for it in items:
+            if f"{it['topic']}|{it['meeting_speaker_id']}" in preds:
+                continue
+            if args.max_usd and tokens * args.rate / 1_000_000 >= args.max_usd:
+                stopped = f"budget ${args.max_usd}"
+                break
             topic = ss.TOPICS[it["topic"]]
             vid, txt, _ = texts.get(it["meeting_speaker_id"], (None, None, None))
             state = ss.build_state(txt or "", patterns[topic.slug])
             if not state or sha(state) != it["state_sha256"]:
                 logger.warning("{} {}: passage changed or missing; skipped", it["topic"], it["meeting_speaker_id"])
                 continue
-            r = ss.ask(client, speaker_id=it["meeting_speaker_id"], video_id=vid, topic=topic, state=state)
+            try:
+                r = ss.ask(client, speaker_id=it["meeting_speaker_id"], video_id=vid, topic=topic, state=state)
+            except JevError as exc:
+                if exc.status_code in ss.STOP_STATUSES:
+                    stopped = f"Jev {exc.status_code}"
+                    logger.error("Stopping cleanly: {} (rerun the same command after a top-up)", exc)
+                    break
+                logger.warning("{} {}: {}", it["topic"], it["meeting_speaker_id"], exc)
+                continue
             tokens += r.input_tokens or 0
             preds[f"{it['topic']}|{it['meeting_speaker_id']}"] = {
                 "side": r.side, "side_confidence": r.side_confidence, "side_probabilities": r.side_probabilities,
                 "heat": r.heat, "question_version": ss.question_version(topic), "input_tokens": r.input_tokens,
                 "input_chars": len(state),
             }
-    RESULTS_FILE.write_text(json.dumps({"model_versions": sorted({"jev"}), "input_tokens": tokens,
+    results_file.write_text(json.dumps({"model_versions": sorted({"jev"}), "input_tokens": tokens,
                                         "predictions": preds}, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    logger.success("Scored {} gold items, {:,} input tokens", len(preds), tokens)
+    logger.success("Scored {} gold items, {:,} input tokens; stopped: {}", len(preds), tokens, stopped)
     report(args)
 
 
 def report(args: argparse.Namespace) -> None:
-    preds = json.loads(RESULTS_FILE.read_text(encoding="utf-8"))["predictions"]
-    res = agreement(load_gold(), preds, min_confidence=ss.MIN_SIDE_CONFIDENCE)
+    gold_file = Path(getattr(args, "gold", "") or GOLD_FILE)
+    results_file = Path(getattr(args, "results", "") or RESULTS_FILE)
+    preds = json.loads(results_file.read_text(encoding="utf-8"))["predictions"]
+    res = agreement(load_gold(gold_file), preds, min_confidence=ss.MIN_SIDE_CONFIDENCE)
     print(json.dumps(res, indent=1, sort_keys=True))
 
 
@@ -211,6 +244,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     for name in ("score", "report"):
         q = sub.add_parser(name)
         q.add_argument("--database-url", default="")
+        q.add_argument("--gold", default="", help=f"gold file (default {GOLD_FILE.name}; round 2: {ROUND2_GOLD_FILE.name})")
+        q.add_argument("--results", default="", help=f"answers file (default {RESULTS_FILE.name})")
+        q.add_argument("--max-usd", type=float, default=0.5, help="score: stop once spend reaches this")
+        q.add_argument("--rate", type=float, default=0.0, help=argparse.SUPPRESS)
     args = p.parse_args(argv)
     {"sample": sample, "score": score, "report": report}[args.cmd](args)
     return 0
