@@ -1,3 +1,4 @@
+import { sumStances } from '../../utils/boxSplit'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -32,6 +33,7 @@ import { STANCE_ORDER, bandSides, speakersOf, stanceCount, type Stance, type Sta
 import { pickBoxQuote } from '../../utils/mapQuote'
 import { layoutHoverBadge } from '../../utils/mapHoverBadge'
 import { missingLegend, SPLIT_NOTE, type TopicPositions } from '../../utils/topicPositions'
+import { pickInsight, type InsightInput } from '../../utils/chartInsight'
 import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 
 export interface StateMarker {
@@ -109,6 +111,8 @@ interface Props {
    * Zoom to one state (#1285): the place the story speaks for is a state or a city in it. Only that state is drawn, on a
    * finer grid; `pin` marks the asked city at its real coordinates, and `note` says why there is no pin.
    */
+  /** Extra real findings for the title (#1409): timeline years, heat by year, the top concern. */
+  insightExtras?: Pick<InsightInput, 'years' | 'heatByYear' | 'concern'>
   zoom?: { stateCode: string; pin?: { name: string; lat: number; lon: number } | null; note?: string | null } | null
 }
 
@@ -220,7 +224,7 @@ interface Box {
  * the map (never over it), with the recording playing muted at the quoted moment (#1277); clicking opens that state's story. On a
  * phone there is no card: a tap opens the state's story at once. Nothing is drawn from a guess: no counts, no split.
  */
-export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions, cardSlot = null, zoom = null }: Props) {
+export default function StoryStatesMap({ byState, quotes, stance, highlight, href, subject = 'a data center', stanceUnit = 'speakers', positions, cardSlot = null, zoom = null, insightExtras }: Props) {
   const byMeetings = stanceUnit === 'meetings'
   // Topic words (#1200) only for an AI-read meeting split; the speaker map keeps its own words.
   const words = byMeetings ? positions : undefined
@@ -457,14 +461,26 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
     navigate(href(b.code), { state: DRILL_FROM_NATIONAL })
   }
 
-  // Title and key (#1409): what the map says from the real counts, and every colour it draws, from the palette constants.
+  // Title and key (#1409): the most impactful finding the real counts support (utils/chartInsight), the description as caption.
   const stateTotal = byState.reduce((a, r) => a + Math.max(0, r.meetings), 0)
   const topStates = [...byState].sort((a, b) => b.meetings - a.meetings).filter((r) => r.meetings > 0).slice(0, 2).map((r) => r.state ?? stateName(r.state_code))
-  const title = grid.zoomed && zoom
-    ? `Meetings where ${subject} came up in ${stateName(zoom.stateCode)}: ${fmt(meetings.get(zoom.stateCode) ?? 0)}`
-    : stateTotal > 0
-      ? `Meetings where ${subject} came up: ${fmt(stateTotal)} in ${plural(withMeetings, 'state', 'states')}${topStates.length > 1 ? `, most in ${topStates.join(' and ')}` : ''}`
-      : `Meetings where ${subject} came up, by state`
+  const subjectBare = subject.replace(/^an? /, '')
+  const subjectPlural = subject.startsWith('a ') ? `${subjectBare}s` : subjectBare
+  const officialsMeetings = (stance ?? []).reduce((a, st) => a + Math.max(0, st.disagreement_meetings ?? 0), 0)
+  const leanSum = sumStances(split)
+  const insight = pickInsight({
+    subject: subjectPlural,
+    place: grid.zoomed && zoom ? stateName(zoom.stateCode) : 'the United States',
+    totalMeetings: grid.zoomed && zoom ? meetings.get(zoom.stateCode) ?? 0 : stateTotal,
+    topPlaces: grid.zoomed ? [] : topStates,
+    years: insightExtras?.years,
+    heatByYear: insightExtras?.heatByYear,
+    concern: insightExtras?.concern,
+    officials: officialsMeetings > 0 ? { meetings: officialsMeetings } : undefined,
+    lean: split.length > 0 && !grid.zoomed ? { unit: byMeetings ? 'meetings' : 'speakers', against: leanSum.speakers_against, for: leanSum.speakers_for, other: leanSum.speakers_neutral + leanSum.speakers_question } : undefined,
+  })
+  const title = insight.kind === 'none' ? `Meetings where ${subject} came up, by state` : insight.title
+  const caption = grid.zoomed && zoom ? `Meetings where ${subject} came up in ${stateName(zoom.stateCode)}` : `Meetings where ${subject} came up, by state · ${plural(withMeetings, 'state', 'states')} with at least one`
   const legend: LegendItem[] = [
     ...(hasStance && split.length > 0
       ? LEGEND_STANCES.map((k) => ({ key: k, color: BOX_COLORS[k], label: words ? (k === 'neutral' ? words.split : words[k]) : (byMeetings ? AI_LEGEND_LABEL : LEGEND_LABEL)[k] }))
@@ -494,7 +510,7 @@ export default function StoryStatesMap({ byState, quotes, stance, highlight, hre
       }}
       {...keyNav.stageProps}
     >
-      <ChartFrame title={title} legend={legend}>
+      <ChartFrame title={title} titleSupport={insight.support} caption={insight.kind === 'none' ? undefined : caption} legend={legend}>
       <div style={{ position: 'relative' }}>
       {keyNav.sr}
       <svg

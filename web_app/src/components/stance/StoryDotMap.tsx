@@ -7,6 +7,7 @@ import { STATE_FIPS_TO_CODE } from '../../utils/stateFips'
 import { STATE_CODE_TO_NAME } from '../../utils/stateMapping'
 import { HOUSE_THEME } from '../../utils/houseTheme'
 import { excerptAroundMark } from '../../lib/highlight'
+import { pickInsight } from '../../utils/chartInsight'
 import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import QuoteCard from './QuoteCard'
 import { dataCenterQuoteNote } from '../../utils/topicPositions'
@@ -180,13 +181,17 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     .filter((o): o is { code: string; name: string } => !!o.code)
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  // Title and key (#1409): what the map says from the real counts, and each colour it draws.
+  // Title and key (#1409): the most impactful finding the real counts support, the description as caption.
   const total = listed.reduce((a, r) => a + Math.max(0, r.meetings), 0)
-  const topNames = listed.filter((r) => r.meetings > 0).slice(0, 2).map((r) => stateNameOf(r.state_code))
-  const title =
-    total > 0
-      ? `Meetings where a data center came up: ${fmt(total)} in ${fmt(listed.filter((r) => r.meetings > 0).length)} ${listed.filter((r) => r.meetings > 0).length === 1 ? 'state' : 'states'}${topNames.length > 1 ? `, most in ${topNames.join(' and ')}` : ''}${scopeStateCode ? ` · ${stateNameOf(scopeStateCode)} highlighted` : ''}`
-      : 'Meetings where a data center came up, by state · National'
+  const withMtgs = listed.filter((r) => r.meetings > 0)
+  const insight = pickInsight({
+    subject: 'data centers',
+    place: 'the United States',
+    totalMeetings: total,
+    topPlaces: withMtgs.slice(0, 2).map((r) => stateNameOf(r.state_code)),
+  })
+  const title = insight.kind === 'none' ? 'Meetings where a data center came up, by state · National' : insight.title
+  const caption = `Meetings where a data center came up, by state · National${scopeStateCode ? ` (${stateNameOf(scopeStateCode)} highlighted${scopeCity ? `, which contains ${scopeCity}` : ''})` : ''}`
   const legend: LegendItem[] = [
     max > 0
       ? min < max
@@ -211,6 +216,8 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     >
       <ChartFrame
         title={title}
+        titleSupport={insight.support}
+        caption={insight.kind === 'none' ? undefined : caption}
         legend={legend}
         headClassName="stance-map-head"
         controls={

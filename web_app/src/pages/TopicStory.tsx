@@ -406,6 +406,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
                 // Center Story. The state outline is kept only when none of its meetings can be placed.
                 <TopicCountyMap
                   topicId={def.topicId}
+                  topicSlug={def.slug}
                   stateCode={stateCode}
                   scopeCity={cityAsked}
                   scopeLabel={label}
