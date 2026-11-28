@@ -91,15 +91,16 @@ def to_record(attrs: dict[str, Any]) -> dict[str, Any]:
 
 
 def iter_pages(client: httpx.Client, limit: int | None):
-    offset = 0
+    last_id = 0  # keyset paging on OBJECTID: much faster on the service than resultOffset
+    fetched = 0
     while True:
         for attempt in range(6):
             try:
                 resp = client.get(
                     f"{SERVICE}/query",
                     params={
-                        "where": "1=1", "outFields": _FIELDS, "returnGeometry": "false",
-                        "orderByFields": "OBJECTID", "resultOffset": offset,
+                        "where": f"OBJECTID > {last_id}", "outFields": _FIELDS, "returnGeometry": "false",
+                        "orderByFields": "OBJECTID",
                         "resultRecordCount": PAGE, "f": "json",
                     },
                 )
@@ -109,16 +110,18 @@ def iter_pages(client: httpx.Client, limit: int | None):
                     raise RuntimeError(body["error"])
                 break
             except (httpx.HTTPError, RuntimeError) as exc:
-                logger.warning("page at offset {} failed ({}); attempt {}", offset, exc, attempt + 1)
+                logger.warning("page after OBJECTID {} failed ({}); attempt {}", last_id, exc, attempt + 1)
                 time.sleep(min(3 * 2**attempt, 60))
         else:
-            raise RuntimeError(f"HUD CDBG service failed at offset {offset}")
+            raise RuntimeError(f"HUD CDBG service failed after OBJECTID {last_id}")
         feats = body.get("features", [])
         if not feats:
             return
-        yield [to_record(f["attributes"]) for f in feats]
-        offset += len(feats)
-        if limit and offset >= limit:
+        rows = [to_record(f["attributes"]) for f in feats]
+        yield rows
+        last_id = max(r["objectid"] for r in rows)
+        fetched += len(rows)
+        if limit and fetched >= limit:
             return
         time.sleep(DELAY_S)
 
