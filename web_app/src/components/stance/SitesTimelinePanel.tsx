@@ -184,14 +184,14 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
   const presentPhases = PHASES.filter((p) => (res.years ?? []).some((y) => ((y[p] as number | undefined) ?? 0) > 0))
   const legend: LegendItem[] = (presentPhases.length ? presentPhases : PHASES).map((p) => ({
     key: p,
-    label: p === 'planned' ? `${PHASE_LABEL[p]} (outlined or hatched)` : PHASE_LABEL[p],
+    label: PHASE_LABEL[p],
     color: PHASE_COLOR[p],
     shape: p === 'planned' ? ('hatch' as const) : ('dot' as const),
   }))
   const plannedNow = (row?.planned as number | undefined) ?? 0
   const where = scopeLabel === 'National' ? 'nationwide' : `in ${scopeLabel}`
-  const mapTitle = `${fmt(atYear.length)} mapped data center ${atYear.length === 1 ? 'site' : 'sites'} on record ${where} by ${year}${plannedNow > 0 ? `; ${fmt(plannedNow)} still proposed` : ''}`
-  const stripTitle = `Dated data center sites ${where}, ${firstYear} to ${lastYear}: ${fmt(row?.total ?? 0)} by ${year}`
+  const mapTitle = `${fmt(atYear.length)} mapped ${atYear.length === 1 ? 'site' : 'sites'} ${where} by ${year}${plannedNow > 0 ? `, ${fmt(plannedNow)} proposed` : ''}`
+  const stripTitle = `${fmt(row?.total ?? 0)} dated sites by ${year}, ${firstYear} to ${lastYear}`
 
   return (
     <div className="dc-tl" data-display="animated" data-future={isFuture ? '' : undefined}>
