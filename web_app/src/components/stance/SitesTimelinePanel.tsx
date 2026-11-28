@@ -128,7 +128,11 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
       return s ? [{ ...p, phase: s.phase, isNew: s.isNew, undated: s.undated }] : []
     })
   }, [placed, inYear])
-  const legend = useMemo(() => frameLegend(inYear), [inYear])
+  // The legend counts what the map draws: a site with coordinates the map can't place (a territory) is "not mapped".
+  const legend = useMemo(() => {
+    const ids = new Set(placed.map((p) => p.site.data_center_site_id))
+    return frameLegend(inYear, (s) => ids.has(s.data_center_site_id))
+  }, [inYear, placed])
   const columns = useMemo(() => stripColumns(res), [res])
 
   const display = timelineDisplay(res)
@@ -286,7 +290,7 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
           )}
           {legend.notMapped > 0 && (
             <li data-key="not-mapped" data-count={legend.notMapped}>
-              Not mapped <strong>{fmt(legend.notMapped)}</strong>
+              Not mapped (no location, or a territory off this map) <strong>{fmt(legend.notMapped)}</strong>
             </li>
           )}
         </ul>
@@ -390,7 +394,7 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
       )}
 
       <p className="dc-tl-note" data-undated={row?.undated ?? 0}>
-        {[note, legend.notMapped > 0 ? `${fmt(legend.notMapped)} ${legend.notMapped === 1 ? 'site has' : 'sites have'} no map location and ${legend.notMapped === 1 ? 'is' : 'are'} counted only.` : null]
+        {[note, legend.notMapped > 0 ? `${fmt(legend.notMapped)} ${legend.notMapped === 1 ? 'site is' : 'sites are'} counted but not drawn (no location, or a territory off this map).` : null]
           .filter(Boolean)
           .join(' ')}{' '}
         Dashed outlines are proposed. Tap a site for its record.

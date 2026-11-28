@@ -79,18 +79,21 @@ export interface FrameLegend {
   mapped: number
   /** Of `mapped`: drawn as "start date not on record". */
   undatedMapped: number
-  /** Sites in the frame with no coordinates (counted, not drawn). */
+  /** Sites in the frame not drawn: no coordinates, or a point off the map (a territory outside the US map). */
   notMapped: number
 }
 
-/** The legend for a frame: phase counts of the mapped sites (summing to all mapped sites), plus the not-mapped line. */
-export function frameLegend(inYear: SiteInYear[]): FrameLegend {
+/**
+ * The legend for a frame: phase counts of the mapped sites (summing to all mapped sites), plus the not-mapped line.
+ * `isPlaced` says whether the map can draw a site (defaults to "has coordinates").
+ */
+export function frameLegend(inYear: SiteInYear[], isPlaced: (s: TimelineSite) => boolean = hasPoint): FrameLegend {
   const byPhase = Object.fromEntries(PHASES.map((p) => [p, 0])) as Record<Phase, number>
   let mapped = 0
   let undatedMapped = 0
   let notMapped = 0
   for (const s of inYear) {
-    if (!hasPoint(s.site)) {
+    if (!isPlaced(s.site)) {
       notMapped += 1
       continue
     }

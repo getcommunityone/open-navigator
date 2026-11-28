@@ -94,6 +94,10 @@ describe('the legend and strip count every site (#1428)', () => {
     expect(today.mapped + today.notMapped).toBe(ALL_RES.total)
     expect(today.undatedMapped).toBe(2)
     expect(frameLegend(sitesInYear(ALL, 2025, 2026)).undatedMapped).toBe(0)
+    // a site the map can't place (a territory off the US map) moves to "not mapped"; the sum still holds
+    const offMap = frameLegend(sitesInYear(ALL, 2026, 2026), (s) => s.latitude != null && s.data_center_site_id !== 'r5')
+    expect([offMap.mapped, offMap.notMapped, offMap.undatedMapped]).toEqual([5, 2, 1])
+    expect(PHASES.reduce((n, p) => n + offMap.byPhase[p], 0)).toBe(offMap.mapped)
   })
 
   it('splits each strip column into start-dated phases and the undated rest, summing to the API total', () => {

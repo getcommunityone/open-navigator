@@ -1,9 +1,10 @@
 // Over time: every data center site on the map (#1428, owner phone feedback: "Our map is missing those data centers").
 // At Pixel 7 and 1440x900, national and FL, it opens /stories/data-centers?screen=over-time with reduced motion (no
 // autoplay, so the map rests at today's frame) and checks against GET /api/data-centers/sites-timeline:
-//   - the legend's phase counts sum to its data-mapped, which equals the API's `mapped` (every site with coordinates);
-//   - the "Not mapped" line equals the API's `not_mapped`; the shapes drawn equal `mapped`;
-//   - the squares ("start date not on record") equal the mapped undated sites;
+//   - the legend's phase counts sum to its data-mapped, and the shapes drawn equal it;
+//   - mapped plus the "Not mapped" line equals the API's `total` (every site in scope), and "Not mapped" is the API's
+//     `not_mapped` plus only the sites in territories off the US map (PR, GU, MP, VI, ...);
+//   - the squares ("start date not on record") equal the legend's undated line and the undated sites drawn;
 //   - the headline names the API's total; the last (projected) frame still shows every mapped site.
 //
 //   node e2e/over-time-all-sites.check.mjs [--base http://localhost:5173] [--shots <dir>]
@@ -39,7 +40,10 @@ for (const size of SIZES) {
   for (const scope of SCOPES) {
     const page = await context.newPage()
     const api = await (await page.request.get(`${base}/api/data-centers/sites-timeline${scope.api}`, { timeout: 120_000 })).json()
-    const undatedMapped = api.sites.filter((s) => s.latitude != null && s.longitude != null && ['listed_by', 'none'].includes(s.appear_basis)).length
+    const OFF_MAP = new Set(['PR', 'GU', 'MP', 'VI', 'AS'])
+    const drawable = (s) => s.latitude != null && s.longitude != null && !OFF_MAP.has(s.state_code)
+    const expectMapped = api.sites.filter(drawable).length
+    const undatedMapped = api.sites.filter((s) => drawable(s) && ['listed_by', 'none'].includes(s.appear_basis)).length
     console.log(`\n${size.name} ${scope.name}: total ${api.total}, mapped ${api.mapped}, not mapped ${api.not_mapped}, undated ${api.undated}`)
     const sep = scope.path.includes('?') ? '&' : '?'
     await page.goto(`${base}${scope.path}${sep}screen=over-time`, { waitUntil: 'networkidle', timeout: 120_000 })
@@ -65,9 +69,10 @@ for (const size of SIZES) {
     let m = await read()
     check(m.year === api.current_year, `rests at today (${m.year})`)
     check(m.phaseSum === m.mapped, `legend phases sum to mapped (${fmt(m.phaseSum)} = ${fmt(m.mapped)})`)
-    check(m.mapped === api.mapped, `legend mapped equals API mapped (${fmt(m.mapped)})`)
-    check(m.notMapped === api.not_mapped, `not mapped line equals API (${m.notMapped})`)
-    check(m.shapes === api.mapped, `shapes drawn equal mapped (${fmt(m.shapes)})`)
+    check(m.mapped === expectMapped, `legend mapped equals the API's drawable sites (${fmt(m.mapped)} of ${fmt(api.mapped)} with coordinates)`)
+    check(m.mapped + m.notMapped === api.total, `mapped + not mapped = every site (${fmt(m.mapped)} + ${m.notMapped} = ${fmt(api.total)})`)
+    check(m.notMapped === api.not_mapped + (api.mapped - expectMapped), `not mapped = no coordinates ${api.not_mapped} + off-map territories ${api.mapped - expectMapped}`)
+    check(m.shapes === m.mapped, `shapes drawn equal mapped (${fmt(m.shapes)})`)
     check(m.squares === undatedMapped && m.squaresKey === undatedMapped, `squares equal mapped undated sites (${fmt(m.squares)})`)
     check(m.headline.includes(`${fmt(api.total)} data center site`), `headline names the total (${fmt(api.total)})`)
     if (shots) await page.screenshot({ path: `${shots}/over-time-${size.name}-${scope.name}-today.png` })
@@ -80,7 +85,7 @@ for (const size of SIZES) {
     }, api.last_year)
     await page.waitForTimeout(600)
     m = await read()
-    check(m.year === api.last_year && m.mapped === api.mapped && m.shapes === api.mapped, `last frame ${m.year} still shows every mapped site (${fmt(m.shapes)})`)
+    check(m.year === api.last_year && m.mapped === expectMapped && m.shapes === expectMapped, `last frame ${m.year} still shows every mapped site (${fmt(m.shapes)})`)
     if (shots) await page.screenshot({ path: `${shots}/over-time-${size.name}-${scope.name}-last.png` })
     await page.close()
   }
