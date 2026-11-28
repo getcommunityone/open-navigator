@@ -289,6 +289,9 @@ CIVIC_SERVING = frozenset(
         "data_center_comment_place",
         "segmented_meeting",
         "meeting_passage_speaker",
+        # Each public speaker's side and heat on a topic, read by a classifier from their own words (#1391): the
+        # caption facts' "speakers' own words" counts read it; slim projection without not_sure rows (~3 MB)
+        "meeting_speaker_topic_side",
         "data_center_project",
         "data_center_project_company",
         "data_center_project_jurisdiction",

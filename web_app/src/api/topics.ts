@@ -340,6 +340,18 @@ export interface TopicCaptionFacts {
   both_position_meetings?: number | null
   /** #1290: public comments from our own captions in scope (data centers only); their side isn't classified yet. */
   caption_comments?: { comments: number; governments: number } | null
+  /**
+   * #1391: public speakers in scope whose own words on the topic a classifier read with confidence (low-confidence readings
+   * are never served). A separate, labelled source ("speakers' own words, classifier"), never added to `speakers`.
+   */
+  classifier_speakers?: {
+    source: string
+    for: number
+    against: number
+    concerns_only: number
+    no_position: number
+    meetings: number
+  } | null
   /** AI readings (Jev) of meeting transcripts: never counted speakers. */
   lean_meetings: number | null
   public_against_meetings: number | null

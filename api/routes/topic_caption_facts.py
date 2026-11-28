@@ -103,6 +103,21 @@ class CaptionComments(BaseModel):
     governments: int = Field(0, description="Local governments those comments were made at.")
 
 
+class CaptionClassifierSpeakers(BaseModel):
+    """#1391: public speakers in scope whose OWN words on the topic a classifier (TypeSafe Jev) read with confidence
+    (``meeting_speaker_topic_side``, side_confidence at or above its floor; low-confidence readings are never served).
+    A separate, labelled source: never added to the hand-counted ``speakers``."""
+
+    source: str = Field("speakers' own words, classifier", description="The label the page shows for this source.")
+    for_: int = Field(0, alias="for")
+    against: int = 0
+    concerns_only: int = Field(0, description="Raised concerns or asked questions without taking a side.")
+    no_position: int = Field(0, description="Spoke on the topic but took no side and raised no concern.")
+    meetings: int = Field(0, description="Distinct meetings those speakers spoke at.")
+
+    model_config = {"populate_by_name": True}
+
+
 class CaptionWiderLean(BaseModel):
     """One broader scope's AI reading (#1182), so a place too thin for its own reading can name the scope the map colours."""
 
@@ -142,6 +157,9 @@ class TopicCaptionFacts(BaseModel):
     )
     caption_comments: CaptionComments | None = Field(
         None, description="#1290: public comments from our captions in scope (data centers only); null when not available."
+    )
+    classifier_speakers: CaptionClassifierSpeakers | None = Field(
+        None, description="#1391: speakers' own words read by a classifier, in scope; null when not available or none read."
     )
     lean_meetings: int | None = Field(None, description="Meetings in scope with an AI reading (Jev); null when none loaded.")
     public_against_meetings: int | None = Field(
@@ -266,6 +284,27 @@ CAPTION_COMMENTS_SQL = (
     "FROM data_center_comment c "
     "WHERE ($1::text IS NULL OR c.state_code = $1::text) AND ($2::text IS NULL OR c.jurisdiction_name ILIKE $2::text)"
 )
+
+CLASSIFIER_SPEAKERS_SQL = (
+    "SELECT count(*) FILTER (WHERE s.side = 'for')::int AS for_, count(*) FILTER (WHERE s.side = 'against')::int AS against, "
+    "count(*) FILTER (WHERE s.side = 'concerns_only')::int AS concerns_only, "
+    "count(*) FILTER (WHERE s.side = 'no_position')::int AS no_position, count(DISTINCT s.video_id)::int AS meetings "
+    "FROM meeting_speaker_topic_side s WHERE s.topic_id = $1::int AND s.side <> 'not_sure' "
+    "AND ($2::text IS NULL OR s.state_code = $2::text) AND ($3::text IS NULL OR s.jurisdiction_name ILIKE $3::text)"
+)
+
+
+def classifier_speakers(rows: list[Any] | None) -> CaptionClassifierSpeakers | None:
+    """The classifier speaker counts, or None when the mart isn't there or no speaker in scope was read."""
+    if not rows:
+        return None
+    r = dict(rows[0])
+    c = CaptionClassifierSpeakers(
+        for_=int(r.get("for_") or 0), against=int(r.get("against") or 0),
+        concerns_only=int(r.get("concerns_only") or 0), no_position=int(r.get("no_position") or 0),
+        meetings=int(r.get("meetings") or 0),
+    )
+    return c if (c.for_ + c.against + c.concerns_only + c.no_position) > 0 else None
 
 
 def vote_sides(rows: list[Any] | None, decisions: int) -> tuple[int | None, int | None]:
@@ -455,6 +494,9 @@ async def topic_caption_facts(
                     if is_dc
                     else None
                 )
+                clf_rows = await _optional(
+                    conn, "meeting_speaker_topic_side", CLASSIFIER_SPEAKERS_SQL, topic_id, state_code, city_like
+                )
                 lean_sql, lean_params = build_lean_sql(topic_id, state_code, city_like)
                 lean_rows = await _optional(conn, "meeting lean", lean_sql, *lean_params)
                 wider_rows: list[tuple[str, str | None, list[Any] | None]] = []
@@ -586,6 +628,7 @@ async def topic_caption_facts(
         speakers=speakers,
         votes=votes,
         caption_comments=caption_comments,
+        classifier_speakers=classifier_speakers(clf_rows),
         wider=wider,
         **lean,
     )

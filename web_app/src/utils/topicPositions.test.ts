@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { GENERIC_POSITIONS, MISSING_LEGEND, TOPIC_POSITIONS, dataCenterQuoteNote, missingLegend, positionVerdict, quoteStanceNote, topicPositions } from './topicPositions'
+import { GENERIC_POSITIONS, MISSING_LEGEND, TOPIC_POSITIONS, dataCenterQuoteNote, missingLegend, positionVerdict, quoteStanceNote, speakerSideLabel, topicPositions } from './topicPositions'
 
 // The Jev question definitions: the one source of which way "for" points per topic.
 const TOPIC_LEAN = readFileSync(resolve(__dirname, '../../../packages/llm/src/llm/typesafe/topic_lean.py'), 'utf8')
@@ -123,5 +123,37 @@ describe('map quote stance line (#1230)', () => {
     expect(dataCenterQuoteNote('mostly_supported')).toBeNull()
     expect(dataCenterQuoteNote('mixed')).toBeNull()
     expect(dataCenterQuoteNote(null)).toBeNull()
+  })
+})
+
+// #1391: every topic the speaker classifier reads (llm.typesafe.speaker_stance.TOPICS) has its own plain words.
+const SPEAKER_STANCE = readFileSync(resolve(__dirname, '../../../packages/llm/src/llm/typesafe/speaker_stance.py'), 'utf8')
+const SPEAKER_SLUGS = [...SPEAKER_STANCE.matchAll(/^ {4}"([a-z-]+)": (?:SpeakerTopic\(|_from_meeting\()/gm)].map((m) => m[1]!)
+
+describe('speaker side words (#1391)', () => {
+  it('has words for every topic the speaker classifier reads', () => {
+    expect(SPEAKER_SLUGS.length).toBe(19)
+    for (const slug of SPEAKER_SLUGS) {
+      const w = TOPIC_POSITIONS[slug]
+      expect(w, slug).toBeDefined()
+      expect(w!.for, slug).not.toBe(w!.against)
+      expect(w!.forMeans, slug).toMatch(/^(For = |Sanctuary limits = |Gun limits = )/)
+      for (const v of Object.values(w!)) expect(v, slug).not.toMatch(/leaned|lean against/i)
+    }
+  })
+
+  it('names sides for immigration so neither reads as "against immigrants"', () => {
+    const w = topicPositions('immigration-and-sanctuary')
+    expect(w.for).toBe('Favor sanctuary limits')
+    expect(w.against).toBe('Favor working with ICE')
+  })
+
+  it('labels one speaker in the topic words, and never counts concerns or low confidence as a side', () => {
+    expect(speakerSideLabel('data-centers', 'against')).toBe('Against data centers')
+    expect(speakerSideLabel('guns', 'for')).toBe('Favor gun limits')
+    expect(speakerSideLabel('zoning-regulations', 'for')).toBe('Want more homes allowed')
+    expect(speakerSideLabel('data-centers', 'concerns_only')).toBe('Concerns only')
+    expect(speakerSideLabel('data-centers', 'no_position')).toBe('No side taken')
+    expect(speakerSideLabel(null, 'not_sure')).toBe('Not sure')
   })
 })

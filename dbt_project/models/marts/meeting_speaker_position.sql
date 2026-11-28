@@ -68,7 +68,7 @@ select
     hh.heat::int                                                    as heat,
     hh.heat_method::text                                            as heat_method,
     hh.heat_confidence::numeric(3, 2)                               as heat_confidence,
-    (case when hh.heat is not null then '{{ var("heat_version") }}' end)::text as heat_version,
+    (case when hh.heat is not null then hh.heat_version end)::text as heat_version,
     q.stance_shape::text                                            as stance_shape,
     (case when sp.possible_minor or sp.name_withheld then null else q.shape_cue_text end)::text as shape_cue_text,
     (case when sp.possible_minor or sp.name_withheld then '{}'::text[] else q.cue_texts end)::text[] as cue_texts

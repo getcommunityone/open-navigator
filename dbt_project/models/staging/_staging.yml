@@ -2240,6 +2240,32 @@ sources:
           - name: meeting_kind_probabilities
           - name: screened_at
 
+      - name: bronze_speaker_topic_stance_jev
+        description: >
+          Jev (TypeSafe) reading of one public speaker's own words on one topic (#1391): side (for / against /
+          concerns_only / no_position / off_topic) and a 1-5 heat ladder. PK (meeting_speaker_id, topic_id,
+          question_version). Landed by ``python -m llm.typesafe.speaker_stance`` (CREATE_SQL defines these columns).
+          Probabilities only; no text; meeting_speaker_id is a hash. Until the first run creates the table,
+          stg_jev__speaker_topic_stance builds empty.
+        columns:
+          - name: meeting_speaker_id
+          - name: topic_id
+          - name: question_version
+          - name: video_id
+          - name: topic_slug
+          - name: model
+          - name: state_version
+          - name: side
+          - name: side_probabilities
+          - name: side_confidence
+          - name: heat
+          - name: heat_probabilities
+          - name: heat_confidence
+          - name: input_chars
+          - name: input_tokens
+          - name: answers
+          - name: screened_at
+
       - name: bronze_transcript_topic_lean_jev
         description: >
           Jev (TypeSafe) reading of how the public and the elected officials leaned on one topic in one meeting, and

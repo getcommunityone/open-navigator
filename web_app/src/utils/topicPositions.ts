@@ -140,9 +140,182 @@ export const TOPIC_POSITIONS: Record<string, TopicPositions> = {
     forTitle: 'mostly wants {T}',
     forMeans: 'For = building or keeping the lanes or paths',
   },
+  // speaker_stance (#1391): "for" = slowing traffic (speed humps, lower limits, cameras, crosswalks, stop signs).
+  'traffic-safety': {
+    against: 'Against the traffic changes',
+    for: 'Want traffic slowed',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against the traffic changes',
+    forVerb: 'wanted traffic slowed',
+    againstTitle: 'mostly opposes {T}',
+    forTitle: 'mostly wants {T}',
+    forMeans: 'For = speed humps, lower limits, speed or red-light cameras, crosswalks or stop signs; against = objecting to them',
+  },
+  // speaker_stance (#1391): "for" = more police funding, officers or pay; against = cutting or moving police money.
+  'police-staffing': {
+    against: 'Want less police funding',
+    for: 'Want more police funding',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'wanted less police funding',
+    forVerb: 'wanted more police funding',
+    againstTitle: 'mostly wants less {T}',
+    forTitle: 'mostly wants more {T}',
+    forMeans: 'For = more officers, a bigger police budget or higher pay; against = cutting or moving police money',
+  },
+  // speaker_stance (#1391): "for" = spending on parks and recreation (bonds, levies, renovations).
+  'parks-funding': {
+    against: 'Against the park spending',
+    for: 'For the park spending',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against the park spending',
+    forVerb: 'wanted the park spending',
+    againstTitle: 'mostly opposes {T}',
+    forTitle: 'mostly wants {T}',
+    forMeans: 'For = funding, building or fixing parks or recreation centers; against = objecting to the cost or the project',
+  },
+  // speaker_stance (#1391): "for" = shelters, services or housing for homeless people; against = objecting to a site or service.
+  'homelessness-and-shelters': {
+    against: 'Against the shelter or services',
+    for: 'For shelters and services',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against the shelter or services',
+    forVerb: 'wanted shelters and services',
+    againstTitle: 'mostly opposes {T}',
+    forTitle: 'mostly wants {T}',
+    forMeans: 'For = opening or funding a shelter, services or housing for homeless people; against = objecting to a site or service, or wanting camps cleared instead',
+  },
+  // speaker_stance (#1391): two named sides. "for" = limiting local help to immigration enforcement (sanctuary); against = working with ICE.
+  'immigration-and-sanctuary': {
+    against: 'Favor working with ICE',
+    for: 'Favor sanctuary limits',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'favored working with ICE',
+    forVerb: 'favored sanctuary limits',
+    againstTitle: 'mostly favors working with ICE on {T}',
+    forTitle: 'mostly favors sanctuary limits on {T}',
+    forMeans: 'Sanctuary limits = a local policy limiting help to federal immigration enforcement (refusing ICE detainers or 287(g)). Working with ICE = backing that cooperation or ending a sanctuary policy',
+  },
+  // speaker_stance (#1391): "for" = raising local taxes or fees (a levy, millage or sales tax increase).
+  'local-taxation': {
+    against: 'Against higher taxes',
+    for: 'For the tax or fee increase',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against higher taxes',
+    forVerb: 'backed the tax or fee increase',
+    againstTitle: 'mostly opposes higher {T}',
+    forTitle: 'mostly backs higher {T}',
+    forMeans: 'For = backing a levy, tax rate or fee increase; against = objecting to higher taxes or fees, or asking for a cut',
+  },
+  // speaker_stance (#1391): "for" = approving or funding an affordable housing project or policy.
+  'affordable-housing': {
+    against: 'Against the affordable housing',
+    for: 'For the affordable housing',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against the affordable housing',
+    forVerb: 'wanted the affordable housing',
+    againstTitle: 'mostly opposes {T}',
+    forTitle: 'mostly wants {T}',
+    forMeans: 'For = approving or funding low-income or workforce housing; against = objecting to a project near them',
+  },
+  // speaker_stance (#1391): "for" = rezoning to allow denser housing (apartments, townhomes, duplexes, ADUs).
+  'zoning-regulations': {
+    against: 'Against denser zoning',
+    for: 'Want more homes allowed',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against denser zoning',
+    forVerb: 'wanted more homes allowed',
+    againstTitle: 'mostly opposes denser {T}',
+    forTitle: 'mostly wants denser {T}',
+    forMeans: 'For = rezoning to allow apartments, townhomes, duplexes or more homes; against = objecting to density or a rezoning near them',
+  },
+  // speaker_stance (#1391): "for" = approving a local solar farm, wind project or battery site.
+  'renewable-energy': {
+    against: 'Against the solar or wind project',
+    for: 'For the solar or wind project',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against the solar or wind project',
+    forVerb: 'wanted the solar or wind project',
+    againstTitle: 'mostly opposes {T}',
+    forTitle: 'mostly wants {T}',
+    forMeans: 'For = backing a solar farm, wind project or battery site; against = objecting to one or asking for a pause',
+  },
+  // speaker_stance (#1391): "for" = more city security or surveillance cameras in public places.
+  'surveillance-cameras': {
+    against: 'Against more cameras',
+    for: 'For more cameras',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against more cameras',
+    forVerb: 'wanted more cameras',
+    againstTitle: 'mostly opposes {T}',
+    forTitle: 'mostly wants {T}',
+    forMeans: 'For = new or more public security cameras; against = privacy objections, or removing or limiting cameras',
+  },
+  // speaker_stance (#1391): "for" = more or better bus or rail service, or transit funding.
+  'public-transit': {
+    against: 'Against the transit plan',
+    for: 'Want more transit',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against the transit plan',
+    forVerb: 'wanted more transit',
+    againstTitle: 'mostly opposes {T}',
+    forTitle: 'mostly wants {T}',
+    forMeans: 'For = more bus routes, service, light rail or transit funding; against = objecting to a transit project, its cost or a stop near them',
+  },
+  // speaker_stance (#1391): "for" = approving a liquor license or allowing alcohol sales.
+  'alcohol-licensing': {
+    against: 'Against the liquor license',
+    for: 'For the liquor license',
+    split: SPLIT,
+    silent: SILENT,
+    unread: UNREAD,
+    againstVerb: 'were against the liquor license',
+    forVerb: 'backed the liquor license',
+    againstTitle: 'mostly opposes {T}',
+    forTitle: 'mostly wants {T}',
+    forMeans: 'For = backing a liquor license or alcohol sales; against = objecting to a bar, liquor store or sales near them',
+  },
 }
 // The home strip's Flock card shares the plate-reader topic.
 TOPIC_POSITIONS.flock = TOPIC_POSITIONS['license-plate-readers']!
+
+/** One public speaker's side on a topic (#1391, meeting_speaker_topic_side.side), read by a classifier from their own words. */
+export type SpeakerSide = 'for' | 'against' | 'concerns_only' | 'no_position' | 'not_sure'
+
+/**
+ * The words for one speaker's side in the topic's own terms: "for" and "against" reuse the topic's position words; a speaker
+ * who only raised concerns, took no side, or whose reading was under the confidence floor is said so plainly. Never counted
+ * for either side.
+ */
+export function speakerSideLabel(slug: string | null | undefined, side: SpeakerSide): string {
+  const w = topicPositions(slug)
+  if (side === 'for') return w.for
+  if (side === 'against') return w.against
+  if (side === 'concerns_only') return 'Concerns only'
+  if (side === 'no_position') return 'No side taken'
+  return 'Not sure'
+}
 
 /** Generic words for a topic with no entry (it has no AI reading question of its own). */
 export const GENERIC_POSITIONS: TopicPositions = {
