@@ -188,6 +188,9 @@ def main(argv: list[str] | None = None) -> int:
                     cx.execute(up_u, units[i:i + a.batch])
                 for i in range(0, len(emps), a.batch):
                     cx.execute(up_e, emps[i:i + a.batch])
+            with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as cx:
+                cx.execute(text(f"ANALYZE {UNIT_T}"))  # fresh stats keep the dbt match join on a hash plan
+                cx.execute(text(f"ANALYZE {EMP_T}"))
             logger.success("Loaded ASPEP {} into bronze", year)
     return 0
 
