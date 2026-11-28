@@ -190,4 +190,13 @@ scraper's existing curated rosters (Tuscaloosa, Northport, Boston, Kingsport) fl
 
 The API reads these through `public` (publish_public_serving). Nothing was written to Neon. When the owner publishes,
 the relations to add to the Neon set are `governing_body`, `meeting_body`, `body_membership` and
-`body_recent_speaker` (local sizes: 10,667, 168,227, 10,121 and 212 rows).
+`body_recent_speaker` (local sizes: 10,667, 168,227, 10,121 and 212 rows). They are on `CIVIC_SERVING` (#1486).
+
+### Slim `public.meeting_body` (#1486)
+
+The full 168,227-row mart (about 43 MB with indexes) stays in `gold`. `public.meeting_body` is a projection that does
+not fit the Neon budget as is, so it serves, per body, the latest 25 meetings from the last 12 months, and always the
+latest 1, so a quiet body is not empty. Seven columns only (`governing_body_id`, `meeting_body_id`, `meeting_title`,
+`meeting_date`, `video_id`, `video_url`, `event_meeting_id`); `video_url` is NULL when it is the plain YouTube watch link
+for `video_id` and the API rebuilds it. Totals live in `governing_body.meeting_count`, so the body page reads "showing
+the latest N of `meeting_count`". `GET /api/bodies/{id}?limit=` now defaults to 25 and caps at 25.

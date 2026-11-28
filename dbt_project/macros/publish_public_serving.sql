@@ -341,6 +341,9 @@
     * meeting_speaker_turn: nothing reads it, so it is not published (see `served`).
     * meeting_speaker_topic_side (#1391): only the counted columns the caption facts read (topic, place, side, heat);
       not_sure readings are never counted, so they stay in gold. -#}
+{#- meeting_body (#1486): gold keeps every matched meeting (168k rows); public serves, per body, the latest 25 meetings from the last 12 months (and always the latest 1, so a quiet body is
+    not empty) and only the seven columns api/routes/governing_bodies.py reads. video_url is NULL when it is the plain YouTube
+    watch link for video_id (the API rebuilds it). Totals per body stay in governing_body.meeting_count. -#}
 {#- trending_term (#1399): gold keeps every scope x term; public serves only is_served (the top
     trending_served_per_sort of each sort per scope) and only the columns api/routes/trending_terms.py reads; the
     evidence keeps its key but drops its title and video_url (every row is a YouTube recording; the API builds the link from video_id).
@@ -402,7 +405,14 @@
     'meeting_speaker_topic_side':
         'select meeting_speaker_id, topic_id, video_id, meeting_date, jurisdiction_id, jurisdiction_name, state_code, '
         'side, side_confidence, side_method, side_version, heat, heat_confidence '
-        'from gold.meeting_speaker_topic_side where side <> \'not_sure\''
+        'from gold.meeting_speaker_topic_side where side <> \'not_sure\'',
+    'meeting_body':
+        'select governing_body_id, meeting_body_id, meeting_title, meeting_date, video_id, '
+        'case when video_url = \'https://www.youtube.com/watch?v=\' || video_id then null else video_url end as video_url, '
+        'event_meeting_id '
+        'from (select mb.*, row_number() over (partition by governing_body_id '
+        'order by meeting_date desc nulls last, meeting_body_id) as rn from gold.meeting_body mb) r '
+        'where rn <= 25 and (rn <= 1 or meeting_date >= current_date - interval \'12 months\')'
 } -%}
 
 {#- ===================================================================
@@ -543,6 +553,10 @@ where exists (select 1 from kept_org_ids k where k.master_org_id = g.grantor_mas
     relies on them; a SELECT * view borrows gold's, but a standalone table must
     own its own. PK first (named *_pkey), then secondary / FTS / trigram. -#}
 {%- set table_indexes = {
+    'meeting_body': [
+        'create unique index if not exists meeting_body_pkey on public.meeting_body (meeting_body_id)',
+        'create index if not exists meeting_body_governing_body_idx on public.meeting_body (governing_body_id, meeting_date desc)'
+    ],
     'event': [
         'create unique index if not exists event_pkey on public.event (event_id)',
         "create index if not exists event_event_date_idx on public.event (event_date)",

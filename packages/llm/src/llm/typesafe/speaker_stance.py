@@ -545,11 +545,15 @@ PRIORITY: tuple[str, ...] = (
 )
 
 
+#: Coverage topics released from HELD after their gold check passed and their run was validated (#1486: battery-storage,
+#: 146 readings).
+RELEASED: frozenset[str] = frozenset({"battery-storage"})
+
 #: Topics whose gold check did not pass (speaker_stance_gold: too few clear items, or too many wrong sides served);
 #: ``--topic all`` skips them until more hand labels show they work. Named explicitly, they still run.
 HELD: frozenset[str] = frozenset({
     "bike-lanes", "local-taxation", "parks-funding", "public-transit", "traffic-safety", "zoning-regulations",
-    *NEW_TOPICS,
+    *(slug for slug in NEW_TOPICS if slug not in RELEASED),
 })
 
 
