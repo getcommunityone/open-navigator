@@ -233,3 +233,11 @@ heat is shown with its method and confidence and is not used to rank anything wi
 `gold.meeting_speaker_topic_side` holds 12,789 rows (3.5 MB); the public projection drops the 5,886 `not_sure` rows
 (6,903 rows). Publish with `--only meeting_speaker_topic_side meeting_speaker_position` (the second for the classifier
 heat); no other serving table changes.
+
+## Known limits
+
+- The current question version per topic is the one read most recently, so a reworded topic that is only part-way
+  re-read hides its older readings until the re-read finishes; finish a re-read before rebuilding the mart.
+- The curated ids 100010-100020 come from the warehouse's seed (the crime / parks / bike-lanes topic branches); `main`'s
+  seed file does not have them yet (#1401).
+- Six topics are held (#1402). Usage rows lost at container restarts: #1403.

@@ -143,6 +143,8 @@ export function publicPositionsLine(e: RecordedEvidence): string | null {
   return `Public: ${parts.map(([n, w]) => `${fmtN(n)} ${w}`).join(' · ')} (${meetings(total)})`
 }
 
+const lower = (w: string) => w.charAt(0).toLowerCase() + w.slice(1)
+
 /** The label for the classifier's source wherever its counts are shown (#1391). */
 export const CLASSIFIER_SOURCE = "Speakers' own words (classifier)"
 
@@ -158,8 +160,8 @@ export function speakersOwnWordsLine(e: RecordedEvidence, words?: { for: string;
   if (total <= 0) return null
   const parts = (
     [
-      [c.against, words ? words.against : 'against'],
-      [c.for, words ? words.for : 'for'],
+      [c.against, words ? lower(words.against) : 'against'],
+      [c.for, words ? lower(words.for) : 'for'],
       [c.concernsOnly, 'concerns only'],
     ] as [number, string][]
   ).filter(([n]) => n > 0)

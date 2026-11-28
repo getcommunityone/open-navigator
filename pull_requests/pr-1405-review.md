@@ -77,3 +77,16 @@ None from automated heuristics.
 ## Verdict
 
 **approve**
+
+## Reviewer pass (read-only subagent, verified)
+
+No Critical findings. Six Minor, verified and handled on the branch:
+
+1. Bike lanes id 100020 vs `main`'s seed (100007): verified in the warehouse (`public.civicsearch_topic` 100020 = Bike lanes, 100010-100019 present, built from the unmerged topic branches). Not changed here; tracked in #1401.
+2. A part-way re-read of a reworded topic hides older readings (current version = most recent): documented under Known limits on the decision page.
+3. Heat description named the wrong var: fixed (`speaker_heat_min_confidence`).
+4. `--limit` dry-run estimate used all to-do rows: fixed (estimate from the jobs kept).
+5. Non-Jev exceptions aborted the run: now counted as failed and retried next run.
+6. Capitalised topic words mid-line: lowercased in `speakersOwnWordsLine`.
+
+verdict stays: approve

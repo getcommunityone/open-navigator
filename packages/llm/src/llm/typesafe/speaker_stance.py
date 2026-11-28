@@ -755,7 +755,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         jobs = jobs[: args.limit]
     for slug, st in stats.items():
         st["est_usd_todo"] = round(estimate_usd(st["todo_chars"], st["todo"], rate), 4)
-    total_est = sum(st["est_usd_todo"] for st in stats.values())
+    total_est = estimate_usd(sum(len(j.state) for j in jobs), len(jobs), rate)
     order = [t.slug for t in ordered_topics(topics)]
     for slug in order:
         st = stats[slug]
@@ -793,6 +793,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                             continue
                         summary["failed"] += 1
                         logger.warning("{} {}: {}", j.topic.slug, j.meeting_speaker_id, exc)
+                        continue
+                    except Exception as exc:  # noqa: BLE001 - one bad answer never stops the run; it is retried next run
+                        summary["failed"] += 1
+                        logger.warning("{} {}: {!r}", j.topic.slug, j.meeting_speaker_id, exc)
                         continue
                     with conn.cursor() as cur:
                         cur.execute(UPSERT_SQL, reading.row())
