@@ -1,3 +1,4 @@
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { geoPath } from 'd3-geo'
@@ -120,9 +121,18 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
       ? `${s.state ?? STATE_CODE_TO_NAME[code] ?? code}: ${STATUS_LABEL[s.status].toLowerCase()} (${s.bills.toLocaleString('en-US')} bill${s.bills === 1 ? '' : 's'})`
       : `${STATE_CODE_TO_NAME[code] ?? code}: no bill in this view`
 
+  // Title and key (#1409): the takeaway from the real bill counts; the key uses the same fills the states are drawn with.
+  const furthest = STATUS_ORDER.find((st) => counts[st] > 0)
+  const frameTitle = `${billCount.toLocaleString('en-US')} state bill${billCount === 1 ? '' : 's'} on ${subject} in ${shades.length} state${shades.length === 1 ? '' : 's'}${
+    furthest && counts[furthest] > 0 ? `; ${counts[furthest]} ${counts[furthest] === 1 ? 'state' : 'states'} ${STATUS_LABEL[furthest].toLowerCase()}` : ''
+  } · ${periodLabel}`
+  const legend: LegendItem[] = [
+    ...STATUS_ORDER.map((st) => ({ key: st, label: `${STATUS_LABEL[st]} (${counts[st]})`, color: STATUS_FILL[st] })),
+    { key: 'none', label: 'No bill in this view', color: NO_BILL_FILL },
+  ]
+
   return (
     <div className="sc-block lm">
-      {title}
       <div className="sc-controls" role="group" aria-label="Which bills">
         <div className="lm-seg" role="group" aria-label="Period">
           {(['recent', 'all'] as const).map((p) => (
@@ -155,6 +165,7 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
         {category ? `, ${(cats.find((c) => c.category === category)?.label ?? category).toLowerCase()}` : ''}.
       </p>
 
+      <ChartFrame title={frameTitle} caption={`State bills on ${subject} by the furthest any bill got`} legend={legend}>
       <div className="lm-mapwrap">
         {topo.isError ? (
           <p className="sc-note">The map shapes could not be loaded; the state list below has every bill.</p>
@@ -195,19 +206,7 @@ export default function LegislationMap({ topic, stateCode, scopeLabel, subject }
           {hover ? describe(hoverShade, hover) : 'Tap or hover a state.'}
         </p>
       </div>
-
-      <ul className="lm-legend" aria-label="Legend: the furthest any bill in the state got">
-        {STATUS_ORDER.map((s) => (
-          <li key={s}>
-            <span className="lm-swatch" style={{ background: STATUS_FILL[s] }} aria-hidden="true" />
-            {STATUS_LABEL[s]} <span className="lm-count">{counts[s]}</span>
-          </li>
-        ))}
-        <li>
-          <span className="lm-swatch lm-swatch--none" style={{ background: NO_BILL_FILL }} aria-hidden="true" />
-          No bill in this view
-        </li>
-      </ul>
+      </ChartFrame>
 
       {openShade && (
         <StateBills topic={topic} shade={openShade} filter={filter} cats={q.data.categories} onClose={() => setPicked('none')} />

@@ -11,6 +11,8 @@ export interface LegendItem {
   color?: string
   /** `square` (default), `dot`, `ring` (a town on record), `hatch` (proposed), `ramp` (darker = more), `line`. */
   shape?: 'square' | 'dot' | 'ring' | 'hatch' | 'ramp' | 'line'
+  /** A class that colours the swatch (for marks coloured by a stylesheet class, e.g. `stance-swatch stance-dot--against`). */
+  className?: string
   /** The ramp's colours, light to dark (shape `ramp`). */
   ramp?: readonly string[]
 }
@@ -48,6 +50,7 @@ const SW = 9
 function Swatch({ item }: { item: LegendItem }) {
   const color = item.color ?? 'currentColor'
   const base: CSSProperties = { display: 'inline-block', flex: 'none', width: SW, height: SW }
+  if (item.className) return <span aria-hidden="true" className={item.className} style={{ ...base, background: item.color }} />
   switch (item.shape) {
     case 'dot':
       return <span aria-hidden="true" style={{ ...base, borderRadius: '50%', background: color }} />

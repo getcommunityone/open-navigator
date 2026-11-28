@@ -1,3 +1,4 @@
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -86,10 +87,23 @@ export function Dots({ spec }: { spec: DotsSpec }) {
     setRove(to)
     root.current?.querySelector<HTMLElement>(`[data-dot="${to}"]`)?.focus()
   }
+  // Title and key (#1409): the largest group as the takeaway when it is clear; each group's own colour in the key.
+  const sizeOf = (g: DotGroup) => g.total ?? g.shown
+  const whole = spec.grandTotal ?? spec.groups.reduce((a, g) => a + sizeOf(g), 0)
+  const topGroup = [...spec.groups].sort((a, b) => sizeOf(b) - sizeOf(a))[0]
+  const frameTitle =
+    topGroup && spec.groups.length > 1 && whole >= 5 && sizeOf(topGroup) / whole >= 0.4
+      ? `${spec.title}: ${topGroup.label} is the largest group, ${fmt(sizeOf(topGroup))} of ${fmt(whole)}`
+      : `${spec.title}: ${fmt(whole)} ${spec.unit}${whole === 1 ? '' : 's'}`
+  const legend: LegendItem[] = spec.groups.map((g, gi) => {
+    const look = dotLook(g, gi)
+    return { key: g.key, label: g.label, color: look.background, className: g.tone ? `stance-swatch${look.className}` : undefined }
+  })
   let n = -1
   const total = flat.length
   return (
     <>
+    <ChartFrame title={frameTitle} legend={legend} caption={spec.dotMeans}>
     <div className="stance-dots" ref={root} data-keys-own onKeyDown={onKey}>
       {spec.groups.map((g, gi) => {
         const look = dotLook(g, gi)
@@ -159,6 +173,7 @@ export function Dots({ spec }: { spec: DotsSpec }) {
         <p className="stance-note stance-hint-touch">{flat.some((x) => x.d.video) ? 'Tap a dot to play the meeting.' : 'Tap a dot to open it.'}</p>
       )}
     </div>
+    </ChartFrame>
     {/* Outside the dots' div: React portals bubble events up the React tree, so the dialog's keys must not reach the
         dots' arrow-key handler and move focus behind the dialog. */}
     <MeetingVideoModal video={playing?.video ?? null} onClose={closeVideo} />
