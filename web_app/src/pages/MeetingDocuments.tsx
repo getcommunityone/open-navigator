@@ -14,6 +14,7 @@ import {
   useDocumentViewer,
 } from '../components/DocumentViewerContext'
 import { useDocumentTitle } from '../utils/useDocumentTitle'
+import PlaceGovernance from '../components/bodies/PlaceGovernance'
 
 /**
  * Jurisdiction-scoped "Meeting Documents" browser.
@@ -217,7 +218,7 @@ function MeetingDocumentsInner({ jurisdictionId }: { jurisdictionId: string }) {
 
   return (
     <div className="min-h-screen page-bg">
-      <div className="mx-auto max-w-5xl px-6 py-8">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         {/* Header */}
         <div className="mb-6">
           <Link
@@ -240,6 +241,9 @@ function MeetingDocumentsInner({ jurisdictionId }: { jurisdictionId: string }) {
             </p>
           )}
         </div>
+
+        {/* Who governs the place and which officials were heard recently (#1446). */}
+        <PlaceGovernance jurisdictionId={jurisdictionId} />
 
         {/* Loading */}
         {isLoading && (

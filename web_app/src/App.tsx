@@ -57,6 +57,7 @@ import BillDetail from './pages/BillDetail'
 import GrantDetail from './pages/GrantDetail'
 import DecisionDetail from './pages/DecisionDetail'
 import MeetingDetail from './pages/MeetingDetail'
+import BodyDetail from './pages/BodyDetail'
 import MeetingDocuments from './pages/MeetingDocuments'
 import MeetingCompare from './pages/MeetingCompare'
 import EventBillDetail from './pages/EventBillDetail'
@@ -312,6 +313,7 @@ function App() {
         <Route path="efile990/:objectId" element={<Efile990Viewer />} />
         <Route path="decisions/:id" element={<DecisionDetail />} />
         <Route path="meetings/:id" element={<MeetingDetail />} />
+        <Route path="bodies/:bodyId" element={<BodyDetail />} />
         <Route path="jurisdiction/:jurisdictionId/meetings" element={<MeetingDocuments />} />
         <Route
           path="jurisdiction/:jurisdictionId/meetings/:eventMeetingId/compare"
