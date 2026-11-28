@@ -53,7 +53,7 @@ describe('groupRecords', () => {
     expect(g[0]!.tone).toBe('approved')
     expect(groupRecords(rs, 'side').map((x) => [x.label, x.count])).toEqual([
       ['Public mostly opposed', 1],
-      ['No side taken', 1],
+      ['Spoke, no side', 1],
       ['Not screened', 2],
     ])
   })

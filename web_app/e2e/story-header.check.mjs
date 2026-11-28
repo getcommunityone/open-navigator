@@ -1,6 +1,6 @@
 // Story header, summary and pager check (#1337). At 360x740 and 412x915, on a city that steps up to its state
 // (/stories/data-centers?state=AL&city=Tuscaloosa) it asserts: the headline and the scope note do not intersect; the note is
-// one short line with its full reason behind "Why?"; the sticky bar is at most 25% of the viewport; the first screen is the
+// one short line with its full reason behind "Why?"; the sticky bar is at most 18% of the viewport; the first screen is the
 // summary card; the pager reads "k of N · <screen word>" on every screen, and no screen's content runs under the bottom bar
 // (a screen taller than the space scrolls inside its own frame). Walks every screen with Next.
 //
@@ -38,7 +38,7 @@ for (const [w, h] of [[360, 740], [412, 915]]) {
   const lineH = await page.locator('.stance-top .stance-sentence').evaluate((e) => parseFloat(getComputedStyle(e).lineHeight))
   ok(head.height <= lineH * 3 + 48, `the headline takes at most about three lines (${Math.round(head.height)}px)`)
   const short = await page.locator('[data-testid="story-scope-short"]').innerText()
-  ok(/^Showing .+ · .+too few meetings/.test(short), `the note is one short line (${short})`)
+  ok(/^Showing [^·]+$/.test(short), `the note is one short line (${short})`)
   ok((await page.locator('[data-testid="story-scope-full"]').count()) === 0, 'the full reason is hidden until "Why?"')
   await page.locator('[data-testid="story-scope-why"]').click()
   ok((await page.locator('[data-testid="story-scope-full"]').count()) === 1, '"Why?" shows the full reason')
@@ -47,11 +47,11 @@ for (const [w, h] of [[360, 740], [412, 915]]) {
   ok(!intersects(await page.locator('.stance-top .stance-sentence').boundingBox(), noteOpen), 'the opened note does not overlap the headline')
   await page.locator('[data-testid="story-scope-why"]').click()
   const bar = await page.locator('.stance-top').boundingBox()
-  ok(bar.height <= h * 0.25, `the sticky bar is ${Math.round(bar.height)}px, at most 25% of ${h} (open: ${Math.round(open.height)}px)`)
+  ok(bar.height <= h * 0.18, `the sticky bar is ${Math.round(bar.height)}px, at most 18% of ${h} (open: ${Math.round(open.height)}px)`)
 
   ok(await page.locator('[data-testid="story-summary"]').isVisible(), 'the first screen is the summary card')
   const facts = await page.locator('[data-testid="story-summary"] li').count()
-  ok(facts >= 1 && facts <= 3, `the summary has ${facts} fact(s)`)
+  ok(facts >= 1 && facts <= 2, `the summary has ${facts} fact(s)`)
 
   // Every screen: the pager matches it, and its content stays above the bottom bar.
   const pager = page.locator('[data-testid="story-pager"]')

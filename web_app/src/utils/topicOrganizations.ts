@@ -33,11 +33,12 @@ export function noNonprofits(label: string): string {
 /** The screen's headline. */
 export function nonprofitsHeadline(d: TopicOrganizationsResponse | undefined, topic: string, label: string): string {
   if (!d) return `Who's working on ${topic}.`
-  if (d.total === 0) return noNonprofits(label)
+  if (d.total === 0)
+    return d.partial ? `None of ${label}'s nonprofits on record are among its state's strongest on ${topic}.` : noNonprofits(label)
   const where = label === 'National' ? '' : ` in ${label}`
   const named = d.counts?.named_in_meeting ?? 0
   const n = d.total
-  const lead = `${fmt(n)} ${n === 1 ? 'nonprofit' : 'nonprofits'}${where} on record working on ${topic}`
+  const lead = `${d.partial ? 'At least ' : ''}${fmt(n)} ${n === 1 ? 'nonprofit' : 'nonprofits'}${where} on record working on ${topic}`
   return named > 0 ? `${lead}; ${fmt(named)} named in a meeting on it.` : `${lead}.`
 }
 

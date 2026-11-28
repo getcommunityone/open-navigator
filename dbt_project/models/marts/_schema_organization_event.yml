@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: organization_event
+    description: >
+      Upcoming events nonprofits publish on their own websites (schema.org Event or iCal), one row per event (#1347).
+      Read with robots.txt honoured and an open-navigator User-Agent. Decision page:
+      web_docs/docs/development/organization-events.md.
+    config:
+      materialized: table
+      on_schema_change: fail
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [master_org_id]
+        to: ref('mdm_organization')
+        to_columns: [master_org_id]
+    columns:
+      - name: organization_event_id
+        description: "Primary key: the bronze event_key."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: master_org_id
+        description: "FK to mdm_organization: the host."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: ein
+        description: "Host's EIN."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: org_name
+        description: "Host's name."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: title
+        description: "The event's title as the site states it."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: event_date
+        description: "The day it starts."
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: event_time
+        description: "Start time when the source gives one."
+        data_type: text
+      - name: location
+        description: "Where, as the site says."
+        data_type: text
+      - name: event_url
+        description: "The event's page (or the page or feed it was read from)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_page_url
+        description: "The page or iCal feed the event was read from."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_format
+        description: "jsonld | ical."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['jsonld', 'ical']
+      - name: state_code
+        description: "Host's state code."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: state
+        description: "Host's state name."
+        data_type: text
+      - name: city
+        description: "Host's city."
+        data_type: text
+      - name: fetched_at
+        description: "When the site was read (freshness)."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null
+      - name: built_at
+        description: "When this mart was built."
+        data_type: timestamp with time zone
+        constraints:
+          - type: not_null

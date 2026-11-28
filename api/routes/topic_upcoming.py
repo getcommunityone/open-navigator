@@ -37,7 +37,7 @@ from api.routes.search_postgres import get_db_pool
 router = APIRouter(prefix="/api/topics", tags=["topics"])
 tracer = trace.get_tracer(__name__)
 
-KINDS = ("meeting", "hearing", "deadline", "bill_action")
+KINDS = ("meeting", "hearing", "deadline", "bill_action", "event")
 #: Most items one call returns.
 MAX_ITEMS = 50
 #: Still-open bills listed (the total is always given).
@@ -49,12 +49,14 @@ class UpcomingCounts(BaseModel):
     hearing: int = 0
     deadline: int = 0
     bill_action: int = 0
+    #: Events nonprofits tied to the topic publish on their own websites (#1347).
+    event: int = 0
 
 
 class UpcomingItem(BaseModel):
     upcoming_id: str
-    kind: str  # meeting | hearing | deadline | bill_action
-    match_basis: str  # agenda_text | official_notice | place_discussed_before
+    kind: str  # meeting | hearing | deadline | bill_action | event
+    match_basis: str  # agenda_text | official_notice | place_discussed_before | hosted_by_org
     date: str
     time: str | None = None
     jurisdiction_name: str | None = None
@@ -69,6 +71,9 @@ class UpcomingItem(BaseModel):
     prior_meeting_date: str | None = None
     prior_url: str | None = None
     tentative: bool = False
+    #: hosted_by_org: the nonprofit hosting the event (#1347).
+    host_org_name: str | None = None
+    host_master_org_id: str | None = None
 
 
 class PendingBill(BaseModel):
@@ -118,14 +123,14 @@ class TopicUpcoming(BaseModel):
 _ITEMS_SQL = """
     SELECT u.topic_upcoming_id, u.topic_id, u.kind, u.match_basis, u.item_date, u.item_time, u.jurisdiction_name,
            u.state_code, u.state, u.body_name, u.title, u.location, u.source_url, u.source_label, u.matched_text,
-           u.prior_meeting_date, u.prior_url, u.tentative
+           u.prior_meeting_date, u.prior_url, u.tentative, u.host_org_name, u.host_master_org_id
     FROM topic_upcoming u
     WHERE (u.topic_slug = $1::text OR u.topic_id::text = $1::text)
       AND u.item_date >= current_date
       AND ($2::text IS NULL OR u.state_code = $2::text)
       AND ($3::text IS NULL OR lower(u.jurisdiction_name) = lower($3::text))
-    ORDER BY u.item_date, array_position(ARRAY['hearing', 'deadline', 'bill_action', 'meeting'], u.kind),
-             array_position(ARRAY['official_notice', 'agenda_text', 'place_discussed_before'], u.match_basis),
+    ORDER BY u.item_date, array_position(ARRAY['hearing', 'deadline', 'bill_action', 'meeting', 'event'], u.kind),
+             array_position(ARRAY['official_notice', 'agenda_text', 'place_discussed_before', 'hosted_by_org'], u.match_basis),
              u.jurisdiction_name, u.topic_upcoming_id
     LIMIT $4
 """
@@ -172,6 +177,14 @@ _LATEST_ACTION_SQL = """
 """
 
 
+def _get(r: Any, key: str) -> Any:
+    """A column that older rows (or test doubles) may not carry."""
+    try:
+        return r[key]
+    except (KeyError, IndexError):
+        return None
+
+
 def _counts(rows: list[Any]) -> UpcomingCounts:
     c = UpcomingCounts()
     for r in rows:
@@ -181,7 +194,7 @@ def _counts(rows: list[Any]) -> UpcomingCounts:
 
 
 def _total(c: UpcomingCounts) -> int:
-    return c.meeting + c.hearing + c.deadline + c.bill_action
+    return c.meeting + c.hearing + c.deadline + c.bill_action + c.event
 
 
 def shape_items(rows: list[Any]) -> list[UpcomingItem]:
@@ -208,6 +221,8 @@ def shape_items(rows: list[Any]) -> list[UpcomingItem]:
                 prior_meeting_date=_iso(r["prior_meeting_date"]),
                 prior_url=r["prior_url"],
                 tentative=bool(r["tentative"]),
+                host_org_name=_get(r, "host_org_name"),
+                host_master_org_id=_get(r, "host_master_org_id"),
             )
         )
     return out

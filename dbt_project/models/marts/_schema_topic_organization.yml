@@ -115,7 +115,7 @@ models:
         description: "irs_990 | irs_bmf."
         data_type: text
       - name: website_url
-        description: "The organization's website, when known (#1347)."
+        description: "The website its latest Form 990 e-file names (WebsiteAddressTxt), when looked up (#1347)."
         data_type: text
       - name: built_at
         description: "When this mart was built (freshness)."

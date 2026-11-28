@@ -125,7 +125,7 @@ export function publicPositionsLine(e: RecordedEvidence): string | null {
   const parts = [
     [e.publicAgainst ?? 0, 'against'],
     [e.publicFor ?? 0, 'for'],
-    [e.publicSplit, 'split'],
+    [e.publicSplit, 'both sides spoke'],
   ].filter(([n]) => (n as number) > 0) as [number, string][]
   const total = parts.reduce((a, [n]) => a + n, 0)
   if (total === 0) return 'Public: took no side in the meetings read'

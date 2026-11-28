@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 interface Props {
-  /** One short muted line: "Showing Alabama · Tuscaloosa has too few meetings (2)". */
+  /** One short muted line: "Showing Alabama", then "Why?" for the reason. */
   short: string
   /** The full plain-words reason, behind "Why?". */
   full: string
@@ -19,6 +19,7 @@ export default function ScopeNote({ short, full, level }: Props) {
       <span className="story-scope-short" data-testid="story-scope-short">
         {short}
       </span>
+      <span aria-hidden="true"> · </span>
       <button type="button" className="folio-link-btn story-scope-why" data-testid="story-scope-why" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         Why?
       </button>

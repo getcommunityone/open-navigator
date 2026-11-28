@@ -21,12 +21,14 @@ export function upcomingKindLabel(i: Pick<UpcomingItem, 'kind' | 'match_basis'>)
   if (i.kind === 'hearing') return 'Public hearing'
   if (i.kind === 'deadline') return 'Comment deadline'
   if (i.kind === 'bill_action') return 'Bill action'
+  if (i.kind === 'event') return 'Nonprofit event'
   return i.match_basis === 'agenda_text' ? 'On the agenda' : 'Scheduled meeting'
 }
 
 /** Why it is listed: the reader must see the evidence's basis, never just a date. */
 export function upcomingBasisNote(i: UpcomingItem, topic: string): string {
   if (i.match_basis === 'agenda_text') return `The posted agenda names ${topic}.`
+  if (i.match_basis === 'hosted_by_org') return `Hosted by ${i.host_org_name ?? 'a nonprofit'}, tied to ${topic} by its own record:`
   if (i.match_basis === 'official_notice') return `The official notice lists it${i.tentative ? ' (the date is tentative)' : ''}.`
   const when = upcomingDate(i.prior_meeting_date)
   return `Agenda not posted yet. ${i.jurisdiction_name ?? 'This government'} discussed ${topic}${when ? ` on ${when}` : ''}:`
@@ -45,7 +47,9 @@ export function upcomingHeadline(d: TopicUpcomingResponse | undefined, topic: st
     const first = d.items[0]
     const soon = first ? upcomingDate(first.date, false) : null
     const n = d.total
-    return `${fmt(n)} ${n === 1 ? 'meeting or hearing' : 'meetings and hearings'} on the calendar${where} where ${topic} could come up${soon ? `, the next on ${soon}` : ''}.`
+    const events = d.counts?.event ?? 0
+    const what = events > 0 ? (n === 1 ? 'meeting, hearing or event' : 'meetings, hearings and events') : n === 1 ? 'meeting or hearing' : 'meetings and hearings'
+    return `${fmt(n)} ${what} on the calendar${where} where ${topic} could come up${soon ? `, the next on ${soon}` : ''}.`
   }
   const bills = d.pending_bills.total
   if (bills > 0) {

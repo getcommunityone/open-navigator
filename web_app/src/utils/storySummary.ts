@@ -29,3 +29,34 @@ export function summaryFacts(stats: StoryStat[], positions: DataCenterPositionsR
   }
   return out.slice(0, 3)
 }
+
+/** One figure of the phone Overview's stat row (#1380): the number big, a short label under it. */
+export interface SummaryStat {
+  value: string
+  label: string
+}
+
+/**
+ * The phone Overview's stat row: at most two real figures, the number and a small label. The meeting count first; then
+ * the recorded official votes, else the people who spoke. A figure whose data is missing is left out; nothing is filled in.
+ */
+export function summaryStats(stats: StoryStat[], positions: DataCenterPositionsResponse | null | undefined, scope: StoryScope, subject = 'data centers'): SummaryStat[] {
+  const out: SummaryStat[] = []
+  const place = scope.stateName ? storyScopeLabel(scope) : 'the United States'
+  const meetings = stats.find((s) => s.key === 'meetings')?.value
+  if (meetings) out.push({ value: n(meetings), label: `${meetings === 1 ? 'meeting' : 'meetings'} in ${place} mentioned ${subject}` })
+  const fig = positionFigures(positions, scope)
+  if (fig) {
+    const v = (k: string) => fig.find((f) => f.key === k)?.value ?? null
+    const vf = v('votes_for')
+    const va = v('votes_against')
+    if (vf != null && va != null) out.push({ value: `${n(vf)}–${n(va)}`, label: 'recorded votes by officials, for–against' })
+    else {
+      const f = v('for')
+      const a = v('against')
+      const q = v('question')
+      if (f != null && a != null && q != null && f + a + q > 0) out.push({ value: n(f + a + q), label: `${f + a + q === 1 ? 'person' : 'people'} spoke on it` })
+    }
+  }
+  return out.slice(0, 2)
+}

@@ -120,7 +120,7 @@ def test_items_counts_and_evidence(monkeypatch) -> None:
     body = r.json()
     assert body["available"] is True and body["topic_id"] == 100001
     assert body["state_code"] == "GA" and body["state"] == "Georgia"
-    assert body["total"] == 6 and body["counts"] == {"meeting": 5, "hearing": 1, "deadline": 0, "bill_action": 0}
+    assert body["total"] == 6 and body["counts"] == {"meeting": 5, "hearing": 1, "deadline": 0, "bill_action": 0, "event": 0}
     assert [i["upcoming_id"] for i in body["items"]] == ["u1", "u2"]
     assert body["items"][0]["date"] == "2026-12-15" and body["items"][0]["state"] == "Georgia"
     assert body["items"][0]["tentative"] is True
@@ -129,6 +129,21 @@ def test_items_counts_and_evidence(monkeypatch) -> None:
     assert body["last_updated"].startswith("2026-11-25")
     _, params = next(c for c in conn.calls if c[0] is topic_upcoming._ITEMS_SQL)
     assert params == ("data-centers", "GA", None, 12)
+
+
+def test_hosted_by_org_event(monkeypatch) -> None:
+    conn = _Conn(
+        counts=[_count("event", 1)],
+        items=[_item(topic_upcoming_id="e1", kind="event", match_basis="hosted_by_org", source_label="Event page",
+                     source_url="https://www.example.org/events/town-hall", body_name=None,
+                     title="Town hall on water", matched_text="to improve <mark>oral health</mark>",
+                     host_org_name="Georgia Oral Health Coalition", host_master_org_id="m1")],
+    )
+    body = _get(monkeypatch, conn, "/api/topics/water-fluoridation/upcoming", {"state": "GA"}).json()
+    assert body["counts"]["event"] == 1 and body["total"] == 1
+    item = body["items"][0]
+    assert item["kind"] == "event" and item["match_basis"] == "hosted_by_org"
+    assert item["host_org_name"] == "Georgia Oral Health Coalition" and item["host_master_org_id"] == "m1"
 
 
 def test_empty_state_offers_national(monkeypatch) -> None:

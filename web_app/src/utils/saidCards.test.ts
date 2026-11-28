@@ -47,7 +47,7 @@ describe('saidSummary', () => {
   })
   it('lists the sides it has', () => {
     const line = saidSummary('guns', 10, { ...counts, against: 2, for: 3, split: 1, public_position_meetings: 6, vote_advanced: 0, with_person: 4, in_passing: 2 })
-    expect(line).toContain('the public took a position at 6 (2 favor gun rights, 3 favor gun limits, 1 split)')
+    expect(line).toContain('the public took a position at 6 (2 favor gun rights, 3 favor gun limits, both sides spoke at 1)')
     expect(line).toContain('At 4, the record names who spoke.')
   })
   it('is null without counts', () => {

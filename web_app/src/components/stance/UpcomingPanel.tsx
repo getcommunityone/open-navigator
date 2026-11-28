@@ -108,8 +108,23 @@ export default function UpcomingPanel({ topic, stateCode, city, scopeLabel, subj
                       </a>
                     )}
                   </blockquote>
+                  {i.match_basis === 'hosted_by_org' && i.host_org_name && (
+                    <p className="up-meta">
+                      Hosted by{' '}
+                      {i.host_master_org_id ? (
+                        <Link to={`/organizations/${encodeURIComponent(i.host_master_org_id)}`}>{i.host_org_name}</Link>
+                      ) : (
+                        i.host_org_name
+                      )}
+                    </p>
+                  )}
                   <a className="up-go" href={i.source_url} target="_blank" rel="noopener noreferrer">
-                    {i.source_label === 'Livestream' ? 'Watch or attend: livestream' : `Take part: ${i.source_label.toLowerCase()}`} →
+                    {i.source_label === 'Livestream'
+                      ? 'Watch or attend: livestream'
+                      : i.match_basis === 'hosted_by_org'
+                        ? "Details: the host's event page"
+                        : `Take part: ${i.source_label.toLowerCase()}`}{' '}
+                    →
                   </a>
                 </div>
               </li>
@@ -159,7 +174,7 @@ export default function UpcomingPanel({ topic, stateCode, city, scopeLabel, subj
       <p className="sc-note">
         Only items with a real date from {upcomingDate(d.as_of)} on. A meeting is listed when its posted agenda names the
         topic, an official notice lists a hearing, or the same government discussed it in a recorded meeting in the last two
-        years (its agenda isn&apos;t posted yet). Bills show their last recorded action
+        years (its agenda isn&apos;t posted yet). A nonprofit event is one a nonprofit tied to the topic publishes on its own website. Bills show their last recorded action
         {bills.latest_action_seen ? `; the newest action in our copy is from ${upcomingDate(bills.latest_action_seen)}` : ''}.
         {d.last_updated ? ` Calendars last checked ${upcomingDate(d.last_updated.slice(0, 10))}.` : ''}
       </p>

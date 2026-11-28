@@ -2,31 +2,30 @@
 # Do not edit by hand: change the schema.yml, then regenerate.
 apiVersion: v3.1.0
 kind: DataContract
-id: open-navigator-public-topic_organization
-name: topic_organization
+id: open-navigator-public-topic_organization_serving
+name: topic_organization_serving
 version: 1.0.0
 status: active
 dataProduct: open-navigator-public-api
 description:
-  purpose: The columns, keys and quality rules the Open Navigator public API relies on in `public.topic_organization`.
+  purpose: The columns, keys and quality rules the Open Navigator public API relies on in `public.topic_organization_serving`.
   usage: Read by the Open Navigator public API from the `public` schema, where the publish_public_serving dbt macro publishes it (by default as a view over gold).
   limitations: 'Structure only: no row counts, freshness or service levels. Describes the relation as publish_public_serving builds it by default; with the public_serving_launch_scope var on, rows may be limited to the launch jurisdictions.'
 tags:
 - open-navigator
 - public-api
 schema:
-- id: topic_organization
-  name: topic_organization
-  physicalName: public.topic_organization
+- id: topic_organization_serving
+  name: topic_organization_serving
+  physicalName: public.topic_organization_serving
   logicalType: object
-  description: 'The nonprofits tied to each curated topic (#1345). One row per (topic_id, master_org_id), with the strongest evidence (named in one of the topic''s meetings in its state, a 990 mission or name naming the topic, or an IRS NTEE category in the topic''s field). Rule and precision notes: web_docs/docs/development/topic-organizations.md.'
-  dataGranularityDescription: One row per (topic_id, master_org_id), with the strongest evidence (named in one of the topic's meetings in its state, a 990 mission or name naming the topic, or an IRS NTEE category in the topic's field).
+  description: 'The served slice of topic_organization (#1382): the 20 strongest nonprofits per topic and state plus every one named in a meeting, with only the columns the Nonprofits screen and API read. The full mart stays in gold.'
   properties:
   - id: topic_organization_id
     name: topic_organization_id
     logicalType: string
     physicalType: text
-    description: 'Primary key: md5(topic_id | master_org_id).'
+    description: 'Primary key: md5(topic_id | master_org_id), as in topic_organization.'
     required: true
     unique: true
     primaryKey: true
@@ -55,7 +54,7 @@ schema:
     name: topic_slug
     logicalType: string
     physicalType: text
-    description: The topic's slug (civicsearch_topic.query_id).
+    description: Topic slug.
     required: true
   - id: master_org_id
     name: master_org_id
@@ -66,127 +65,83 @@ schema:
     relationships:
     - type: foreignKey
       to: mdm_organization.odcs.yaml#/schema/mdm_organization/properties/master_org_id
-  - id: ein
-    name: ein
-    logicalType: string
-    physicalType: text
-    description: IRS EIN.
   - id: org_name
     name: org_name
     logicalType: string
     physicalType: text
-    description: The organization's name as the IRS records it.
+    description: Name.
     required: true
   - id: city
     name: city
     logicalType: string
     physicalType: text
-    description: City (mdm_organization.city_norm, lower case).
+    description: City (lower case).
   - id: state_code
     name: state_code
     logicalType: string
     physicalType: text
     description: 2-letter state code.
     required: true
-  - id: state
-    name: state
-    logicalType: string
-    physicalType: text
-    description: Full state name.
   - id: match_method
     name: match_method
     logicalType: string
     physicalType: text
-    description: 'The strongest tie: named_in_meeting | keyword_in_mission | keyword_in_name | ntee_code (cause_tag reserved).'
-    required: true
-    quality:
-    - type: library
-      metric: invalidValues
-      arguments:
-        validValues:
-        - named_in_meeting
-        - keyword_in_mission
-        - keyword_in_name
-        - ntee_code
-        - cause_tag
-      mustBe: 0
-      dimension: conformity
-      severity: error
-  - id: match_methods
-    name: match_methods
-    logicalType: array
-    physicalType: text[]
-    description: Every method that tied it.
+    description: Strongest tie.
     required: true
   - id: evidence_rank
     name: evidence_rank
     logicalType: integer
     physicalType: integer
-    description: 1 named in a meeting, 2 mission, 3 name, 4 IRS category. Lower is stronger.
+    description: 1 named in a meeting .. 4 IRS category.
     required: true
   - id: match_text
     name: match_text
     logicalType: string
     physicalType: text
-    description: 'The evidence: the meeting passage or mission with the matched words in <mark>, the name, or the NTEE category label.'
-  - id: match_video_id
-    name: match_video_id
-    logicalType: string
-    physicalType: text
-    description: 'named_in_meeting: the meeting''s video id.'
+    description: Evidence, at most 280 characters, marks kept whole.
   - id: match_source_url
     name: match_source_url
     logicalType: string
     physicalType: text
-    description: 'named_in_meeting: the meeting''s recording.'
+    description: 'named_in_meeting: the recording.'
   - id: match_date
     name: match_date
     logicalType: date
     physicalType: date
-    description: 'named_in_meeting: the meeting''s date.'
+    description: 'named_in_meeting: the meeting date.'
   - id: match_place
     name: match_place
     logicalType: string
     physicalType: text
-    description: 'named_in_meeting: the government that held the meeting.'
-  - id: ntee_code
-    name: ntee_code
-    logicalType: string
-    physicalType: text
-    description: IRS NTEE code.
+    description: 'named_in_meeting: the government.'
   - id: mission
     name: mission
     logicalType: string
     physicalType: text
-    description: Latest Form 990 mission (first 400 characters), when filed.
+    description: 990 mission, at most 100 characters.
   - id: side
     name: side
     logicalType: string
     physicalType: text
-    description: A position only when a rule's stated words say it (e.g. gun rights, gun violence prevention); else null.
+    description: Stated side only, else null.
   - id: revenue
     name: revenue
     logicalType: integer
     physicalType: bigint
-    description: 'Latest total revenue: 990 (GivingTuesday) or else the IRS Business Master File.'
+    description: Latest 990 or IRS revenue.
   - id: revenue_tax_year
     name: revenue_tax_year
     logicalType: integer
     physicalType: integer
-    description: Tax year of revenue.
-  - id: revenue_source
-    name: revenue_source
-    logicalType: string
-    physicalType: text
-    description: irs_990 | irs_bmf.
+    description: Its tax year.
   - id: website_url
     name: website_url
     logicalType: string
     physicalType: text
-    description: The organization's website, when known (#1347).
+    description: Website from the 990 e-file.
   - id: built_at
     name: built_at
     logicalType: timestamp
     physicalType: timestamp with time zone
-    description: When this mart was built (freshness).
+    description: Build time.
     required: true
