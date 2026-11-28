@@ -166,6 +166,7 @@ function RouteChangeTracer() {
 const DataStory = lazy(() => import('./pages/DataStory'))
 const TopicStory = lazy(() => import('./pages/TopicStory'))
 const BrowseAllTopics = lazy(() => import('./pages/BrowseAllTopics'))
+const WhereTownsStand = lazy(() => import('./pages/WhereTownsStand'))
 const OrganizationPage = lazy(() => import('./pages/OrganizationPage'))
 const DataStories = lazy(() => import('./pages/DataStories'))
 
@@ -232,6 +233,15 @@ function App() {
           element={
             <LazyRouteBoundary name="Browse all topics">
               <BrowseAllTopics />
+            </LazyRouteBoundary>
+          }
+        />
+        {/* Where towns stand: per place and topic, how public speakers leaned (#1438). */}
+        <Route
+          path="where-towns-stand"
+          element={
+            <LazyRouteBoundary name="Where towns stand">
+              <WhereTownsStand />
             </LazyRouteBoundary>
           }
         />
