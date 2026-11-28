@@ -2112,6 +2112,15 @@ sources:
         columns:
           - name: portal
           - name: status
+      - name: bronze_meeting_official_mention
+        description: >
+          #1444: moments a roster member of the meeting's place is called on by the chair, answers a roll call or names
+          themself, found by `python -m ingestion.youtube.official_mentions` (regex over captions, no model). One row
+          per (video_id, char_offset, member_name_key). Only names on the place's roster can match.
+        columns:
+          - name: video_id
+          - name: member_name_key
+          - name: pattern_id
       - name: bronze_events_analysis_ai
         config:
           # Freshness (context-engineering.md, principle 5): `dbt source freshness`

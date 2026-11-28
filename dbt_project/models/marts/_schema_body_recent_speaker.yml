@@ -1,0 +1,90 @@
+version: 2
+
+# #1444: officials heard most recently per body. Design: web_docs/docs/development/governing-bodies.md
+
+models:
+  - name: body_recent_speaker
+    description: >
+      One row per governing body x member heard in that body's meetings in the last 18 months: a roster member
+      called on by the chair, answering a roll call or naming themself (bronze_meeting_official_mention), or an
+      official self-introduction matched to our officials (meeting_speaker_intro). Only body_membership rows can
+      appear; residents never do.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [governing_body_id]
+        to: ref('governing_body')
+        to_columns: [governing_body_id]
+      - type: foreign_key
+        columns: [body_membership_id]
+        to: ref('body_membership')
+        to_columns: [body_membership_id]
+      - type: foreign_key
+        columns: [person_id]
+        to: ref('person_government')
+        to_columns: [person_id]
+    columns:
+      - name: body_recent_speaker_id
+        description: "Primary key: md5(governing_body_id | body_membership_id)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: governing_body_id
+        description: "FK to governing_body: the body whose meeting the member was heard in."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: body_membership_id
+        description: "FK to body_membership: the member's seat (their primary body's seat when they have one)."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('body_membership')
+                field: body_membership_id
+      - name: person_id
+        description: "FK to person_government when we hold an official row for the member."
+        data_type: text
+      - name: member_name
+        description: "The member's roster name."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: role
+        description: "The member's role on their seat (body_membership.role)."
+        data_type: text
+      - name: meetings_heard
+        description: "Distinct meetings of this body in the window where the member was heard."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: mentions
+        description: "Moments of evidence in the window."
+        data_type: integer
+        constraints:
+          - type: not_null
+      - name: last_heard_date
+        description: "Date of the latest meeting the member was heard in."
+        data_type: date
+      - name: last_video_id
+        description: "YouTube id of that meeting."
+        data_type: text
+      - name: last_start_seconds
+        description: "Seconds into that recording of the latest evidence."
+        data_type: numeric(10,3)
+      - name: last_moment_url
+        description: "YouTube link at that moment (3 seconds early), when the moment has a time."
+        data_type: text
+      - name: attribution_method
+        description: "How the latest moment was found: chair_call | roll_call | self_intro | official_roster_match"
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['chair_call', 'roll_call', 'self_intro', 'official_roster_match']
