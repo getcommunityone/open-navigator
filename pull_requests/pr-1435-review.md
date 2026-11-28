@@ -1,9 +1,9 @@
 ---
-pr: 1434
+pr: 1435
 verdict: approve
 ---
 
-# Review of PR 1434
+# Review of PR 1435
 
 Scope: `.gitattributes`, `web_docs/docusaurus.config.ts`, `web_docs/src/css/custom.css`, new `web_docs/static/img/favicon.svg`.
 
