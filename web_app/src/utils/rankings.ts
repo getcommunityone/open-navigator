@@ -40,6 +40,9 @@ export function summarize(places: RankingPlace[]): Summary {
 export function takeaway(name: string, ranked: number, against: number, forCount: number): string {
   const t = topicPhrase(name)
   if (ranked <= 0) return `Too few speakers to rank any place yet on ${t}`
+  const places = ranked === 1 ? 'place' : 'places'
+  if (against === ranked) return `${ranked === 1 ? 'The one ranked place' : `All ${ranked} ranked ${places}`} that discussed ${t} leaned against`
+  if (forCount === ranked) return `${ranked === 1 ? 'The one ranked place' : `All ${ranked} ranked ${places}`} that discussed ${t} leaned for`
   if (against > forCount) return `Most places that discussed ${t} leaned against: ${against} of ${ranked}`
   if (forCount > against) return `Most places that discussed ${t} leaned for: ${forCount} of ${ranked}`
   return `Places were split on ${t}: ${against} leaned against and ${forCount} leaned for, of ${ranked}`

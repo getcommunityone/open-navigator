@@ -14,6 +14,8 @@ describe('takeaway', () => {
     expect(takeaway('Data centers', 31, 23, 8)).toBe('Most places that discussed data centers leaned against: 23 of 31')
     expect(takeaway('Short-term rentals', 10, 3, 7)).toBe('Most places that discussed short-term rentals leaned for: 7 of 10')
     expect(takeaway('Data centers', 10, 5, 5)).toMatch(/^Places were split on data centers/)
+    expect(takeaway('Data centers', 23, 23, 0)).toBe('All 23 ranked places that discussed data centers leaned against')
+    expect(takeaway('Guns', 1, 0, 1)).toBe('The one ranked place that discussed guns leaned for')
     expect(takeaway('Data centers', 0, 0, 0)).toBe('Too few speakers to rank any place yet on data centers')
   })
   it('keeps names with their own capitals', () => {
