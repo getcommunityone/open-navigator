@@ -610,3 +610,13 @@ outputPorts:
   contractId: open-navigator-public-topic_place_ranking
   type: table
   description: 'One row per place x topic x window (#1437): where a place''s public speakers stood on a topic, from their own classifier sides (meeting_speaker_topic_side).'
+- name: trending_term
+  version: 1.0.0
+  contractId: open-navigator-public-trending_term
+  type: table
+  description: 'One row per (scope_code, term_key), national (''US'') and per state: a candidate term''s meetings and share of recorded meetings in the last full year and this year to date, rise, governments, national hot score and ranks.'
+- name: trending_term_evidence
+  version: 1.0.0
+  contractId: open-navigator-public-trending_term_evidence
+  type: table
+  description: 'One row per (term_key, video_id) for served terms: a verbatim, highlighted excerpt of a recent meeting that says the term, with the public commenter''s "First L." when the excerpt is their own segment (never for a sensitive term).'
