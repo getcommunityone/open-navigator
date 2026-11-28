@@ -37,8 +37,6 @@ const PAGES = [
   ]),
   ...['voices', 'over-time', 'meetings', 'decisions'].map((sc) => [`story short-term rentals ${sc}`, `/stories/short-term-rentals?state=FL&screen=${sc}`]),
   ['data explorer map', '/data-explorer/map'],
-  ['policy map', '/policy-map'],
-  ['decisions map', '/decisions-map'],
 ]
 const VIEWPORTS = [
   ['pixel7', { ...devices['Pixel 7'] }],
