@@ -135,7 +135,7 @@ export default function BrowseAllTopics() {
           ← Browse topics
         </Link>
         {' · '}
-        <Link to={`/where-towns-stand${here}`} className="font-medium text-primary-700 hover:underline">
+        <Link to={`/where-towns-stand${stateParam ? `?state=${encodeURIComponent(stateParam)}` : ''}`} className="font-medium text-primary-700 hover:underline">
           Where towns stand
         </Link>
       </div>
@@ -275,7 +275,8 @@ export default function BrowseAllTopics() {
 
           {rankedTopicsShown.length > 0 && (
             <div className="sc-note" data-testid="where-towns-stand-summary" style={{ maxWidth: 'none' }}>
-              <p className="sc-h">Where towns stand</p>
+              {/* The rankings are national (each ranked place against similar-sized places), whatever this page's scope. */}
+              <p className="sc-h">Where towns stand · National</p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {rankedTopicsShown.map((t) => {
                   const lean =
