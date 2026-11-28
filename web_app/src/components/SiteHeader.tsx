@@ -55,7 +55,7 @@ const HEADER_CSS = `
 .site-header .font-display { font-family: 'Playfair Display', Georgia, serif; }
 .site-header .font-mono-x { font-family: 'IBM Plex Mono', monospace; }
 .site-header .sh-burger { display: none; }
-.site-header .sh-navlink { position: relative; background: none; border: none; padding: 4px 0; font-size: 14.5px; font-weight: 600; color: #44403c; cursor: pointer; font-family: inherit; transition: color .2s ease; white-space: nowrap; }
+.site-header .sh-navlink { position: relative; background: none; border: none; padding: 4px 0; font-size: 14.5px; font-weight: 600; color: #44403c; cursor: pointer; font-family: inherit; text-decoration: none; transition: color .2s ease; white-space: nowrap; }
 .site-header .sh-navlink::after { content: ''; position: absolute; left: 0; bottom: -3px; height: 2px; width: 0; background: ${TEAL}; transition: width .25s ease; }
 .site-header .sh-navlink:hover { color: ${TEAL_DARK}; }
 .site-header .sh-navlink:hover::after { width: 100%; }
@@ -315,11 +315,21 @@ export default function SiteHeader() {
   // Impact moved to the footer's Site links (#1191). Chat & Contact lives in the account menu and the footer (#952).
   const active = activeNavKey(location.pathname, activeSection)
   // Places dropped from the primary nav (#1378); /jurisdictions stays reachable from search and elsewhere.
-  const navItems: { key: NavKey; label: string; onClick: () => void }[] = [
-    { key: 'stories', label: 'Data Stories', onClick: () => goSection('data-stories') },
-    { key: 'search', label: 'Search', onClick: () => goSection('search') },
-    { key: 'how', label: 'How It Works', onClick: () => goSection('how-it-works') },
+  // Each is a real link (#1430) so crawlers find the pages behind the nav: the href is the page that section stands for
+  // (every data story, the search page). A plain click keeps the home-section scroll; a modified click (new tab) follows
+  // the href.
+  const carried = carriedQuery()
+  const navItems: { key: NavKey; label: string; href: string; onClick: () => void }[] = [
+    { key: 'stories', label: 'Data Stories', href: `/stories${carried}`, onClick: () => goSection('data-stories') },
+    { key: 'search', label: 'Search', href: `/search${carried}`, onClick: () => goSection('search') },
+    { key: 'how', label: 'How It Works', href: `/${carried}#how-it-works`, onClick: () => goSection('how-it-works') },
   ]
+  /** A plain left click runs `run` in place; a modified or middle click opens the link's href as the browser would. */
+  const onNavClick = (run: () => void) => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    run()
+  }
 
   const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault()
@@ -406,16 +416,16 @@ export default function SiteHeader() {
         </button>
 
         <nav className="sh-nav" aria-label="Main">
-          {navItems.map(({ key, label, onClick }) => (
-            <button
+          {navItems.map(({ key, label, href, onClick }) => (
+            <a
               key={key}
-              type="button"
+              href={href}
               className={'sh-navlink' + (active === key ? ' active' : '')}
               aria-current={active === key ? 'page' : undefined}
-              onClick={onClick}
+              onClick={onNavClick(onClick)}
             >
               {label}
-            </button>
+            </a>
           ))}
 
           {/* Register / Login — auth-aware */}
@@ -524,27 +534,27 @@ export default function SiteHeader() {
             )}
 
             <nav aria-label="Main" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <button
-                type="button"
+              <a
+                href="/"
                 className={'sh-mitem' + (location.pathname === '/' && !active ? ' active' : '')}
                 data-testid="menu-home"
-                onClick={(e) => goHome(e as unknown as MouseEvent<HTMLAnchorElement>)}
+                onClick={goHome}
               >
                 <span aria-hidden="true" style={{ marginRight: 8 }}>🏠</span> Home
-              </button>
-              {navItems.map(({ key, label, onClick }) => (
-                <button
+              </a>
+              {navItems.map(({ key, label, href, onClick }) => (
+                <a
                   key={key}
-                  type="button"
+                  href={href}
                   className={'sh-mitem' + (active === key ? ' active' : '')}
                   aria-current={active === key ? 'page' : undefined}
-                  onClick={() => {
+                  onClick={onNavClick(() => {
                     closeMenu(false)
                     onClick()
-                  }}
+                  })}
                 >
                   {label}
-                </button>
+                </a>
               ))}
               {/* On a story: the sound setting (#1017). */}
               {onStory && (

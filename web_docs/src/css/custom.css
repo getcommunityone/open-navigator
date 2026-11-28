@@ -291,3 +291,14 @@ article h6 {
   font-size: 16px !important;
   padding: 8px 12px !important;
 }
+
+/* Phones: keep the C1 mark, drop the text title so it never clips under the search button (#1424).
+   The logo img keeps alt="CommunityOne" as the link's accessible name. */
+@media (max-width: 576px) {
+  .navbar__title {
+    display: none !important;
+  }
+  .navbar__brand {
+    margin-right: 0.5rem;
+  }
+}

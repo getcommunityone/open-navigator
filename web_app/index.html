@@ -35,16 +35,16 @@
     <meta property="og:url" content="https://www.communityone.com/" />
     <meta property="og:title" content="CommunityOne — Track local government, nonprofits &amp; policy" />
     <meta property="og:description" content="Follow what local governments decide: cities, counties and school districts across the U.S. Explore nonprofits and analyze meeting minutes with AI. The open path to everything local." />
-    <meta property="og:image" content="https://www.communityone.com/communityone_logo.svg" />
+    <meta property="og:image" content="https://www.communityone.com/communityone_logo_512.png" />
     <meta property="og:site_name" content="CommunityOne" />
     <meta property="og:locale" content="en_US" />
     
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:card" content="summary" />
     <meta name="twitter:url" content="https://www.communityone.com/" />
     <meta name="twitter:title" content="CommunityOne — Track local government, nonprofits &amp; policy" />
     <meta name="twitter:description" content="Follow what local governments decide: cities, counties and school districts across the U.S. Explore nonprofits and analyze meeting minutes with AI. The open path to everything local." />
-    <meta name="twitter:image" content="https://www.communityone.com/communityone_logo.svg" />
+    <meta name="twitter:image" content="https://www.communityone.com/communityone_logo_512.png" />
     
     <!-- Google tag (gtag.js) — after DOM; avoids head-time null refs in strict embeds -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-5EQV815915"></script>
@@ -57,59 +57,44 @@
       });
     </script>
     
-    <!-- Structured Data (JSON-LD) for SEO -->
+    <!-- Structured data (JSON-LD, #1430). One brand name everywhere: the Organization is CommunityOne; Open Navigator is its app. The section list matches web_app/src/data/seo/routes.json (tested in api/tests/test_seo.py). -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
+      "@type": "Organization",
+      "@id": "https://www.communityone.com/#organization",
       "name": "CommunityOne",
       "alternateName": "Open Navigator",
-      "url": "https://www.communityone.com",
-      "logo": "https://www.communityone.com/communityone_logo.svg",
-      "description": "AI-powered civic engagement platform that follows what local governments decide: cities, counties and school districts across the U.S. It covers nonprofits and analyzes meeting minutes for policy opportunities.",
-      "applicationCategory": "GovernmentApplication",
-      "operatingSystem": "Web Browser",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
+      "url": "https://www.communityone.com/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.communityone.com/communityone_logo_512.png",
+        "width": 512,
+        "height": 512
       },
-      "creator": {
-        "@type": "Organization",
-        "name": "CommunityOne",
-        "url": "https://www.communityone.com"
-      },
-      "featureList": [
-        "Follow cities, counties and school districts",
-        "Monitor nonprofit organizations",
-        "AI-powered meeting minutes analysis",
-        "Policy opportunity identification",
-        "Oral health policy tracking",
-        "Government accountability dashboard"
-      ],
-      "audience": {
-        "@type": "Audience",
-        "audienceType": ["Policy Makers", "Advocates", "Developers", "Citizens"]
-      }
+      "description": "CommunityOne is a 501(c)(3) nonprofit that reads public records, local government meetings and nonprofit filings so anyone can follow what local governments decide.",
+      "sameAs": [
+        "https://www.linkedin.com/company/getcommunityone",
+        "https://www.facebook.com/getcommunityone",
+        "https://www.instagram.com/getcommunityone/",
+        "https://x.com/getcommunityone/",
+        "https://www.youtube.com/@getcommunityone",
+        "https://github.com/getcommunityone/open-navigator"
+      ]
     }
     </script>
-    <!-- WebSite + SearchAction: can enable the “sitelinks search box” in Google when eligible -->
+    <!-- WebSite + SearchAction -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
+      "@id": "https://www.communityone.com/#website",
       "name": "CommunityOne",
       "alternateName": "Open Navigator",
       "url": "https://www.communityone.com/",
       "description": "Track jurisdictions, nonprofits, and local policy with open data and AI.",
       "publisher": {
-        "@type": "Organization",
-        "name": "CommunityOne",
-        "url": "https://www.communityone.com/",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://www.communityone.com/communityone_logo.svg"
-        }
+        "@id": "https://www.communityone.com/#organization"
       },
       "potentialAction": {
         "@type": "SearchAction",
@@ -121,7 +106,33 @@
       }
     }
     </script>
-    <!-- ItemList of primary sections: reinforces site hierarchy (Google sitelinks are still automatic) -->
+    <!-- WebApplication: the app CommunityOne publishes -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Open Navigator",
+      "url": "https://www.communityone.com/",
+      "description": "Follows what local governments decide: cities, counties and school districts across the U.S. It covers nonprofits and reads meeting records for the decisions and debates in them.",
+      "applicationCategory": "GovernmentApplication",
+      "operatingSystem": "Web Browser",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "creator": {
+        "@id": "https://www.communityone.com/#organization"
+      },
+      "featureList": [
+        "Data stories from local government meetings",
+        "Follow cities, counties and school districts",
+        "Search meetings, decisions, officials and nonprofits",
+        "Census data explorer"
+      ]
+    }
+    </script>
+    <!-- ItemList of primary public sections (Google sitelinks are still chosen automatically) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -129,14 +140,86 @@
       "name": "CommunityOne — main sections",
       "numberOfItems": 8,
       "itemListElement": [
-        { "@type": "ListItem", "position": 1, "item": { "@type": "WebPage", "name": "Take action", "url": "https://www.communityone.com/explore", "description": "Learn from public records and census context, then connect and act in your community." } },
-        { "@type": "ListItem", "position": 2, "item": { "@type": "WebPage", "name": "Search", "url": "https://www.communityone.com/search", "description": "Unified search across people, places, and organizations." } },
-        { "@type": "ListItem", "position": 3, "item": { "@type": "WebPage", "name": "Jurisdictions", "url": "https://www.communityone.com/jurisdictions", "description": "Browse cities, counties, and other government geographies." } },
-        { "@type": "ListItem", "position": 4, "item": { "@type": "WebPage", "name": "Nonprofits", "url": "https://www.communityone.com/nonprofits", "description": "Explore nonprofit organizations and missions." } },
-        { "@type": "ListItem", "position": 5, "item": { "@type": "WebPage", "name": "Analytics", "url": "https://www.communityone.com/analytics", "description": "Data insights and civic analytics." } },
-        { "@type": "ListItem", "position": 6, "item": { "@type": "WebPage", "name": "Policy map", "url": "https://www.communityone.com/policy-map", "description": "Legislative and policy tracking map." } },
-        { "@type": "ListItem", "position": 7, "item": { "@type": "WebPage", "name": "Documents", "url": "https://www.communityone.com/documents", "description": "Meeting minutes and government documents." } },
-        { "@type": "ListItem", "position": 8, "item": { "@type": "WebPage", "name": "Dashboard", "url": "https://www.communityone.com/dashboard", "description": "Signed-in overview and activity." } }
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "item": {
+            "@type": "WebPage",
+            "name": "All data stories",
+            "url": "https://www.communityone.com/stories",
+            "description": "Data stories told from local government meetings, in the words said at the meeting, for the nation, a state or a town."
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "item": {
+            "@type": "WebPage",
+            "name": "Browse topics",
+            "url": "https://www.communityone.com/browse-topics",
+            "description": "Browse the topics local governments discuss, with the decisions and meetings behind each one, for the nation, a state or a town."
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "item": {
+            "@type": "WebPage",
+            "name": "Search",
+            "url": "https://www.communityone.com/search",
+            "description": "Search local government meetings, decisions, officials, places and nonprofits in one place."
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "item": {
+            "@type": "WebPage",
+            "name": "Places",
+            "url": "https://www.communityone.com/jurisdictions",
+            "description": "Browse cities, counties, school districts and states, and open the meetings and decisions for each."
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 5,
+          "item": {
+            "@type": "WebPage",
+            "name": "Policy questions",
+            "url": "https://www.communityone.com/policy-questions",
+            "description": "The policy questions that keep coming up in local government meetings, with the decisions that answered them."
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 6,
+          "item": {
+            "@type": "WebPage",
+            "name": "Nonprofits",
+            "url": "https://www.communityone.com/nonprofits",
+            "description": "Explore nonprofit organizations across the U.S. and their missions, from public IRS filings."
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 7,
+          "item": {
+            "@type": "WebPage",
+            "name": "Data Explorer",
+            "url": "https://www.communityone.com/data-explorer/map/us/2024/median_household_income",
+            "description": "Map census measures such as median household income for every state, county and place in the U.S."
+          }
+        },
+        {
+          "@type": "ListItem",
+          "position": 8,
+          "item": {
+            "@type": "WebPage",
+            "name": "Take action",
+            "url": "https://www.communityone.com/explore",
+            "description": "Learn from public records and census context, then connect and act in your community."
+          }
+        }
       ]
     }
     </script>

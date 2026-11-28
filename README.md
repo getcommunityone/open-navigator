@@ -6,7 +6,7 @@ colorTo: green
 sdk: docker
 app_port: 7860
 pinned: false
-license: apache-2.0
+license: mit
 ---
 
 # Open Navigator
@@ -21,7 +21,7 @@ the site is a made-up number: when data is missing, it says so.
 **Coverage today:** 1,926,908 nonprofits, 153,235 meetings and events, 34,289 government officials and 4,495 decisions extracted by AI, from [/api/stats](https://www.communityone.com/api/stats) (snapshot dated June 5, 2026, read November 14, 2026). Jurisdiction counts are left out until that endpoint reports them correctly ([#291](https://github.com/getcommunityone/open-navigator/issues/291)).
 
 **Live:** [communityone.com](https://www.communityone.com) · [docs](https://www.communityone.com/docs) ·
-[API](https://www.communityone.com/api) · Apache 2.0
+[API](https://www.communityone.com/api) · MIT License
 
 <a href="web_docs/docs/pitch/full-text-and-notes.md"><img src="web_docs/static/img/deck-cover.png" alt="Local decisions shape daily life. Most people never see them." width="480"></a>
 
@@ -216,4 +216,4 @@ Sources: U.S. Census Bureau, [Government Organization Summary Report: 2022 & 202
 Datasets and research used here: [CITATIONS.md](CITATIONS.md) (including MeetingBank, Hu et al., ACL 2023).
 All generated content should be reviewed by a person before use in advocacy.
 Issues: [github.com/getcommunityone/open-navigator/issues](https://github.com/getcommunityone/open-navigator/issues) ·
-johnbowyer@communityone.com · Apache 2.0, see [LICENSE](LICENSE).
+johnbowyer@communityone.com · MIT License, see [LICENSE](LICENSE).
