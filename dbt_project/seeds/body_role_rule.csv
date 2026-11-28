@@ -1,0 +1,15 @@
+rule_id,priority,pattern,role
+pro_tem,10,pro tem|pro-tem|protem,president_pro_tem
+vice_mayor,20,vice mayor|deputy mayor|vice-mayor,vice_mayor
+mayor,30,(^| )mayor( |$),mayor
+vice_chair,40,vice chair|vice-chair|vice chairman|vice chairwoman|vice chairperson|vice president|vice-president,vice_chair
+chair,50,(^| )(chair|chairman|chairwoman|chairperson|presiding officer)( |$),chair
+president,60,(^| )president( |$),president
+clerk,70,(^| )(clerk|secretary|recording secretary)( |$),clerk
+staff,80,(^| )(staff|attorney|counsel|manager|administrator|liaison|director|advisor|ex officio|ex-officio|non-voting)( |$),staff
+alderman,90,(^| )(alderman|alderwoman|alderperson|aldermen)( |$),alderman
+council_member,100,council,council_member
+commissioner,110,commissioner,commissioner
+supervisor,120,supervisor,supervisor
+legislator,130,(^| )(senator|representative|delegate|assemblymember|assembly member|assemblyman|assemblywoman)( |$),legislator
+member,900,.,member

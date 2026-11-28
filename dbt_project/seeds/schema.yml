@@ -978,3 +978,13 @@ seeds:
     columns:
       - name: title
         tests: [not_null]
+
+  - name: body_role_rule
+    description: >
+      #1443: ordered rules that turn a member's title into a role (body_membership). The first pattern (by priority)
+      matching the lower-cased title wins; 'member' is the catch-all. Python twin: ingestion.governance.roles.
+    columns:
+      - name: rule_id
+        tests: [unique, not_null]
+      - name: role
+        tests: [not_null]

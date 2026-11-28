@@ -72,6 +72,36 @@ text.
 - `meeting_body`: one row per matched meeting, with FKs to `governing_body`, `jurisdictions`, `platform_meeting` and
   `event_meeting`, the title, date, recording URL and which text and pattern matched.
 
+## Members and roles (body_membership)
+
+`body_membership` has one row per body × member × role (a council member who is also president pro tem has two
+rows). Sources, in order of trust; when two give the same member the same role on the same body, the first wins:
+
+| Source | What it gives | How it is tied to a body |
+|---|---|---|
+| Officials data (`person_government` + `person_government_term`) | mayors and council members, district, start/end dates from terms (a seed term beats a roster snapshot; a term with no end beats an ended one) | the place's own governing body |
+| Council roster scraper (`scrapers.municipal.council_roster`, rows `ocd-membership/scraped-...`) | council members a city's own site lists | the place's own governing body; `source = council_roster` |
+| Legistar office records (`scrapers.platforms.legistar_people`) | current seats on every Legistar body (council, committees, boards) with title and dates | the body name is resolved with the same title rules as meetings; the member is tied to a `person_government` row only on an exact name key in the same place |
+| OpenStates chamber memberships (`stg_openstates__chamber_member`) | state senators and representatives with district | two chamber bodies at the state jurisdiction (`legislature_upper`, `legislature_lower`), FK to `legislator` |
+
+Roles come from the title through the ordered seed `seeds/body_role_rule.csv` (mayor, president, president_pro_tem,
+vice_mayor, chair, vice_chair, council_member, alderman, commissioner, supervisor, member, legislator, clerk, staff).
+Name keys for matching are "first last" with suffixes, honorifics and middle initials dropped, and must be equal: there
+is no fuzzy matching. Python twins (`ingestion.governance.roles`) are pinned by pytest; a parity run over 14,865 real
+titles and names found no differences.
+
+A past member stays with `is_current = false` and the end date the term gives (Tuscaloosa District 5 after
+2026-09-18), so a vacancy shows as a vacancy and nobody is invented to fill it.
+
+### Legistar, politely
+
+The reader uses the same `PoliteClient` as the meeting reader: robots.txt honoured (webapi.legistar.com serves none,
+which RFC 9309 reads as no rules), the open-navigator User-Agent, one request a second, and a 403/429 or challenge
+page stops that portal as `blocked` with no retry. Office records carry a public office email, but no feature needs
+it, so it is not stored. On 2026-11-28 all 24 portals we read meetings from answered; Dallas, Atlanta and
+Minneapolis publish bodies but no current office records. The API returned server errors for about 20 minutes during
+the run; the reader records those as `error` and a later run picks them up.
+
 ## Publish set
 
 The API reads these through `public` (publish_public_serving). Nothing is written to Neon by this work; the relations

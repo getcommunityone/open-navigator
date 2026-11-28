@@ -1,0 +1,105 @@
+version: 2
+
+# #1443: members of governing bodies and their roles. Design: web_docs/docs/development/governing-bodies.md
+
+models:
+  - name: body_membership
+    description: >
+      One row per governing body x member x role: mayors and council members from our officials data (and the council
+      roster scraper), current Legistar office records, and OpenStates chamber seats. No member is inferred from
+      speech.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [governing_body_id]
+        to: ref('governing_body')
+        to_columns: [governing_body_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+      - type: foreign_key
+        columns: [person_id]
+        to: ref('person_government')
+        to_columns: [person_id]
+      - type: foreign_key
+        columns: [legislator_person_uid]
+        to: ref('legislator')
+        to_columns: [person_uid]
+    columns:
+      - name: body_membership_id
+        description: "Primary key: md5(governing_body_id | member_key | role)."
+        data_type: text
+        constraints:
+          - type: not_null
+          - type: primary_key
+        data_tests: [unique, not_null]
+      - name: governing_body_id
+        description: "FK to governing_body."
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('governing_body')
+                field: governing_body_id
+      - name: jurisdiction_id
+        description: "FK to jurisdictions (the body's place)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: person_id
+        description: "FK to person_government when we hold an official row for the member (exact name key in the same place for Legistar members)."
+        data_type: text
+      - name: legislator_person_uid
+        description: "FK to legislator for state chamber seats."
+        data_type: text
+      - name: member_name
+        description: "The member's name as the source gives it (officials are public in their role)."
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: role
+        description: "mayor | president | president_pro_tem | vice_mayor | chair | vice_chair | council_member | alderman | commissioner | supervisor | member | legislator | clerk | staff"
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['mayor', 'president', 'president_pro_tem', 'vice_mayor', 'chair', 'vice_chair',
+                         'council_member', 'alderman', 'commissioner', 'supervisor', 'member', 'legislator',
+                         'clerk', 'staff']
+      - name: role_title
+        description: "The title as the source gives it."
+        data_type: text
+      - name: district
+        description: "District or ward, where known."
+        data_type: text
+      - name: start_date
+        description: "Start of the seat or role, where known."
+        data_type: date
+      - name: end_date
+        description: "End of the seat or role, where known."
+        data_type: date
+      - name: is_current
+        description: "True when the seat is held now (no end date, or one today or later, and the official row is current)."
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: source
+        description: "officials | council_roster | legistar | openstates"
+        data_type: text
+        constraints:
+          - type: not_null
+      - name: source_url
+        description: "Where the record came from, when the source gives one."
+        data_type: text
+      - name: confidence
+        description: "How sure we are of the seat (0-1); roster sources are 0.95."
+        data_type: numeric(3,2)
+        constraints:
+          - type: not_null
