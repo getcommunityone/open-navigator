@@ -1,0 +1,27 @@
+{
+  "stories": {
+    "data-centers": {
+      "title": "The Data Center Story",
+      "topic": "data centers",
+      "question": "What did local meetings say about data centers?",
+      "lede": "Where local governments are weighing data centers, and what residents and officials said about them, in the words said at the meeting."
+    }
+  },
+  "topics": {
+    "short-term-rentals": {
+      "lede": "Airbnb, VRBO and vacation rentals: where local governments are talking about them, in the words said at the meeting.",
+      "companiesPath": "/short-term-rentals/companies"
+    },
+    "license-plate-readers": {
+      "lede": "Flock Safety cameras and other automated plate readers: who uses them, for what, and the contracts behind them, in the words said at the meeting."
+    },
+    "guns": {
+      "title": "Gun control",
+      "subject": "Gun control",
+      "lede": "Firearm rules, gun shows and ranges, and gunshot detection, as councils weigh them, in the words said at the meeting."
+    },
+    "pickleball": {
+      "lede": "Courts, noise and new venues, as councils and parks boards weigh them, in the words said at the meeting."
+    }
+  }
+}

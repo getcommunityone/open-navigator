@@ -9,12 +9,12 @@ vi.mock('react', () => ({
   },
 }))
 
-const { DEFAULT_DOCUMENT_TITLE, documentTitle, useDocumentTitle } = await import('./useDocumentTitle')
+const { DEFAULT_DOCUMENT_TITLE, documentTitle, pageClaimsTitle, useDocumentTitle } = await import('./useDocumentTitle')
 
 describe('documentTitle', () => {
   it('names the page before the site', () => {
-    expect(documentTitle('Search: fluoride')).toBe('Search: fluoride | Open Navigator')
-    expect(documentTitle('  Guns —  Data story ')).toBe('Guns — Data story | Open Navigator')
+    expect(documentTitle('Search: fluoride')).toBe('Search: fluoride | CommunityOne')
+    expect(documentTitle('  Guns —  Data story ')).toBe('Guns — Data story | CommunityOne')
   })
   it('falls back to the default title', () => {
     expect(documentTitle()).toBe(DEFAULT_DOCUMENT_TITLE)
@@ -28,9 +28,12 @@ describe('useDocumentTitle', () => {
     const doc = { title: 'before' }
     vi.stubGlobal('document', doc)
     useDocumentTitle('Places')
-    expect(doc.title).toBe('Places | Open Navigator')
+    expect(doc.title).toBe('Places | CommunityOne')
+    // The page claims the title while mounted, so the route-level title (RouteMetaSync) leaves it alone (#1430).
+    expect(pageClaimsTitle()).toBe(true)
     cleanups.splice(0).forEach((c) => c())
     expect(doc.title).toBe(DEFAULT_DOCUMENT_TITLE)
+    expect(pageClaimsTitle()).toBe(false)
     vi.unstubAllGlobals()
   })
 })

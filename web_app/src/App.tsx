@@ -1,6 +1,6 @@
 import { lazy, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Route, Routes, Navigate, useParams, useLocation } from 'react-router-dom'
+import { Route, Routes, Navigate, useParams, useLocation, useSearchParams } from 'react-router-dom'
 import { tracer } from './instrumentation'
 import Layout from './components/Layout'
 import SkipLink from './components/SkipLink'
@@ -67,6 +67,9 @@ import { recordLocation } from './lib/pageClose'
 import { STORIES } from './utils/dataStory'
 import { useTopicStories } from './hooks/useTopicStories'
 import { useDocumentTitle } from './utils/useDocumentTitle'
+import { storyPageTitle } from './utils/routeMeta'
+import { STATE_CODE_TO_NAME } from './utils/stateMapping'
+import RouteMetaSync from './components/RouteMetaSync'
 import { BoxFlightProvider } from './components/stance/BoxFlightProvider'
 
 // Loaded only when its route is visited (#856): its fonts and chart code stay out of the main bundle, and a
@@ -186,9 +189,13 @@ function StoryRoute() {
   const { storyId = '' } = useParams()
   // The tab names the story's topic (#1191): the registry's topic, else the curated topic's name from the catalog.
   const { stories } = useTopicStories()
+  const [params] = useSearchParams()
   const reg = STORIES[storyId]
   const topic = reg ? reg.topic : stories[storyId]?.title
-  useDocumentTitle(topic ? `${topic.charAt(0).toUpperCase()}${topic.slice(1)} — Data story` : 'Data story')
+  // The same title the server sends in the page's HTML (#1430): "Gun control in Alabama — Data story".
+  const rawState = (params.get('state') ?? '').trim().toUpperCase()
+  const stateCode = /^[A-Z]{2}$/.test(rawState) ? rawState : ''
+  useDocumentTitle(topic ? storyPageTitle(topic, STATE_CODE_TO_NAME[stateCode] ?? (stateCode || null)) : 'Data story')
   return storyRoute(storyId) === 'data' ? <DataStory /> : <TopicStory slug={storyId} />
 }
 
@@ -198,6 +205,7 @@ function App() {
       <SkipLink />
       <ScrollToTop />
       <RouteChangeTracer />
+      <RouteMetaSync />
       <BoxFlightProvider>
       <Routes>
       {/* v9 prototype homepage (single-column; has its own header) */}
