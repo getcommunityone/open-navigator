@@ -65,8 +65,8 @@ A phrase never starts or ends with a stopword, a word with an apostrophe or a wo
 | `person_name` | Privacy: see below |
 | `place_name` | The name of a place with 20,000+ people. These rise when we start recording that place, not because people talk about it more |
 
-On the current build, 60,167 surface keys were considered. Of those, 1,185 were dropped as person names, and 10,7xx
-remain as kept candidates (see the PR for the exact counts).
+See the pull request for the counts on the current build. On the first build, 1,185 otherwise-eligible candidates
+were dropped as person names.
 
 ### 4. Counting meetings that say a term
 
@@ -123,11 +123,18 @@ too sparse per state, so a state's "most heated" list ranks that state's own eli
 
 ### 7. Serving
 
-`public.trending_term` publishes only `is_served` rows: the top 100 of each sort in each scope. That is about 10,500
-rows and 2.3 MB. `public.trending_term_evidence` holds the excerpts for served terms: the newest 10 meetings nationally,
-plus the newest 3 per state where the term is served in that state.
+`public.trending_term` publishes only `is_served` rows, and only the columns the API reads. A served row is in the top
+60 of any sort in its scope, so each scope has roughly 60 to 180 terms. That is about 6,500 rows and 1.2 MB.
 
-- `GET /api/trends/terms?state=&sort=rising|hot|volume&limit=`
+`public.trending_term_evidence` holds excerpts for the terms in the top 20 of any sort in a scope. It keeps each
+government's newest counted meeting that says the term, for the 5 newest governments nationally plus the newest one
+per state where the term is served. That is about 6,800 rows and 1.7 MB.
+
+Together they stay under 3 MB; a test checks this. The serving view drops the stored URL, and the API builds the
+YouTube link from `video_id`. Each government's newest meeting is taken from the counting step
+(`latest_meeting_date`), so building the evidence never searches every transcript again.
+
+- `GET /api/trends/terms?state=&sort=rising|hot|volume&limit=` (default 20)
 - `GET /api/trends/terms/{term_id}/evidence?state=&limit=&offset=`
 
 A city in the URL is answered for its state, and the chip row says so ("counted per state, not per city").
