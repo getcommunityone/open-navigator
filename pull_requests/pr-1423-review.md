@@ -5,7 +5,7 @@ title: "fix(web): every map and chart gets a takeaway title and colour legend (C
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: 78045c09f2a46890e0fad94b44e9ad7c26e845d9
+head_sha: 6e1ea490f9a96f818bee4bf52333bf8e993964f0
 verdict: approve
 ---
 
@@ -51,7 +51,7 @@ Automated review (#648) for PR #1423 on `fix/1409-chart-legends`. Heuristic rubr
 
 ## CI Status
 
-See the PR checks on `78045c09f2a4`.
+See the PR checks on `6e1ea490f9a9`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
