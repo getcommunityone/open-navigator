@@ -52,6 +52,8 @@ export function useBoxFlight(): BoxFlightApi {
 }
 
 const WAIT_TARGET_MS = 2200
+/** A target that exists but has drawn no boxes after this long has none (#1415). */
+const TARGET_EMPTY_MS = 500
 
 function drawRoundedBox(
   ctx: CanvasRenderingContext2D,
@@ -209,6 +211,12 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
         }
         const target = resolveTarget(job.targetSelector)
         const to = target ? captureDomBoxes(target) : []
+        // The target is on screen but has no boxes to land on (a screen of text, a list): there is nothing to fly to, so the
+        // held boxes are let go at once, not left drawn over the new screen for the rest of the wait (#1415).
+        if (target && to.length === 0 && now - t0 > TARGET_EMPTY_MS) {
+          finish()
+          return
+        }
         if (to.length > 0) {
           if (to.length === lastToCount) stableCount += 1
           else {
@@ -259,6 +267,7 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
     raf = requestAnimationFrame(tick)
     window.addEventListener('pointerdown', onInterrupt, true)
     window.addEventListener('keydown', onInterrupt, true)
+    window.addEventListener('touchstart', onInterrupt, true)
 
     return () => {
       dead = true
@@ -267,6 +276,7 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
       clearHiddenMarks()
       window.removeEventListener('pointerdown', onInterrupt, true)
       window.removeEventListener('keydown', onInterrupt, true)
+      window.removeEventListener('touchstart', onInterrupt, true)
     }
   }, [job])
 
