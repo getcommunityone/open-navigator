@@ -148,8 +148,7 @@ def sample(args: argparse.Namespace) -> None:
             n = args.per_topic
             picked = buckets["for"][: n * 2 // 5] + buckets["against"][: n * 2 // 5]
             picked += buckets["other"][: n - len(picked)]
-            for row in picked:
-                fh.write(json.dumps(row) + "\n")
+            fh.writelines(json.dumps(row) + "\n" for row in picked)
             logger.info("{}: {} candidates (for-cue {}, against-cue {}, other {})", t.slug, len(picked),
                         len(buckets["for"]), len(buckets["against"]), len(buckets["other"]))
 

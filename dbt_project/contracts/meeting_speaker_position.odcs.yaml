@@ -170,7 +170,7 @@ schema:
     name: heat
     logicalType: integer
     physicalType: int
-    description: Comment heat 1-5 (1 calm, 5 furious); null when none. From the AI meeting analysis where a rated comment matches; the rules baseline is off (not calibrated).
+    description: Comment heat 1-5 (1 calm, 5 furious); null when none. From the AI meeting analysis where a rated comment matches, else the classifier's heat ladder (#1391, confidence >= var speaker_side_min_confidence); the rules baseline is off (not calibrated).
   - id: heat_method
     name: heat_method
     logicalType: string
@@ -191,7 +191,7 @@ schema:
     name: heat_confidence
     logicalType: number
     physicalType: numeric(3, 2)
-    description: 0.80 for the AI analysis rating; for rules, the measured within +-1 agreement.
+    description: 0.80 for the AI analysis rating; for the classifier, the mean margin of its threshold decisions; for rules, the measured within +-1 agreement.
   - id: stance_shape
     name: stance_shape
     logicalType: string

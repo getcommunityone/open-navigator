@@ -110,7 +110,7 @@ def main() -> int:
     print("|---|---|---|---|---|---|---|---|---|---|")
     for i, (slug, sc) in enumerate(ranked, 1):
         _, m, ri, cs, ln, ct, nh, hv = info[slug]
-        f = lambda v, d=2: "-" if v is None else f"{v:.{d}f}"  # noqa: E731
+        f = lambda v, d=2: "-" if v is None else f"{v:.{d}f}"
         print(f"| {i} | {slug} | {m:,} | {f(ri)} | {f(cs)} | {f(ln)} | {f(ct)} | {nh} | {f(hv)} | {sc:.3f} |")
     print("PRIORITY = " + repr(tuple(s for s, _ in ranked)))
     return 0
