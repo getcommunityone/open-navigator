@@ -31,7 +31,8 @@ for (const path of paths) {
     const measure = () => page.evaluate(() => {
       const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth }
       const panels = [...document.querySelectorAll('[data-panel]')]
-      const panel = panels.find((p) => { const r = p.getBoundingClientRect(); return r.bottom > innerHeight * 0.3 && r.top < innerHeight * 0.7 }) ?? panels[0]
+      const want = new URLSearchParams(location.search).get('screen')
+      const panel = ((want && panels.find((p) => p.getAttribute("data-screen") === want)) || panels.find((p) => { const r = p.getBoundingClientRect(); return r.bottom > innerHeight * 0.3 && r.top < innerHeight * 0.7 })) ?? panels[0]
       const boxes = panel ? [...panel.querySelectorAll('[data-box]')].filter(vis).length : 0
       const emptyQuotes = [...document.querySelectorAll('blockquote')].filter((b) => !b.textContent.replace(/[“”"\s]/g, '')).length
       // Fit (#1415): on a phone the headline is fully below the top bar, and the screen's visual and legend end above the bottom bar.
