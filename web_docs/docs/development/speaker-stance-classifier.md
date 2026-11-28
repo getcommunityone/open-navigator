@@ -231,5 +231,5 @@ and within 1 point 90.9% (Pearson 0.65), against 13.6% / 77.3% for a constant gu
 heat is shown with its method and confidence and is not used to rank anything without a minimum count.
 
 `gold.meeting_speaker_topic_side` holds 12,789 rows (3.5 MB); the public projection drops the 5,886 `not_sure` rows
-(6,903 rows). Publish with `--only meeting_speaker_topic_side,meeting_speaker_position` (the second for the classifier
+(6,903 rows). Publish with `--only meeting_speaker_topic_side meeting_speaker_position` (the second for the classifier
 heat); no other serving table changes.
