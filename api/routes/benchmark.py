@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
@@ -40,7 +40,7 @@ CENSUS_REGIONS: dict[str, tuple[str, ...]] = {
 }
 
 
-def region_of(state_code: Optional[str]) -> Optional[str]:
+def region_of(state_code: str | None) -> str | None:
     for name, states in CENSUS_REGIONS.items():
         if state_code in states:
             return name
@@ -97,7 +97,7 @@ METRICS: dict[str, Metric] = {
 
 
 def select_peers(
-    candidates: list[dict[str, Any]], target_state: Optional[str], n: int
+    candidates: list[dict[str, Any]], target_state: str | None, n: int
 ) -> list[dict[str, Any]]:
     """Pick ``n`` peers: same state first, then has-data, then closest population.
 
@@ -115,7 +115,7 @@ def select_peers(
     return ranked[:n]
 
 
-def rank_among(values: dict[str, Optional[float]], target_id: str) -> Optional[dict[str, Any]]:
+def rank_among(values: dict[str, float | None], target_id: str) -> dict[str, Any] | None:
     """Rank the target among ids with a non-null value (1 = highest)."""
     have = {k: v for k, v in values.items() if v is not None}
     if target_id not in have:
@@ -129,24 +129,24 @@ class BenchmarkEntity(BaseModel):
     jurisdiction_id: str
     name: str
     jurisdiction_type: str
-    state_code: Optional[str] = None
-    state: Optional[str] = None
-    population: Optional[int] = None
-    value: Optional[float] = None  # total dollars; null = no matched data
-    per_capita: Optional[float] = None
+    state_code: str | None = None
+    state: str | None = None
+    population: int | None = None
+    value: float | None = None  # total dollars; null = no matched data
+    per_capita: float | None = None
 
 
 class BenchmarkResponse(BaseModel):
     metric: str
     label: str
     unit: str
-    fiscal_year: Optional[str] = None  # string on the wire; null = all years loaded
+    fiscal_year: str | None = None  # string on the wire; null = all years loaded
     jurisdiction: BenchmarkEntity
     peers: list[BenchmarkEntity]
     peer_selection: str
-    peer_median_per_capita: Optional[float] = None
-    rank_per_capita: Optional[dict[str, int]] = None
-    data_as_of: Optional[str] = None
+    peer_median_per_capita: float | None = None
+    rank_per_capita: dict[str, int] | None = None
+    data_as_of: str | None = None
     source: str
     note: str = ""
 
@@ -154,7 +154,7 @@ class BenchmarkResponse(BaseModel):
 _JUR_COLS = "jurisdiction_id, name, jurisdiction_type, state_code, state_name, population"
 
 
-def _entity(row: Any, value: Optional[float]) -> BenchmarkEntity:
+def _entity(row: Any, value: float | None) -> BenchmarkEntity:
     pop = row["population"]
     val = float(value) if value is not None else None
     return BenchmarkEntity(
@@ -171,7 +171,7 @@ async def benchmark(
     jurisdiction_id: str = Query(..., min_length=1, max_length=200),
     peers: str = Query("auto", description="'auto' or comma-separated jurisdiction_ids"),
     n: int = Query(DEFAULT_PEERS, ge=1, le=MAX_PEERS, description="Auto-peer count"),
-    fiscal_year: Optional[int] = Query(None, ge=2000, le=2100),
+    fiscal_year: int | None = Query(None, ge=2000, le=2100),
 ) -> BenchmarkResponse:
     spec = METRICS.get(metric)
     if spec is None:
@@ -252,7 +252,7 @@ async def benchmark(
     )
 
 
-async def _values(conn: Any, spec: Metric, ids: list[str], fiscal_year: Optional[int]) -> dict[str, tuple]:
+async def _values(conn: Any, spec: Metric, ids: list[str], fiscal_year: int | None) -> dict[str, tuple]:
     try:
         rows = await conn.fetch(spec.values_sql, ids, fiscal_year)
     except Exception as exc:  # table not built in this environment

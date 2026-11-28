@@ -84,7 +84,6 @@ models:
               arguments: {to: "ref('jurisdictions')", field: jurisdiction_id}
       - {name: fiscal_year, description: "Federal fiscal year (integer).", data_type: integer, constraints: [{type: not_null}]}
       - {name: assistance_listing_number, description: "Assistance Listing Number.", data_type: text, constraints: [{type: not_null}]}
-      - {name: assistance_listing_title, description: "Program title.", data_type: text}
       - {name: state_code, description: "2-letter state.", data_type: text}
       - {name: state, description: "Full state name.", data_type: text}
       - {name: award_count, description: "Awards summed.", data_type: integer}

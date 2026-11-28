@@ -20,7 +20,6 @@ select
     f.jurisdiction_id::text                  as jurisdiction_id,
     f.fiscal_year::integer                   as fiscal_year,
     f.assistance_listing_number::text        as assistance_listing_number,
-    max(f.assistance_listing_title)::text    as assistance_listing_title,
     max(f.state_code)::text                  as state_code,
     max(f.state)::text                       as state,
     count(*)::integer                        as award_count,

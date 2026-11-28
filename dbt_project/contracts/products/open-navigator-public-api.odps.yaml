@@ -115,6 +115,16 @@ outputPorts:
   contractId: open-navigator-public-jurisdiction_finance_category
   type: table
   description: 'Tidy/long companion to jurisdiction_finance: one row per (government x expenditure category) with amount (whole dollars) and share_pct of direct_expenditure.'
+- name: federal_award
+  version: 1.0.0
+  contractId: open-navigator-public-federal_award
+  type: table
+  description: One row per USAspending assistance award (types 02-05) to a local-government recipient, FY2019+.
+- name: jurisdiction_federal_funding
+  version: 1.0.0
+  contractId: open-navigator-public-jurisdiction_federal_funding
+  type: table
+  description: Federal assistance dollars per matched jurisdiction x fiscal year x Assistance Listing Number, summed from federal_award (matched awards only).
 - name: jurisdiction_property_tax_rate
   version: 1.0.0
   contractId: open-navigator-public-jurisdiction_property_tax_rate

@@ -29,7 +29,7 @@ kinded as (
     select
         *,
         case
-            when recipient_name_u ~ '^COUNTY OF ' or recipient_name_u ~ ' (COUNTY|PARISH)( GOVERNMENT)?$' then 'county'
+            when recipient_name_u ~ '^COUNTY OF ' or recipient_name_u ~ ', COUNTY OF$' or recipient_name_u ~ ' (COUNTY|PARISH)( GOVERNMENT)?$' then 'county'
             when recipient_name_u ~ '^(CITY|TOWN|VILLAGE|BOROUGH) OF '
               or recipient_name_u ~ ', (CITY|TOWN|VILLAGE|BOROUGH) OF$'
               or recipient_name_u ~ ' (CITY|TOWN|VILLAGE)$' then 'place'
@@ -43,7 +43,7 @@ based as (
         trim(regexp_replace(
             regexp_replace(
                 case kind
-                    when 'county' then regexp_replace(regexp_replace(recipient_name_u, '^COUNTY OF ', ''), ' (COUNTY|PARISH)( GOVERNMENT)?$', '')
+                    when 'county' then regexp_replace(regexp_replace(regexp_replace(recipient_name_u, ', COUNTY OF$', ''), '^COUNTY OF ', ''), ' (COUNTY|PARISH)( GOVERNMENT)?$', '')
                     else regexp_replace(regexp_replace(regexp_replace(recipient_name_u,
                             '^(CITY|TOWN|VILLAGE|BOROUGH) OF ', ''),
                             ', [A-Z]{2}, (CITY|TOWN|VILLAGE|BOROUGH) OF$', ''),

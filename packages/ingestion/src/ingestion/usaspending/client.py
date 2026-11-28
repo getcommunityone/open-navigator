@@ -7,8 +7,9 @@ keep requests slow, and STOP on 403/429 (AGENTS.md scraping rules).
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from datetime import date, timedelta
-from typing import Any, Iterator
+from typing import Any
 
 import httpx
 from loguru import logger
@@ -17,7 +18,7 @@ API_BASE = "https://api.usaspending.gov/api/v2"
 USER_AGENT = "open-navigator"
 ASSISTANCE_TYPES = ["02", "03", "04", "05"]  # block, formula, project, cooperative agreement
 PAGE_SIZE = 100
-MAX_ROWS_PER_WINDOW = 9000  # split a window rather than page very deep
+MAX_ROWS_PER_WINDOW = 4000  # split a window rather than page very deep
 MIN_DELAY_S = 0.4
 
 FIELDS = [
