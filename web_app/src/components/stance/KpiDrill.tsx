@@ -17,6 +17,9 @@ import {
 } from '../../api/storyDrill'
 import { highlightSnippet } from '../../lib/highlight'
 import { useIsMobile } from '../../hooks/useMediaQuery'
+import { StanceShapeChip } from './StanceShapeChip'
+import { SpeakerName } from './SpeakerName'
+import { HeatFlames } from './HeatFlames'
 import './KpiDrill.css'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -150,7 +153,17 @@ function CommentRow({ c }: { c: DrillCaptionComment }) {
   return (
     <li className="kpi-drill-row">
       <p className="kpi-drill-meta">
-        <strong>{who(c.speaker_display_name)}</strong> · {place(c.jurisdiction_name, c.state_code)}
+        <SpeakerName
+          name={c.speaker_display_name}
+          possibleName={c.possible_name}
+          attribution={{
+            method: c.attribution_method,
+            confidence: c.attribution_confidence,
+            tier: c.attribution_tier,
+            evidence: c.attribution_evidence,
+          }}
+        />{' '}
+        · {place(c.jurisdiction_name, c.state_code)}
         {c.meeting_date ? ` · ${c.meeting_date}` : ''}
         {c.jump_url && (
           <>
@@ -161,6 +174,12 @@ function CommentRow({ c }: { c: DrillCaptionComment }) {
           </>
         )}
       </p>
+      <StanceShapeChip shape={c.stance_shape} cue={c.shape_cue_text} />
+      {c.heat != null && (
+        <p className="kpi-drill-meta">
+          <HeatFlames heat={c.heat} method={c.heat_method} />
+        </p>
+      )}
       {tags.length > 0 && <p className="kpi-drill-meta kpi-drill-basis">Keywords matched: {tags.map((t) => t.replace(/_/g, ' ')).join(', ')}</p>}
     </li>
   )

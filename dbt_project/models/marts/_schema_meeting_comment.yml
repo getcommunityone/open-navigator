@@ -65,7 +65,7 @@ models:
       comment_concern_terms, comment_entity_terms, comment_role_terms, curated_topics). A comment runs from a
       self-introduction or the chair calling a speaker to the next speaker, a closing ("your time is up"), a
       20-second pause or 8 minutes. No text is carried. speaker_display_name is "First L." from the
-      self-introduction (never the full surname), null for a possible minor. Stance is not modeled yet: it needs
+      self-introduction (never the full surname), null for a possible minor. stance_shape and shape_cue_text (#1386) say how a position is stated; which side, as a count, still needs
       the per-comment classifier (epic #1232 phase 2, on hold).
     config:
       contract:
@@ -79,6 +79,10 @@ models:
         columns: [jurisdiction_id]
         to: ref('jurisdictions')
         to_columns: [jurisdiction_id]
+      - type: foreign_key
+        columns: [meeting_speaker_turn_id]
+        to: ref('meeting_speaker_turn')
+        to_columns: [meeting_speaker_turn_id]
     columns:
       - name: meeting_comment_id
         description: "Primary key: the bronze comment_segment_id, md5(video_id | start | end)."
@@ -163,6 +167,29 @@ models:
         description: "Self-described roles from the introduction (comment_role_terms)."
       - name: segmenter_version
         data_type: text
+      - name: meeting_speaker_turn_id
+        data_type: text
+        description: "The speaker turn this segment belongs to (FK to meeting_speaker_turn)."
+        constraints: [{type: not_null}]
+        tests:
+          - relationships: {to: ref('meeting_speaker_turn'), field: meeting_speaker_turn_id}
+      - name: meeting_speaker_id
+        data_type: text
+        description: "The speaker (one per meeting x person; meeting_speaker_position)."
+        constraints: [{type: not_null}]
+      - name: stance_shape
+        data_type: text
+        description: >
+          How the comment states its position (#1383), from the comment_stance_shape_terms cue rules. A shape
+          is counted on its own, never as both sides.
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values:
+              values: ['clear_for', 'clear_against', 'conditional', 'for_concept_against_project',
+                       'against_concept_open_to_terms', 'concerns_only', 'unclear']
+      - name: shape_cue_text
+        data_type: text
+        description: "The verbatim phrase that triggered the shape (at most 160 characters); null for unclear and for a possible minor."
 
   - name: data_center_comment
     description: >
@@ -176,6 +203,10 @@ models:
         columns: [meeting_comment_id]
         to: ref('meeting_comment')
         to_columns: [meeting_comment_id]
+      - type: foreign_key
+        columns: [meeting_speaker_id]
+        to: ref('meeting_speaker_position')
+        to_columns: [meeting_speaker_id]
       - type: foreign_key
         columns: [jurisdiction_id]
         to: ref('jurisdictions')
@@ -235,6 +266,25 @@ models:
         data_type: text[]
       - name: possible_minor
         data_type: boolean
+      - name: meeting_speaker_id
+        data_type: text
+        description: "The speaker (FK to meeting_speaker_position); site counts are distinct speakers."
+        constraints: [{type: not_null}]
+        tests:
+          - relationships: {to: ref('meeting_speaker_position'), field: meeting_speaker_id}
+      - name: stance_shape
+        data_type: text
+        description: >
+          How the comment states its position (#1383), from the comment_stance_shape_terms cue rules. A shape
+          is counted on its own, never as both sides.
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values:
+              values: ['clear_for', 'clear_against', 'conditional', 'for_concept_against_project',
+                       'against_concept_open_to_terms', 'concerns_only', 'unclear']
+      - name: shape_cue_text
+        data_type: text
+        description: "The verbatim phrase that triggered the shape (at most 160 characters); null for unclear and for a possible minor."
 
   - name: data_center_comment_place
     description: >
@@ -272,3 +322,222 @@ models:
         constraints: [{type: not_null}]
         tests:
           - dbt_utils.expression_is_true: {expression: "!~* '(address removed|\\m\\d{2,6} [A-Z][a-z]+ (street|st|lane|ln|drive|dr|court|ct)\\M)'"}
+
+  - name: meeting_speaker_position
+    description: >
+      One row per meeting x speaker (#1383): everyone who spoke in a meeting's public-comment periods, with one
+      position merged from all their segments (stance_shape, verbatim cue phrases). The grain the site counts.
+      "First L." for residents, name and title for matched officials, else "Speaker N"; never linked across
+      meetings; minors, students and school-board residents are never named. No comment text is carried.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [video_id]
+        to: ref('segmented_meeting')
+        to_columns: [video_id]
+      - type: foreign_key
+        columns: [jurisdiction_id]
+        to: ref('jurisdictions')
+        to_columns: [jurisdiction_id]
+    columns:
+      - name: meeting_speaker_id
+        description: "Primary key: md5(video_id | speaker | speaker key)."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        tests: [unique, not_null]
+      - name: video_id
+        data_type: text
+        description: "The meeting (FK to segmented_meeting)."
+        constraints: [{type: not_null}]
+        tests:
+          - relationships: {to: ref('segmented_meeting'), field: video_id}
+      - name: meeting_date
+        data_type: date
+      - name: jurisdiction_id
+        data_type: text
+        description: "FK to jurisdictions."
+      - name: jurisdiction_name
+        data_type: text
+      - name: state_code
+        data_type: text
+      - name: state
+        data_type: text
+      - name: speaker_number
+        data_type: int
+        description: "Order of first appearance in the meeting, from 1."
+        constraints: [{type: not_null}]
+      - name: speaker_label
+        data_type: text
+        description: "\"First L.\", name and title for a matched official, or \"Speaker N\"."
+        constraints: [{type: not_null}]
+      - name: speaker_named
+        data_type: boolean
+        constraints: [{type: not_null}]
+      - name: speaker_role
+        data_type: text
+        description: "Official's title, or Resident when they said they live here; null otherwise."
+      - name: is_public_comment
+        data_type: boolean
+        description: "False when the introduction says staff, applicant or consultant."
+        constraints: [{type: not_null}]
+      - name: possible_minor
+        data_type: boolean
+        constraints: [{type: not_null}]
+      - name: turn_count
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: segment_count
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: word_count
+        data_type: int
+      - name: first_start_seconds
+        data_type: numeric(12, 3)
+      - name: stance_shape
+        data_type: text
+        description: "The speaker's position, read once over all their segments (cue seed comment_stance_shape_terms)."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values:
+              values: ['clear_for', 'clear_against', 'conditional', 'for_concept_against_project',
+                       'against_concept_open_to_terms', 'concerns_only', 'unclear']
+      - name: shape_cue_text
+        data_type: text
+        description: "Verbatim phrase behind the shape; null for unclear, minors and withheld names."
+      - name: cue_texts
+        data_type: text[]
+        description: "Each segment's own verbatim cue phrase, in order."
+      - name: heat
+        data_type: int
+        description: "Comment heat 1-5 (1 calm, 5 furious); null when none. From the AI meeting analysis where a rated comment matches; the rules baseline is off (not calibrated)."
+        tests:
+          - dbt_utils.expression_is_true: {expression: "is null or (heat between 1 and 5)"}
+      - name: heat_method
+        data_type: text
+        description: "ai_meeting_analysis | rules | classifier; null when heat is null."
+        tests:
+          - accepted_values: {values: ['ai_meeting_analysis', 'rules', 'classifier']}
+      - name: heat_confidence
+        data_type: numeric(3, 2)
+        description: "0.80 for the AI analysis rating; for rules, the measured within +-1 agreement."
+      - name: heat_version
+        data_type: text
+        description: "heat/N: the heat rule-set version."
+      - name: possible_name
+        data_type: text
+        description: "A low-confidence candidate (\"First L.\") from the nearest earlier introduction. Never shown by default; null for minors, students and school boards."
+      - name: attribution_method
+        data_type: text
+        description: "How the name (or the turn) was attributed: self_intro | chair_call | caption_marker_turn | official_roster_match | ai_extraction_held_by | voice_diarization (reserved, not run)."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values:
+              values: ['self_intro', 'chair_call', 'caption_marker_turn', 'official_roster_match', 'ai_extraction_held_by', 'voice_diarization']
+      - name: attribution_confidence
+        data_type: numeric(3, 2)
+        description: "Deterministic confidence 0-1 from the speaker_attribution_rules seed."
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: "between 0 and 1"}
+      - name: attribution_tier
+        data_type: text
+        description: "high (>= 0.80) | medium (>= 0.50) | low."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values: {values: ['high', 'medium', 'low']}
+      - name: attribution_evidence
+        data_type: text
+        description: "The verbatim cue behind the attribution (never the name) and where it was heard."
+      - name: attribution_evidence_seconds
+        data_type: numeric(12, 3)
+        description: "Seconds into the recording where the cue was heard."
+      - name: attribution_version
+        data_type: text
+        description: "speaker_attribution/N: the rule-set version that produced this row; changes when the rules do."
+        constraints: [{type: not_null}]
+      - name: attributed_at
+        data_type: timestamp
+        description: "When the attribution was computed (dbt build time)."
+
+  - name: meeting_speaker_turn
+    description: >
+      One row per meeting x speaker turn (#1383): an uninterrupted stretch by one speaker. A turn holds one or more
+      meeting_comment segments (FK'd to it) and belongs to one speaker in meeting_speaker_position.
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        columns: [video_id]
+        to: ref('segmented_meeting')
+        to_columns: [video_id]
+      - type: foreign_key
+        columns: [meeting_speaker_id]
+        to: ref('meeting_speaker_position')
+        to_columns: [meeting_speaker_id]
+    columns:
+      - name: meeting_speaker_turn_id
+        description: "Primary key: md5(video_id | turn | turn_index)."
+        data_type: text
+        constraints: [{type: not_null}, {type: primary_key}]
+        tests: [unique, not_null]
+      - name: video_id
+        data_type: text
+        constraints: [{type: not_null}]
+        tests:
+          - relationships: {to: ref('segmented_meeting'), field: video_id}
+      - name: meeting_speaker_id
+        data_type: text
+        description: "The speaker (FK to meeting_speaker_position)."
+        constraints: [{type: not_null}]
+        tests:
+          - relationships: {to: ref('meeting_speaker_position'), field: meeting_speaker_id}
+      - name: turn_index
+        data_type: int
+        description: "Order of the turn within the meeting, from 0."
+        constraints: [{type: not_null}]
+      - name: segment_count
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: word_count
+        data_type: int
+      - name: start_seconds
+        data_type: numeric(12, 3)
+        constraints: [{type: not_null}]
+      - name: end_seconds
+        data_type: numeric(12, 3)
+        constraints: [{type: not_null}]
+      - name: attribution_method
+        data_type: text
+        description: "How the name (or the turn) was attributed: self_intro | chair_call | caption_marker_turn | official_roster_match | ai_extraction_held_by | voice_diarization (reserved, not run)."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values:
+              values: ['self_intro', 'chair_call', 'caption_marker_turn', 'official_roster_match', 'ai_extraction_held_by', 'voice_diarization']
+      - name: attribution_confidence
+        data_type: numeric(3, 2)
+        description: "Deterministic confidence 0-1 from the speaker_attribution_rules seed."
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: "between 0 and 1"}
+      - name: attribution_tier
+        data_type: text
+        description: "high (>= 0.80) | medium (>= 0.50) | low."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values: {values: ['high', 'medium', 'low']}
+      - name: attribution_evidence
+        data_type: text
+        description: "The verbatim cue behind the attribution (never the name) and where it was heard."
+      - name: attribution_evidence_seconds
+        data_type: numeric(12, 3)
+        description: "Seconds into the recording where the cue was heard."
+      - name: attribution_version
+        data_type: text
+        description: "speaker_attribution/N: the rule-set version that produced this row; changes when the rules do."
+        constraints: [{type: not_null}]
+      - name: attributed_at
+        data_type: timestamp
+        description: "When the attribution was computed (dbt build time)."

@@ -150,6 +150,32 @@ fragments_total as (
     group by 1, 2
 )
 
+-- Provenance (#1386): how near the introduction is and whether a ">>" turn marker sits between it and the passage.
+, scored as (
+    select
+        p.*,
+        i.pattern_id,
+        d.content is not null
+          and strpos(substr(d.content, p.intro_char_offset + 1, greatest(p.passage_char_offset - p.intro_char_offset, 0)), '>>') > 0
+            as turn_marker_between,
+        p.passage_char_offset - p.intro_char_offset as gap_chars
+    from per_passage as p
+    join {{ ref('meeting_speaker_intro') }} as i on i.meeting_speaker_intro_id = p.meeting_speaker_intro_id
+    left join doc as d on d.video_id = p.video_id
+),
+
+ruled as (
+    select
+        sc.*,
+        case
+            when sc.turn_marker_between                                  then 'passage_after_turn_marker'
+            when sc.pattern_id = 'next_speaker'                          then 'passage_chair_call_window'
+            when sc.gap_chars <= 600                                     then 'passage_intro_near'
+            else 'passage_intro_window'
+        end as rule_key
+    from scored as sc
+)
+
 select
     md5(p.passage_source || '|' || p.passage_id)::text as meeting_passage_speaker_id,
     p.passage_source::text                  as passage_source,
@@ -161,10 +187,25 @@ select
     p.intro_char_offset::integer            as intro_char_offset,
     i.speaker_kind::text                    as speaker_kind,
     i.speaker_display_name::text            as speaker_display_name,
-    i.speaker_role::text                    as speaker_role
-from per_passage as p
+    i.speaker_role::text                    as speaker_role,
+    (case when i.speaker_kind = 'official' and p.rule_key in ('passage_intro_near', 'passage_intro_window')
+          then 'official_roster_match' else r.attribution_method end)::text as attribution_method,
+    (case when i.speaker_kind = 'official' and p.rule_key = 'passage_intro_near' then 0.90
+          when i.speaker_kind = 'official' and p.rule_key = 'passage_intro_window' then 0.60
+          else r.attribution_confidence end)::numeric(3, 2) as attribution_confidence,
+    {{ attribution_tier("(case when i.speaker_kind = 'official' and p.rule_key = 'passage_intro_near' then 0.90 when i.speaker_kind = 'official' and p.rule_key = 'passage_intro_window' then 0.60 else r.attribution_confidence end)") }}::text as attribution_tier,
+    ('"' || case p.pattern_id
+        when 'my_name_is' then 'my name is' when 'i_am_live' then 'I''m ... I live'
+        when 'this_is_from' then 'this is ... from' when 'greeting_name' then 'good evening ... here'
+        else 'next speaker is' end || ' ..." at character ' || p.intro_char_offset::text
+        || ', ' || p.gap_chars::text || ' characters before the passage'
+        || case when p.turn_marker_between then ', with a ">>" turn marker between' else '' end)::text as attribution_evidence,
+    '{{ var("speaker_attribution_version") }}'::text as attribution_version,
+    now()::timestamp                        as attributed_at
+from ruled as p
 join fragments_total as t on t.passage_source = p.passage_source and t.passage_id = p.passage_id
 join intro as i on i.meeting_speaker_intro_id = p.meeting_speaker_intro_id
+join {{ ref('speaker_attribution_rules') }} as r on r.rule_key = p.rule_key
 where p.n_intros = 1
   and p.n_unassigned = 0
   and p.n_located = t.n_fragments

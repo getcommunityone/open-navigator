@@ -16,7 +16,8 @@
       role_keys       comment_role_terms matched on the INTRODUCTION (intro_text, the first
                       40 words from the self-introduction), i.e. how speakers describe
                       themselves, never inferred from the rest of what they said;
-      is_public_comment  false when the introduction says staff, applicant or consultant;
+      is_public_comment  false when the introduction says staff, applicant or consultant, or when a piece split
+                      off at a ">>" / hand-off (no introduction) lies outside an opened public-comment section;
       possible_minor  the introduction says a child's age / grade / school year: the
                       display name is dropped downstream (AGENTS.md, minors).
     comment_text stays in this intermediate table (private); marts carry no text.
@@ -105,7 +106,10 @@ select
     coalesce(eh.person_keys, '{}'::text[])         as person_keys,
     coalesce(eh.mentions_ai, false)                as mentions_ai,
     coalesce(rh.role_keys, '{}'::text[])           as role_keys,
-    not coalesce(rh.is_staff_or_applicant, false)  as is_public_comment,
+    -- A piece the segmenter split off at a ">>" or a chair hand-off with no introduction (#1383) is a new voice, but
+    -- only inside an opened public-comment section is it a public commenter; elsewhere it is council or staff talk.
+    (not coalesce(rh.is_staff_or_applicant, false)
+     and not (c.boundary_basis ~ '^(turn_marker|handoff)>' and not c.in_public_comment_section)) as is_public_comment,
     coalesce(rh.possible_minor, false)             as possible_minor
 from comments as c
 left join topic_hits   as th on th.comment_segment_id = c.comment_segment_id

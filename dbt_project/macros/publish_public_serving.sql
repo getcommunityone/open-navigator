@@ -186,6 +186,9 @@
     'data_center_meeting_mention':         "_s.state_code in {{states}}",
     'segmented_meeting':                   "_s.state_code in {{states}}",
     'meeting_comment':                     "_s.state_code in {{states}}",
+    'meeting_speaker_position':            "_s.state_code in {{states}}",
+    'meeting_speaker_turn':
+        "_s.video_id in (select video_id from gold.segmented_meeting where state_code in {{states}})",
     'data_center_comment':                 "_s.state_code in {{states}}",
     'data_center_comment_place':
         "_s.data_center_comment_id in (select data_center_comment_id from gold.data_center_comment "
@@ -289,7 +292,7 @@
     'meeting_video_kind',
     'recorded_meeting_year',
     'topic_meeting_year',
-    'segmented_meeting', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
+    'segmented_meeting', 'meeting_speaker_position', 'meeting_speaker_turn', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
     'meeting_passage_speaker'
 ] -%}
 

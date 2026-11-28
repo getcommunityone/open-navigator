@@ -19,8 +19,26 @@ export function commentMetricsLine(m: DataCenterCommentMetrics | undefined, scop
   if (!m || m.comments <= 0) return null
   const place = scope.stateName ? ` in ${storyScopeLabel(scope)}` : ''
   const govs = m.governments === 1 ? '1 local government' : `${fmt(m.governments)} local governments`
-  const comments = m.comments === 1 ? '1 public comment' : `${fmt(m.comments)} public comments`
+  // The unit is the SPEAKER (#1383): one person's several caption segments count once.
+  const comments = m.comments === 1 ? '1 speaker' : `${fmt(m.comments)} speakers`
   return `${comments} at ${govs}${place} in ${year}`
+}
+
+/** "12 conditional · 5 support the idea, oppose this project": only the shapes that say more than a side, each counted on its own. */
+const SHAPE_PHRASES: Record<string, string> = {
+  conditional: 'conditional',
+  for_concept_against_project: 'support the idea, oppose this project',
+  against_concept_open_to_terms: 'oppose but open to terms',
+  concerns_only: 'raise concerns only',
+}
+export function shapeCountsLine(shapes: { key: string; count: number }[] | undefined): string | null {
+  const parts = (shapes ?? []).filter((s) => SHAPE_PHRASES[s.key] && s.count > 0).map((s) => `${fmt(s.count)} ${SHAPE_PHRASES[s.key]}`)
+  return parts.length ? parts.join(' · ') : null
+}
+
+/** "Heat avg 2.3, peak 4 (9 speakers rated)": only when the API sends it (3+ rated speakers). */
+export function heatSummaryLine(h: { speakers_rated: number; mean: number; peak: number } | null | undefined): string | null {
+  return h ? `Heat average ${h.mean.toFixed(1)} of 5, peak ${h.peak} (${h.speakers_rated} speakers rated)` : null
 }
 
 /**
@@ -74,6 +92,11 @@ export default function CommentMetricsBlock({ scope, year = 2026 }: Props) {
         </DrillValue>
         .
       </p>
+      {(shapeCountsLine(m.shapes) || heatSummaryLine(m.heat)) && (
+        <p className="stance-note" data-testid="comment-shapes">
+          {[shapeCountsLine(m.shapes), heatSummaryLine(m.heat)].filter(Boolean).join(' · ')}
+        </p>
+      )}
       {(companies.length > 0 || ai) && (
         <dl className="stance-voices-figures">
           {ai && (

@@ -163,3 +163,32 @@ models:
       - name: speaker_role
         description: "Official's title, 'Resident', or null."
         data_type: text
+      - name: attribution_method
+        data_type: text
+        description: "How the name (or the turn) was attributed: self_intro | chair_call | caption_marker_turn | official_roster_match | ai_extraction_held_by | voice_diarization (reserved, not run)."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values:
+              values: ['self_intro', 'chair_call', 'caption_marker_turn', 'official_roster_match', 'ai_extraction_held_by', 'voice_diarization']
+      - name: attribution_confidence
+        data_type: numeric(3, 2)
+        description: "Deterministic confidence 0-1 from the speaker_attribution_rules seed."
+        constraints: [{type: not_null}]
+        tests:
+          - dbt_utils.expression_is_true: {expression: "between 0 and 1"}
+      - name: attribution_tier
+        data_type: text
+        description: "high (>= 0.80) | medium (>= 0.50) | low."
+        constraints: [{type: not_null}]
+        tests:
+          - accepted_values: {values: ['high', 'medium', 'low']}
+      - name: attribution_evidence
+        data_type: text
+        description: "The verbatim cue behind the attribution (never the name) and where it was heard."
+      - name: attribution_version
+        data_type: text
+        description: "speaker_attribution/N: the rule-set version that produced this row; changes when the rules do."
+        constraints: [{type: not_null}]
+      - name: attributed_at
+        data_type: timestamp
+        description: "When the attribution was computed (dbt build time)."

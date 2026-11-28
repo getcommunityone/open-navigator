@@ -20,7 +20,9 @@ OFFICIALS = OfficialIndex(
 
 
 def who(slug: str, *, place: str | None = "Tuscaloosa", school: bool = False):
-    return person_for(slug, jurisdiction_name=place, state_code="AL", school_board=school, officials=OFFICIALS)
+    p = person_for(slug, jurisdiction_name=place, state_code="AL", school_board=school, officials=OFFICIALS)
+    # The identity fields; the attribution_* provenance (#1386) has its own tests below.
+    return None if p is None else {k: p[k] for k in ("name", "role", "kind")}
 
 
 def test_official_matched_to_the_officials_record_gets_canonical_name_and_title():
@@ -98,3 +100,39 @@ def test_vote_counts():
     assert vote_counts({"yes": 11, "no": 0}) == (11, 0)
     assert vote_counts({"yes": None, "no": None}) == (None, None)
     assert vote_counts(None) == (None, None)
+
+
+# --- attribution provenance (#1386) ---------------------------------------------------------------------------------
+
+
+def test_held_by_rules_match_the_dbt_seed() -> None:
+    import csv
+    from pathlib import Path
+
+    from api.routes.decision_people import ATTRIBUTION_VERSION, HELD_BY_RULES
+
+    seed = Path(__file__).resolve().parents[1] / "dbt_project" / "seeds" / "speaker_attribution_rules.csv"
+    rows = {r["rule_key"]: r for r in csv.DictReader(seed.open())}
+    for rule, (method, conf) in HELD_BY_RULES.items():
+        assert rows[rule]["attribution_method"] == method
+        assert float(rows[rule]["attribution_confidence"]) == conf
+    assert ATTRIBUTION_VERSION == "speaker_attribution/1"
+
+
+def test_resident_slug_is_ai_extraction_medium_and_evidence_has_no_surname() -> None:
+    from api.routes.decision_people import person_for
+
+    p = person_for("jane_doe_resident_springfield", jurisdiction_name="Springfield", state_code="IL", school_board=False)
+    assert p and p["name"] == "Jane D."
+    assert (p["attribution_method"], p["attribution_tier"]) == ("ai_extraction_held_by", "medium")
+    assert "doe" not in p["attribution_evidence"].lower()
+
+
+def test_official_title_slug_is_medium_and_roster_match_is_high() -> None:
+    from api.routes.decision_people import OfficialIndex, person_for
+
+    p = person_for("john_faile_councilor_tuscaloosa", jurisdiction_name="Tuscaloosa", state_code="AL", school_board=False)
+    assert p and (p["attribution_method"], p["attribution_tier"]) == ("ai_extraction_held_by", "medium")
+    idx = OfficialIndex([{"full_name": "John Faile", "title": "Councilor", "jurisdiction": "Tuscaloosa Government", "state_code": "AL"}])
+    q = person_for("john_faile_councilor_tuscaloosa", jurisdiction_name="Tuscaloosa", state_code="AL", school_board=False, officials=idx)
+    assert q and (q["attribution_method"], q["attribution_tier"], q["attribution_confidence"]) == ("official_roster_match", "high", 0.9)

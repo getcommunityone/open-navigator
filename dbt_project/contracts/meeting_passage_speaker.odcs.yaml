@@ -136,3 +136,62 @@ schema:
     logicalType: string
     physicalType: text
     description: Official's title, 'Resident', or null.
+  - id: attribution_method
+    name: attribution_method
+    logicalType: string
+    physicalType: text
+    description: 'How the name (or the turn) was attributed: self_intro | chair_call | caption_marker_turn | official_roster_match | ai_extraction_held_by | voice_diarization (reserved, not run).'
+    required: true
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - self_intro
+        - chair_call
+        - caption_marker_turn
+        - official_roster_match
+        - ai_extraction_held_by
+        - voice_diarization
+      mustBe: 0
+      dimension: conformity
+      severity: error
+  - id: attribution_confidence
+    name: attribution_confidence
+    logicalType: number
+    physicalType: numeric(3, 2)
+    description: Deterministic confidence 0-1 from the speaker_attribution_rules seed.
+    required: true
+  - id: attribution_tier
+    name: attribution_tier
+    logicalType: string
+    physicalType: text
+    description: high (>= 0.80) | medium (>= 0.50) | low.
+    required: true
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - high
+        - medium
+        - low
+      mustBe: 0
+      dimension: conformity
+      severity: error
+  - id: attribution_evidence
+    name: attribution_evidence
+    logicalType: string
+    physicalType: text
+    description: The verbatim cue behind the attribution (never the name) and where it was heard.
+  - id: attribution_version
+    name: attribution_version
+    logicalType: string
+    physicalType: text
+    description: 'speaker_attribution/N: the rule-set version that produced this row; changes when the rules do.'
+    required: true
+  - id: attributed_at
+    name: attributed_at
+    logicalType: timestamp
+    physicalType: timestamp
+    description: When the attribution was computed (dbt build time).

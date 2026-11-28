@@ -313,7 +313,7 @@ _SAID_CTE = f"""
                s.topic_transcript_link_id, s.speaker_kind, s.speaker_display_name, s.speaker_role
         FROM meeting_passage_speaker s
         WHERE s.topic_transcript_link_id IN (SELECT topic_transcript_link_id FROM scoped)
-          AND s.speaker_display_name IS NOT NULL
+          AND s.speaker_display_name IS NOT NULL AND s.attribution_tier <> 'low'
         ORDER BY s.topic_transcript_link_id, s.meeting_passage_speaker_id
     ),
     com AS (
@@ -648,6 +648,7 @@ _PASSAGE_SPEAKER_SQL = """
     SELECT s.topic_transcript_link_id, s.speaker_kind, s.speaker_display_name, s.speaker_role
     FROM meeting_passage_speaker s
     WHERE s.topic_transcript_link_id = ANY($1::text[]) AND s.speaker_display_name IS NOT NULL
+      AND s.attribution_tier <> 'low'
 """
 
 

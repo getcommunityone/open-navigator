@@ -142,3 +142,38 @@ schema:
     name: possible_minor
     logicalType: boolean
     physicalType: boolean
+  - id: meeting_speaker_id
+    name: meeting_speaker_id
+    logicalType: string
+    physicalType: text
+    description: The speaker (FK to meeting_speaker_position); site counts are distinct speakers.
+    required: true
+    relationships:
+    - type: foreignKey
+      to: meeting_speaker_position.odcs.yaml#/schema/meeting_speaker_position/properties/meeting_speaker_id
+  - id: stance_shape
+    name: stance_shape
+    logicalType: string
+    physicalType: text
+    description: How the comment states its position (#1383), from the comment_stance_shape_terms cue rules. A shape is counted on its own, never as both sides.
+    required: true
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - clear_for
+        - clear_against
+        - conditional
+        - for_concept_against_project
+        - against_concept_open_to_terms
+        - concerns_only
+        - unclear
+      mustBe: 0
+      dimension: conformity
+      severity: error
+  - id: shape_cue_text
+    name: shape_cue_text
+    logicalType: string
+    physicalType: text
+    description: The verbatim phrase that triggered the shape (at most 160 characters); null for unclear and for a possible minor.

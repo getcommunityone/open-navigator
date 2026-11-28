@@ -912,3 +912,37 @@ seeds:
     columns:
       - name: pattern_key
         tests: [unique, not_null]
+  - name: comment_stance_shape_terms
+    description: >
+      #1383: cue rules (Postgres regex, case-insensitive, run on the original comment text) for the SHAPE of a
+      comment's stance: support / oppose side cues, and the shape cues for_concept_against_project, conditional
+      (condition) and against_concept_open_to_terms (open_terms). The first match of a cue_kind is stored
+      verbatim as meeting_comment.shape_cue_text. Free deterministic rules, not a model.
+    columns:
+      - name: cue_kind
+        tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: [support, oppose, for_concept_against_project, condition, open_terms]
+  - name: speaker_attribution_rules
+    description: >
+      #1386: the deterministic confidence of every way we attach a name (or a turn) to a speaker. One row per rule;
+      attribution_method is the enum served on speaker rows (voice_diarization is reserved for a future
+      pyannote/WhisperX run and has no rule yet). Tiers: high >= 0.80, medium >= 0.50, low < 0.50. The version
+      that stamps served rows is the attribution_version var (speaker_attribution/N); bump it when this file changes.
+    columns:
+      - name: rule_key
+        tests: [unique, not_null]
+      - name: attribution_method
+        tests:
+          - not_null
+          - accepted_values:
+              values: [self_intro, chair_call, caption_marker_turn, official_roster_match, ai_extraction_held_by, voice_diarization]
+  - name: comment_heat_terms
+    description: >
+      #1386: lexicon for the free rules baseline of comment heat (1-5). Exclamation marks and ALL-CAPS words are
+      counted in SQL. Served only when the rules agree with the AI-rated comments (var heat_rules_enabled).
+    columns:
+      - name: signal
+        tests: [unique, not_null]
