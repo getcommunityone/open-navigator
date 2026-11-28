@@ -1,9 +1,15 @@
 """Data center sites over time (#1348): ``GET /api/data-centers/sites-timeline``.
 
-Backs the Data Center Story's "Over time" screen. Each site appears in the year of its earliest real date on
-record (``data_center_site_timeline.appear_year``: the US Data Center Registry's announced date, or Epoch AI's first
-dated timeline row). A site with no date is counted in ``undated``, never placed at a guessed year (CLAUDE.md, No
-Fabricated Data).
+Backs the Data Center Story's "Over time" screen. Every site in scope is returned (#1428), each placed by its
+``data_center_site_timeline.appear_basis``:
+
+* ``announced`` / ``epoch_first_report``: a real start date (the US Data Center Registry's announced date, or Epoch AI's
+  first dated timeline row); the site appears in that year;
+* ``listed_by``: no start date, only the earliest date a source had it listed (an upper bound: it existed by then, it
+  may be older). It appears in that year, drawn as "start date not on record", never called an opening;
+* ``none``: no date at all; it appears only from this year ("today"), never at a guessed year.
+
+So the frame for this year holds every site in scope at its current status (CLAUDE.md, No Fabricated Data).
 
 A site's phase in a year (the per-year totals and the map's dot colour use the same rule; the page mirrors it in
 ``web_app/src/utils/siteTimeline.ts``):
@@ -45,8 +51,12 @@ PHASE_SQL = (
 )
 
 
+BASES = ("announced", "epoch_first_report", "listed_by", "none")
+NO_START_DATE = ("listed_by", "none")
+
+
 class TimelineSite(BaseModel):
-    """One dated data center site; unknown values are null."""
+    """One data center site; unknown values are null."""
 
     data_center_site_id: str
     site_name: str
@@ -59,9 +69,12 @@ class TimelineSite(BaseModel):
     state_code: str | None = None
     latitude: float | None = None
     longitude: float | None = None
-    appear_year: str = Field(..., description="Year of the site's earliest real date on record (a 4-digit string).")
-    appear_basis: str = Field(..., description="announced (registry) or first_report (Epoch AI's first dated row).")
-    appear_precision: str | None = Field(None, description="day, month or year.")
+    appear_year: str | None = Field(
+        None, description="Year the site appears (a 4-digit string); for listed_by the year it was first listed; null for none."
+    )
+    appear_basis: str = Field(..., description="announced, epoch_first_report, listed_by (an upper bound) or none.")
+    appear_precision: str | None = Field(None, description="day, month or year; listed_by for a listed-by date.")
+    listed_on: date | None = Field(None, description="Earliest date a source had the site listed (an upper bound).")
     first_report_year: str | None = None
     operating_year: str | None = None
     operating_is_expected: bool = False
@@ -81,6 +94,7 @@ class TimelineYear(BaseModel):
     no_longer_listed: int = 0
     status_not_published: int = 0
     total: int = 0
+    undated: int = Field(0, description="Of total: sites with no start date on record (listed_by or none).")
     is_future: bool = Field(..., description="After this year: Epoch's projected phases only.")
 
 
@@ -91,10 +105,15 @@ class SitesTimelineResponse(BaseModel):
     current_year: str
     first_year: str | None = None
     last_year: str | None = None
-    dated: int = Field(0, description="Sites with a date on record (all of them, mapped or not).")
-    mapped: int = Field(0, description="Dated sites with coordinates.")
-    undated: int = Field(0, description="Sites in scope with no date on record.")
-    undated_by_status: dict[str, int] = Field(default_factory=dict)
+    total: int = Field(0, description="Every site in scope.")
+    dated: int = Field(0, description="Sites with a real start date (announced or epoch_first_report), mapped or not.")
+    mapped: int = Field(0, description="Sites in scope with coordinates (all bases).")
+    not_mapped: int = Field(0, description="Sites in scope without coordinates.")
+    undated: int = Field(0, description="Sites with no start date on record (listed_by or none).")
+    unplaced: int = Field(0, description="Of undated: sites with no date at all (none), shown from this year only.")
+    listed_year: str | None = Field(None, description="Latest year a listed_by site was first listed.")
+    by_basis: dict[str, int] = Field(default_factory=dict, description="Sites in scope by appear_basis.")
+    undated_by_status: dict[str, int] = Field(default_factory=dict, description="Undated sites by status today.")
     sites: list[TimelineSite] = Field(default_factory=list)
     years: list[TimelineYear] = Field(default_factory=list)
 
@@ -115,46 +134,53 @@ def _scope_where(scope: JobClaimScope, params: list[Any]) -> str:
 
 
 def build_sites_sql(scope: JobClaimScope) -> tuple[str, list[Any]]:
-    """Every dated site in scope (coordinates or not), oldest first."""
+    """Every site in scope (coordinates or not, dated or not), oldest first, undated last."""
     params: list[Any] = []
     where = _scope_where(scope, params)
     sql = (
         "SELECT t.data_center_site_id, ds.site_name, ds.operator, ds.owner, ds.status, ds.source, ds.source_name, "
         "ds.source_url, t.state_code, t.latitude, t.longitude, t.appear_year, t.appear_basis, t.appear_precision, "
-        "t.first_report_year, t.operating_year, t.operating_is_expected, ds.capacity_mw_operational, "
+        "t.listed_on, t.first_report_year, t.operating_year, t.operating_is_expected, ds.capacity_mw_operational, "
         "ds.capacity_mw_planned, ds.it_power_mw "
         "FROM data_center_site_timeline t JOIN data_center_site ds USING (data_center_site_id) "
-        f"WHERE t.appear_year IS NOT NULL AND {where} ORDER BY t.appear_year, ds.site_name"
+        f"WHERE {where} ORDER BY t.appear_year NULLS LAST, ds.site_name"
     )
     return sql, params
 
 
 def build_undated_sql(scope: JobClaimScope) -> tuple[str, list[Any]]:
-    """Sites in scope with no date on record, by status today."""
+    """Sites in scope with no start date on record (listed_by or none), by status today."""
     params: list[Any] = []
     where = _scope_where(scope, params)
     sql = (
         "SELECT coalesce(ds.status, 'status_not_published') AS status, count(*)::int AS n "
         "FROM data_center_site_timeline t JOIN data_center_site ds USING (data_center_site_id) "
-        f"WHERE t.appear_year IS NULL AND {where} GROUP BY 1"
+        f"WHERE t.appear_basis IN ('listed_by', 'none') AND {where} GROUP BY 1"
     )
     return sql, params
 
 
 def build_years_sql(scope: JobClaimScope, current_year: int) -> tuple[str, list[Any]]:
-    """Per-year totals by phase, from the first year a site appears to max(this year, last expected operating year)."""
+    """Per-year totals by phase, from the first year a site appears to max(this year, last expected operating year).
+
+    Every site counts: a site with no date at all (appear_basis none) enters at this year, so this year's row totals
+    every site in scope. ``undated`` counts the sites in the row with no start date (listed_by or none).
+    """
     params: list[Any] = [current_year]
     where = _scope_where(scope, params)
     counts = ", ".join(f"count(p.phase) FILTER (WHERE p.phase = '{ph}')::int AS {ph}" for ph in PHASES)
     sql = (
         "WITH s AS ("
-        "SELECT t.appear_year, t.first_report_year, t.operating_year, ds.status, ds.source "
+        "SELECT coalesce(t.appear_year, $1::int) AS appear_year, t.appear_basis, t.first_report_year, t.operating_year, "
+        "ds.status, ds.source "
         "FROM data_center_site_timeline t JOIN data_center_site ds USING (data_center_site_id) "
-        f"WHERE t.appear_year IS NOT NULL AND {where}), "
+        f"WHERE {where}), "
         "b AS (SELECT min(appear_year) AS lo, greatest($1::int, max(appear_year), coalesce(max(operating_year), 0)) AS hi FROM s), "
         "y AS (SELECT generate_series(b.lo, b.hi) AS year FROM b WHERE b.lo IS NOT NULL), "
-        f"p AS (SELECT y.year, {PHASE_SQL} AS phase FROM y JOIN s ON s.appear_year <= y.year) "
-        f"SELECT y.year, {counts}, count(p.phase)::int AS total, (y.year > $1::int) AS is_future "
+        f"p AS (SELECT y.year, s.appear_basis, {PHASE_SQL} AS phase FROM y JOIN s ON s.appear_year <= y.year) "
+        f"SELECT y.year, {counts}, count(p.phase)::int AS total, "
+        "count(p.phase) FILTER (WHERE p.appear_basis IN ('listed_by', 'none'))::int AS undated, "
+        "(y.year > $1::int) AS is_future "
         "FROM y LEFT JOIN p ON p.year = y.year GROUP BY y.year ORDER BY y.year"
     )
     return sql, params
@@ -199,16 +225,24 @@ async def data_center_sites_timeline(
         sites = [TimelineSite(**_years_as_text(dict(r))) for r in site_rows]
         years = [TimelineYear(**_years_as_text(dict(r))) for r in year_rows]
         undated_by_status = {r["status"]: r["n"] for r in undated_rows if r["n"]}
-        span.set_attribute("sites_timeline.dated", len(sites))
+        by_basis = {b: n for b in BASES if (n := sum(1 for s in sites if s.appear_basis == b))}
+        mapped = sum(1 for s in sites if s.latitude is not None and s.longitude is not None)
+        listed_years = [s.appear_year for s in sites if s.appear_basis == "listed_by" and s.appear_year]
+        span.set_attribute("sites_timeline.total", len(sites))
         return SitesTimelineResponse(
             scope=applied,
             available=True,
             current_year=str(current_year),
             first_year=years[0].year if years else None,
             last_year=years[-1].year if years else None,
-            dated=len(sites),
-            mapped=sum(1 for s in sites if s.latitude is not None and s.longitude is not None),
-            undated=sum(undated_by_status.values()),
+            total=len(sites),
+            dated=by_basis.get("announced", 0) + by_basis.get("epoch_first_report", 0),
+            mapped=mapped,
+            not_mapped=len(sites) - mapped,
+            undated=sum(by_basis.get(b, 0) for b in NO_START_DATE),
+            unplaced=by_basis.get("none", 0),
+            listed_year=max(listed_years) if listed_years else None,
+            by_basis=by_basis,
             undated_by_status=undated_by_status,
             sites=sites,
             years=years,
