@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { allocateWaffleCells, type WaffleCategory } from '../../utils/waffleGrid'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
+import ChartFrame from '../chart/ChartFrame'
 import { useChartReveal } from './useChartReveal'
 import './storyCharts.css'
 
@@ -41,7 +42,36 @@ export default function BoxWaffleChart({ categories, title, unitLabel = 'records
   const gridPx = 10 * step - gap
   const cellsByKey = new Map(shares.map((s) => [s.key, s.cells]))
 
+  const legend = (
+      <div className="wf-legend" role="group" aria-label={`Filter or highlight categories for ${title}`}>
+        {shares.map((s) => {
+          const on = pinned === s.key
+          const active = activeKey === s.key
+          return (
+            <button
+              key={s.key}
+              type="button"
+              className={`wf-leg-btn${on ? ' is-pinned' : ''}${active ? ' is-active' : ''}`}
+              aria-pressed={on}
+              onMouseEnter={() => setHovered(s.key)}
+              onMouseLeave={() => setHovered(null)}
+              onFocus={() => setHovered(s.key)}
+              onBlur={() => setHovered(null)}
+              onClick={() => setPinned((p) => (p === s.key ? null : s.key))}
+            >
+              <span className="wf-leg-swatch" style={{ background: s.color }} aria-hidden="true" />
+              <span>{s.label}</span>
+              <span className="wf-leg-n">{fmt(s.count)}</span>
+            </button>
+          )
+        })}
+      </div>
+  )
+  const topPct = Math.round(topShare.pct)
+  const frameTitle = `${title}: ${topShare.label} is the largest share, ${topPct}% of ${fmt(total)} ${unitLabel}`
+
   return (
+    <ChartFrame title={frameTitle} legend={legend} className="wf-frame">
     <div className="wf-wrap" aria-label={`${title}: 100-box proportion grid of ${fmt(total)} ${unitLabel}`}>
       <div className="wf-main">
         <div className="wf-stat" aria-live="polite">
@@ -96,30 +126,8 @@ export default function BoxWaffleChart({ categories, title, unitLabel = 'records
           })}
         </svg>
       </div>
-      <div className="wf-legend" role="group" aria-label={`Filter or highlight categories for ${title}`}>
-        {shares.map((s) => {
-          const on = pinned === s.key
-          const active = activeKey === s.key
-          return (
-            <button
-              key={s.key}
-              type="button"
-              className={`wf-leg-btn${on ? ' is-pinned' : ''}${active ? ' is-active' : ''}`}
-              aria-pressed={on}
-              onMouseEnter={() => setHovered(s.key)}
-              onMouseLeave={() => setHovered(null)}
-              onFocus={() => setHovered(s.key)}
-              onBlur={() => setHovered(null)}
-              onClick={() => setPinned((p) => (p === s.key ? null : s.key))}
-            >
-              <span className="wf-leg-swatch" style={{ background: s.color }} aria-hidden="true" />
-              <span>{s.label}</span>
-              <span className="wf-leg-n">{fmt(s.count)}</span>
-            </button>
-          )
-        })}
-      </div>
       {typeof document !== 'undefined' && createPortal(<div className="folio" style={HOUSE_STYLE}><Tooltip tip={tip} /></div>, document.body)}
     </div>
+    </ChartFrame>
   )
 }

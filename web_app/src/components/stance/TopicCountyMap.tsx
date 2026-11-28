@@ -4,6 +4,7 @@ import { fetchTopicPlaces } from '../../api/topics'
 import type { TopicPositions } from '../../utils/topicPositions'
 import StoryCountyMap from './StoryCountyMap'
 import MapSkeleton, { useStateAspect } from './MapSkeleton'
+import { useInsightYears } from '../chart/useInsightYears'
 import type { MapPassage } from './StoryDotMap'
 
 interface Props {
@@ -26,6 +27,8 @@ interface Props {
   fallback: ReactNode
   /** Forwarded to `StoryCountyMap` (#1374): home passes false to drop the side legend panel. */
   chrome?: boolean
+  /** The topic's slug: its meetings per year feed the map's takeaway title (#1409). */
+  topicSlug?: string
 }
 
 /**
@@ -48,7 +51,9 @@ export default function TopicCountyMap({
   onDrill,
   fallback,
   chrome = true,
+  topicSlug,
 }: Props) {
+  const years = useInsightYears(topicSlug, stateCode)
   const aspect = useStateAspect(stateCode)
   const places = useQuery({
     queryKey: ['topic-story', topicId, 'places', stateCode],
@@ -76,6 +81,7 @@ export default function TopicCountyMap({
       onPickState={onPickState}
       onDrill={onDrill}
       chrome={chrome}
+      insightExtras={{ years }}
     />
   )
 }

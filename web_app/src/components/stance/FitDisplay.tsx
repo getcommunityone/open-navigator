@@ -1,3 +1,4 @@
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import type { ReactNode } from 'react'
 import type { DotsSpec } from '../../utils/stanceGame'
 import { GROUP_COLORS } from '../../utils/houseTheme'
@@ -43,7 +44,16 @@ export function RecordList({ spec, showStatus }: { spec: DotsSpec; showStatus: b
 export function CountBars({ rows, label }: { rows: CategoryCount[]; label: string }) {
   const top = topCategories(rows)
   const max = Math.max(1, ...top.map((r) => r.count))
+  const sum = top.reduce((a, r) => a + r.count, 0)
+  const lead = top[0]
+  // The title leads with the biggest bar; the key says what a bar is and what grey means (#1409).
+  const title = lead && top.length > 1 && sum >= 5 ? `${label}: ${lead.label} leads with ${fmt(lead.count)} of ${fmt(sum)}` : label
+  const legend: LegendItem[] = [
+    { key: 'bar', label: 'Bar length = how many, count at the right', color: 'var(--teal, #0f766e)' },
+    ...(top.some((r) => r.other) ? [{ key: 'other', label: 'Other: the smaller groups together', color: 'var(--ink-2)' }] : []),
+  ]
   return (
+    <ChartFrame title={title} legend={legend}>
     <ol className="stance-fit-bars" aria-label={label}>
       {top.map((r) => (
         <li key={r.label} data-other={r.other ? '' : undefined}>
@@ -55,6 +65,7 @@ export function CountBars({ rows, label }: { rows: CategoryCount[]; label: strin
         </li>
       ))}
     </ol>
+    </ChartFrame>
   )
 }
 

@@ -1,3 +1,4 @@
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { SitesTimelineResponse, TimelineSite } from '../../api/sitesTimeline'
@@ -188,8 +189,25 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
   const r = geo ? geo.vb[2] / (stateCode ? 70 : 150) : 3
   const maxTotal = Math.max(1, ...columns.map((c) => c.total))
 
+  // Title and key (#1409): the real counts at the chosen year, and the phase colours the dots and bars are drawn with.
+  const presentPhases = PHASES.filter((p) => (res.years ?? []).some((y) => ((y[p] as number | undefined) ?? 0) > 0))
+  const keyItems: LegendItem[] = [
+    ...(presentPhases.length ? presentPhases : PHASES).map((p) => ({
+      key: p,
+      label: PHASE_LABEL[p],
+      color: PHASE_COLOR[p],
+      shape: p === 'planned' ? ('hatch' as const) : ('dot' as const),
+    })),
+    ...(legend.undatedMapped > 0 || columns.some((c) => c.undated > 0) ? [{ key: 'undated', label: 'Start date not on record', color: NEUTRAL, shape: 'ring' as const }] : []),
+  ]
+  const plannedNow = (row?.planned as number | undefined) ?? 0
+  const where = scopeLabel === 'National' ? 'nationwide' : `in ${scopeLabel}`
+  const mapTitle = `${fmt(legend.mapped)} mapped ${legend.mapped === 1 ? 'site' : 'sites'} ${where} by ${year}${plannedNow > 0 ? `, ${fmt(plannedNow)} proposed` : ''}`
+  const stripTitle = `${fmt(row?.total ?? 0)} dated sites by ${year}, ${firstYear} to ${lastYear}`
+
   return (
     <div className="dc-tl" data-display="animated" data-future={isFuture ? '' : undefined}>
+      <ChartFrame title={mapTitle} caption={`Mapped data center sites on record by ${year}, ${scopeLabel === 'National' ? 'nationwide' : scopeLabel}`} legend={keyItems}>
       <div className="dc-tl-map">
         {geo ? (
           <svg viewBox={geo.vb.join(' ')} role="img" aria-label={`Map of ${fmt(atYear.length)} mapped data center sites on record in ${scopeLabel === 'National' ? 'the country' : scopeLabel} by ${year}`}>
@@ -268,6 +286,7 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
           <div className="dc-tl-map-skeleton" aria-label="Loading the map" />
         )}
       </div>
+      </ChartFrame>
 
       {/* The counts sit under the map: on a phone the map is the panel's first block, so it stays in view (useScreenFit). */}
       <div className="dc-tl-head">
@@ -335,6 +354,7 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
         </button>
       </div>
 
+      <ChartFrame title={stripTitle} legend={keyItems}>
       <svg className="dc-tl-strip" viewBox={`0 0 ${years.length * 10} 36`} preserveAspectRatio="none" role="img" aria-label={`Running total of sites on record per year, ${firstYear} to ${lastYear}; sites with no start date drawn as an outlined block`}>
         <defs>
           <pattern id="dc-tl-hatch" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -364,6 +384,7 @@ export default function SitesTimelinePanel({ res, scopeLabel, stateCode, active,
           )
         })}
       </svg>
+      </ChartFrame>
       <p className="dc-tl-axis">
         <span>{firstYear}</span>
         {Number.isFinite(current) && lastYear! > current && <span className="dc-tl-axis-future">after {current}: projected</span>}

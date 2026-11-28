@@ -1,3 +1,4 @@
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTopicLocalActions, type ActionGroup, type TopicLocalActionsResponse } from '../../api/topicPolicy'
@@ -95,6 +96,11 @@ export default function LocalActionsTracker({ topic, stateCode, scopeLabel, subj
   const hover = hoverYear ? years.find((y) => y.year === hoverYear) : undefined
   const labelEvery = Math.ceil(years.length / Math.max(3, Math.floor(W / 80)))
 
+  // Title and key (#1409): the real totals; each colour the bars are drawn with.
+  const lead = [...ACTION_ORDER].sort((a, b) => d.totals[b] - d.totals[a])[0]!
+  const frameTitle = `${fmt(d.total)} ${d.total === 1 ? 'meeting' : 'meetings'} with a vote or delay on ${subject}: ${fmt(d.totals[lead])} ${labels[lead].toLowerCase()}`
+  const legend: LegendItem[] = ACTION_ORDER.map((g) => ({ key: g, label: `${labels[g]} (${fmt(d.totals[g])})`, color: ACTION_FILL[g] }))
+
   return (
     <div className="sc-block la">
       {title}
@@ -111,6 +117,7 @@ export default function LocalActionsTracker({ topic, stateCode, scopeLabel, subj
       </ul>
 
       {years.length > 0 && (
+        <ChartFrame title={frameTitle} legend={legend} caption={`Meetings with an action on ${subject}, by year · ${scopeLabel}`}>
         <figure className="la-fig" ref={figRef}>
           <svg viewBox={`0 0 ${W} ${H}`} className="sc-svg" role="img" aria-label={`Meetings with an action on ${subject}, by year`}>
             <line x1={padL} x2={W} y1={H - padB} y2={H - padB} stroke="var(--rule)" />
@@ -156,6 +163,7 @@ export default function LocalActionsTracker({ topic, stateCode, scopeLabel, subj
               : `Meetings per year${d.undated ? `; ${d.undated} more have no recorded date` : ''}. Hover or tap a year for its counts.`}
           </figcaption>
         </figure>
+        </ChartFrame>
       )}
 
       {!stateCode && d.by_state.length > 0 && (

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { niceMax, pctLabel } from '../../utils/storyTimeline'
 import { pickAxisTicks } from '../../utils/axisTicks'
@@ -6,6 +6,7 @@ import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
 import { revealDelayMs } from '../../utils/folioMotion'
 import { labelWidth, placeValueLabels, wrapLabel } from '../../utils/dumbbellLabels'
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { useChartReveal } from './useChartReveal'
 import { useChartWidth } from './useChartWidth'
 import './storyCharts.css'
@@ -26,6 +27,8 @@ export interface DumbbellRow {
 }
 
 interface Props {
+  /** What the chart says in plain words (#1409), shown above it. */
+  title: ReactNode
   /** Rows in the order to draw them; a new order slides the rows to their place. */
   rows: DumbbellRow[]
   /** Legend names for the hollow and filled dots; aName is left out when no row has an `a`. */
@@ -60,6 +63,7 @@ const COMPACT_W = 560
  * (`DumbbellChart`) (the Concerns screen used `ConcernsDumbbell`, removed in #1289).
  */
 export default function DumbbellRows({
+  title,
   rows,
   aName,
   bName,
@@ -86,7 +90,7 @@ export default function DumbbellRows({
   // Phone (#1264): compact rows. Label and change on one line, then a light track with each value printed over its dot;
   // no axis, gridlines or scale row. Desktop keeps the label column, the % axis and the change column.
   const compact = w < COMPACT_W
-  const topPad = compact ? 26 : 28
+  const topPad = compact ? 8 : 10
   const labelW = compact ? 0 : Math.min(190, w * 0.32)
   const deltaW = compact ? 0 : 72
   const plotL = compact ? 8 : labelW
@@ -96,7 +100,6 @@ export default function DumbbellRows({
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * xmax)
   // The % labels by the room they have (the same rule as the year axes), first and last always, never overlapping.
   const tickShown = new Set(pickAxisTicks(ticks.length, (plotR - plotL) / (ticks.length - 1), Math.max(...ticks.map((t) => format(t).length))))
-  const bLegendX = single || !aName ? plotL + 5 : plotL + 14 + aName.length * 6.6 + 16
 
   // Compact layout, worked out for every visible row first, so all rows share one height.
   // (Label widths are estimates: ~6.9px a character for the 12px label, ~7.5px for the change.)
@@ -119,22 +122,19 @@ export default function DumbbellRows({
   const textY = compact ? 15 : wideValues ? 32 : 24
   const h = topPad + visible.length * rowH + (compact ? 4 : 30)
 
+  // The key (#1409): the same CSS colours the dots and lines draw with (storyCharts.css).
+  const legend: LegendItem[] = [
+    ...(!single && aName ? [{ key: 'a', label: aName, color: 'var(--ink)', shape: 'ring' as const }] : []),
+    { key: 'b', label: bName, color: 'var(--violet)', shape: 'dot' },
+    ...(!single ? [{ key: 'up', label: 'Rose', color: 'var(--violet)', shape: 'line' as const }] : []),
+    ...(!single && rows.some((r) => r.negative) ? [{ key: 'down', label: 'Fell', color: 'var(--vermilion)', shape: 'line' as const }] : []),
+  ]
+
   return (
     <>
+      <ChartFrame title={title} legend={legend}>
       <div ref={ref}>
         <svg ref={revealRef} className={`sc-svg${compact ? ' sc-dumbbell-compact' : ''}`} viewBox={`0 0 ${w} ${h}`} role="group" aria-label={ariaLabel}>
-          {!single && aName && (
-            <>
-              <circle cx={plotL + 5} cy={10} r={4.5} className="sc-dot-early" />
-              <text className="sc-micro" x={plotL + 14} y={14}>
-                {aName}
-              </text>
-            </>
-          )}
-          <circle cx={bLegendX} cy={10} r={5} className="sc-dot-late" />
-          <text className="sc-micro" x={bLegendX + 10} y={14}>
-            {bName}
-          </text>
           {!compact &&
             ticks.map((t, i) => (
               <g key={i}>
@@ -244,6 +244,7 @@ export default function DumbbellRows({
           })}
         </svg>
       </div>
+      </ChartFrame>
       {rows.length > firstRows && (
         <button type="button" className="folio-btn" onClick={() => setAll((v) => !v)}>
           {all ? `Show the first ${firstRows}` : `Show all ${fmt(rows.length)} ${unitPlural}`}
