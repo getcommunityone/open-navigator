@@ -24,6 +24,8 @@ import {
 import { HOUSE_STYLE } from '../../utils/houseTheme'
 import { DataTable } from '../matrix/SectionShell'
 import { Tooltip, useTooltip } from '../matrix/Tooltip'
+import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
+import { pickInsight } from '../../utils/chartInsight'
 import { useChartReveal } from './useChartReveal'
 import { useChartWidth } from './useChartWidth'
 import { pickYearTicks } from '../../utils/axisTicks'
@@ -201,11 +203,23 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
   const tapOrder = ms.map((_, i) => i).reverse()
   const tapShown = showAll ? tapOrder : tapOrder.slice(0, TAP_LIST_FIRST)
 
+  // Title and key (#1409): the takeaway from the real yearly counts, the description as caption.
+  const insight = pickInsight({
+    subject,
+    place: scopeLabel === 'National' ? 'the United States' : scopeLabel,
+    totalMeetings: data.total_meetings,
+    years: years.map((y) => ({ year: y.year, meetings: y.meetings, share: y.share, recorded: y.all_recorded_meetings })),
+  })
+  const captionText = activeMode === 'share' ? `Share of recorded meetings that discussed ${subject}, by year · ${scopeLabel}` : `Meetings that discussed ${subject}, by year · ${scopeLabel}`
+  const frameTitle = insight.kind === 'none' || insight.kind === 'volume' ? captionText : insight.title
+  const legend: LegendItem[] = [
+    { key: 'line', label: activeMode === 'share' ? 'Share of recorded meetings that discussed it' : 'Meetings that discussed it', color: 'var(--violet)', shape: 'line' },
+    ...(thinDrawn.size > 0 || hollowShare ? [{ key: 'thin', label: 'Hollow or dashed: few meetings recorded, not comparable', color: 'var(--violet)', shape: 'ring' as const }] : []),
+    ...(ms.length > 0 ? [{ key: 'ms', label: 'Square on the track: a milestone (selected one in red)', color: 'var(--ink)', shape: 'square' as const }] : []),
+  ]
+
   return (
     <div className="sc-block">
-      <p className="sc-h">
-        {activeMode === 'share' ? `Share of recorded meetings that discussed ${subject}, by year` : `Meetings that discussed ${subject}, by year`} · {scopeLabel}
-      </p>
       {shareOk && (
         <div className="sc-controls">
           <div className="folio-seg" role="group" aria-label="Series">
@@ -218,6 +232,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
           </div>
         </div>
       )}
+      <ChartFrame title={frameTitle} titleSupport={insight.support} caption={frameTitle === captionText ? undefined : captionText} legend={legend}>
       <div ref={ref}>
         <svg ref={revealRef} className={`sc-svg sc-trend${revealed ? ' is-revealed' : ''}`} viewBox={`0 0 ${w} ${h}`} role="group" aria-label={`Trend line, ${scopeLabel}`}>
           {ticks.map((t) => (
@@ -356,6 +371,7 @@ export default function TimelineChart({ topic, stateCode, city, scopeLabel, subj
         )}
         {sel >= 0 && ms[sel] && <MilestoneCard m={ms[sel]!} />}
       </div>
+      </ChartFrame>
 
       <p className="sc-note">
         {COVERAGE_NOTE}
