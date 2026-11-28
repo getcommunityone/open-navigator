@@ -219,6 +219,10 @@ vars:
   heat_version: 'heat/1'
   heat_rules_enabled: false
   heat_rules_within1: 0.78
+  # Speaker side / heat from the classifier (#1391): a reading counts only at or above this probability (calibrated on
+  # the hand-labelled gold set; llm.typesafe.speaker_stance.MIN_SIDE_CONFIDENCE, kept equal by a test).
+  speaker_side_min_confidence: 0.8
+  speaker_heat_min_confidence: 0.65
   # Confidence score thresholds
   confidence_authoritative: 1.0
   confidence_high: 0.90

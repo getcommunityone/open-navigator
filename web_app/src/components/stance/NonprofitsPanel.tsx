@@ -14,6 +14,8 @@ import {
   whyListed,
 } from '../../utils/topicOrganizations'
 import { broaderHref } from '../../utils/topicUpcoming'
+import { GROUP_COLORS } from '../../utils/houseTheme'
+import BoxWaffleChart from './BoxWaffleChart'
 import { CountBars } from './FitDisplay'
 import './storyCharts.css'
 import './UpcomingPanel.css'
@@ -139,7 +141,25 @@ export default function NonprofitsPanel({ topic, stateCode, city, scopeLabel, su
       )}
       {/* The counts by evidence after the list: on a phone the list is what fits first (useScreenFit). */}
       {display.kind === 'bars' || display.kind === 'top-bars' ? (
-        <CountBars rows={rows} label={`Nonprofits by how they are tied to ${subject}`} />
+        <>
+          {rows.reduce((s, r) => s + r.count, 0) >= 20 && rows.filter((r) => r.count > 0).length >= 2 && (
+            <BoxWaffleChart
+              categories={[...rows]
+                .filter((r) => r.count > 0)
+                .sort((a, b) => b.count - a.count)
+                .map((r, i) => ({
+                  key: r.label,
+                  label: r.label,
+                  count: r.count,
+                  color: GROUP_COLORS[i % GROUP_COLORS.length]!,
+                }))}
+              title={`Nonprofits by how they are tied to ${subject}`}
+              unitLabel="nonprofits"
+              replayKey={`np|${subject}|${scopeLabel}|${rows.reduce((s, r) => s + r.count, 0)}`}
+            />
+          )}
+          <CountBars rows={rows} label={`Nonprofits by how they are tied to ${subject}`} />
+        </>
       ) : display.kind !== 'list' ? (
         <p className="np-counts">{countsSentence(rows)}</p>
       ) : null}

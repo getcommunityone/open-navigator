@@ -1,6 +1,7 @@
 import { BOX_COLORS } from '../home/storyColors'
 import { countsSentence, pickDisplay } from '../../utils/displayFit'
 import { SPLIT_NOTE, type PositionCounts, type TopicPositions } from '../../utils/topicPositions'
+import BoxWaffleChart from './BoxWaffleChart'
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 const pct = (n: number, of: number) => (of > 0 ? Math.round((n / of) * 100) : 0)
@@ -44,19 +45,27 @@ export default function TopicPositionsBreakdown({ counts, words, scopeLabel, lab
           {fmt(counts.read)} {counts.read === 1 ? 'meeting' : 'meetings'} read. {countsSentence(kept.map((r) => ({ label: r.label, count: r.n })))}
         </p>
       ) : (
-      <ul className="topic-positions-rows" data-display={display.kind}>
-        {shown.map((r) => (
-          <li key={r.key} className="topic-positions-row">
-            <span className="topic-positions-label">{r.label}</span>
-            <span className="topic-positions-bar" aria-hidden="true">
-              <span style={{ width: `${pct(r.n, max)}%`, background: r.color }} />
-            </span>
-            <span className="topic-positions-n">
-              {fmt(r.n)}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <>
+        <BoxWaffleChart
+          categories={shown.map((r) => ({ key: r.key, label: r.label, count: r.n, color: r.color }))}
+          title={`Who spoke on record · ${scopeLabel}`}
+          unitLabel="meetings read"
+          replayKey={`${scopeLabel}|${counts.read}`}
+        />
+        <ul className="topic-positions-rows" data-display={display.kind}>
+          {shown.map((r) => (
+            <li key={r.key} className="topic-positions-row">
+              <span className="topic-positions-label">{r.label}</span>
+              <span className="topic-positions-bar" aria-hidden="true">
+                <span style={{ width: `${pct(r.n, max)}%`, background: r.color }} />
+              </span>
+              <span className="topic-positions-n">
+                {fmt(r.n)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </>
       )}
       <figcaption className="stance-note">
         {scopeLabel}: {fmt(counts.read)} {counts.read === 1 ? 'meeting' : 'meetings'} read by an AI (each meeting's transcript, never a count of

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTopicCaptionFacts, fetchTopicStanceMap, fetchTopicStates } from '../../api/topics'
@@ -9,6 +9,7 @@ import { useStoryScope } from '../../hooks/useStoryScope'
 import { CAPTION_COPY, captionSubhead, captionText, isLongTitle, pickCaption, storyStartLabel } from '../../utils/storyCaption'
 import '../../styles/story-actions.css'
 import type { TopicStoryDef } from '../../utils/topicStories'
+import { useBoxFlight } from '../stance/BoxFlightProvider'
 import StoryStatesMap, { type StateQuote } from './StoryStatesMap'
 import { stanceFromPublicLean } from '../../utils/mapQuote'
 import TopicCountyMap from '../stance/TopicCountyMap'
@@ -98,10 +99,19 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
   // Start opens the story past its cover (#1222).
   const href = storyStartHref(def.slug, query)
   const navigate = useNavigate()
+  const mapWrapRef = useRef<HTMLDivElement | null>(null)
+  const boxFlight = useBoxFlight()
   const positions = topicPositions(def.slug)
   // At state scope (#1349) the hero draws the story Overview's county map: a county or a town ring opens the story there.
   const drill = (city: string | null) => {
     if (!scope.stateCode) return
+    if (mapWrapRef.current) {
+      boxFlight.launch({
+        source: mapWrapRef.current,
+        focusGroup: city ?? scope.stateCode,
+        targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+      })
+    }
     const p = new URLSearchParams({ state: scope.stateCode, screen: 'overview' })
     if (city) p.set('city', city)
     navigate(`/stories/${encodeURIComponent(def.slug)}?${p.toString()}`)
@@ -157,13 +167,25 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
           {caption.basis ?? 'Counted from local meeting recordings and transcripts that mention the topic.'}
         </p>
         <div className="home-story-actions">
-          <Link to={href} className="home-story-start">
+          <Link
+            to={href}
+            className="home-story-start"
+            onClick={() => {
+              if (mapWrapRef.current) {
+                boxFlight.launch({
+                  source: mapWrapRef.current,
+                  focusGroup: scope.stateCode ?? undefined,
+                  targetSelector: '.stance-story [data-live], .stance-story [data-panel="0"]',
+                })
+              }
+            }}
+          >
             {storyStartLabel(def.slug, label, def.subject)} <span aria-hidden="true">→</span>
           </Link>
         </div>
         <HomeStoryDrill slotRef={setCardSlot} hint={scope.stateCode ? 'Pick a county or a town on the map to open its story.' : undefined} />
       </div>
-      <div className="home-story-map">
+      <div className="home-story-map" ref={mapWrapRef}>
         {states.isError ? (
           <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
         ) : scope.stateCode ? (

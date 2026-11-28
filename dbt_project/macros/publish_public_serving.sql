@@ -189,6 +189,7 @@
     'segmented_meeting':                   "_s.state_code in {{states}}",
     'meeting_comment':                     "_s.state_code in {{states}}",
     'meeting_speaker_position':            "_s.state_code in {{states}}",
+    'meeting_speaker_topic_side':          "_s.state_code in {{states}}",
     'data_center_comment':                 "_s.state_code in {{states}}",
     'data_center_comment_place':
         "_s.data_center_comment_id in (select data_center_comment_id from gold.data_center_comment "
@@ -294,7 +295,7 @@
     'recorded_meeting_year',
     'topic_meeting_year',
     'segmented_meeting', 'meeting_speaker_position', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
-    'meeting_passage_speaker'
+    'meeting_passage_speaker', 'meeting_speaker_topic_side'
 ] -%}
 
 {#- Per-relation column projections. Anything not listed here is published as a
@@ -320,7 +321,9 @@
       (video_id, comment_index, speaker_display_name, topic_ids, jurisdiction); no comment text exists on the mart.
     * meeting_speaker_position: the data-center metrics and drill read only speakers who have a
       data_center_comment row; long cue_texts, counters and versions stay in gold.
-    * meeting_speaker_turn: nothing reads it, so it is not published (see `served`). -#}
+    * meeting_speaker_turn: nothing reads it, so it is not published (see `served`).
+    * meeting_speaker_topic_side (#1391): only the counted columns the caption facts read (topic, place, side, heat);
+      not_sure readings are never counted, so they stay in gold. -#}
 {%- set projections = {
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
@@ -366,7 +369,11 @@
         'segment_count, possible_name, attribution_method, attribution_confidence, attribution_tier, '
         'attribution_evidence, heat, heat_method, heat_confidence, stance_shape, shape_cue_text '
         'from gold.meeting_speaker_position '
-        'where meeting_speaker_id in (select meeting_speaker_id from gold.data_center_comment)'
+        'where meeting_speaker_id in (select meeting_speaker_id from gold.data_center_comment)',
+    'meeting_speaker_topic_side':
+        'select meeting_speaker_id, topic_id, video_id, meeting_date, jurisdiction_id, jurisdiction_name, state_code, '
+        'side, side_confidence, side_method, side_version, heat, heat_confidence '
+        'from gold.meeting_speaker_topic_side where side <> \'not_sure\''
 } -%}
 
 {#- ===================================================================

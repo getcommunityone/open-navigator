@@ -248,3 +248,51 @@ async def _get_async(monkeypatch, pool_factory, params):
     app.include_router(ty.router)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
         return (await c.get("/api/topics/yoy", params=params)).json()
+
+
+class _HeatConn(_Conn):
+    """Routes the #1407 heat query to its own rows (test stand-ins, not warehouse figures)."""
+
+    def __init__(self, rows, heat_rows=None, heat_error=False):
+        super().__init__(rows)
+        self.heat_rows = heat_rows or []
+        self.heat_error = heat_error
+
+    async def fetch(self, sql: str, *params: Any):
+        self.calls.append((sql, params))
+        if "meeting_speaker_topic_side" in sql:
+            if self.heat_error:
+                raise asyncpg.exceptions.UndefinedTableError('relation "meeting_speaker_topic_side" does not exist')
+            return self.heat_rows
+        return self.rows
+
+
+def test_heat_mean_needs_the_minimum_rated_and_is_scoped(monkeypatch) -> None:
+    conn = _HeatConn(
+        [_row(100001, "data-centers", 31, 65), _row(100005, "guns", 40, 50)],
+        heat_rows=[{"topic_id": 100001, "heat_rated": 25, "heat_mean": 3.55},
+                   {"topic_id": 100005, "heat_rated": 19, "heat_mean": 4.9}],
+    )
+
+    async def pool():
+        return _Pool(conn)
+
+    body = _get(monkeypatch, pool, {"state": "GA", "city": "Atlanta"}).json()
+    by = {t["slug"]: t for t in body["topics"]}
+    assert body["min_heat_rated"] == ty.MIN_HEAT_RATED == 20
+    assert by["data-centers"]["heat_rated"] == 25 and by["data-centers"]["heat_mean"] == 3.55
+    assert by["guns"]["heat_rated"] == 19 and by["guns"]["heat_mean"] is None  # too few rated: no mean
+    sql, params = next(c for c in conn.calls if "meeting_speaker_topic_side" in c[0])
+    assert params == ("GA", "%Atlanta%") and "h.heat IS NOT NULL" in sql
+
+
+def test_missing_heat_table_leaves_heat_empty_not_a_failed_page(monkeypatch) -> None:
+    conn = _HeatConn([_row(100001, "data-centers", 31, 65)], heat_error=True)
+
+    async def pool():
+        return _Pool(conn)
+
+    r = _get(monkeypatch, pool)
+    assert r.status_code == 200
+    t = r.json()["topics"][0]
+    assert t["heat_rated"] == 0 and t["heat_mean"] is None

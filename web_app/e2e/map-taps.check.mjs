@@ -166,7 +166,7 @@ async function dotMapPhone(ctx, label) {
   ok(here(page).includes('state=TX'), `tap TX narrows the story at once (${here(page)})`)
   await start()
   const county = 'svg[data-map="county"]'
-  if (!(await page.waitForSelector(`${county}:visible circle[data-box]`, { timeout: 30_000 }).then(() => true, () => false))) {
+  if (!(await page.waitForSelector(`${county}:visible [data-box]`, { timeout: 30_000 }).then(() => true, () => false))) {
     ok(false, 'county map shows after narrowing')
     return page.close()
   }
@@ -181,7 +181,7 @@ async function dotMapPhone(ctx, label) {
         const ty = box.top + box.height * fy
         let best = null
         let bd = Infinity
-        ;[...svg.querySelectorAll('circle[data-box]')].forEach((c, i) => {
+        ;[...svg.querySelectorAll('[data-box]')].forEach((c, i) => {
           const b = c.getBoundingClientRect()
           const dd = (b.left + b.width / 2 - tx) ** 2 + (b.top + b.height / 2 - ty) ** 2
           if (b.width > 0 && dd < bd) {
@@ -196,7 +196,7 @@ async function dotMapPhone(ctx, label) {
     await page.touchscreen.tap(p.x, p.y)
     await page.waitForTimeout(500)
     const tapped = await page.evaluate(
-      ([county, visible, i]) => eval(visible)(county).querySelectorAll('circle[data-box]')[i].hasAttribute('data-active'),
+      ([county, visible, i]) => eval(visible)(county).querySelectorAll('[data-box]')[i].hasAttribute('data-active'),
       [county, VISIBLE, p.i],
     )
     r = await mapState(page, county, '.stance-map-readout')
