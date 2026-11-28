@@ -159,7 +159,10 @@ _BODY_SQL = """
 """
 
 _MEETINGS_SQL = """
-    SELECT meeting_body_id, meeting_title, meeting_date, video_id, video_url, event_meeting_id
+    SELECT meeting_body_id, meeting_title, meeting_date, video_id,
+           COALESCE(video_url, CASE WHEN video_id IS NOT NULL
+                                    THEN 'https://www.youtube.com/watch?v=' || video_id END) AS video_url,
+           event_meeting_id
     FROM public.meeting_body
     WHERE governing_body_id = $1
     ORDER BY meeting_date DESC NULLS LAST, meeting_body_id
@@ -253,7 +256,7 @@ async def get_jurisdiction_bodies(jurisdiction_id: str) -> JurisdictionBodies:
 
 
 @router.get("/bodies/{governing_body_id}", response_model=BodyDetail)
-async def get_body(governing_body_id: str, limit: int = Query(50, ge=1, le=500)) -> BodyDetail:
+async def get_body(governing_body_id: str, limit: int = Query(25, ge=1, le=25)) -> BodyDetail:
     """One body: its members and roles, officials heard recently, and its most recent meetings."""
     with tracer.start_as_current_span("get_body") as span:
         span.set_attribute("governing_body_id", governing_body_id)
