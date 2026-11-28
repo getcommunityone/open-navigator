@@ -1,0 +1,32 @@
+pattern_id,priority,applies_to,pattern,body_key,body_name,body_type,name_from_title
+school_board,5,any,(^| )(school board|school committee|schools board|board of education|board of ed|boe|board of school|school district board|isd board|usd board|school trustees)( |$)|(^| )(unified |union |high |elementary |independent |community |consolidated |public |city |county )*school district$,school_board,Board of Education,school_board,false
+skip_county_in_city,10,municipal,(^| )county (commission|commissioners?|council|legislature|fiscal court|bos|bocc|boc|board|board of commissioners?|board of supervisors?)( |$)|(^| )(commissioners? court|fiscal court|bocc|board of supervisors?|board of county commissioners?|police jury|quorum court)( |$),__skip__,,,false
+school_district_board,25,school_district,^(regular |special |called |business |workshop |work |study )*(board|board of trustees|trustees|board of directors|business|work session|workshop|study session)( meeting| session)?$,school_board,Board of Education,school_board,false
+planning_zoning,30,any,(^| )(planning (and|&) zoning|zoning (and|&) planning|p ?& ?z|p and z)( commission| board)?( |$),planning_zoning,Planning and Zoning Commission,planning_zoning,false
+zoning_appeals,40,any,(^| )(zoning board of appeals|board of zoning appeals|zba|board of appeals)( |$),board_of_adjustment,Zoning Board of Appeals,board_of_adjustment,false
+zoning_adjustment,41,any,(^| )(zoning board of adjustments?|board of zoning adjustments?|board of adjustments?|zoning adjustment board|bza)( |$),board_of_adjustment,Zoning Board of Adjustment,board_of_adjustment,false
+planning_commission,50,any,(^| )(planning commission|plan commission|regional planning commission)( |$),planning_commission,Planning Commission,planning_commission,false
+planning_board,51,any,(^| )(planning board|planning committee)( |$),planning_commission,Planning Board,planning_commission,false
+zoning_commission,55,any,(^| )(zoning commission|zoning board)( |$),zoning_commission,Zoning Commission,planning_zoning,false
+historic,60,any,(^| )(histor(ic|ical) (preservation|district|landmarks?|review|properties)( commission| board| committee)?|histor(ic|ical) commission|landmarks? (preservation )?(commission|board)|architectural review (board|commission))( |$),historic_preservation,Historic Preservation Commission,historic_preservation,false
+board_of_health,70,any,(^| )(board of health|health board)( |$),board_of_health,Board of Health,board,false
+council_session,80,municipal,(^| )(pre ?council( briefing)?|precouncil( briefing)?|council (work|study|briefing|agenda|budget) (session|workshop)|council (workshop|briefing|caucus)|committee of (the )?whole|agenda (review|briefing) (session|meeting)|work session|study session|workshop)$,governing_body,,council,false
+county_session,81,county,(^| )(committee of (the )?whole|work session|study session|workshop|commission (work|study) session|commission workshop|agenda (review|briefing) (session|meeting))$,governing_body,,county_commission,false
+generic_committee,85,any,"^[a-z][a-z0-9& ]{1,55} (committee|subcommittee)$",__generic__,,committee,true
+city_council,90,municipal,^(council|city council and mayor|mayor and city council|mayor and council|mayor and board of aldermen)$|(^| )(city|common|town|village|borough|township|municipal|metro|metropolitan) council$,governing_body,,council,true
+aldermen,91,municipal,(^| )(board of mayor and alderm[ae]n|board of alderm[ae]n|aldermen|board of alderpersons|alderpersons|city council of aldermen)$,governing_body,,council,true
+select_board,92,municipal,(^| )(select ?board|board of selectmen|selectmens?|selectboard)$,governing_body,,council,true
+town_board,93,municipal,(^| )(town board|village board|village board of trustees|town commission|city commission|village commission|board of commissioners)$|^(commission|board of trustees)$,governing_body,,council,true
+council_prefixed,95,municipal,^(city|town|village|common|borough|township|municipal) council( |$),governing_body,,council,false
+county_boc,100,county,^(county )?(boc|bocc|bos)( business| workshop| work session)?$,governing_body,Board of Commissioners,county_commission,false
+county_commission,100,county,(^| )(county commission|county commissioners?|board of (county )?commissioners?)$|^(commission|commissioners?)$,governing_body,,county_commission,true
+county_supervisors,101,county,(^| )(board of supervisors|supervisors)$,governing_body,,county_commission,true
+county_court,102,county,(^| )(commissioners? court|fiscal court|quorum court|police jury)$,governing_body,,county_commission,true
+county_council,103,county,(^| )(county council|county board|county legislature|legislature|board of chosen freeholders|freeholders)$|^council$,governing_body,,county_commission,true
+county_prefixed,105,county,^(county )?(commission|commissioners|board of (county )?commissioners?|board of supervisors|commissioners? court|county council) (work|study|budget|business|formal|informal|planning|agenda|organizational|workshop|retreat|briefing|special|session|whole|item)( |$),governing_body,,county_commission,false
+generic_commission,910,any,"^[a-z][a-z0-9& ]{1,55} commission$",__generic__,,commission,true
+generic_authority,920,any,"^[a-z][a-z0-9& ]{1,55} authority$",__generic__,,authority,true
+generic_board,930,any,"^[a-z][a-z0-9& ]{1,55} (board|council|task force|trustees)$",__generic__,,board,true
+generic_directors,935,any,"^[a-z][a-z0-9& ]{1,55} board of (directors|trustees|commissioners)$",__generic__,,board,true
+generic_board_of,940,any,"^(board|commission|council|authority) (of|on|for) [a-z0-9& ]{2,40}$",__generic__,,board,true
+generic_district,950,any,"^[a-z][a-z0-9& ]{1,55} (district|agency)$",__generic__,,authority,true
