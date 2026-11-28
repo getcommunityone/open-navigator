@@ -366,6 +366,28 @@ function readBoxColor(el: Element): string {
 /**
  * Snapshot all visible `[data-box]` elements inside `root` (or the viewport) in viewport coordinates.
  */
+function boxOf(el: Element, vw: number, vh: number): ParticleBox | null {
+  const r = el.getBoundingClientRect()
+  if (r.width <= 0.5 || r.height <= 0.5) return null
+  if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) return null
+  const cs = getComputedStyle(el)
+  const op = Number(cs.opacity)
+  if (Number.isFinite(op) && op <= 0.01) return null
+  const rxAttr = Number(el.getAttribute('rx'))
+  const rx = Number.isFinite(rxAttr) && rxAttr > 0 ? rxAttr : Math.min(r.width, r.height) * 0.14
+  const group = el.getAttribute('data-state') || el.getAttribute('data-group') || undefined
+  return {
+    x: r.left + r.width / 2,
+    y: r.top + r.height / 2,
+    w: r.width,
+    h: r.height,
+    rx,
+    color: readBoxColor(el),
+    opacity: Number.isFinite(op) ? op : 1,
+    group,
+  }
+}
+
 export function captureDomBoxes(root?: Element | null): ParticleBox[] {
   if (typeof document === 'undefined' || typeof window === 'undefined') return []
   const scope: ParentNode = root ?? document
@@ -374,25 +396,31 @@ export function captureDomBoxes(root?: Element | null): ParticleBox[] {
   const vh = window.innerHeight
   const out: ParticleBox[] = []
   nodes.forEach((el) => {
-    const r = el.getBoundingClientRect()
-    if (r.width <= 0.5 || r.height <= 0.5) return
-    if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) return
-    const cs = getComputedStyle(el)
-    const op = Number(cs.opacity)
-    if (Number.isFinite(op) && op <= 0.01) return
-    const rxAttr = Number(el.getAttribute('rx'))
-    const rx = Number.isFinite(rxAttr) && rxAttr > 0 ? rxAttr : Math.min(r.width, r.height) * 0.14
-    const group = el.getAttribute('data-state') || el.getAttribute('data-group') || undefined
-    out.push({
-      x: r.left + r.width / 2,
-      y: r.top + r.height / 2,
-      w: r.width,
-      h: r.height,
-      rx,
-      color: readBoxColor(el),
-      opacity: Number.isFinite(op) ? op : 1,
-      group,
-    })
+    const b = boxOf(el, vw, vh)
+    if (b) out.push(b)
   })
+  return out
+}
+
+/**
+ * Same snapshot as `captureDomBoxes`, taken in slices (default 250 elements, then a macrotask) so a map of thousands of
+ * boxes never holds the main thread for one long task (#1416). Resolves with what was read; `isStale()` turning true
+ * (the page moved on) abandons it with an empty list.
+ */
+export async function captureDomBoxesChunked(root?: Element | null, opts: { chunk?: number; isStale?: () => boolean } = {}): Promise<ParticleBox[]> {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return []
+  const nodes = Array.from((root ?? document).querySelectorAll('[data-box]'))
+  const chunk = opts.chunk ?? 250
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const out: ParticleBox[] = []
+  for (let i = 0; i < nodes.length; i += chunk) {
+    if (opts.isStale?.()) return []
+    for (const el of nodes.slice(i, i + chunk)) {
+      const b = boxOf(el, vw, vh)
+      if (b) out.push(b)
+    }
+    if (i + chunk < nodes.length) await new Promise<void>((r) => window.setTimeout(r, 0))
+  }
   return out
 }

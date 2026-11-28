@@ -142,7 +142,8 @@ export default function HomeTopicStoryCard({ def, scope: asked, query, onPlaceAp
 
   return (
     <div className="home-story-card">
-      <div className="home-story-text">
+      {/* Keyed text only: the map keeps its boxes and recolours in place when the topic changes (#1416). */}
+      <div className="home-story-text" key={def.slug}>
         <p className="font-mono-x home-story-eyebrow">Data story · {def.title}</p>
         <h1
           id="home-story-dc"

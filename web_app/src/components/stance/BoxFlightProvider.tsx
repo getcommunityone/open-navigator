@@ -74,6 +74,7 @@ function drawRoundedBox(
 function clearHiddenMarks(): void {
   if (typeof document === 'undefined') return
   document.querySelectorAll('[data-box-flight-hide]').forEach((el) => el.removeAttribute('data-box-flight-hide'))
+  document.querySelectorAll('[data-box-flight-prehide]').forEach((el) => el.removeAttribute('data-box-flight-prehide'))
 }
 
 /** Resolve comma-separated selectors in priority order (unlike `querySelector`, which returns first in DOM order). */
@@ -208,15 +209,17 @@ export function BoxFlightProvider({ children }: { children: ReactNode }) {
           return
         }
         const target = resolveTarget(job.targetSelector)
-        const to = target ? captureDomBoxes(target) : []
-        if (to.length > 0) {
-          if (to.length === lastToCount) stableCount += 1
+        // Poll with a cheap count; read the (possibly thousands of) boxes once, when the target has settled.
+        const count = target ? target.querySelectorAll('[data-box]').length : 0
+        if (count > 0) {
+          if (count === lastToCount) stableCount += 1
           else {
-            lastToCount = to.length
+            lastToCount = count
             stableCount = 1
           }
         }
-        if (target && to.length > 0 && stableCount >= 2) {
+        const to = target && count > 0 && stableCount >= 2 ? captureDomBoxes(target) : []
+        if (target && to.length > 0) {
           hiddenTarget = target
           target.setAttribute('data-box-flight-hide', '1')
           plan = planCrossFlight(job.from, to, { focusGroup: job.focusGroup })
