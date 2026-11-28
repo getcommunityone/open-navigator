@@ -5,7 +5,7 @@ title: "feat(data-centers): speaker turns, stance shapes, attribution provenance
 author: jcbowyer
 reviewed_at: 2026-11-28
 reviewer: github-actions
-head_sha: a73048b9752679e7fbcc911dc2190ac16a29ecf5
+head_sha: d2f93b76cf9d5fb8641f22bcdcfc0a22c27618ac
 verdict: approve-with-nits
 ---
 
@@ -52,17 +52,17 @@ Automated review (#648) for PR #1387 on `feat/1386-mixed-comments`. Heuristic ru
 - `packages/ingestion/src/ingestion/meetings/comment_segments.py`
 - `packages/ingestion/tests/test_comment_stance_shape_terms.py`
 - `packages/ingestion/tests/test_meeting_comment_segments.py`
+- `pull_requests/pr-1387-review.md`
 - `tests/test_api_data_center_comment_metrics.py`
 - `tests/test_api_data_center_drill.py`
 - `tests/test_api_decision_people.py`
 - `web_app/src/components/stance/CommentMetricsBlock.test.ts`
 - `web_app/src/components/stance/CommentMetricsBlock.tsx`
-- `web_app/src/components/stance/HeatFlames.test.tsx`
-- …and 9 more
+- …and 11 more
 
 ## CI Status
 
-See the PR checks on `a73048b97526`.
+See the PR checks on `d2f93b76cf9d`.
 
 ## Scans (secrets, fabricated data, personal data, destructive data changes)
 
@@ -90,13 +90,3 @@ None from automated heuristics.
 ## Verdict
 
 **approve-with-nits**
-
-## Author notes (agent review)
-
-- No secrets, fabricated data or private names: a minor, student or school-board resident is "Speaker N" with no cue phrase; attribution evidence quotes the cue, never the name. No paid run, no Neon write.
-- Checks run: pytest (ingestion, API) 64 pass; vitest `components/stance` 70 pass; `tsc` clean; `dbt test` on the new models 65 pass.
-- Nit: `conditional` / `against_concept_open_to_terms` cues match anywhere in a speaker's text; precision is not measured.
-- Nit: the quote APIs now read `attribution_tier` from `meeting_passage_speaker`; rebuild the public view before the API deploys.
-- Rules-baseline heat is off: it ties a constant guess on the 178 calibration comments.
-
-No blocking findings.
