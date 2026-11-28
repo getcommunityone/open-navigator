@@ -34,7 +34,7 @@ interface Props {
   data: StoryData
   status: StoryStatus
   scope: StoryScope
-  active: boolean
+  active?: boolean
   nextLabel: string | null
   onPrev?: () => void
   onNext: () => void
@@ -259,7 +259,7 @@ export default function StoryScreenView(p: Props) {
                     ) : (
                       <DumbbellChart topic="data-centers" stateCode={scope.stateCode} scopeLabel={storyScopeLabel(scope)} subject="data centers" idBase={`story-${screen.id}`} />
                     )}
-                    <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} />
+                    <StatRow stats={stats} label={`What the records cover: ${storyScopeLabel(scope)}`} roll={p.active} screenIndex={p.index} />
                     <p className="stance-note">{statsScopeNote(stats, scope)}</p>
                     </>)}
                   </div>
