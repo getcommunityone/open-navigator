@@ -21,6 +21,11 @@ ninja filter=lfs diff=lfs merge=lfs -text
 # LFS lines above would otherwise reclaim these files and show them as modified in every checkout.
 web_app/public/wikicommons/** -filter -diff -merge
 
+# Docs logo + favicon are small text SVGs: keep them out of LFS so the HF deploy's `git add` does not
+# turn them into pointers with no object (which the deploy then drops => 404 logo, #1424).
+web_docs/static/img/communityone_logo.svg -filter -diff -merge
+web_docs/static/img/favicon.svg -filter -diff -merge
+
 # The README's pitch-deck cover (~100 KB): a normal blob so it renders on GitHub and can be committed from sessions
 # that can't upload LFS objects. Last so it wins over the *.png LFS line above.
 web_docs/static/img/deck-cover.png -filter -diff -merge
@@ -51,7 +56,6 @@ web_docs/static/img/communityone_logo.svg -filter -diff -merge
 web_docs/static/img/communityone_logo.jpg -filter -diff -merge
 web_docs/static/img/communityone_logo_64.png -filter -diff -merge
 web_docs/static/img/favicon.ico -filter -diff -merge
-web_docs/static/img/logo.svg -filter -diff -merge
 web_app/public/bugs/bug_connecticut_blank.png -filter -diff -merge
 web_app/public/bugs/bug_map_year_play.png -filter -diff -merge
 web_app/policy-dashboards/public/communityone_logo.jpg -filter -diff -merge
