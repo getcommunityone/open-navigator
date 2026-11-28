@@ -108,86 +108,11 @@ schema:
     logicalType: boolean
     physicalType: boolean
     required: true
-  - id: turn_count
-    name: turn_count
-    logicalType: integer
-    physicalType: int
-    required: true
   - id: segment_count
     name: segment_count
     logicalType: integer
     physicalType: int
     required: true
-  - id: word_count
-    name: word_count
-    logicalType: integer
-    physicalType: int
-  - id: first_start_seconds
-    name: first_start_seconds
-    logicalType: number
-    physicalType: numeric(12, 3)
-  - id: stance_shape
-    name: stance_shape
-    logicalType: string
-    physicalType: text
-    description: The speaker's position, read once over all their segments (cue seed comment_stance_shape_terms).
-    required: true
-    quality:
-    - type: library
-      metric: invalidValues
-      arguments:
-        validValues:
-        - clear_for
-        - clear_against
-        - conditional
-        - for_concept_against_project
-        - against_concept_open_to_terms
-        - concerns_only
-        - unclear
-      mustBe: 0
-      dimension: conformity
-      severity: error
-  - id: shape_cue_text
-    name: shape_cue_text
-    logicalType: string
-    physicalType: text
-    description: Verbatim phrase behind the shape; null for unclear, minors and withheld names.
-  - id: cue_texts
-    name: cue_texts
-    logicalType: array
-    physicalType: text[]
-    description: Each segment's own verbatim cue phrase, in order.
-  - id: heat
-    name: heat
-    logicalType: integer
-    physicalType: int
-    description: Comment heat 1-5 (1 calm, 5 furious); null when none. From the AI meeting analysis where a rated comment matches; the rules baseline is off (not calibrated).
-  - id: heat_method
-    name: heat_method
-    logicalType: string
-    physicalType: text
-    description: ai_meeting_analysis | rules | classifier; null when heat is null.
-    quality:
-    - type: library
-      metric: invalidValues
-      arguments:
-        validValues:
-        - ai_meeting_analysis
-        - rules
-        - classifier
-      mustBe: 0
-      dimension: conformity
-      severity: error
-  - id: heat_confidence
-    name: heat_confidence
-    logicalType: number
-    physicalType: numeric(3, 2)
-    description: 0.80 for the AI analysis rating; for rules, the measured within +-1 agreement.
-  - id: heat_version
-    name: heat_version
-    logicalType: string
-    physicalType: text
-    description: 'heat/N: the heat rule-set version.'
   - id: possible_name
     name: possible_name
     logicalType: string
@@ -241,19 +166,55 @@ schema:
     logicalType: string
     physicalType: text
     description: The verbatim cue behind the attribution (never the name) and where it was heard.
-  - id: attribution_evidence_seconds
-    name: attribution_evidence_seconds
-    logicalType: number
-    physicalType: numeric(12, 3)
-    description: Seconds into the recording where the cue was heard.
-  - id: attribution_version
-    name: attribution_version
+  - id: heat
+    name: heat
+    logicalType: integer
+    physicalType: int
+    description: Comment heat 1-5 (1 calm, 5 furious); null when none. From the AI meeting analysis where a rated comment matches; the rules baseline is off (not calibrated).
+  - id: heat_method
+    name: heat_method
     logicalType: string
     physicalType: text
-    description: 'speaker_attribution/N: the rule-set version that produced this row; changes when the rules do.'
+    description: ai_meeting_analysis | rules | classifier; null when heat is null.
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - ai_meeting_analysis
+        - rules
+        - classifier
+      mustBe: 0
+      dimension: conformity
+      severity: error
+  - id: heat_confidence
+    name: heat_confidence
+    logicalType: number
+    physicalType: numeric(3, 2)
+    description: 0.80 for the AI analysis rating; for rules, the measured within +-1 agreement.
+  - id: stance_shape
+    name: stance_shape
+    logicalType: string
+    physicalType: text
+    description: The speaker's position, read once over all their segments (cue seed comment_stance_shape_terms).
     required: true
-  - id: attributed_at
-    name: attributed_at
-    logicalType: timestamp
-    physicalType: timestamp
-    description: When the attribution was computed (dbt build time).
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - clear_for
+        - clear_against
+        - conditional
+        - for_concept_against_project
+        - against_concept_open_to_terms
+        - concerns_only
+        - unclear
+      mustBe: 0
+      dimension: conformity
+      severity: error
+  - id: shape_cue_text
+    name: shape_cue_text
+    logicalType: string
+    physicalType: text
+    description: Verbatim phrase behind the shape; null for unclear, minors and withheld names.

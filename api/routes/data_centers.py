@@ -30,6 +30,7 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
+from api.attribution_tier import TIER_FILTER, fetch_tier_aware
 from api.routes.decision_people import DecisionPeople, DecisionPerson
 from api.routes.search_postgres import (
     STATE_NAME_TO_CODE,
@@ -1137,7 +1138,7 @@ MENTION_INTRO_SPEAKER_SQL = (
     "SELECT s.data_center_meeting_mention_id, s.speaker_kind, s.speaker_display_name, s.speaker_role "
     "FROM meeting_passage_speaker s "
     "WHERE s.data_center_meeting_mention_id = ANY($1::text[]) AND s.speaker_display_name IS NOT NULL "
-    "AND s.attribution_tier <> 'low'"
+    f"{TIER_FILTER}"
 )
 """Who said the passage from their self-introduction in the recording (#1231): the nearest preceding "my name is ..."
 within the same meeting (meeting_passage_speaker). Used only where the hand-counted public comments name nobody."""
@@ -1184,7 +1185,7 @@ async def _mention_extras(conn: Any, rows: list[dict[str, Any]]) -> None:
     unnamed = [m for m in mention_ids if str(m) not in speakers]
     if unnamed:
         try:
-            for r in await conn.fetch(MENTION_INTRO_SPEAKER_SQL, unnamed):
+            for r in await fetch_tier_aware(conn, MENTION_INTRO_SPEAKER_SQL, unnamed, what="data-centers mention cards"):
                 intro_speakers[str(r["data_center_meeting_mention_id"])] = dict(r)
         except asyncpg.exceptions.PostgresError as e:
             logger.warning("data-centers: meeting_passage_speaker unavailable for mention cards ({}); speakers null", e)

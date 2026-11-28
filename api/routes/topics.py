@@ -29,6 +29,7 @@ from loguru import logger
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
+from api.attribution_tier import TIER_FILTER, fetch_tier_aware, fetchrow_tier_aware
 from api.routes.decision_people import DecisionPeople
 from api.routes.search_postgres import get_db_pool
 
@@ -313,7 +314,7 @@ _SAID_CTE = f"""
                s.topic_transcript_link_id, s.speaker_kind, s.speaker_display_name, s.speaker_role
         FROM meeting_passage_speaker s
         WHERE s.topic_transcript_link_id IN (SELECT topic_transcript_link_id FROM scoped)
-          AND s.speaker_display_name IS NOT NULL AND s.attribution_tier <> 'low'
+          AND s.speaker_display_name IS NOT NULL {TIER_FILTER}
         ORDER BY s.topic_transcript_link_id, s.meeting_passage_speaker_id
     ),
     com AS (
@@ -516,12 +517,13 @@ async def list_topic_meetings(
                     with tracer.start_as_current_span("topic-meetings.said"):
                         # The counts (and the total) are the scope's: read with the first page; later pages count only.
                         counts_row = (
-                            await conn.fetchrow(_SAID_COUNTS_SQL, topic_id, state_code, city_like)
+                            await fetchrow_tier_aware(conn, _SAID_COUNTS_SQL, topic_id, state_code, city_like, what="topic meetings")
                             if offset == 0
                             else {"total": await conn.fetchval(_TOPIC_MEETINGS_COUNT_SQL, topic_id, state_code, city_like)}
                         )
-                        said_rows = await conn.fetch(
-                            _SAID_ITEMS_SQL, topic_id, state_code, city_like, limit, offset, order
+                        said_rows = await fetch_tier_aware(
+                            conn, _SAID_ITEMS_SQL, topic_id, state_code, city_like, limit, offset, order,
+                            what="topic meetings",
                         )
                     urls = await said_meeting_urls(conn, [r["video_id"] for r in said_rows])
                     items = [said_meeting({**dict(r), "meeting_url": urls.get(r["video_id"])}) for r in said_rows]
@@ -644,11 +646,11 @@ _TOPIC_NEWEST_PER_STATE_FALLBACK_SQL = """
 """
 
 
-_PASSAGE_SPEAKER_SQL = """
+_PASSAGE_SPEAKER_SQL = f"""
     SELECT s.topic_transcript_link_id, s.speaker_kind, s.speaker_display_name, s.speaker_role
     FROM meeting_passage_speaker s
     WHERE s.topic_transcript_link_id = ANY($1::text[]) AND s.speaker_display_name IS NOT NULL
-      AND s.attribution_tier <> 'low'
+      {TIER_FILTER}
 """
 
 
@@ -673,7 +675,7 @@ async def _passage_speakers(conn: Any, link_ids: List[str]) -> dict[str, dict[st
     if not link_ids:
         return {}
     try:
-        rows = await conn.fetch(_PASSAGE_SPEAKER_SQL, link_ids)
+        rows = await fetch_tier_aware(conn, _PASSAGE_SPEAKER_SQL, link_ids, what="topic states")
     except asyncpg.exceptions.PostgresError as e:
         logger.warning("topic states: meeting_passage_speaker unavailable ({}); speakers null", e)
         return {}
