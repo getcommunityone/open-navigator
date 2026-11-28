@@ -64,6 +64,22 @@ Five comment and speaker tables are on the allow-list too ([#1286](https://githu
 - `segmented_meeting` (13,682 rows): meetings split into segments.
 - `meeting_passage_speaker` (1,921 rows): speaker names on passages, read by `/api/topics/{id}/states`.
 
+### Speaker and comment tables are slimmed for Neon ([#1389](https://github.com/getcommunityone/open-navigator/issues/1389))
+
+Speaker turns, stance shapes, attribution and heat ([#1387](https://github.com/getcommunityone/open-navigator/pull/1387)) grew the gold marts to 156,273 (`meeting_comment`, 69 MB), 151,811 (`meeting_speaker_position`, 55 MB) and 152,762 rows (`meeting_speaker_turn`, 52 MB), far past what Neon holds (prod was at 432 of the 480 MB budget). Gold keeps the full marts. `public` serves projections of them, defined in `publish_public_serving` (`projections`):
+
+| Relation | Rows served | Columns served | Why |
+| --- | --- | --- | --- |
+| `meeting_comment` | adult, named public comments that name a curated topic, on a meeting with a topic link (9,657) | ids, meeting, jurisdiction, `comment_index`, `speaker_display_name`, flags, `topic_ids` | the only reader is the commenters list in `api/routes/topics.py`; the mart holds no comment text |
+| `meeting_speaker_position` | speakers with a `data_center_comment` row (2,862) | what comment-metrics and the speaker drill read; no `cue_texts`, counters or versions | `api/routes/data_center_comments.py`, `data_center_drill.py` |
+| `meeting_speaker_turn` | not published | none | nothing reads it; it stays in gold |
+
+Size: about 2.7 MB of rows for the two slim tables (prod's old `meeting_comment` alone was about 17 MB), plus `meeting_passage_speaker` (1,921 rows, 0.6 MB). The sync creates no indexes on Neon.
+
+`meeting_passage_speaker` must be republished with the slim tables: the API filters `attribution_tier <> 'low'`, and the older Neon copy has no such column. If the column is missing, `api/attribution_tier.py` retries without the filter (every speaker counts as not low) and logs a warning, so a deploy-order mistake no longer returns a 500.
+
+Publish with `--only meeting_comment meeting_speaker_position meeting_passage_speaker`.
+
 ## Decision: production serving stays on Neon (November 15, 2026)
 
 The owner decided to keep production serving on Neon and not move it to Databricks Lakebase

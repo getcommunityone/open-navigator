@@ -81,44 +81,11 @@ schema:
     physicalType: int
     description: Order of the comment within the meeting, from 0.
     required: true
-  - id: block_index
-    name: block_index
-    logicalType: integer
-    physicalType: int
-    description: 'Comment period within the meeting: comments less than 3 minutes apart share one.'
-    required: true
-  - id: start_seconds
-    name: start_seconds
-    logicalType: number
-    physicalType: numeric(12, 3)
-    description: Seconds into the recording where the comment starts.
-    required: true
-  - id: end_seconds
-    name: end_seconds
-    logicalType: number
-    physicalType: numeric(12, 3)
-    required: true
-  - id: word_count
-    name: word_count
-    logicalType: integer
-    physicalType: int
-    required: true
   - id: speaker_display_name
     name: speaker_display_name
     logicalType: string
     physicalType: text
     description: '"First L." from the self-introduction; null when unknown or for a possible minor.'
-  - id: boundary_basis
-    name: boundary_basis
-    logicalType: string
-    physicalType: text
-    description: How the comment started and ended, e.g. self_intro>closing, chair_call>pause.
-    required: true
-  - id: in_public_comment_section
-    name: in_public_comment_section
-    logicalType: boolean
-    physicalType: boolean
-    description: The chair had opened a public comment / hearing section (and not closed it) where the comment starts.
   - id: is_public_comment
     name: is_public_comment
     logicalType: boolean
@@ -136,73 +103,3 @@ schema:
     logicalType: array
     physicalType: int[]
     description: curated_topics whose keywords the comment's own words say.
-  - id: concern_keys
-    name: concern_keys
-    logicalType: array
-    physicalType: text[]
-    description: comment_concern_terms matched (multi-label).
-  - id: company_keys
-    name: company_keys
-    logicalType: array
-    physicalType: text[]
-    description: comment_entity_terms companies named.
-  - id: person_keys
-    name: person_keys
-    logicalType: array
-    physicalType: text[]
-    description: comment_entity_terms public figures named.
-  - id: mentions_ai
-    name: mentions_ai
-    logicalType: boolean
-    physicalType: boolean
-    description: The comment says AI / artificial intelligence / ChatGPT / machine learning ...
-  - id: role_keys
-    name: role_keys
-    logicalType: array
-    physicalType: text[]
-    description: Self-described roles from the introduction (comment_role_terms).
-  - id: segmenter_version
-    name: segmenter_version
-    logicalType: string
-    physicalType: text
-  - id: meeting_speaker_turn_id
-    name: meeting_speaker_turn_id
-    logicalType: string
-    physicalType: text
-    description: The speaker turn this segment belongs to (FK to meeting_speaker_turn).
-    required: true
-    relationships:
-    - type: foreignKey
-      to: meeting_speaker_turn.odcs.yaml#/schema/meeting_speaker_turn/properties/meeting_speaker_turn_id
-  - id: meeting_speaker_id
-    name: meeting_speaker_id
-    logicalType: string
-    physicalType: text
-    description: The speaker (one per meeting x person; meeting_speaker_position).
-    required: true
-  - id: stance_shape
-    name: stance_shape
-    logicalType: string
-    physicalType: text
-    description: How the comment states its position (#1383), from the comment_stance_shape_terms cue rules. A shape is counted on its own, never as both sides.
-    required: true
-    quality:
-    - type: library
-      metric: invalidValues
-      arguments:
-        validValues:
-        - clear_for
-        - clear_against
-        - conditional
-        - for_concept_against_project
-        - against_concept_open_to_terms
-        - concerns_only
-        - unclear
-      mustBe: 0
-      dimension: conformity
-      severity: error
-  - id: shape_cue_text
-    name: shape_cue_text
-    logicalType: string
-    physicalType: text
-    description: The verbatim phrase that triggered the shape (at most 160 characters); null for unclear and for a possible minor.

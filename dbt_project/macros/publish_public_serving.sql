@@ -187,8 +187,6 @@
     'segmented_meeting':                   "_s.state_code in {{states}}",
     'meeting_comment':                     "_s.state_code in {{states}}",
     'meeting_speaker_position':            "_s.state_code in {{states}}",
-    'meeting_speaker_turn':
-        "_s.video_id in (select video_id from gold.segmented_meeting where state_code in {{states}})",
     'data_center_comment':                 "_s.state_code in {{states}}",
     'data_center_comment_place':
         "_s.data_center_comment_id in (select data_center_comment_id from gold.data_center_comment "
@@ -292,7 +290,7 @@
     'meeting_video_kind',
     'recorded_meeting_year',
     'topic_meeting_year',
-    'segmented_meeting', 'meeting_speaker_position', 'meeting_speaker_turn', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
+    'segmented_meeting', 'meeting_speaker_position', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
     'meeting_passage_speaker'
 ] -%}
 
@@ -313,6 +311,13 @@
       same expression instead). Full body text only for data-center matches and rows
       linked from gold.data_center_agenda_item; everyone else gets left(content, 800)
       so Legistar agenda/minutes (~37 MB of body) fit the Neon budget (~15 MB target). -#}
+{#- Speaker / comment slimming (#1389): gold keeps the full marts (the private API reads them), public serves only
+    what api/routes/topics.py and api/routes/data_center_*.py read, so the Neon copy stays small.
+    * meeting_comment: topics.py `com` CTE reads topic-named, named, adult public comments only
+      (video_id, comment_index, speaker_display_name, topic_ids, jurisdiction); no comment text exists on the mart.
+    * meeting_speaker_position: the data-center metrics and drill read only speakers who have a
+      data_center_comment row; long cue_texts, counters and versions stay in gold.
+    * meeting_speaker_turn: nothing reads it, so it is not published (see `served`). -#}
 {%- set projections = {
     'contact_official':
         'select id, full_name, title, jurisdiction, state_code, state, party, '
@@ -344,7 +349,21 @@
         'case when content ~* \'data cent(er|re)|hyperscale|server farm\' '
         'or event_meeting_document_id in (select event_meeting_document_id from gold.data_center_agenda_item) '
         'then content else left(content, 800) end as content, '
-        'word_count, source, created_at from gold.event_meeting_document'
+        'word_count, source, created_at from gold.event_meeting_document',
+    'meeting_comment':
+        'select meeting_comment_id, video_id, meeting_date, jurisdiction_id, jurisdiction_name, state_code, state, '
+        'comment_index, speaker_display_name, is_public_comment, possible_minor, topic_ids '
+        'from gold.meeting_comment '
+        'where is_public_comment and not coalesce(possible_minor, false) and speaker_display_name is not null '
+        'and cardinality(topic_ids) > 0 '
+        'and video_id in (select video_id from gold.topic_transcript_link)',
+    'meeting_speaker_position':
+        'select meeting_speaker_id, video_id, meeting_date, jurisdiction_id, jurisdiction_name, state_code, state, '
+        'speaker_number, speaker_label, speaker_named, speaker_role, is_public_comment, possible_minor, '
+        'segment_count, possible_name, attribution_method, attribution_confidence, attribution_tier, '
+        'attribution_evidence, heat, heat_method, heat_confidence, stance_shape, shape_cue_text '
+        'from gold.meeting_speaker_position '
+        'where meeting_speaker_id in (select meeting_speaker_id from gold.data_center_comment)'
 } -%}
 
 {#- ===================================================================
