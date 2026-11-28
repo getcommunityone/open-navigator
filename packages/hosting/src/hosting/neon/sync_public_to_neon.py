@@ -194,6 +194,9 @@ CIVIC_SERVING = frozenset(
         # reference series — annual CPI for the real-dollar / inflation toggle
         # (tiny: ~15 rows/series). Served via /api/cpi/annual.
         "cpi_annual",
+        # federal assistance dollars per jurisdiction x FY x ALN (#1393), ~4 MB;
+        # served via /api/benchmark. federal_award (111 MB) stays gold-only.
+        "jurisdiction_federal_funding",
         # --- triaged 2026-06-14: small civic marts, ~26 MB combined ---
         # browse counts + directory (homepage / browse surfaces)
         "browse_directory_summary",

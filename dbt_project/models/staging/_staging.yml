@@ -1507,6 +1507,18 @@ sources:
           - name: ingestion_date
             description: "When record was loaded"
 
+      - name: bronze_usaspending_award
+        description: |
+          USAspending.gov assistance awards (types 02-05) to local-government recipients,
+          one row per generated_unique_award_id. Landed by
+          `python -m ingestion.usaspending.load_awards` (#1393). Public domain.
+        columns:
+          - name: generated_unique_award_id
+            description: "USAspending generated unique award id (primary key)."
+          - name: total_obligation
+            description: "Current total obligation of the award in dollars."
+          - name: period_start
+            description: "Award period start (real DATE)."
       - name: bronze_grants_gov_opportunity
         description: |
           Grants.gov federal grant opportunities — one row per prospective

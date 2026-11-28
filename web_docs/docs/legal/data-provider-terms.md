@@ -150,6 +150,31 @@ https://www.grants.gov/
 
 ---
 
+### 5b. USAspending.gov API
+
+**Publisher:** U.S. Department of the Treasury, Bureau of the Fiscal Service
+**Data Type:** Federal assistance awards (grants, cooperative agreements) to local governments, FY2019 onward
+**License:** Public Domain (U.S. Government Work)
+**Terms of Use:** [USAspending.gov About / Data Sources](https://www.usaspending.gov/about)
+**API Documentation:** [USAspending API](https://api.usaspending.gov/docs/endpoints)
+**Coverage:** United States, recipients of type local government; award-level, current total obligation
+**Last updated:** 27 Nov 2026 (re-run on demand; the source updates daily)
+
+**Usage Rights:**
+- Yes Public government data
+- Yes No API key required
+
+**Restrictions:**
+- No We identify as `open-navigator`, keep requests slow and stop on HTTP 403 or 429
+
+**Attribution (Recommended):**
+```
+Data source: USAspending.gov (U.S. Department of the Treasury)
+https://www.usaspending.gov/
+```
+
+---
+
 ## Google Services
 
 ### 8. Google BigQuery IRS 990 Public Dataset
