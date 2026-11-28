@@ -643,6 +643,7 @@ These platforms present **multiple positions on the same issue side by side** �
 - [GroundVue](#groundvue)
 - [USLege](#uslege)
 - [Hamlet](#hamlet)
+- [GovWell](#govwell)
 
 These are **commercial peers** in local government data, meeting intelligence, legislative AI, and resident-facing civic tools. We name them here with respect for the work they do and as **friendly reference** for the product category Open Navigator also serves. We **do not scrape, mirror, or redistribute** their content or data. When a site's terms forbid competitors' use, we also **never fetch** that host (see American Sentiment and ProphecyGov). Our own meeting stance and summaries come only from sources we are allowed to use (our transcripts and analyses).
 
@@ -725,9 +726,9 @@ These are **commercial peers** in local government data, meeting intelligence, l
 ### Hamlet
 
 **Organization:** Hamlet
-**What they do:** Commercial **local-government / civic AI** product (hamlet.com) aimed at helping residents and staff work with city and local government information.
+**What they do:** Commercial **local-government / civic AI** product (myhamlet.com) aimed at helping residents and staff work with city and local government information.
 
-- **Website:** https://hamlet.com/
+- **Website:** https://myhamlet.com/
 - **How we reference them:** As a peer in resident-facing local government AI and civic Q&A.
 - **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
 
@@ -736,8 +737,27 @@ These are **commercial peers** in local government data, meeting intelligence, l
 @misc{hamlet_civic,
  author = {{Hamlet}},
  title = {Hamlet},
- url = {https://hamlet.com/},
+ url = {https://myhamlet.com/},
  note = {Local government / civic AI peer; friendly reference-only.}
+}
+```
+
+### GovWell
+
+**Organization:** GovWell
+**What they do:** Commercial **local-government software** product (govwell.com) for city and county staff workflows.
+
+- **Website:** https://govwell.com/
+- **How we reference them:** As a commercial peer serving local governments.
+- **License / use:** Proprietary product. **Reference-only** — link and credit; do not scrape or redistribute their data or UI.
+
+**BibTeX:**
+```bibtex
+@misc{govwell,
+ author = {{GovWell}},
+ title = {GovWell},
+ url = {https://govwell.com/},
+ note = {Local government software peer; friendly reference-only.}
 }
 ```
 
