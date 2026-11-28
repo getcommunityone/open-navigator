@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { TopicDecision, TopicMeeting } from '../../api/topics'
-import { highlightSnippet } from '../../lib/highlight'
+import { hasQuoteText, highlightSnippet } from '../../lib/highlight'
 import { commentersLine, decisionPeopleLines, positionChips, speakerLine } from '../../utils/saidCards'
 import { pickDisplay } from '../../utils/displayFit'
 
@@ -46,7 +46,7 @@ export function SaidQuoteCard({ m, slug }: { m: TopicMeeting; slug: string }) {
         <p className="topic-story-item-title">{linkText}</p>
       )}
       <p className="topic-story-item-meta">{[m.jurisdiction_name ?? m.city, m.state].filter(Boolean).join(', ')}</p>
-      {m.excerpt && <blockquote className="topic-story-quote">“{highlightSnippet(m.excerpt)}”</blockquote>}
+      {hasQuoteText(m.excerpt) && <blockquote className="topic-story-quote">“{highlightSnippet(m.excerpt)}”</blockquote>}
       <p className={`topic-story-speaker${who ? '' : ' is-unknown'}`} data-testid="said-speaker">
         {who ? `Said by ${who}` : 'Speaker not identified'}
       </p>
