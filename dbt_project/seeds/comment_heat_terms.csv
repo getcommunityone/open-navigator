@@ -1,0 +1,4 @@
+signal,weight,cap,description,pattern
+strong,1.0,,"Insult, accusation, threat or demand words (a hit each).",\y(?:liars?|lying|lied|corrupt\w*|crimin\w+|thie(?:f|ves)|steal\w*|fraud\w*|idiots?|stupid|disgrace\w*|shame on|ashamed|outrage\w*|fascists?|nazis?|brib\w+|crooks?|sold out|betray\w*|disgusting|bullshit|ridiculous|unacceptable|enough is enough|resign|vote you out|next election|we will remember|violat\w+|accountab\w+|demand\w*|complicit|greed\w*|insult\w*|tyran\w+|dictator\w*|unconstitutional)\y
+mild,0.5,,"Anger, fear and distrust words (half a hit each).",\y(?:angry|furious|upset|frustrat\w+|appalled|horrible|terrible|awful|scared|afraid|worried|dishonest|don'?t trust|no one listens|nobody listens|not listening|ignor\w+|trampl\w+|slap in the face|hypocri\w+)\y
+chair,1.0,1,"A chair intervention inside the stretch (order, please address the board). Counted once.",\y(?:order|please address the (?:board|council|chair)|that'?s enough|point of order)\y

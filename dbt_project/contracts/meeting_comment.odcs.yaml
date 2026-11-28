@@ -19,7 +19,7 @@ schema:
   name: meeting_comment
   physicalName: public.meeting_comment
   logicalType: object
-  description: 'One row per comment segmented from a meeting''s captions, with free keyword flags (seeds comment_concern_terms, comment_entity_terms, comment_role_terms, curated_topics). A comment runs from a self-introduction or the chair calling a speaker to the next speaker, a closing ("your time is up"), a 20-second pause or 8 minutes. No text is carried. speaker_display_name is "First L." from the self-introduction (never the full surname), null for a possible minor. Stance is not modeled yet: it needs the per-comment classifier (epic #1232 phase 2, on hold).'
+  description: 'One row per comment segmented from a meeting''s captions, with free keyword flags (seeds comment_concern_terms, comment_entity_terms, comment_role_terms, curated_topics). A comment runs from a self-introduction or the chair calling a speaker to the next speaker, a closing ("your time is up"), a 20-second pause or 8 minutes. No text is carried. speaker_display_name is "First L." from the self-introduction (never the full surname), null for a possible minor. stance_shape and shape_cue_text (#1386) say how a position is stated; which side, as a count, still needs the per-comment classifier (epic #1232 phase 2, on hold).'
   dataGranularityDescription: One row per comment segmented from a meeting's captions, with free keyword flags (seeds comment_concern_terms, comment_entity_terms, comment_role_terms, curated_topics).
   properties:
   - id: meeting_comment_id
@@ -165,3 +165,44 @@ schema:
     name: segmenter_version
     logicalType: string
     physicalType: text
+  - id: meeting_speaker_turn_id
+    name: meeting_speaker_turn_id
+    logicalType: string
+    physicalType: text
+    description: The speaker turn this segment belongs to (FK to meeting_speaker_turn).
+    required: true
+    relationships:
+    - type: foreignKey
+      to: meeting_speaker_turn.odcs.yaml#/schema/meeting_speaker_turn/properties/meeting_speaker_turn_id
+  - id: meeting_speaker_id
+    name: meeting_speaker_id
+    logicalType: string
+    physicalType: text
+    description: The speaker (one per meeting x person; meeting_speaker_position).
+    required: true
+  - id: stance_shape
+    name: stance_shape
+    logicalType: string
+    physicalType: text
+    description: How the comment states its position (#1383), from the comment_stance_shape_terms cue rules. A shape is counted on its own, never as both sides.
+    required: true
+    quality:
+    - type: library
+      metric: invalidValues
+      arguments:
+        validValues:
+        - clear_for
+        - clear_against
+        - conditional
+        - for_concept_against_project
+        - against_concept_open_to_terms
+        - concerns_only
+        - unclear
+      mustBe: 0
+      dimension: conformity
+      severity: error
+  - id: shape_cue_text
+    name: shape_cue_text
+    logicalType: string
+    physicalType: text
+    description: The verbatim phrase that triggered the shape (at most 160 characters); null for unclear and for a possible minor.

@@ -155,3 +155,56 @@ def test_scrub_covers_review_cases() -> None:
     assert scrub("my home is very important to me") == "my home is very important to me"
     assert scrub("our property values will drop") == "our property values will drop"
     assert scrub("we have lived here for 30 years") == "we have lived here for 30 years"
+
+
+# --- merged speakers (#1383) ----------------------------------------------------------------------------------
+
+SECOND = (
+    "I have lived on this road for thirty years and the traffic from the construction trucks already shakes "
+    "my windows so I cannot see how the roads will hold up and I ask you to table this until there is a study"
+)
+
+
+def _two_voices(marker: str) -> list[Cue]:
+    lines = [(0.0, "Okay we'll now open the public comment period.")]
+    lines += [(10.0, "My name is Bonnie Larson and I am here tonight.")]
+    lines += _speech(12.0, FILLER + " thank you")
+    lines += _speech(40.0, marker + " " + SECOND)
+    return _cues(lines)
+
+
+def test_caption_turn_marker_inside_a_comment_splits_two_speakers() -> None:
+    merged = segment_comments("v1", _two_voices(">>"), split_merged_speakers=False)
+    split = segment_comments("v1", _two_voices(">>"))
+    assert len(merged) == 1
+    assert len(split) == 2
+    assert split[0].intro_name == "Bonnie Larson"
+    assert split[1].boundary_basis.startswith("turn_marker>")
+    assert "traffic from the construction" in split[1].comment_text
+    assert "traffic from the construction" not in split[0].comment_text
+    assert split[0].end_seconds < split[1].start_seconds
+
+
+def test_turn_marker_without_a_full_comment_after_it_does_not_split() -> None:
+    lines = [(10.0, "My name is Bonnie Larson and I am here tonight.")]
+    lines += _speech(12.0, FILLER + " thank you")
+    lines += [(40.0, ">> Thank you very much.")]
+    assert len(segment_comments("v2", _cues(lines))) == 1
+
+
+def test_chair_handoff_thank_you_sir_splits() -> None:
+    lines = [(10.0, "My name is Bonnie Larson and I am here tonight.")]
+    lines += _speech(12.0, FILLER + " thank you. Thank you sir.")
+    lines += _speech(40.0, SECOND)
+    split = segment_comments("v3", _cues(lines))
+    assert [c.boundary_basis.split(">")[0] for c in split] == ["self_intro", "handoff"]
+
+
+def test_later_self_introduction_splits_and_names_the_second_speaker() -> None:
+    lines = [(10.0, "My name is Bonnie Larson and I am here tonight.")]
+    lines += _speech(12.0, FILLER + " thank you")
+    lines += _speech(40.0, "good evening Michael Plappa here " + SECOND)
+    split = segment_comments("v4", _cues(lines))
+    assert len(split) == 2
+    assert split[1].boundary_basis.startswith("self_intro>")
+    assert split[1].intro_name == "Michael Plappa"

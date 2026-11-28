@@ -76,7 +76,10 @@ select
     person_keys::text[]                     as person_keys,
     mentions_ai::boolean                    as mentions_ai,
     role_keys::text[]                       as role_keys,
-    possible_minor::boolean                 as possible_minor
+    possible_minor::boolean                 as possible_minor,
+    meeting_speaker_id::text                as meeting_speaker_id,
+    stance_shape::text                      as stance_shape,
+    shape_cue_text::text                    as shape_cue_text
 from scored
 where match_basis = 'own_words'
    or (match_basis = 'same_block' and cardinality(dc_concern_keys) > 0)

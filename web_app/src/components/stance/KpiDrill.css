@@ -159,3 +159,46 @@
   min-height: 44px;
   min-width: 72px;
 }
+
+/* Stance shape chip and its verbatim cue phrase (#1383). */
+.kpi-drill-chip {
+  display: inline-block;
+  padding: 0 0.5em;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #243447;
+  font-weight: 600;
+}
+.kpi-drill-cue {
+  font-style: italic;
+}
+.kpi-drill-cue mark {
+  background: #fff3b0;
+  color: inherit;
+}
+
+/* Speaker name provenance (#1386). */
+.speaker-likely {
+  font-size: 0.8em;
+  font-style: italic;
+  opacity: 0.75;
+}
+.speaker-how {
+  display: inline;
+}
+.speaker-how > summary {
+  display: inline;
+  cursor: pointer;
+  font-size: 0.8em;
+  text-decoration: underline dotted;
+  min-height: 24px;
+}
+.speaker-how[open] > span {
+  display: block;
+  font-size: 0.85em;
+}
+
+/* Comment heat flames (#1386). */
+.heat-flames { white-space: nowrap; }
+.heat-flame { opacity: 0.2; filter: grayscale(1); }
+.heat-flame.is-on { opacity: 1; filter: none; }

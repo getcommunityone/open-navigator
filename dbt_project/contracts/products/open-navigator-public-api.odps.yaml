@@ -540,6 +540,16 @@ outputPorts:
   contractId: open-navigator-public-segmented_meeting
   type: table
   description: One row per meeting video whose captions were split into comments by `python -m ingestion.meetings.comment_segments` (at least one comment found).
+- name: meeting_speaker_position
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_speaker_position
+  type: table
+  description: 'One row per meeting x speaker (#1383): everyone who spoke in a meeting''s public-comment periods, with one position merged from all their segments (stance_shape, verbatim cue phrases).'
+- name: meeting_speaker_turn
+  version: 1.0.0
+  contractId: open-navigator-public-meeting_speaker_turn
+  type: table
+  description: 'One row per meeting x speaker turn (#1383): an uninterrupted stretch by one speaker.'
 - name: meeting_comment
   version: 1.0.0
   contractId: open-navigator-public-meeting_comment

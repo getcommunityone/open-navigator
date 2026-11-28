@@ -1,0 +1,16 @@
+rule_key,attribution_method,attribution_confidence,description
+self_intro_in_turn,self_intro,0.90,"A self-introduction (""my name is X"", ""I'm X and I live"") inside the speaker's own turn, or an official matched by name."
+self_intro_greeting,self_intro,0.60,"A looser self-introduction inside the turn (""this is X from"", ""good evening, X here"")."
+chair_call_name,chair_call,0.60,"The chair names the next speaker (""our next speaker is X"") and that turn starts."
+nearest_earlier_intro,self_intro,0.35,"No introduction in the turn: the nearest earlier introduction within 180 s (about 2,500 characters of speech) with no turn marker between. A candidate only; the name is not shown."
+self_intro_name_withheld,self_intro,0.50,"An introduction was heard but the name is not served (a minor, a student, a school-board resident, or not a known given name): turn confidence only."
+turn_marker_only,caption_marker_turn,0.50,"A "">>"" caption speaker-change starts the turn and no name was said: Speaker N, turn confidence only."
+chair_call_turn,chair_call,0.50,"The chair's call (""next speaker"", ""please state your name"") starts the turn and no name was said: Speaker N, turn confidence only."
+official_roster_match,official_roster_match,0.90,The introduced first and last name equal exactly one current official of the meeting's own government (person_government).
+ai_held_by_official_title,ai_extraction_held_by,0.60,"An AI-extracted held_by slug whose role is an official title, not matched to the roster."
+ai_held_by_resident,ai_extraction_held_by,0.50,An AI-extracted held_by slug with a first and last name and no role: shown as First L.
+ai_held_by_roster,official_roster_match,0.90,An AI-extracted held_by slug whose name equals exactly one current official of the decision's government.
+passage_intro_near,self_intro,0.80,"A quoted passage within 600 characters of the speaker's introduction with no caption turn marker between (meeting_passage_speaker)."
+passage_intro_window,self_intro,0.60,"A quoted passage 600 to 2500 characters after the speaker's introduction with no turn marker between (meeting_passage_speaker)."
+passage_chair_call_window,chair_call,0.60,"A quoted passage within 2500 characters of the chair naming the speaker (\"next speaker is X\") with no turn marker between."
+passage_after_turn_marker,self_intro,0.35,"A quoted passage whose nearest earlier introduction has a caption turn marker between: it may be another speaker. A candidate only; the name is not shown."

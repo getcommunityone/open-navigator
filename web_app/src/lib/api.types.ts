@@ -1749,12 +1749,44 @@ export interface components {
         };
         /** CaptionComment */
         CaptionComment: {
+            /**
+             * Attribution Confidence
+             * @description 0-1, deterministic (seed speaker_attribution_rules).
+             */
+            attribution_confidence?: number | null;
+            /**
+             * Attribution Evidence
+             * @description The cue behind the attribution, never the name.
+             */
+            attribution_evidence?: string | null;
+            /**
+             * Attribution Method
+             * @description self_intro | chair_call | caption_marker_turn | official_roster_match | ai_extraction_held_by | voice_diarization.
+             */
+            attribution_method?: string | null;
+            /**
+             * Attribution Tier
+             * @description high | medium | low. Low: the name is not served.
+             */
+            attribution_tier?: string | null;
             /** Company Keys */
             company_keys?: string[];
             /** Concern Keys */
             concern_keys?: string[];
             /** Data Center Comment Id */
             data_center_comment_id: string;
+            /**
+             * Heat
+             * @description Comment heat 1-5; null when none (never guessed).
+             */
+            heat?: number | null;
+            /** Heat Confidence */
+            heat_confidence?: number | null;
+            /**
+             * Heat Method
+             * @description ai_meeting_analysis | rules | classifier.
+             */
+            heat_method?: string | null;
             /**
              * Jump Url
              * @description The recording at the comment's start; null for a possible minor.
@@ -1772,10 +1804,30 @@ export interface components {
              */
             possible_minor: boolean;
             /**
+             * Possible Name
+             * @description "First L." candidate for a low-tier speaker; shown only on request.
+             */
+            possible_name?: string | null;
+            /**
+             * Segment Count
+             * @description Caption segments merged into this speaker's row.
+             */
+            segment_count?: number | null;
+            /**
+             * Shape Cue Text
+             * @description The verbatim phrase behind the shape, to highlight.
+             */
+            shape_cue_text?: string | null;
+            /**
              * Speaker Display Name
              * @description "First L."; null when unknown or withheld.
              */
             speaker_display_name?: string | null;
+            /**
+             * Stance Shape
+             * @description How the speaker states a position (clear_for, conditional, ...).
+             */
+            stance_shape?: string | null;
             /** Start Seconds */
             start_seconds?: number | null;
             /** State Code */
@@ -1804,7 +1856,7 @@ export interface components {
             limit: number;
             /**
              * Note
-             * @default Comments segmented from our captions are stored without their words (privacy by construction, #1233): each one links to its moment in the recording instead of being quoted.
+             * @default One row per speaker (#1383); their caption segments are stored without their words (privacy by construction, #1233), so each row links to its moment in the recording and quotes only the short phrase behind its stance shape.
              */
             note: string;
             /** Offset */
@@ -1861,7 +1913,10 @@ export interface components {
              * @default Public comments segmented from our own meeting captions (self-introductions and the chair calling speakers), kept when the speaker isn't staff or the applicant and the comment is about a data center. Concerns, companies, people, AI and roles are keyword matches (dbt seeds), not a model's reading.
              */
             basis: string;
-            /** Comments */
+            /**
+             * Comments
+             * @description Distinct SPEAKERS (meeting_speaker_position); segments are detail (#1383).
+             */
             comments: number;
             /** Companies */
             companies: components["schemas"]["CountItem"][];
@@ -1869,6 +1924,8 @@ export interface components {
             concerns: components["schemas"]["CountItem"][];
             /** Governments */
             governments: number;
+            /** @description Mean and peak heat; null unless 3+ speakers have a rating. */
+            heat?: components["schemas"]["HeatSummary"] | null;
             /** Meetings */
             meetings: number;
             /**
@@ -1912,6 +1969,17 @@ export interface components {
             /** Roles */
             roles: components["schemas"]["CountItem"][];
             scope: components["schemas"]["JobClaimScope"];
+            /**
+             * Segments
+             * @description Caption segments behind those speakers (data_center_comment rows).
+             * @default 0
+             */
+            segments: number;
+            /**
+             * Shapes
+             * @description Speakers by how they state a position (stance shape), each counted once, never as both sides.
+             */
+            shapes?: components["schemas"]["CountItem"][];
             /**
              * Year
              * @description Calendar year filter as a string; null for all years.
@@ -2700,6 +2768,19 @@ export interface components {
          * @description One person on a decision's side (#1320).
          */
         DecisionPerson: {
+            /** Attribution Confidence */
+            attribution_confidence?: number | null;
+            /** Attribution Evidence */
+            attribution_evidence?: string | null;
+            /** Attribution Method */
+            attribution_method?: string | null;
+            /** Attribution Tier */
+            attribution_tier?: string | null;
+            /**
+             * Attribution Version
+             * @default speaker_attribution/1
+             */
+            attribution_version: string | null;
             /**
              * Kind
              * @enum {string}
@@ -3201,6 +3282,18 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HeatSummary
+         * @description Average and peak comment heat (1-5) over the speakers who have one; present only when at least 3 do (#1386).
+         */
+        HeatSummary: {
+            /** Mean */
+            mean: number;
+            /** Peak */
+            peak: number;
+            /** Speakers Rated */
+            speakers_rated: number;
         };
         /**
          * JobClaim

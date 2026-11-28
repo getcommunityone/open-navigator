@@ -101,7 +101,7 @@ def test_comment_list_uses_comment_metrics_filter() -> None:
     scope = dc.build_scope("IL", "Joliet", None)
     count_sql, params, _, _ = drill.build_comment_queries(scope, 2026, False, None, 25, 0)
     metrics_where, metrics_params = dcc._where(scope, 2026)
-    assert count_sql == f"SELECT count(*)::int AS n FROM data_center_comment{metrics_where}"
+    assert count_sql == f"SELECT count(DISTINCT meeting_speaker_id)::int AS n FROM data_center_comment{metrics_where}"
     assert params == metrics_params
     ai_sql, _, _, _ = drill.build_comment_queries(scope, 2026, True, None, 25, 0)
     assert ai_sql.endswith("AND mentions_ai")

@@ -56,10 +56,27 @@ class QuarterItem(BaseModel):
     comments: int = Field(..., description="Data-center public comments segmented in those meetings.")
 
 
+class HeatSummary(BaseModel):
+    """Average and peak comment heat (1-5) over the speakers who have one; present only when at least 3 do (#1386)."""
+
+    speakers_rated: int
+    mean: float
+    peak: int
+
+
+MIN_HEAT_SPEAKERS = 3
+
+
 class CommentMetricsResponse(BaseModel):
     year: str | None = Field(None, description="Calendar year filter as a string; null for all years.")
     scope: JobClaimScope
-    comments: int
+    comments: int = Field(..., description="Distinct SPEAKERS (meeting_speaker_position); segments are detail (#1383).")
+    segments: int = Field(0, description="Caption segments behind those speakers (data_center_comment rows).")
+    shapes: list[CountItem] = Field(
+        default_factory=list,
+        description="Speakers by how they state a position (stance shape), each counted once, never as both sides.",
+    )
+    heat: HeatSummary | None = Field(None, description="Mean and peak heat; null unless 3+ speakers have a rating.")
     governments: int
     meetings: int
     meetings_segmented: int = Field(..., description="Meetings in scope with any segmented comment (all topics).")
@@ -108,20 +125,31 @@ def build_metric_queries(scope: JobClaimScope, year: int | None) -> dict[str, tu
     where, params = _where(scope, year)
     where_d, params_d = _where(scope, year, "d")
     totals = (
-        "SELECT count(*) AS comments, count(DISTINCT jurisdiction_id) AS governments, "
+        "SELECT count(DISTINCT meeting_speaker_id) AS comments, count(*) AS segments, "
+        "count(DISTINCT jurisdiction_id) AS governments, "
         "count(DISTINCT video_id) AS meetings, "
-        "count(*) FILTER (WHERE reference_concern_count >= 2) AS multi_concern, "
-        "count(*) FILTER (WHERE mentions_ai) AS ai "
+        "count(DISTINCT meeting_speaker_id) FILTER (WHERE reference_concern_count >= 2) AS multi_concern, "
+        "count(DISTINCT meeting_speaker_id) FILTER (WHERE mentions_ai) AS ai "
         f"FROM data_center_comment{where}"
     )
     unnest_sql = (
-        "SELECT k AS key, count(*) AS n FROM data_center_comment, unnest({col}) AS k"
+        "SELECT k AS key, count(DISTINCT meeting_speaker_id) AS n FROM data_center_comment, unnest({col}) AS k"
         f"{where} GROUP BY k ORDER BY n DESC, k"
     )
     places = (
-        "SELECT p.place_kind AS key, count(DISTINCT p.data_center_comment_id) AS n "
+        "SELECT p.place_kind AS key, count(DISTINCT d.meeting_speaker_id) AS n "
         "FROM data_center_comment_place p JOIN data_center_comment d "
         f"ON d.data_center_comment_id = p.data_center_comment_id{where_d} GROUP BY 1 ORDER BY 2 DESC"
+    )
+    shapes = (
+        "SELECT p.stance_shape AS key, count(*) AS n FROM meeting_speaker_position p "
+        f"WHERE p.meeting_speaker_id IN (SELECT meeting_speaker_id FROM data_center_comment{where}) "
+        "GROUP BY 1 ORDER BY n DESC, 1"
+    )
+    heat = (
+        "SELECT count(p.heat) AS rated, avg(p.heat)::float8 AS mean, max(p.heat) AS peak "
+        "FROM meeting_speaker_position p "
+        f"WHERE p.meeting_speaker_id IN (SELECT meeting_speaker_id FROM data_center_comment{where})"
     )
     seg_where, seg_params = _where(scope, year)
     segmented = f"SELECT count(*) AS n FROM segmented_meeting{seg_where}"
@@ -133,7 +161,7 @@ def build_metric_queries(scope: JobClaimScope, year: int | None) -> dict[str, tu
         "q AS (SELECT to_char(meeting_date, 'YYYY') || '-Q' || extract(quarter FROM meeting_date)::int AS quarter, "
         "count(DISTINCT video_id) AS meetings, count(*) AS passages FROM m GROUP BY 1), "
         "c AS (SELECT to_char(meeting_date, 'YYYY') || '-Q' || extract(quarter FROM meeting_date)::int AS quarter, "
-        f"count(*) AS comments FROM data_center_comment{q_where}{q_extra}meeting_date >= DATE '2022-01-01' GROUP BY 1) "
+        f"count(DISTINCT meeting_speaker_id) AS comments FROM data_center_comment{q_where}{q_extra}meeting_date >= DATE '2022-01-01' GROUP BY 1) "
         "SELECT q.quarter, q.meetings, q.passages, coalesce(c.comments, 0) AS comments "
         "FROM q LEFT JOIN c USING (quarter) ORDER BY q.quarter"
     )
@@ -144,6 +172,8 @@ def build_metric_queries(scope: JobClaimScope, year: int | None) -> dict[str, tu
         "people": (unnest_sql.format(col="person_keys"), params),
         "roles": (unnest_sql.format(col="role_keys"), params),
         "places": (places, params_d),
+        "shapes": (shapes, params),
+        "heat": (heat, params),
         "segmented": (segmented, seg_params),
         "quarters": (quarters, q_params),
     }
@@ -173,6 +203,12 @@ ROLE_LABELS = {
     "business": "Business owner / chamber", "farmer": "Farmer", "advocacy_group": "Advocacy or community group",
     "elected_official": "Elected official",
 }
+SHAPE_LABELS = {
+    "clear_for": "For", "clear_against": "Against", "conditional": "Conditional",
+    "for_concept_against_project": "Supports the idea, opposes this project",
+    "against_concept_open_to_terms": "Opposes, open to terms", "concerns_only": "Concerns raised",
+    "unclear": "Unclear",
+}
 PLACE_LABELS = {
     "road": "Roads and routes", "school": "Schools", "county": "Counties and townships",
     "neighborhood": "Neighborhoods", "district": "Districts and wards", "site": "Named sites",
@@ -190,6 +226,13 @@ def _items(rows: list[Any], labels: dict[str, str], total: int) -> list[CountIte
         )
         for r in rows
     ]
+
+
+def _heat_summary(rows: list[Any]) -> HeatSummary | None:
+    r = rows[0] if rows else None
+    if not r or int(r.get("rated") or 0) < MIN_HEAT_SPEAKERS:
+        return None
+    return HeatSummary(speakers_rated=int(r["rated"]), mean=round(float(r["mean"]), 2), peak=int(r["peak"]))
 
 
 def shape_response(
@@ -211,6 +254,9 @@ def shape_response(
         year=str(year) if year is not None else None,
         scope=scope,
         comments=total,
+        segments=int(t.get("segments") or 0),
+        heat=_heat_summary(results.get("heat", [])),
+        shapes=_items(results.get("shapes", []), SHAPE_LABELS, total),
         governments=int(t.get("governments") or 0),
         meetings=int(t.get("meetings") or 0),
         meetings_segmented=int(results["segmented"][0]["n"]) if results["segmented"] else 0,

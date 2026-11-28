@@ -1136,7 +1136,8 @@ name, whose whole verbatim quote (20+ characters) is inside the passage's excerp
 MENTION_INTRO_SPEAKER_SQL = (
     "SELECT s.data_center_meeting_mention_id, s.speaker_kind, s.speaker_display_name, s.speaker_role "
     "FROM meeting_passage_speaker s "
-    "WHERE s.data_center_meeting_mention_id = ANY($1::text[]) AND s.speaker_display_name IS NOT NULL"
+    "WHERE s.data_center_meeting_mention_id = ANY($1::text[]) AND s.speaker_display_name IS NOT NULL "
+    "AND s.attribution_tier <> 'low'"
 )
 """Who said the passage from their self-introduction in the recording (#1231): the nearest preceding "my name is ..."
 within the same meeting (meeting_passage_speaker). Used only where the hand-counted public comments name nobody."""

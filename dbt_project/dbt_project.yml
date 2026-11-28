@@ -212,6 +212,13 @@ snapshots:
 
 # Variables
 vars:
+  # Speaker attribution (#1386): bump when seeds/speaker_attribution_rules.csv changes
+  speaker_attribution_version: 'speaker_attribution/1'
+  # Comment heat (#1386). The rules baseline is served only when it passes calibration against the AI-rated
+  # comments (within +-1 of the AI heat at least 70%, and exact match beating a constant guess); it did not.
+  heat_version: 'heat/1'
+  heat_rules_enabled: false
+  heat_rules_within1: 0.78
   # Confidence score thresholds
   confidence_authoritative: 1.0
   confidence_high: 0.90

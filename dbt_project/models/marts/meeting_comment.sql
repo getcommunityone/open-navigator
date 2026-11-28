@@ -7,7 +7,9 @@
     curated topics the comment's own words name. No comment text is carried (privacy by
     construction); speaker_display_name is "First L." from the self-introduction, null for a
     possible minor or a name that isn't two clean words (speaker_display_name macro).
-    Stance is not here: it needs the per-comment classifier (phase 2, on hold).
+    stance_shape / shape_cue_text (#1383) say HOW a position is stated (conditional, supports the idea but not
+    this project, concerns only ...) from free cue rules; the cue is a short verbatim phrase, not the comment.
+    Which side (for / against) as a count still needs the per-comment classifier (phase 2, on hold).
 */
 
 with f as (
@@ -40,6 +42,13 @@ select
     f.person_keys::text[]                            as person_keys,
     f.mentions_ai::boolean                           as mentions_ai,
     f.role_keys::text[]                              as role_keys,
-    f.segmenter_version::text                        as segmenter_version
+    f.segmenter_version::text                        as segmenter_version,
+    tu.meeting_speaker_turn_id::text                 as meeting_speaker_turn_id,
+    tu.meeting_speaker_id::text                      as meeting_speaker_id,
+    sh.stance_shape::text                            as stance_shape,
+    (case when f.possible_minor then null else sh.shape_cue_text end)::text as shape_cue_text
 from f
+inner join {{ ref('int_meeting_comment__stance_shape') }} as sh on sh.comment_segment_id = f.comment_segment_id
+inner join {{ ref('int_meeting_comment__turns') }} as tu on tu.comment_segment_id = f.comment_segment_id
+inner join {{ ref('meeting_speaker_turn') }} as mst on mst.meeting_speaker_turn_id = tu.meeting_speaker_turn_id
 inner join {{ ref('segmented_meeting') }} as m on m.video_id = f.video_id

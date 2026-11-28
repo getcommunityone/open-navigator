@@ -22,6 +22,9 @@ text rules over the captions (no LLM, no paid call):
                "state your name", "you have three minutes";
   turn_marker  the caption tool's ">>" speaker-change marker, used to place the start of a comment
                just before its introduction;
+  split        INSIDE a stretch, a second speaker: a ">>" caption speaker-change, a later self-introduction
+               ("this is Jane Doe from ..."), or the chair's hand-off ("thank you, sir") with a full comment
+               of words on both sides (``split_merged_speakers``, #1383);
   closing      the chair or timer ending it: "your time is up", "wrap it up", "thank you for your
                comments", "next speaker", "anyone else wish to speak", "close the public hearing";
   pause        a silence of ``PAUSE_SECONDS`` or more between cues;
@@ -51,7 +54,7 @@ from typing import Any
 
 from loguru import logger
 
-SEGMENTER_VERSION = "1.2.0"  # 1.1: home addresses scrubbed; 1.2: wider scrub (we/my house on, lowercase)
+SEGMENTER_VERSION = "1.3.0"  # 1.1: home addresses scrubbed; 1.2: wider scrub; 1.3: merged speakers re-split (#1383)
 TABLE = "bronze.bronze_meeting_comment_segment"
 
 PAUSE_SECONDS = 20.0  # a silence this long ends a comment
@@ -97,6 +100,14 @@ CLOSING_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:is\s+there\s+)?any\s*one\s+else\s+(?:who\s+)?(?:wish(?:es)?|wants?|would\s+like)\s+to\s+(?:speak|address)\b", re.IGNORECASE),
     re.compile(r"\bclose\s+(?:the\s+)?public\s+(?:hearing|comment)\b", re.IGNORECASE),
     re.compile(r"\bpublic\s+(?:hearing|comment)\s+(?:is|are)\s+(?:now\s+)?closed\b", re.IGNORECASE),
+)
+
+# The chair thanking one speaker by courtesy title / "sir" / "ma'am" hands the floor on: what follows is another voice.
+HANDOFF_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bthank\s+you(?:\s+(?:very|so)\s+much)?,?\s+(?:sir|ma'?am|madam|mister)\b", re.IGNORECASE),
+    re.compile(r"\bthank\s+you(?:\s+(?:very|so)\s+much)?,?\s+(?:mr|mrs|ms|miss|dr)\.?\s+[A-Z][a-z]+", re.IGNORECASE),
+    re.compile(r"\b(?:thank\s+you[,.]?\s+)?(?:who(?:'s|\s+is)|we\s+have)\s+(?:our\s+)?next\b", re.IGNORECASE),
+    re.compile(r"\bplease\s+state\s+your\s+(?:full\s+)?name\b", re.IGNORECASE),
 )
 
 SECTION_OPEN = re.compile(
@@ -439,6 +450,43 @@ def _section_flags(tokens: Sequence[Token], text: str) -> list[bool]:
     return flags
 
 
+def split_points(
+    tokens: Sequence[Token], text: str, start: int, end: int, intros: Sequence[Any] | None = None
+) -> list[tuple[int, str, str | None]]:
+    """Where a second speaker begins inside the stretch ``tokens[start:end]`` (#1383).
+
+    Returns ``(token_index, kind, name)`` in order, ``kind`` one of ``turn_marker`` (the caption tool's ">>"),
+    ``self_intro`` (a later "this is Jane Doe from ..." / "good evening, Jane Doe here" that the anchor patterns
+    don't take), ``handoff`` (the chair's "thank you, sir" / "please state your name"). A cut needs at least
+    ``MIN_WORDS`` words on both sides, so ">>" noise inside a sentence and a one-line "thank you" don't make
+    comments. Free text rules only.
+    """
+    lo, hi = start + MIN_WORDS, end - MIN_WORDS
+    if hi <= lo:
+        return []
+    found: dict[int, tuple[str, str | None]] = {}
+    for j in range(lo, hi + 1):
+        if tokens[j].turn_break:
+            found[j] = ("turn_marker", None)
+    for pat in HANDOFF_PATTERNS:
+        for m in pat.finditer(text):
+            j = min(_token_at(tokens, m.end()) + 1, len(tokens) - 1)
+            if lo <= j <= hi:
+                found.setdefault(j, ("handoff", None))
+    for intro in intros or ():
+        j = _token_at(tokens, intro.char_offset)
+        if lo <= j <= hi:
+            name = clean_name(" ".join(intro.name_tokens)) if intro.name_tokens else None
+            found[j] = ("self_intro", name)
+    # Cuts closer than MIN_WORDS apart are one hand-off phrased twice: keep the first.
+    out: list[tuple[int, str, str | None]] = []
+    for j in sorted(found):
+        if out and j - out[-1][0] < MIN_WORDS:
+            continue
+        out.append((j, *found[j]))
+    return out
+
+
 def _start_index(tokens: Sequence[Token], anchor: Anchor, floor_index: int) -> int:
     """Back up from a self-introduction to where the speaker began ("Good evening, Mayor... my name is")."""
     i = anchor.token_index
@@ -476,8 +524,12 @@ def _end_index(tokens: Sequence[Token], start: int, limit: int, closing_tokens: 
     return limit, "next_speaker"
 
 
-def segment_comments(video_id: str, cues: Sequence[Cue]) -> list[Comment]:
-    """All comments detected in one meeting's cues, in time order."""
+def segment_comments(video_id: str, cues: Sequence[Cue], *, split_merged_speakers: bool = True) -> list[Comment]:
+    """All comments detected in one meeting's cues, in time order.
+
+    ``split_merged_speakers`` (default on, #1383) cuts a stretch where a second speaker begins inside it (see
+    ``split_points``); off reproduces the 1.2 behavior, which ``measure`` uses to count what was merged.
+    """
     tokens, text = tokenize(cues)
     if not tokens:
         return []
@@ -486,6 +538,11 @@ def segment_comments(video_id: str, cues: Sequence[Cue]) -> list[Comment]:
         return []
     closing_tokens = {_token_at(tokens, pos) for pos in _matches_in(CLOSING_PATTERNS, text)}
     section = _section_flags(tokens, text)
+    intros: list[Any] = []
+    if split_merged_speakers:
+        from ingestion.youtube.speaker_intros import find_intros
+
+        intros = find_intros(video_id, text)
 
     comments: list[Comment] = []
     floor = 0
@@ -499,27 +556,38 @@ def segment_comments(video_id: str, cues: Sequence[Cue]) -> list[Comment]:
             limit = max(_start_index(tokens, nxt, anchor.token_index + 1), anchor.token_index + 1)
         end, end_basis = _end_index(tokens, start, limit, closing_tokens)
         floor = end
-        span = tokens[start:end]
-        if len(span) < MIN_WORDS:
+        if end - start < MIN_WORDS:
             continue
-        intro_at = anchor.token_index if anchor.kind.endswith("self_intro") else start
-        intro_tokens = tokens[intro_at : min(intro_at + INTRO_WORDS, end)]
-        last = span[-1]
-        comments.append(
-            Comment(
-                video_id=video_id,
-                comment_index=0,
-                block_index=0,
-                start_seconds=span[0].t,
-                end_seconds=max(last.t, span[0].t),
-                comment_text=scrub_personal_location(" ".join(t.text for t in span)) or "",
-                word_count=len(span),
-                intro_text=scrub_personal_location(" ".join(t.text for t in intro_tokens)) or None,
-                intro_name=anchor.name,
-                boundary_basis=f"{anchor.kind}>{end_basis}",
-                in_public_comment_section=section[start],
+        cuts = split_points(tokens, text, start, end, intros) if split_merged_speakers else []
+        # (first token, last token exclusive, how it starts, name)
+        bounds = [start, *[c[0] for c in cuts], end]
+        starts = [(anchor.kind, anchor.name), *[(c[1], c[2]) for c in cuts]]
+        for k, (kind, name) in enumerate(starts):
+            a, b = bounds[k], bounds[k + 1]
+            span = tokens[a:b]
+            if len(span) < MIN_WORDS:
+                continue
+            ends = end_basis if k == len(starts) - 1 else cuts[k][1]
+            if k == 0:
+                intro_at = anchor.token_index if anchor.kind.endswith("self_intro") else a
+            else:
+                intro_at = a
+            intro_tokens = tokens[intro_at : min(intro_at + INTRO_WORDS, b)]
+            comments.append(
+                Comment(
+                    video_id=video_id,
+                    comment_index=0,
+                    block_index=0,
+                    start_seconds=span[0].t,
+                    end_seconds=max(span[-1].t, span[0].t),
+                    comment_text=scrub_personal_location(" ".join(t.text for t in span)) or "",
+                    word_count=len(span),
+                    intro_text=scrub_personal_location(" ".join(t.text for t in intro_tokens)) or None,
+                    intro_name=name,
+                    boundary_basis=f"{kind}>{ends}",
+                    in_public_comment_section=section[a],
+                )
             )
-        )
 
     # Identical spans (cues with no duration) are one comment.
     seen: set[tuple[float, float]] = set()

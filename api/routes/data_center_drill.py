@@ -45,8 +45,8 @@ DATA_CENTER_RE = re.compile(r"\b(data[ -]?cent(?:er|re)s?|datacent(?:er|re)s?|hy
 
 WITHHELD_MINOR = "The speaker may be a minor, so the name, the link and the keywords are withheld."
 NO_TEXT_NOTE = (
-    "Comments segmented from our captions are stored without their words (privacy by construction, #1233): "
-    "each one links to its moment in the recording instead of being quoted."
+    "One row per speaker (#1383); their caption segments are stored without their words (privacy by construction, "
+    "#1233), so each row links to its moment in the recording and quotes only the short phrase behind its stance shape."
 )
 
 
@@ -295,6 +295,17 @@ class CaptionComment(BaseModel):
     concern_keys: list[str] = Field(default_factory=list)
     company_keys: list[str] = Field(default_factory=list)
     mentions_ai: bool | None = None
+    stance_shape: str | None = Field(None, description="How the speaker states a position (clear_for, conditional, ...).")
+    shape_cue_text: str | None = Field(None, description="The verbatim phrase behind the shape, to highlight.")
+    segment_count: int | None = Field(None, description="Caption segments merged into this speaker's row.")
+    attribution_method: str | None = Field(None, description="self_intro | chair_call | caption_marker_turn | official_roster_match | ai_extraction_held_by | voice_diarization.")
+    attribution_confidence: float | None = Field(None, description="0-1, deterministic (seed speaker_attribution_rules).")
+    attribution_tier: str | None = Field(None, description="high | medium | low. Low: the name is not served.")
+    attribution_evidence: str | None = Field(None, description="The cue behind the attribution, never the name.")
+    heat: int | None = Field(None, description="Comment heat 1-5; null when none (never guessed).")
+    heat_method: str | None = Field(None, description="ai_meeting_analysis | rules | classifier.")
+    heat_confidence: float | None = None
+    possible_name: str | None = Field(None, description='"First L." candidate for a low-tier speaker; shown only on request.')
 
 
 class CaptionCommentsResponse(BaseModel):
@@ -324,14 +335,25 @@ def build_comment_queries(
         extra.append(f"${len(params)} = ANY(company_keys)")
     if extra:
         where = f"{where} AND {' AND '.join(extra)}" if where else f" WHERE {' AND '.join(extra)}"
-    count_sql = f"SELECT count(*)::int AS n FROM data_center_comment{where}"
+    # One row per SPEAKER (#1383): the first matching segment carries the jump link; the position is merged.
+    count_sql = f"SELECT count(DISTINCT meeting_speaker_id)::int AS n FROM data_center_comment{where}"
     page_params = [*params, limit, offset]
     page_sql = (
-        "SELECT data_center_comment_id, speaker_display_name, coalesce(possible_minor, false) AS possible_minor, "
-        "jurisdiction_name, state_code, meeting_date, start_seconds::float8 AS start_seconds, video_id, "
-        "coalesce(concern_keys, '{}') AS concern_keys, coalesce(company_keys, '{}') AS company_keys, mentions_ai "
-        f"FROM data_center_comment{where} "
-        "ORDER BY meeting_date DESC NULLS LAST, jurisdiction_name, video_id, start_seconds NULLS LAST, data_center_comment_id "
+        # A low-tier name is not served as the speaker; it comes back as possible_name for an opt-in reveal (#1386).
+        "SELECT d.data_center_comment_id, "
+        "CASE WHEN p.attribution_tier = 'low' THEN 'Speaker ' || p.speaker_number::text ELSE p.speaker_label END "
+        "AS speaker_display_name, "
+        "coalesce(p.possible_minor, false) AS possible_minor, "
+        "d.jurisdiction_name, d.state_code, d.meeting_date, d.start_seconds::float8 AS start_seconds, d.video_id, "
+        "coalesce(d.concern_keys, '{}') AS concern_keys, coalesce(d.company_keys, '{}') AS company_keys, "
+        "d.mentions_ai, p.stance_shape, p.shape_cue_text, p.segment_count, "
+        "p.attribution_method, p.attribution_confidence::float8 AS attribution_confidence, p.attribution_tier, "
+        "p.attribution_evidence, p.possible_name, p.heat, p.heat_method, p.heat_confidence::float8 AS heat_confidence "
+        "FROM (SELECT DISTINCT ON (meeting_speaker_id) * FROM data_center_comment"
+        f"{where} ORDER BY meeting_speaker_id, start_seconds NULLS LAST) AS d "
+        "JOIN meeting_speaker_position p ON p.meeting_speaker_id = d.meeting_speaker_id "
+        "ORDER BY d.meeting_date DESC NULLS LAST, d.jurisdiction_name, d.video_id, d.start_seconds NULLS LAST, "
+        "d.data_center_comment_id "
         f"LIMIT ${len(page_params) - 1} OFFSET ${len(page_params)}"
     )
     return count_sql, params, page_sql, page_params

@@ -32,6 +32,10 @@ class _Conn:
             return self.rows.get("segmented", [])
         if "data_center_meeting_mention" in sql:
             return self.rows.get("quarters", [])
+        if "FROM meeting_speaker_position p WHERE p.meeting_speaker_id IN" in sql and "avg(p.heat)" in sql:
+            return self.rows.get("heat", [])
+        if "FROM meeting_speaker_position" in sql:
+            return self.rows.get("shapes", [])
         if "data_center_comment_place" in sql:
             return self.rows.get("places", [])
         for col in ("concern_keys", "company_keys", "person_keys", "role_keys"):
@@ -134,3 +138,10 @@ def test_all_years_with_year_zero(get) -> None:
 def test_missing_mart_is_503(get) -> None:
     r = get(_Conn(error=asyncpg.UndefinedTableError("relation \"data_center_comment\" does not exist")))
     assert r.status_code == 503
+
+
+def test_heat_summary_needs_three_rated_speakers() -> None:
+    assert dcc._heat_summary([{"rated": 2, "mean": 3.0, "peak": 4}]) is None
+    assert dcc._heat_summary([{"rated": 0, "mean": None, "peak": None}]) is None
+    h = dcc._heat_summary([{"rated": 3, "mean": 2.3333, "peak": 4}])
+    assert h is not None and (h.speakers_rated, h.mean, h.peak) == (3, 2.33, 4)

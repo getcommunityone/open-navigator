@@ -29,6 +29,21 @@ from pydantic import BaseModel
 Kind = Literal["official", "resident"]
 
 
+#: How each way of naming a slug is attributed (#1386). Mirrors dbt seed ``speaker_attribution_rules`` (a test checks
+#: they agree); tiers: high >= 0.80, medium >= 0.50, low below. A held_by slug is AI-extracted, so it never reaches high
+#: unless the name is also matched to the official roster.
+ATTRIBUTION_VERSION = "speaker_attribution/1"
+HELD_BY_RULES: dict[str, tuple[str, float]] = {
+    "ai_held_by_roster": ("official_roster_match", 0.90),
+    "ai_held_by_official_title": ("ai_extraction_held_by", 0.60),
+    "ai_held_by_resident": ("ai_extraction_held_by", 0.50),
+}
+
+
+def attribution_tier(confidence: float) -> str:
+    return "high" if confidence >= 0.80 else ("medium" if confidence >= 0.50 else "low")
+
+
 class DecisionPerson(BaseModel):
     """One person on a decision's side (#1320)."""
 
@@ -36,6 +51,12 @@ class DecisionPerson(BaseModel):
     # The official's title (from person_government, else the slug's title word); None for everyone else.
     role: Optional[str] = None
     kind: Kind
+    # How we know (#1386): the name comes from the analysis's held_by slug, never from a voice.
+    attribution_method: Optional[str] = None
+    attribution_confidence: Optional[float] = None
+    attribution_tier: Optional[str] = None
+    attribution_evidence: Optional[str] = None
+    attribution_version: Optional[str] = ATTRIBUTION_VERSION
 
 
 class DecisionPeople(BaseModel):
@@ -245,6 +266,14 @@ class OfficialIndex:
         return hits[0] if len(hits) == 1 else None
 
 
+def _held_by(rule: str, evidence: str) -> dict[str, Any]:
+    method, conf = HELD_BY_RULES[rule]
+    return {
+        "attribution_method": method, "attribution_confidence": conf, "attribution_tier": attribution_tier(conf),
+        "attribution_evidence": evidence,
+    }
+
+
 def person_for(
     slug: str,
     *,
@@ -259,18 +288,28 @@ def person_for(
         return None
     hit = officials.match(state_code, jurisdiction_name, p.name_tokens) if officials else None
     if hit:
-        return {"name": " ".join(str(hit["full_name"]).split()), "role": hit.get("title") or p.role_label, "kind": "official"}
+        return {
+            "name": " ".join(str(hit["full_name"]).split()), "role": hit.get("title") or p.role_label, "kind": "official",
+            **_held_by("ai_held_by_roster", f'held_by "{slug}" equals one current official of this government'),
+        }
     if p.official:
         lead = p.lead if p.lead in LEAD_TITLES and not p.role_label else None
         name = _title(([lead] if lead else []) + list(p.name_tokens))
-        return {"name": name, "role": p.role_label, "kind": "official"}
+        return {
+            "name": name, "role": p.role_label, "kind": "official",
+            **_held_by("ai_held_by_official_title", f'held_by "{slug}" names an official title'),
+        }
     if school_board or p.lead in HONORIFICS:
         # No one but officials at a school board; an honorific and a surname is not a first name.
         return None
     toks = [t for t in p.name_tokens if t not in ("sr", "jr")]
     if len(toks) < 2:
         return None  # one word may be a surname: without a first and last name there is no "First L." to show
-    return {"name": f"{_title([toks[0]])} {toks[-1][0].upper()}.", "role": None, "kind": "resident"}
+    # The slug holds a private resident's full name: the evidence says only that one was recorded (AGENTS.md, Privacy).
+    return {
+        "name": f"{_title([toks[0]])} {toks[-1][0].upper()}.", "role": None, "kind": "resident",
+        **_held_by("ai_held_by_resident", "held_by names a first and last name (resident, name shortened)"),
+    }
 
 
 def is_school_board(*texts: Optional[str], jurisdiction_type: Optional[str] = None) -> bool:
