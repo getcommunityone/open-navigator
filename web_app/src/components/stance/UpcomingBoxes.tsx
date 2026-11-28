@@ -45,8 +45,8 @@ export default function UpcomingBoxes({ data, scopeLabel }: Props) {
       <div className="sb-weeks" role="img" aria-label={`Upcoming items by week, the next ${strip.days} days`} style={{ ['--sb-weeks' as string]: strip.weeks.length, ['--sb-rows' as string]: Math.min(tallest, 6) }}>
         {strip.weeks.map((w) => (
           <div key={w.start} className="sb-week" title={`Week of ${upcomingDate(w.start, false)}`}>
-            {w.items.map((i) => (
-              <span key={i.id} className="sb-box" data-box="" data-group={i.kind} style={{ background: upcomingKindColor(i.kind) }} title={`${upcomingDate(i.date, false)}: ${i.title}`} />
+            {w.items.map((i, n) => (
+              <span key={i.id} className="sb-box" data-box="" data-group={i.kind} style={{ background: upcomingKindColor(i.kind), ['--i' as string]: n + strip.weeks.indexOf(w) }} title={`${upcomingDate(i.date, false)}: ${i.title}`} />
             ))}
           </div>
         ))}

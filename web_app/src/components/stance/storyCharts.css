@@ -354,3 +354,7 @@
 .sb-week { display: flex; flex-flow: row wrap-reverse; justify-content: center; align-content: flex-start; gap: 3px; min-height: 14px; }
 .sb-weeks .sb-box { width: 12px; height: 12px; }
 .sb-axis { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+/* The boxes drop in one after another when the screen opens (#1415); still when motion is reduced. */
+@keyframes sb-pop { from { opacity: 0; transform: translateY(6px) scale(0.5); } to { opacity: 1; transform: none; } }
+.stance-panel[data-live] .sb-box { animation: sb-pop 360ms var(--ease-out, ease-out) both; animation-delay: calc(var(--i, 0) * 22ms); }
+@media (prefers-reduced-motion: reduce) { .stance-panel[data-live] .sb-box { animation: none; } }

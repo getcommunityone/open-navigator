@@ -385,7 +385,7 @@ function TopicStoryScreens({ def, live }: { def: TopicStoryDef; live: ReturnType
       case 'nonprofits':
         return <ScreenBoxes spec={nonprofitsBoxes(nonprofits.data, place)} />
       case 'bills':
-        return <ScreenBoxes spec={billsBoxes(legislation.data, place)} />
+        return <ScreenBoxes spec={billsBoxes(legislation.data, place, stateCode)} />
       case 'actions': {
         const w = actionLabels(def.slug)
         return <ScreenBoxes spec={actionsBoxes(localActions.data, { advanced: w.advanced, blocked: w.blocked }, place)} />

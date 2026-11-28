@@ -147,14 +147,17 @@ const BILL_STATUS: Array<{ key: BillStatus; label: string; color: string }> = [
   { key: 'failed', label: 'Failed', color: BOX_COLORS.against },
 ]
 
-/** State bills on a topic by how far they got. */
-export function billsBoxes(res: TopicLegislationResponse | null | undefined, place: string): BoxesSpec | null {
+/** State bills on a topic by how far they got: the chosen state's rows, else every state's (all years in our copy). */
+export function billsBoxes(res: TopicLegislationResponse | null | undefined, place: string, stateCode?: string | null): BoxesSpec | null {
   if (!res) return null
-  const gs = BILL_STATUS.map((b) => group(b.key, b.label, res.status_counts?.[b.key], b.color))
+  const rows = stateCode ? (res.summary ?? []).filter((r) => r.state_code === stateCode) : null
+  const counts = (k: BillStatus) => (rows ? rows.filter((r) => r.status === k).reduce((n, r) => n + (r.bills ?? 0), 0) : (res.status_counts?.[k] ?? 0))
+  const gs = BILL_STATUS.map((b) => group(b.key, b.label, counts(b.key), b.color))
   const total = sum(gs)
-  if (total === 0) return { title: `No state bill on this topic in our record`, unit: 'bills', groups: gs }
+  const note = 'Bills from every year in our copy of OpenStates; the map below draws the recent years.'
+  if (total === 0) return { title: `No state bill on this topic in ${place === 'National' ? 'our record' : place}`, unit: 'bills', groups: gs }
   const t = top(gs)
-  return { title: `${plural(total, 'state bill')} on record; most are ${t.label.toLowerCase()} (${fmt(t.count)})${place === 'National' ? '' : `, drawn nationally`}`, unit: 'bills', groups: gs }
+  return { title: `${place === 'National' ? 'Across America' : place}: ${plural(total, 'state bill')} on record, most ${t.label.toLowerCase()} (${fmt(t.count)})`, unit: 'bills', groups: gs, note }
 }
 
 /** What local bodies did in the meetings where they acted. */

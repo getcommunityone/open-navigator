@@ -27,7 +27,7 @@ export default function ScreenBoxes({ spec }: Props) {
         {cells.length === 0 ? (
           <span className="sb-box sb-box--empty" data-box="" data-group="none" />
         ) : (
-          cells.map((c, i) => <span key={i} className="sb-box" data-box="" data-group={c.key} style={{ background: c.color }} />)
+          cells.map((c, i) => <span key={i} className="sb-box" data-box="" data-group={c.key} style={{ background: c.color, ['--i' as string]: i }} />)
         )}
       </div>
       <ul className="sb-legend" data-chart-legend="">
