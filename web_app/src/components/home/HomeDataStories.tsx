@@ -30,6 +30,7 @@ import { dataCenterQuoteNote } from '../../utils/topicPositions'
 import StoryCountyMap from '../stance/StoryCountyMap'
 import MapSkeleton, { useStateAspect } from '../stance/MapSkeleton'
 import { useInsightYears } from '../chart/useInsightYears'
+import { useInsightHeatConcern } from '../chart/useInsightHeatConcern'
 import CoverageLine from '../stance/CoverageLine'
 
 
@@ -304,6 +305,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
   // meeting towns, in the stance colours, from the same meeting-mentions place counts.
   const navigate = useNavigate()
   const dcYears = useInsightYears('data-centers', scope.stateCode ?? undefined)
+  const dcHeatConcern = useInsightHeatConcern('data-centers', scope.stateCode ?? undefined)
   const statePlaces = useQuery({
     queryKey: ['home', 'story-map', 'meeting-mentions', 'state', scope.stateCode ?? ''],
     queryFn: () => fetchDataCenterMeetingMentions({ state: scope.stateCode, limit: 200 }),
@@ -401,7 +403,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
                   cardSlot={cardSlot}
                   onDrill={drill}
                   chrome={false}
-                  insightExtras={{ years: dcYears }}
+                  insightExtras={{ years: dcYears, ...dcHeatConcern }}
                 />
               ) : (
                 <MapSkeleton aspect={stateAspect} label={`Loading the map of ${label}`} />
@@ -410,7 +412,7 @@ export default function HomeDataStories({ stateCode, city = null, onPlaceApply }
               <p className="text-sm text-stone-500">The map could not be loaded right now.</p>
             ) : (
               <StoryStatesMap
-                insightExtras={{ years: dcYears }}
+                insightExtras={{ years: dcYears, ...dcHeatConcern }}
                 byState={national.data?.counts?.by_state}
                 quotes={quotes}
                 stance={speakers.data?.available ? (speakers.data.by_state ?? []) : undefined}

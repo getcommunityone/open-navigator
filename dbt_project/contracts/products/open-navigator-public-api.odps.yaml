@@ -610,6 +610,16 @@ outputPorts:
   contractId: open-navigator-public-topic_place_ranking
   type: table
   description: 'One row per place x topic x window (#1437): where a place''s public speakers stood on a topic, from their own classifier sides (meeting_speaker_topic_side).'
+- name: topic_heat_year
+  version: 1.0.0
+  contractId: open-navigator-public-topic_heat_year
+  type: table
+  description: Public-speaker heat per topic, place scope (national, state, city) and calendar year (#1418), from the classifier's 1-5 heat reading of each speaker's own words (meeting_speaker_topic_side).
+- name: topic_top_concern
+  version: 1.0.0
+  contractId: open-navigator-public-topic_top_concern
+  type: table
+  description: The most-cited concern among opposing or heated speaker turns, per topic and place scope (#1418), from the free concern keyword classification (comment_concern_terms).
 - name: governing_body
   version: 1.0.0
   contractId: open-navigator-public-governing_body

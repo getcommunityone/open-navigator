@@ -197,6 +197,8 @@
     'governing_body':                      "_s.state_code in {{states}}",
     'meeting_speaker_topic_side':          "_s.state_code in {{states}}",
     'topic_place_ranking':                 "_s.state_code in {{states}}",
+    'topic_heat_year':                     "(_s.state_code is null or _s.state_code in {{states}})",
+    'topic_top_concern':                   "(_s.state_code is null or _s.state_code in {{states}})",
     'data_center_comment':                 "_s.state_code in {{states}}",
     'data_center_comment_place':
         "_s.data_center_comment_id in (select data_center_comment_id from gold.data_center_comment "
@@ -308,6 +310,7 @@
     'segmented_meeting', 'meeting_speaker_position', 'meeting_comment', 'data_center_comment', 'data_center_comment_place',
     'meeting_passage_speaker', 'meeting_speaker_topic_side',
     'topic_place_ranking',
+    'topic_heat_year', 'topic_top_concern',
     'governing_body', 'meeting_body', 'body_membership', 'body_recent_speaker',
     'trending_term', 'trending_term_evidence'
 ] -%}

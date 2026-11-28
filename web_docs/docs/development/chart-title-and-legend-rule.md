@@ -43,5 +43,27 @@ Titles stay near 90 characters. The numbers behind a title are one tap away on t
 
 ## Known gaps
 
-- Per-year speaker heat and the top concern in opposing turns are not yet served per topic, so findings 1 and the cause clause appear only where
-  those inputs are passed. See the follow-up issues linked from #1409.
+- Per-year speaker heat and the top concern are served per topic and scope since #1418 (below). A topic with no concern list
+  (today only data centers has one, `comment_concern_terms`) never gets the "leads the complaints" clause.
+
+## Heat by year and top concern (#1418)
+
+- `topic_heat_year` (dbt mart, `public.topic_heat_year`): one row per topic x scope (`national`, `state`, `city`) x calendar year.
+  Mean heat (1-5), share of speakers with heat 4 or 5 and the count of rated speakers, from the classifier's reading of each
+  public speaker's own words (`meeting_speaker_topic_side`, #1391). A year with fewer than `heat_year_min_speakers` (20) rated
+  speakers has no row.
+- `topic_top_concern` (dbt mart, `public.topic_top_concern`): one row per topic x basis x scope. Among the turns of speakers
+  who opposed (`opposing`: side against) or were heated (`heated`: heat 4 or 5) on the topic, the concern named in the most
+  turns, from the free keyword concern list (`comment_concern_terms`), with its turn count, the turns read and its share. No row
+  under `top_concern_min_turns` (20) turns read. The stance-shape cue texts are verbatim phrases, not categories, so they are not
+  counted here.
+- `GET /api/topics/{slug}/heat-by-year?state=&city=` returns `{years: [{year: "2026", mean, speakers_rated, share_heated, speakers_heated}]}`;
+  `GET /api/topics/{slug}/top-concern?state=&city=` returns `{label, count, of, basis, share}` (the opposing basis, else heated;
+  all null when there is no row).
+- The picker still applies its own thresholds (20 rated speakers in each of two consecutive years and a clear rise; the
+  concern in at least 30% and 5 of the turns read), so a finding fires only when both the server and the picker agree.
+
+The topic story's **Over time** screen draws the same rows as a year chart (`HeatYearBoxes`): one box per speaker rated heated
+(heat 4 or 5), stacked by the calendar year of the meeting, with the year's average heat and rated count under each column. The
+picker leads its title with "getting heated" (average heat up by a quarter and 0.4) or "cooling" (down by a fifth and 0.4) between
+two consecutive years that each have at least 20 rated speakers; otherwise the title is the plain description.
