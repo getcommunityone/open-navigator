@@ -988,3 +988,26 @@ seeds:
         tests: [unique, not_null]
       - name: role
         tests: [not_null]
+  - name: trending_term_excluded
+    description: "#1399: words (match = word, first or last word of a term) and phrases (match = phrase, contained) left out of trending terms: filler, procedural, generic, caption noise."
+    columns:
+      - name: term
+        tests: [unique, not_null]
+      - name: match
+        tests:
+          - accepted_values: {values: ['word', 'phrase']}
+  - name: trending_term_public_figure
+    description: "#1399: reviewed allow-list of widely known public figures (presidents, governors, national business leaders) whose names may surface as trending terms."
+    columns:
+      - name: term
+        tests: [unique, not_null]
+  - name: trending_term_sensitive
+    description: "#1399: sensitive words. A term containing one is shown as counts only and its evidence never names a speaker (AGENTS.md, Privacy)."
+    columns:
+      - name: term
+        tests: [unique, not_null]
+  - name: trending_term_common_word
+    description: "#1399: common civic words that are also first or last names; the name filter does not treat them as a person's name."
+    columns:
+      - name: term
+        tests: [unique, not_null]

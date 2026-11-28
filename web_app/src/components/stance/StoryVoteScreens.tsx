@@ -1,6 +1,7 @@
 import ScreenBoxes from './ScreenBoxes'
 import { verdictBoxes } from '../../utils/screenBoxes'
 import { useEffect, useRef, type ReactNode } from 'react'
+import { useScreenActive } from './ActiveScreen'
 import { Link } from 'react-router-dom'
 import type { ChoiceMoment, ChoiceResults, ChoiceScopes, StanceQuestion } from '../../api/stance'
 import { PAUSE_NOTE, storyScopeLabel, type ScreenText, type StoryScope, type StoryScreen } from '../../utils/dataStory'
@@ -33,8 +34,8 @@ interface ScreenProps {
   text: ScreenText
   scope: StoryScope
   vote: VoteState
-  /** The screen is the one in view. */
-  active: boolean
+  /** The screen is the one in view (when no ActiveScreenContext says so). */
+  active?: boolean
   nextLabel: string | null
   onPrev?: () => void
   onNext: () => void
@@ -119,13 +120,14 @@ function QuestionUnavailable({ vote }: { vote: VoteState }) {
   )
 }
 
-function Frame(p: { screen: StoryScreen; index: number; active: boolean; single: boolean; className?: string; children: ReactNode }) {
+function Frame(p: { screen: StoryScreen; index: number; active?: boolean; single: boolean; className?: string; children: ReactNode }) {
+  const active = useScreenActive(p.index, p.active ?? false)
   return (
     <section
       className={`stance-panel stance-act stance-vote${p.className ? ` ${p.className}` : ''}`}
       data-panel={p.index}
       data-screen={p.screen.id}
-      data-live={p.active ? '' : undefined}
+      data-live={active ? '' : undefined}
       aria-labelledby={`story-h-${p.screen.id}`}
       aria-roledescription="screen"
       tabIndex={-1}

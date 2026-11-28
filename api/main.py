@@ -333,6 +333,7 @@ from api.routes import policy_questions as policy_questions_routes
 from api.routes import documents as documents_routes
 from api.routes import jurisdiction_documents as jurisdiction_documents_routes
 from api.routes import jurisdiction_meeting_documents as jurisdiction_meeting_documents_routes
+from api.routes import governing_bodies as governing_bodies_routes
 from api.routes import event_bills as event_bills_routes
 from api.routes import meetings as meetings_routes
 from api.routes import meeting_comparison as meeting_comparison_routes
@@ -363,6 +364,7 @@ from api.routes import short_term_rentals as short_term_rentals_routes
 from api.routes import topic_companies as topic_companies_routes
 from api.routes import topic_timeline as topic_timeline_routes
 from api.routes import topic_yoy as topic_yoy_routes
+from api.routes import trending_terms as trending_terms_routes
 from api.routes import rankings as rankings_routes
 from api.routes import topic_policy as topic_policy_routes
 from api.routes import topic_upcoming as topic_upcoming_routes
@@ -392,6 +394,7 @@ app.include_router(decisions_routes.router, prefix="/api")
 app.include_router(policy_questions_routes.router, prefix="/api")
 app.include_router(jurisdiction_documents_routes.router, prefix="/api")
 app.include_router(jurisdiction_meeting_documents_routes.router, prefix="/api")
+app.include_router(governing_bodies_routes.router, prefix="/api")
 app.include_router(documents_routes.router, prefix="/api")
 app.include_router(event_bills_routes.router, prefix="/api")
 app.include_router(meetings_routes.router, prefix="/api")
@@ -429,6 +432,7 @@ app.include_router(topic_companies_routes.router)
 app.include_router(topic_timeline_routes.router)
 # Every main topic, last year vs this year (#1343); prefix /api/topics baked in.
 app.include_router(topic_yoy_routes.router)
+app.include_router(trending_terms_routes.router)
 # Where places stand on a topic (#1437); prefix /api/rankings baked in.
 app.include_router(rankings_routes.router)
 # State bills, local actions and public positions on a topic (#1274); prefix /api/topics baked in.

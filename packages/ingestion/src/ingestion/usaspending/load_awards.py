@@ -27,7 +27,7 @@ from loguru import logger
 from sqlalchemy import text
 
 from ..pgutil import get_engine
-from .client import RateLimited, UsaSpendingClient
+from .client import MAX_ROWS_PER_WINDOW, RateLimited, UsaSpendingClient
 
 TABLE = "bronze.bronze_usaspending_award"
 DATA_SOURCE = "USAspending.gov API v2"
@@ -149,6 +149,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--aln", help="Restrict to one Assistance Listing Number, e.g. 14.218")
     p.add_argument("--recipient-type", default="local_government")
     p.add_argument("--resume-from", help="Skip months before YYYY-MM (restart after an interruption)")
+    p.add_argument("--months", help="Only these months, comma-separated YYYY-MM (retry failed months)")
+    p.add_argument(
+        "--max-window-rows", type=int, default=MAX_ROWS_PER_WINDOW,
+        help="Split a window into halves when it has more awards than this (smaller = shallower paging)",
+    )
     p.add_argument("--limit", type=int, help="Stop after N awards")
     p.add_argument("--batch", type=int, default=500)
     p.add_argument("--dry-run", action="store_true")
@@ -172,12 +177,15 @@ def main(argv: list[str] | None = None) -> int:
         buf = []
 
     failed: list[str] = []
+    only = {m.strip() for m in a.months.split(",")} if a.months else None
     try:
         for start, end in month_windows(a.fy_start, a.fy_end):
             if a.resume_from and start.isoformat()[:7] < a.resume_from:
                 continue
+            if only is not None and start.isoformat()[:7] not in only:
+                continue
             try:
-                for hit in client.iter_awards(start, end, a.recipient_type, a.aln):
+                for hit in client.iter_awards(start, end, a.recipient_type, a.aln, a.max_window_rows):
                     rec = to_record(hit, a.recipient_type)
                     if rec is None:
                         continue

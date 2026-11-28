@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import MapBox from './MapBox'
+import { useProgressiveCount } from './useProgressiveCount'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import MapSkeleton, { NATIONAL_MAP_ASPECT } from './MapSkeleton'
 import { COUNTIES_ALBERS_TOPO, NATIONAL_BBOX, STATES_ALBERS_TOPO, fetchTopo, meetingColor } from '../../lib/dotMatrix'
@@ -77,6 +79,9 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null, scopeLabel, onPickState, labelledBy, passages }: Props) {
   const [hover, setHover] = useState<string | null>(null)
   const [hoverDot, setHoverDot] = useState<number | null>(null)
+  const boxActs = useRef<{ enter: (id: string, i: number) => void; pick: (id: string) => void }>({ enter: () => {}, pick: () => {} })
+  const boxEnter = useCallback((id: string, i: number) => boxActs.current.enter(id, i), [])
+  const boxPick = useCallback((id: string) => boxActs.current.pick(id), [])
   const quoted = useMemo(() => (passages ?? []).filter((m) => m.evidence), [passages])
   const qc = useQueryClient()
   const { data: topo, isError, refetch } = useQuery({
@@ -85,6 +90,7 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
     staleTime: 1000 * 60 * 60,
   })
   const grid = useMemo(() => (topo ? nationalGrid(topo) : null), [topo])
+  const drawn = useProgressiveCount(grid?.dots.length ?? 0)
   // Per-dot left-to-right rank inside its state so hovering different parts of a state cycles across its passages (#1357).
   const dotMeta = useMemo(() => {
     if (!grid) return null
@@ -142,6 +148,14 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
   const touch = isTouchOnly()
   // A click, or a tap on a phone (no card there, #1277), tells the state's story at once.
   const onDot = (fips: string) => pick(fips)
+  boxActs.current = {
+    enter: (id, i) => {
+      keyNav.pointed()
+      setHover(id)
+      setHoverDot(i)
+    },
+    pick: onDot,
+  }
 
   // Loading (#1328): the map's own box and a quiet shimmer; a failure says so with Try again.
   if (isError) return <MapSkeleton aspect={NATIONAL_MAP_ASPECT} error onRetry={() => void refetch()} />
@@ -252,35 +266,27 @@ export default function StoryDotMap({ byState, scopeStateCode, scopeCity = null,
         aria-label={`Dot map of meetings where a data center came up, by state, nationally${scopeStateCode ? `, with ${stateNameOf(scopeStateCode)} highlighted (the story is scoped to ${scopeLabel})` : ''}. ${listed.length} ${listed.length === 1 ? 'state has' : 'states have'} at least one.`}
         {...keyNav.svgProps}
       >
-        {grid.dots.map((d, i) => {
+        {grid.dots.slice(0, drawn).map((d, i) => {
           const code = codeOf(d.id)
           const mine = !scopeStateCode || code === scopeStateCode
           const n = code ? counts.get(code)?.meetings : undefined
           const s = (n ? r : r * 0.55) * 1.85
           return (
-            <rect
+            <MapBox
               key={i}
-              data-box=""
-              data-state={code ?? undefined}
-              data-active={hover === d.id ? '' : undefined}
+              id={d.id}
+              i={i}
+              dataState={code ?? undefined}
               x={d.x - s / 2}
               y={d.y - s / 2}
-              width={s}
-              height={s}
-              rx={s * 0.14}
+              size={s}
               fill={colorFor(n)}
               opacity={(hover && hover !== d.id) || (!hover && !mine) ? 0.3 : 1}
-              style={{ cursor: code ? 'pointer' : 'default' }}
-              onMouseEnter={
-                touch
-                  ? undefined
-                  : () => {
-                      keyNav.pointed()
-                      setHover(d.id)
-                      setHoverDot(i)
-                    }
-              }
-              onClick={() => onDot(d.id)}
+              active={hover === d.id}
+              pointer={Boolean(code)}
+              hoverable={!touch}
+              onEnter={boxEnter}
+              onPick={boxPick}
             />
           )
         })}

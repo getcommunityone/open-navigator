@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import MapSkeleton, { useStateAspect } from './MapSkeleton'
 import { useQuery } from '@tanstack/react-query'
@@ -26,6 +26,8 @@ import { isTouchOnly, prefersStillMedia } from '../../utils/touchOnly'
 import { useMapKeyboard, westToEast } from '../../hooks/useMapKeyboard'
 import { useChartWidth } from './useChartWidth'
 import { pickInsight, type InsightInput } from '../../utils/chartInsight'
+import MapBox from './MapBox'
+import { useProgressiveCount } from './useProgressiveCount'
 import ChartFrame, { type LegendItem } from '../chart/ChartFrame'
 import { MAP_MIN_COUNTY_PX, MAP_MIN_LABEL_PX, TALL_ASPECT, labelUnits, mapAspect } from '../../utils/mapFit'
 
@@ -100,6 +102,9 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
 export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel, byPlace, onPickState, labelledBy, passages, cardSlot = null, onDrill, subject, positions, unplacedMeetings = 0, chrome = true, insightExtras }: Props) {
   const what = subject ?? 'a data center'
   const [hover, setHover] = useState<string | null>(null)
+  const boxActs = useRef<{ enter: (id: string, i: number) => void; pick: (id: string) => void }>({ enter: () => {}, pick: () => {} })
+  const boxEnter = useCallback((id: string, i: number) => boxActs.current.enter(id, i), [])
+  const boxPick = useCallback((id: string) => boxActs.current.pick(id), [])
   // The map's drawn width (#1309): it is capped by the screen's height, so its labels are sized from what is really drawn.
   const { ref: fitRef, width: drawnWidth } = useChartWidth<HTMLDivElement>(0)
   // With the card outside the map (#1307), leaving the map hides it after a moment, so the mouse can reach its link.
@@ -130,6 +135,8 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     const bbox = bboxOf(feats)
     return { feats, bbox, ...dotsFor(feats, bbox, 60) }
   }, [topo, stateFips])
+  // The grid's boxes mount a slice per frame, not all in one task (#1458).
+  const drawn = useProgressiveCount(grid?.dots.length ?? 0)
 
   // Each government's county, and its ring position when it isn't a county itself.
   const placed = useMemo(() => {
@@ -282,6 +289,15 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
     if (!onDrill) return setHover(id)
     const t = countyTown(id)
     onDrill(t ? townName(t) : null)
+  }
+  // Stable handlers for the boxes (MapBox): they call whatever this render's closures are.
+  boxActs.current = {
+    enter: (id) => {
+      keepCard()
+      keyNav.pointed()
+      setHover(id)
+    },
+    pick: clickCounty,
   }
 
   const card = passage ? (
@@ -471,26 +487,26 @@ export default function StoryCountyMap({ stateCode, scopeCity = null, scopeLabel
           aria-label={`Dot map of ${stateName}'s counties, broken down by ${positions ? 'a reading of its meetings' : "speakers' stance"} where any are on record and otherwise shaded by meetings where ${what} came up (the story is scoped to ${scopeLabel}). ${listed.length} ${listed.length === 1 ? 'county has' : 'counties have'} at least one.${leanCounties ? ` ${leanCounties} ${leanCounties === 1 ? 'county is' : 'counties are'} tinted light red where a reading of the meetings found the public mostly opposed.` : ''}${disagreeCounties.size ? ` ${disagreeCounties.size} ${disagreeCounties.size === 1 ? 'county is' : 'counties are'} where a reading of the meetings found officials sided against the public (see the data table).` : ''}`}
           {...keyNav.svgProps}
         >
-          {grid.dots.map((d, i) => {
+          {grid.dots.slice(0, drawn).map((d, i) => {
             const n = counts.get(d.id)
             const mine = !cityCounties || cityCounties.has(d.id)
             const s = (n ? r : r * 0.55) * 1.85
             return (
-              <rect
+              <MapBox
                 key={i}
-                data-box=""
-                data-state={stateCode}
-                data-active={hover === d.id ? '' : undefined}
+                id={d.id}
+                i={i}
+                dataState={stateCode}
                 x={d.x - s / 2}
                 y={d.y - s / 2}
-                width={s}
-                height={s}
-                rx={s * 0.14}
+                size={s}
                 fill={colorFor(i, n)}
                 opacity={(hover && hover !== d.id) || !mine ? 0.3 : 1}
-                style={{ cursor: 'pointer' }}
-                onMouseEnter={hoverIn(d.id)}
-                onClick={() => clickCounty(d.id)}
+                active={hover === d.id}
+                pointer
+                hoverable={!touch}
+                onEnter={boxEnter}
+                onPick={boxPick}
               />
             )
           })}
